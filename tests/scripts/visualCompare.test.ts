@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs"
@@ -21,7 +22,10 @@ afterEach(() => {
 })
 
 function fixture() {
-  const cwd = mkdtempSync(path.join(tmpdir(), "visual compare "))
+  // The compare CLI reports node's canonical process.cwd(); on macOS
+  // os.tmpdir() sits behind the /var → /private/var symlink, so build the
+  // fixture in canonical form to keep path assertions stable.
+  const cwd = realpathSync(mkdtempSync(path.join(tmpdir(), "visual compare ")))
   roots.push(cwd)
   const before = new PNG({ width: 2, height: 1 })
   before.data.set([255, 0, 0, 255, 0, 255, 0, 255])
