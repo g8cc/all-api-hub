@@ -1125,7 +1125,7 @@ describe("newApiProvider", () => {
       },
     )
 
-    it("does not add native page identity matching to Turnstile replay failures", async () => {
+    it("completes the check-in on the site's own page when the Turnstile token replay is refused", async () => {
       vi.mocked(newApiFamilyRequests.envelope).mockResolvedValueOnce({
         success: false,
         message: "Turnstile token invalid",
@@ -1137,13 +1137,69 @@ describe("newApiProvider", () => {
         error: "Turnstile token not available",
         turnstile: { status: "timeout", hasTurnstile: true },
       })
+      vi.mocked(tempWindowTriggerCheckinPageAction).mockResolvedValueOnce({
+        success: true,
+        reason: "clicked",
+        identity: { userId: "123", user: { id: "123" } },
+        trigger: {
+          status: "clicked",
+          clicked: true,
+          reason: "clicked",
+          detection: {
+            hasTurnstile: true,
+            reasons: ["cf-turnstile-class"],
+            score: 2,
+            title: "Check in",
+            url: "https://site.example.invalid/console/personal",
+          },
+          verification: { status: "completed", provider: "turnstile" },
+        },
+      })
+      vi.mocked(newApiFamilyRequests.data).mockResolvedValueOnce({
+        stats: { checked_in_today: false },
+      } as any)
+      mockCheckInStatusSequence(false, true)
+
+      const result = await checkInForTest(mockAccount)
+
+      expect(result.status).toBe("already_checked")
+      expect(tempWindowTurnstileFetch).toHaveBeenCalledTimes(1)
+      // The refused token replay is retried through the site's own check-in
+      // page, where the genuine Turnstile widget is the only thing that counts.
+      expect(tempWindowTriggerCheckinPageAction).toHaveBeenCalledTimes(1)
+    })
+
+    it("keeps a concrete Turnstile replay rejection instead of retrying through the page", async () => {
+      vi.mocked(newApiFamilyRequests.envelope).mockResolvedValueOnce({
+        success: false,
+        message: "Turnstile token 为空",
+        data: null,
+      })
+      vi.mocked(isAllowedIncognitoAccess).mockResolvedValueOnce(false)
+      vi.mocked(tempWindowTurnstileFetch).mockResolvedValueOnce({
+        success: true,
+        status: 200,
+        headers: {},
+        data: {
+          success: false,
+          message: "daily quota exhausted",
+          data: null,
+        },
+        turnstile: { status: "token_obtained", hasTurnstile: true },
+      } as any)
       vi.mocked(newApiFamilyRequests.data).mockResolvedValueOnce({
         stats: { checked_in_today: false },
       } as any)
 
       const result = await checkInForTest(mockAccount)
 
-      expect(result.status).toBe("failed")
+      expect(result).toEqual({
+        status: "failed",
+        reasonCode: "upstream_error",
+        rawMessage: "daily quota exhausted",
+        messageKey: undefined,
+        data: { success: false, message: "daily quota exhausted", data: null },
+      })
       expect(tempWindowTurnstileFetch).toHaveBeenCalledTimes(1)
       expect(tempWindowTriggerCheckinPageAction).not.toHaveBeenCalled()
     })

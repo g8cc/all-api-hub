@@ -8,6 +8,7 @@ export {
 export { handleCheckCloudflareGuard } from "./cloudflareGuard"
 export { handlePerformTempWindowFetch } from "./tempWindowFetch"
 export {
+  handleReadTurnstileSitekey,
   handleTriggerCheckinPageAction,
   handleWaitForTurnstileToken,
 } from "./turnstileGuard"

@@ -183,6 +183,8 @@ describe("userPreferences shared preference timestamps", () => {
           managed_site_model_sync: true,
         },
         tempContextMode: "tab",
+        turnstileSolver:
+          DEFAULT_PREFERENCES.tempWindowFallback!.turnstileSolver,
       })
     } finally {
       storageSetSpy.mockRestore()
@@ -238,6 +240,8 @@ describe("userPreferences shared preference timestamps", () => {
           managed_site_model_sync: true,
         },
         tempContextMode: "tab",
+        turnstileSolver:
+          DEFAULT_PREFERENCES.tempWindowFallback!.turnstileSolver,
       })
       expect(exported.tempWindowFallback).toEqual(
         storedAfter.tempWindowFallback,

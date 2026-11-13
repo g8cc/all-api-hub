@@ -875,6 +875,72 @@ describe("userPreferences", () => {
       })
     })
 
+    it("keeps the Turnstile solving credential off the backup", async () => {
+      await userPreferences.resetToDefaults()
+      await userPreferences.savePreferences({
+        tempWindowFallback: {
+          turnstileSolver: {
+            enabled: true,
+            endpoint: "https://my-solver.example",
+            apiKey: "sk-device-local",
+            mode: "page_before_api",
+            timeoutMs: 45_000,
+          },
+        },
+      })
+
+      const exported = await userPreferences.exportPreferencesForBackup()
+
+      // The service choice is a preference and travels; the paid credential is
+      // not, so no shared backup can spend someone else's quota.
+      expect(exported.tempWindowFallback!.turnstileSolver).toEqual({
+        enabled: true,
+        endpoint: "https://my-solver.example",
+        apiKey: "",
+        mode: "page_before_api",
+        timeoutMs: 45_000,
+      })
+      // The device keeps working exactly as configured.
+      const stored = await userPreferences.getPreferences()
+      expect(stored.tempWindowFallback!.turnstileSolver?.apiKey).toBe(
+        "sk-device-local",
+      )
+    })
+
+    it("restores a shared profile without overwriting the local solving credential", async () => {
+      await userPreferences.resetToDefaults()
+      await userPreferences.savePreferences({
+        tempWindowFallback: {
+          turnstileSolver: {
+            enabled: true,
+            endpoint: "https://device-a.example",
+            apiKey: "sk-on-this-device",
+            mode: "api_before_page",
+            timeoutMs: 30_000,
+          },
+        },
+      })
+
+      const shared = await userPreferences.exportPreferencesForBackup()
+      shared.tempWindowFallback!.windowWidth = 900
+      shared.tempWindowFallback!.turnstileSolver!.endpoint =
+        "https://device-b.example"
+
+      const result = await userPreferences.importPreferences(shared, {
+        preserveWebdav: true,
+      })
+
+      expect(result).toMatchObject({ ok: true })
+      const stored = await userPreferences.getPreferences()
+      // The shared service address is taken, the local credential survives, and
+      // an empty key from another device never lands here.
+      expect(stored.tempWindowFallback!.windowWidth).toBe(900)
+      expect(stored.tempWindowFallback!.turnstileSolver).toMatchObject({
+        endpoint: "https://device-b.example",
+        apiKey: "sk-on-this-device",
+      })
+    })
+
     it("removes all cloud credentials when GitHub Gist is active", async () => {
       await userPreferences.resetToDefaults()
       await userPreferences.updateWebdavSettings({

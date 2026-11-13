@@ -206,6 +206,8 @@ export const RuntimeActionIds = {
   ContentCheckCloudflareGuard: "checkCloudflareGuard",
   ContentCheckAliyunGuard: "checkAliyunGuard",
   ContentWaitForTurnstileToken: "waitForTurnstileToken",
+  // Reads the public Turnstile site key so a solving service can be consulted.
+  ContentReadTurnstileSitekey: "readTurnstileSitekey",
   TurnstileRequestUserAssist: "turnstileRequestUserAssist",
   TurnstileReadPageApi: "turnstileReadPageApi",
   TurnstileAssistPageNotice: "turnstileAssistPageNotice",

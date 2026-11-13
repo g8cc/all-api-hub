@@ -24,6 +24,7 @@ import {
   fetchCheckedInTodayStatus,
   getProviderErrorMessage,
   isCheckInDisabled,
+  NEW_API_MESSAGE_KEYS,
   probeCheckInRoute,
   resolveCheckInEndpoint,
   resolveStandardCheckinResult,
@@ -156,6 +157,82 @@ function shouldAttemptNativePageCheckinFallback(params: {
 }
 
 /**
+ * Decide whether a refused Turnstile token replay should be retried through the
+ * site's own check-in page inside a temporary window.
+ *
+ * Only a refused *verification* qualifies: the attempt was rejected before any
+ * award, so a second, different execution path is the same daily operation and
+ * cannot double-claim. A concrete backend rejection (quota exhausted, business
+ * rule) is the site's answer and must be preserved. An incognito-permission
+ * prompt is an operator action, not something a page click can resolve.
+ */
+function shouldAttemptShieldedNativePageCheckin(
+  assisted: CheckinResult,
+): boolean {
+  if (
+    assisted.status !== CHECKIN_RESULT_STATUS.FAILED ||
+    assisted.reasonCode !==
+      AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED
+  ) {
+    return false
+  }
+  return (
+    assisted.messageKey !==
+    NEW_API_MESSAGE_KEYS.turnstileIncognitoAccessRequired
+  )
+}
+
+/**
+ * Run the account's check-in on its own page in a temporary window, where the
+ * genuine Turnstile widget is the only thing that has to succeed.
+ *
+ * The page action clicks the site's own button and waits for whatever
+ * verification it opens, so the deployment decides how its shield is satisfied.
+ * Readback stays authoritative: a page click is never reported as success.
+ */
+async function resolveShieldedNativePageCheckin(params: {
+  account: SiteAccount
+  failure: CheckinResult
+  responseMessage: string
+  tempWindowRequestSource: TempWindowRequestSource
+  protectionBypassExecution: ProtectionBypassExecution
+}): Promise<CheckinResult> {
+  const nativeResult = await resolveNativePageCheckinResult({
+    account: params.account,
+    responseMessage: params.responseMessage,
+    tempWindowRequestSource: params.tempWindowRequestSource,
+    protectionBypassExecution: params.protectionBypassExecution,
+  })
+
+  if (nativeResult.status !== CHECKIN_RESULT_STATUS.FAILED) return nativeResult
+
+  // Keep the more actionable evidence: the page attempt knows whether the site
+  // still demanded human verification, the token replay only knew it was refused.
+  const data = nativeResult.data ?? params.failure.data
+
+  // Both paths failed because the site kept its shield up. The user has to
+  // finish the verification on the site, so say exactly that instead of
+  // reporting the page attempt as an unavailable page.
+  if (
+    params.failure.reasonCode ===
+    AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED
+  ) {
+    const checkInUrl = nativeResult.messageParams?.checkInUrl
+    return {
+      status: CHECKIN_RESULT_STATUS.FAILED,
+      reasonCode: AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED,
+      messageKey:
+        AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.nativePageVerificationRequired,
+      ...(checkInUrl ? { messageParams: { checkInUrl } } : {}),
+      rawMessage: nativeResult.rawMessage ?? params.failure.rawMessage,
+      data,
+    }
+  }
+
+  return { ...nativeResult, data }
+}
+
+/**
  * Call the account's check-in route to perform the daily check-in.
  */
 async function performCheckin(
@@ -266,12 +343,28 @@ async function checkinNewApi(
       isTurnstileRequiredMessage(responseMessage) &&
       !checkinResponse.success
     ) {
-      return await resolveTurnstileAssistedCheckinResult({
+      const assisted = await resolveTurnstileAssistedCheckinResult({
         account,
         responseMessage,
         tempWindowRequestSource,
         protectionBypassExecution: context.protectionBypassExecution,
       })
+
+      // The token replay can be refused for reasons the extension cannot read
+      // (token placement, per-deployment field names, a second verification
+      // layer). The site's own check-in page inside a temporary window runs the
+      // genuine Turnstile widget, so it is the reliable second attempt.
+      if (shouldAttemptShieldedNativePageCheckin(assisted)) {
+        return await resolveShieldedNativePageCheckin({
+          account,
+          failure: assisted,
+          responseMessage,
+          tempWindowRequestSource,
+          protectionBypassExecution: context.protectionBypassExecution,
+        })
+      }
+
+      return assisted
     }
 
     if (

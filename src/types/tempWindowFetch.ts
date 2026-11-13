@@ -1,6 +1,7 @@
 import type { AccountSiteType } from "~/constants/siteType"
 import type { ApiErrorCode } from "~/services/apiTransport/errors"
 import type { ApiOperationSemantics } from "~/services/apiTransport/type"
+import type { TurnstileSolverFailureCode } from "~/services/checkin/turnstile/solverContracts"
 import type {
   ProtectionBypassExecution,
   TempWindowFetchTaskKind,
@@ -99,9 +100,24 @@ export const TEMP_WINDOW_TURNSTILE_STATUSES = {
 export type TempWindowTurnstileStatus =
   (typeof TEMP_WINDOW_TURNSTILE_STATUSES)[keyof typeof TEMP_WINDOW_TURNSTILE_STATUSES]
 
+/**
+ * Outcome of the optional solving service, kept separate from `status` because
+ * the token that finally produced the result may come from either source.
+ */
+export interface TempWindowTurnstileSolverMeta {
+  /** Whether a solve request was attempted at all. */
+  attempted: boolean
+  /** Whether the service returned a usable token. */
+  ok: boolean
+  /** Why the service did not help; absent when it succeeded. */
+  code?: TurnstileSolverFailureCode
+  elapsedMs?: number
+}
+
 export interface TempWindowTurnstileMeta {
   status: TempWindowTurnstileStatus
   hasTurnstile: boolean
+  solver?: TempWindowTurnstileSolverMeta
 }
 
 export interface TempWindowTurnstileFetchParams extends TempWindowFetchParams {

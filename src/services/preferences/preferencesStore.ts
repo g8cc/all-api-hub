@@ -414,6 +414,19 @@ export class PreferencesStore {
     delete sanitized.webdavUsername
     delete sanitized.webdavPassword
 
+    // A Turnstile solving credential pays per request and identifies its holder,
+    // so it stays on the device that typed it. The shared part of the setting —
+    // which service, in which order, for how long — still travels.
+    if (sanitized.tempWindowFallback?.turnstileSolver) {
+      sanitized.tempWindowFallback = {
+        ...sanitized.tempWindowFallback,
+        turnstileSolver: {
+          ...sanitized.tempWindowFallback.turnstileSolver,
+          apiKey: "",
+        },
+      }
+    }
+
     return sanitized
   }
 

@@ -24,6 +24,7 @@ export const SETTINGS_ANCHORS = {
   SHIELD_HISTORY: "shield-history",
   SHIELD_WINDOW_SIZE: "shield-window-size",
   SHIELD_TURNSTILE_ASSIST: "shield-turnstile-assist",
+  SHIELD_TURNSTILE_SOLVER: "shield-turnstile-solver",
   TASK_NOTIFICATIONS: "task-notifications",
   TASK_NOTIFICATIONS_ENABLED: "task-notifications-enabled",
   TASK_NOTIFICATION_CHANNELS: "task-notification-channels",

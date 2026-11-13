@@ -2,6 +2,7 @@ import { DATA_TYPE_BALANCE, DATA_TYPE_CASHFLOW } from "~/constants"
 import { SITE_TYPES } from "~/constants/siteType"
 import { DEFAULT_THEME_MODE } from "~/constants/theme"
 import { DEFAULT_TURNSTILE_ASSIST_PRESENTATION } from "~/services/checkin/turnstile/assistPresentation"
+import { DEFAULT_TURNSTILE_SOLVER_PREFERENCES } from "~/services/checkin/turnstile/solverPreferences"
 import {
   DEFAULT_REDEMPTION_ASSIST_PREFERENCES,
   DEFAULT_WEB_AI_API_CHECK_PREFERENCES,
@@ -120,6 +121,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
     automaticFeatureBypass: DEFAULT_AUTOMATIC_FEATURE_BYPASS,
     tempContextMode: DEFAULT_TEMP_CONTEXT_PREFERENCE,
     turnstileAssistPresentation: DEFAULT_TURNSTILE_ASSIST_PRESENTATION,
+    turnstileSolver: DEFAULT_TURNSTILE_SOLVER_PREFERENCES,
   },
   tempWindowFallbackReminder: {
     dismissed: false,

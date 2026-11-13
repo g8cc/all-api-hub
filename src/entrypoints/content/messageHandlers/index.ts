@@ -11,6 +11,7 @@ import {
   handleOpenRouterManagementKeyAction,
   handlePerformTempWindowFetch,
   handlePrepareAgentRouterOAuth,
+  handleReadTurnstileSitekey,
   handleRequestyManagementKeyAction,
   handleShowShieldBypassUi,
   handleTriggerCheckinPageAction,
@@ -166,6 +167,10 @@ export function setupContentMessageHandlers() {
 
     if (request.action === RuntimeActionIds.ContentWaitForTurnstileToken) {
       return handleWaitForTurnstileToken(request, sendResponse)
+    }
+
+    if (request.action === RuntimeActionIds.ContentReadTurnstileSitekey) {
+      return handleReadTurnstileSitekey(request, sendResponse)
     }
 
     if (request.action === RuntimeActionIds.ContentTriggerCheckinPageAction) {

@@ -14,12 +14,16 @@ import {
   capturePageVerificationWidgets,
   waitForPageVerification,
 } from "~/services/checkin/pageVerification"
+import { extractTurnstileWidgetParams } from "~/services/checkin/turnstile/sitekey"
+import {
+  TURNSTILE_SOLVER_SITEKEY_POLL_MS,
+  TURNSTILE_SOLVER_SITEKEY_WAIT_MS,
+} from "~/services/checkin/turnstile/solverConstants"
 import type {
   CheckinPageActionTriggerResult,
   TurnstilePreTrigger,
   TurnstileTokenWaitResult,
 } from "~/types/turnstile"
-import { TURNSTILE_PRE_TRIGGER_KINDS } from "~/types/turnstile"
 import { sendRuntimeMessage } from "~/utils/browser/runtimeMessages"
 import { getErrorMessage } from "~/utils/core/error"
 import { createLogger } from "~/utils/core/logger"
@@ -158,6 +162,63 @@ export function handleWaitForTurnstileToken(
 }
 
 /**
+ * Reads the page's public Turnstile site key without touching the widget.
+ *
+ * A key is usually already present in the markup; the short wait only covers a
+ * late render. This never clicks anything, so it cannot consume the day's
+ * check-in or start a challenge.
+ */
+export function handleReadTurnstileSitekey(
+  request: { timeoutMs?: unknown },
+  sendResponse: (res: {
+    success: boolean
+    sitekey: string | null
+    action?: string | null
+    cdata?: string | null
+  }) => void,
+) {
+  const perform = async () => {
+    try {
+      const requested = Number(request?.timeoutMs)
+      const timeoutMs =
+        Number.isFinite(requested) && requested >= 0
+          ? Math.min(10_000, requested)
+          : TURNSTILE_SOLVER_SITEKEY_WAIT_MS
+      const deadline = Date.now() + timeoutMs
+
+      let widget = extractTurnstileWidgetParams()
+      while (!widget.sitekey && Date.now() < deadline) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, TURNSTILE_SOLVER_SITEKEY_POLL_MS),
+        )
+        widget = extractTurnstileWidgetParams()
+      }
+
+      logger.debug("Turnstile site key read", {
+        found: Boolean(widget.sitekey),
+        bound: Boolean(widget.action || widget.cdata),
+        elapsedMs: Date.now() - (deadline - timeoutMs),
+      })
+
+      sendResponse({
+        success: true,
+        sitekey: widget.sitekey,
+        action: widget.action,
+        cdata: widget.cdata,
+      })
+    } catch (error) {
+      logger.warn("Turnstile site key read failed", {
+        error: getErrorMessage(error),
+      })
+      sendResponse({ success: false, sitekey: null, action: null, cdata: null })
+    }
+  }
+
+  void perform()
+  return true
+}
+
+/**
  * Handle native page check-in action trigger requests.
  *
  * Clicks the page action and observes any verification it opens. Server-side
@@ -169,7 +230,9 @@ export function handleTriggerCheckinPageAction(
 ) {
   const perform = async () => {
     try {
-      if (request.trigger?.kind === TURNSTILE_PRE_TRIGGER_KINDS.ClickSelector) {
+      // Any trigger kind may name a read-only render wait; the helper no-ops when
+      // the trigger does not ask for one.
+      if (request.trigger) {
         await waitForCheckinPageActionTarget(request.trigger)
       }
       const existingWidgets = capturePageVerificationWidgets()

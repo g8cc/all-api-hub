@@ -2,6 +2,9 @@ import { RuntimeActionIds } from "~/constants/runtimeActions"
 import { TURNSTILE_DEFAULT_QUERY_PARAM_NAME } from "~/constants/turnstile"
 import { type ApiErrorCode } from "~/services/apiTransport/errors"
 import { applyLocalRemoteFetchResultEvidence } from "~/services/apiTransport/remoteLifecycle"
+import { TURNSTILE_SOLVER_MODES } from "~/services/checkin/turnstile/solverConstants"
+import { normalizeTurnstileSolverPreferences } from "~/services/checkin/turnstile/solverPreferences"
+import { userPreferences } from "~/services/preferences/userPreferences"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_RESULTS,
@@ -39,6 +42,10 @@ import {
   TURNSTILE_TOKEN_UNAVAILABLE_ERROR,
 } from "./failures"
 import { tempWindowBackgroundRuntime } from "./runtime"
+import {
+  attemptTurnstileSolver,
+  shouldUseTurnstileSolver,
+} from "./turnstileSolverAttempt"
 
 /**
  * 在临时上下文中执行跨域 fetch 请求，用于绕过需要真实浏览器环境的接口访问。
@@ -338,33 +345,94 @@ export async function executeTempWindowTurnstileFetch(
       origin: normalizeOrigin(originUrl),
     })
 
-    const turnstileResponse = await sendTabMessageWithRetry(tabId, {
-      action: RuntimeActionIds.ContentWaitForTurnstileToken,
-      requestId: tempRequestId,
-      timeoutMs: turnstileTimeoutMs,
-      preTrigger: turnstilePreTrigger,
-    })
+    const solverPreferences = normalizeTurnstileSolverPreferences(
+      (await userPreferences.getPreferences()).tempWindowFallback
+        ?.turnstileSolver,
+    )
 
-    const token =
-      turnstileResponse?.success &&
-      typeof turnstileResponse?.token === "string" &&
-      turnstileResponse.token.trim()
-        ? turnstileResponse.token.trim()
-        : null
+    let token: string | null = null
 
-    const status =
-      turnstileResponse?.success &&
-      typeof turnstileResponse?.status === "string"
-        ? String(turnstileResponse.status)
-        : TEMP_WINDOW_TURNSTILE_STATUSES.Error
+    // Order matters for cost and for the user: by default the service answers
+    // before the page is asked for a token, so a Turnstile-only site is checked
+    // in with no interaction and nothing brought to the front. `page_before_api`
+    // keeps the free in-page attempt first.
+    if (
+      shouldUseTurnstileSolver({
+        preferences: solverPreferences,
+        mode: TURNSTILE_SOLVER_MODES.ApiBeforePage,
+      })
+    ) {
+      const attempt = await attemptTurnstileSolver({
+        tabId,
+        pageUrl,
+        preferences: solverPreferences,
+      })
+      // The block only records a request that actually went out, so a run
+      // that never used the service keeps the result shape it had before.
+      if (attempt.meta.attempted) turnstile.solver = attempt.meta
+      if (attempt.token) {
+        token = attempt.token
+        turnstile.status = TEMP_WINDOW_TURNSTILE_STATUSES.TokenObtained
+        turnstile.hasTurnstile = attempt.sitekeyFound
+      }
+    }
 
-    turnstile.status =
-      status === TEMP_WINDOW_TURNSTILE_STATUSES.NotPresent ||
-      status === TEMP_WINDOW_TURNSTILE_STATUSES.TokenObtained ||
-      status === TEMP_WINDOW_TURNSTILE_STATUSES.Timeout
-        ? status
-        : TEMP_WINDOW_TURNSTILE_STATUSES.Error
-    turnstile.hasTurnstile = Boolean(turnstileResponse?.detection?.hasTurnstile)
+    if (!token) {
+      const turnstileResponse = await sendTabMessageWithRetry(tabId, {
+        action: RuntimeActionIds.ContentWaitForTurnstileToken,
+        requestId: tempRequestId,
+        timeoutMs: turnstileTimeoutMs,
+        preTrigger: turnstilePreTrigger,
+      })
+
+      token =
+        turnstileResponse?.success &&
+        typeof turnstileResponse?.token === "string" &&
+        turnstileResponse.token.trim()
+          ? turnstileResponse.token.trim()
+          : null
+
+      const status =
+        turnstileResponse?.success &&
+        typeof turnstileResponse?.status === "string"
+          ? String(turnstileResponse.status)
+          : TEMP_WINDOW_TURNSTILE_STATUSES.Error
+
+      turnstile.status =
+        status === TEMP_WINDOW_TURNSTILE_STATUSES.NotPresent ||
+        status === TEMP_WINDOW_TURNSTILE_STATUSES.TokenObtained ||
+        status === TEMP_WINDOW_TURNSTILE_STATUSES.Timeout
+          ? status
+          : TEMP_WINDOW_TURNSTILE_STATUSES.Error
+      turnstile.hasTurnstile = Boolean(
+        turnstileResponse?.detection?.hasTurnstile,
+      )
+
+      // The page could not produce a token on its own; the service is the last
+      // automatic option before this run is reported as needing the user. This
+      // second ask belongs to `page_before_api` only: when the service already
+      // answered first and failed, asking again would charge twice and would run
+      // after the user was already invited, which is not what they configured.
+      if (
+        !token &&
+        shouldUseTurnstileSolver({
+          preferences: solverPreferences,
+          mode: TURNSTILE_SOLVER_MODES.PageBeforeApi,
+        })
+      ) {
+        const attempt = await attemptTurnstileSolver({
+          tabId,
+          pageUrl,
+          preferences: solverPreferences,
+        })
+        if (attempt.meta.attempted) turnstile.solver = attempt.meta
+        if (attempt.token) {
+          token = attempt.token
+          turnstile.status = TEMP_WINDOW_TURNSTILE_STATUSES.TokenObtained
+          turnstile.hasTurnstile = true
+        }
+      }
+    }
 
     if (!token) {
       sendResponse({

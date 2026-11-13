@@ -46,6 +46,9 @@ vi.mock(
 
 vi.mock("~/entrypoints/content/messageHandlers/utils/turnstileGuard", () => ({
   triggerCheckinPageAction: triggerCheckinPageActionMock,
+  // The handler waits for the trigger target before clicking, so the stand-in
+  // must resolve at once: target discovery is covered by its own suite.
+  waitForCheckinPageActionTarget: vi.fn(async () => {}),
   waitForTurnstileToken: waitForTurnstileTokenMock,
 }))
 

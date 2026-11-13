@@ -152,6 +152,35 @@ export function buildWebdavSharedPreferences(
 }
 
 /**
+ * Keeps this device's Turnstile solving credential through a shared restore.
+ *
+ * Backups export the block with an empty key, so taking the shared value as the
+ * whole answer would silently disable a working automatic check-in.
+ */
+function keepLocalTurnstileSolverApiKey<
+  T extends { turnstileSolver?: { apiKey?: string } | undefined },
+>(
+  importedFallback: T | undefined,
+  localFallback: T | undefined,
+): T | undefined {
+  if (!importedFallback || !localFallback) return importedFallback
+
+  const localKey = localFallback.turnstileSolver?.apiKey
+  if (typeof localKey !== "string" || !localKey) return importedFallback
+  if (importedFallback.turnstileSolver?.apiKey === localKey) {
+    return importedFallback
+  }
+
+  return {
+    ...importedFallback,
+    turnstileSolver: {
+      ...importedFallback.turnstileSolver,
+      apiKey: localKey,
+    },
+  } as T
+}
+
+/**
  * Reapplies the current device's WebDAV-local preference fields onto an
  * imported/shared preference snapshot before it is saved locally.
  */
@@ -167,6 +196,18 @@ export function restoreWebdavLocalOnlyPreferences(
     accountAutoRefresh:
       localPreferences.accountAutoRefresh ?? DEFAULT_ACCOUNT_AUTO_REFRESH,
     webdav: localPreferences.webdav ?? DEFAULT_WEBDAV_SETTINGS,
+    // The solving credential is device-local: a shared profile never carries one,
+    // and restoring a shared profile must not drop or replace what this device
+    // already holds.
+    ...(localPreferences.tempWindowFallback ||
+    normalizedPreferences.tempWindowFallback
+      ? {
+          tempWindowFallback: keepLocalTurnstileSolverApiKey(
+            normalizedPreferences.tempWindowFallback,
+            localPreferences.tempWindowFallback,
+          ),
+        }
+      : {}),
     lastUpdated:
       typeof normalizedPreferences.lastUpdated === "number"
         ? normalizedPreferences.lastUpdated
