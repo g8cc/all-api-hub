@@ -255,14 +255,24 @@ export default defineConfig({
             },
           }
         : undefined,
-      commands: {
-        _execute_sidebar_action: {
-          description: "__MSG_manifest_commands_sidebar_action__",
-        },
-        _execute_browser_action: {
-          description: "__MSG_manifest_commands_browser_action__",
-        },
-      },
+      // Reserved shortcut names differ per browser, and a name the platform does
+      // not know is dropped with a manifest warning while its shortcut stays
+      // unassignable. Chrome and Safari renamed the MV2 `_execute_browser_action`
+      // to `_execute_action`; `_execute_sidebar_action` only exists in Firefox.
+      commands: isFirefoxManifestTarget(env.browser)
+        ? {
+            _execute_sidebar_action: {
+              description: "__MSG_manifest_commands_sidebar_action__",
+            },
+            _execute_browser_action: {
+              description: "__MSG_manifest_commands_browser_action__",
+            },
+          }
+        : {
+            _execute_action: {
+              description: "__MSG_manifest_commands_browser_action__",
+            },
+          },
       sandbox:
         env.browser === "safari"
           ? undefined
