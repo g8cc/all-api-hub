@@ -24,8 +24,14 @@ export const TURNSTILE_SOLVER_DEFAULT_ENDPOINT = "https://solver.000.moe"
  * With no credential the service is off and the built-in page and manual paths
  * are the only ones used.
  */
+/**
+ * Optional chaining is deliberate: Playwright loads specs straight from source,
+ * where no bundler has defined `import.meta.env`, and this module is reached
+ * through the check-in chain. A bare read would throw during E2E collection and
+ * take every shard down with it, exactly as `getRuntimeMode` already guards.
+ */
 export const TURNSTILE_SOLVER_DEFAULT_API_KEY: string = String(
-  import.meta.env.VITE_TURNSTILE_SOLVER_API_KEY ?? "",
+  import.meta.env?.VITE_TURNSTILE_SOLVER_API_KEY ?? "",
 ).trim()
 
 /** Budget for one solve request; the service renders the widget server-side. */

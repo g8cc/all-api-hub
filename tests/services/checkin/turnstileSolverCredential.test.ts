@@ -33,9 +33,10 @@ const solverKeyDeclaration = () => {
 }
 
 describe("Turnstile solver credential source", () => {
-  it("takes the API key from the build environment only", () => {
+  it("takes the API key from the guarded build environment only", () => {
+    // The optional chain keeps plain Node loaders (Playwright specs) alive.
     expect(solverKeyDeclaration()).toContain(
-      "import.meta.env.VITE_TURNSTILE_SOLVER_API_KEY",
+      "import.meta.env?.VITE_TURNSTILE_SOLVER_API_KEY",
     )
   })
 
