@@ -381,6 +381,11 @@ export function getProviderErrorMessage(error: unknown): string {
  *
  * This is an advanced escape hatch for sites that only render Turnstile after a
  * user action (e.g. clicking a "check-in" button).
+ *
+ * How long the page waits for that action to render is a property of the page
+ * observation, not of the pre-trigger: the content script waits for a
+ * label-based action by default, so a dashboard that renders its button from an
+ * API response is still reached.
  */
 export function resolveTurnstilePreTrigger(
   account: SiteAccount,

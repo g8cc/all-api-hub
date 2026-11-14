@@ -120,7 +120,7 @@ export async function resolveNativePageCheckinResult(params: {
     }
   }
 
-  if (!action.success || action.reason !== "clicked") {
+  if (!action || !action.success || action.reason !== "clicked") {
     return resolveNativePageFailureResult({ action, checkInUrl })
   }
 

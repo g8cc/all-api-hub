@@ -18,6 +18,8 @@ import {
 } from "~/features/BasicSettings/components/tabs/Refresh/protectionBypass/protectionBypassDevTriggerRuntime"
 import ShieldSettings from "~/features/BasicSettings/components/tabs/Refresh/protectionBypass/ShieldSettings"
 import { SHIELD_SETTINGS_TARGET_IDS } from "~/features/BasicSettings/components/tabs/Refresh/searchTargets"
+import { TURNSTILE_SOLVER_MODES } from "~/services/checkin/turnstile/solverConstants"
+import { DEFAULT_TURNSTILE_SOLVER_PREFERENCES } from "~/services/checkin/turnstile/solverPreferences"
 import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import {
   PROTECTION_BYPASS_AUTOMATIC_FEATURES,
@@ -184,6 +186,39 @@ describe("ShieldSettings", () => {
   const updateTempWindowFallback = vi.fn()
   let focusObservationController = createFocusObservationController()
 
+  /**
+   * The shield profile every test starts from, kept in one place so a seeded
+   * variation cannot drift from what beforeEach installs.
+   */
+  const defaultShieldPreferences = () => ({
+    enabled: true,
+    automaticFeatureBypass: {
+      account_refresh: true,
+      balance_history: true,
+      checkin: true,
+      redemption_assist: true,
+      ldoh_site_lookup: true,
+      key_management: true,
+      managed_site_channels: true,
+      managed_site_model_sync: true,
+    },
+    tempContextMode: "composite" as const,
+  })
+
+  /**
+   * Stores one solver field on top of the default shield profile, so a test can
+   * describe only the part of the nested block it cares about.
+   */
+  function applySolverPreferences(solver: Record<string, unknown>) {
+    useUserPreferencesContextMock.mockReturnValue({
+      tempWindowFallback: {
+        ...defaultShieldPreferences(),
+        turnstileSolver: solver,
+      },
+      updateTempWindowFallback,
+    })
+  }
+
   it("automatically saves valid window dimensions on blur and immediately restores defaults", async () => {
     const user = userEvent.setup()
     const { rerender } = render(<ShieldSettings />, {
@@ -252,6 +287,160 @@ describe("ShieldSettings", () => {
     expect(updateTempWindowFallback).toHaveBeenCalledWith({
       turnstileAssistPresentation: "quiet",
     })
+  })
+
+  it("follows the shipped default when a profile predates the feature", () => {
+    render(<ShieldSettings />, {
+      withUserPreferencesProvider: false,
+      withThemeProvider: false,
+    })
+
+    // The shipped default is enabled only when the build carries a credential,
+    // so the switch has to agree with the constant instead of a fixed answer.
+    const toggle = screen.getByRole("switch", {
+      name: "settings:refresh.shieldTurnstileSolverEnabled",
+    })
+    if (DEFAULT_TURNSTILE_SOLVER_PREFERENCES.enabled) {
+      expect(toggle).toBeChecked()
+    } else {
+      expect(toggle).not.toBeChecked()
+    }
+  })
+
+  it("switches the Turnstile solving service without dropping its other fields", async () => {
+    const user = userEvent.setup()
+    applySolverPreferences({
+      ...DEFAULT_TURNSTILE_SOLVER_PREFERENCES,
+      enabled: true,
+    })
+    render(<ShieldSettings />, {
+      withUserPreferencesProvider: false,
+      withThemeProvider: false,
+    })
+    const toggle = screen.getByRole("switch", {
+      name: "settings:refresh.shieldTurnstileSolverEnabled",
+    })
+    expect(toggle).toBeChecked()
+
+    await user.click(toggle)
+
+    expect(updateTempWindowFallback).toHaveBeenLastCalledWith({
+      turnstileSolver: {
+        ...DEFAULT_TURNSTILE_SOLVER_PREFERENCES,
+        enabled: false,
+      },
+    })
+  })
+
+  it("keeps the endpoint and the order when only the API key is edited", async () => {
+    const user = userEvent.setup()
+    applySolverPreferences({
+      ...DEFAULT_TURNSTILE_SOLVER_PREFERENCES,
+      enabled: true,
+      endpoint: "https://my-solver.example",
+      mode: TURNSTILE_SOLVER_MODES.PageBeforeApi,
+      timeoutMs: 45_000,
+    })
+    render(<ShieldSettings />, {
+      withUserPreferencesProvider: false,
+      withThemeProvider: false,
+    })
+    const apiKey = screen.getByLabelText(
+      "settings:refresh.shieldTurnstileSolverApiKey",
+    )
+    await user.clear(apiKey)
+    await user.type(apiKey, "sk-replaced")
+    await user.tab()
+
+    expect(updateTempWindowFallback).toHaveBeenLastCalledWith({
+      turnstileSolver: {
+        enabled: true,
+        endpoint: "https://my-solver.example",
+        apiKey: "sk-replaced",
+        mode: TURNSTILE_SOLVER_MODES.PageBeforeApi,
+        timeoutMs: 45_000,
+      },
+    })
+  })
+
+  it("keeps an emptied API key empty instead of restoring the shipped one", async () => {
+    const user = userEvent.setup()
+    applySolverPreferences({ apiKey: "sk-to-remove" })
+    render(<ShieldSettings />, {
+      withUserPreferencesProvider: false,
+      withThemeProvider: false,
+    })
+    const apiKey = screen.getByLabelText(
+      "settings:refresh.shieldTurnstileSolverApiKey",
+    )
+    await user.clear(apiKey)
+    await user.tab()
+
+    expect(updateTempWindowFallback).toHaveBeenLastCalledWith({
+      turnstileSolver: {
+        ...DEFAULT_TURNSTILE_SOLVER_PREFERENCES,
+        apiKey: "",
+      },
+    })
+  })
+
+  it("explains that an empty API key leaves the built-in flow in place", () => {
+    applySolverPreferences({ apiKey: "" })
+    render(<ShieldSettings />, {
+      withUserPreferencesProvider: false,
+      withThemeProvider: false,
+    })
+
+    expect(
+      screen.getByText("settings:refresh.shieldTurnstileSolverKeyMissing"),
+    ).toBeInTheDocument()
+  })
+
+  it("stores the solving order chosen in the page", async () => {
+    const user = userEvent.setup()
+    render(<ShieldSettings />, {
+      withUserPreferencesProvider: false,
+      withThemeProvider: false,
+    })
+    await user.click(
+      screen.getByRole("button", {
+        name: "settings:refresh.shieldTurnstileSolverModePageFirst",
+      }),
+    )
+
+    expect(updateTempWindowFallback).toHaveBeenLastCalledWith({
+      turnstileSolver: {
+        ...DEFAULT_TURNSTILE_SOLVER_PREFERENCES,
+        mode: TURNSTILE_SOLVER_MODES.PageBeforeApi,
+      },
+    })
+  })
+
+  it("saves the solve budget in milliseconds and rejects an out-of-range one", async () => {
+    const user = userEvent.setup()
+    render(<ShieldSettings />, {
+      withUserPreferencesProvider: false,
+      withThemeProvider: false,
+    })
+    const timeout = screen.getByRole("spinbutton", {
+      name: "settings:refresh.shieldTurnstileSolverTimeout",
+    })
+
+    await user.clear(timeout)
+    await user.type(timeout, "45")
+    await user.tab()
+    expect(updateTempWindowFallback).toHaveBeenLastCalledWith({
+      turnstileSolver: {
+        ...DEFAULT_TURNSTILE_SOLVER_PREFERENCES,
+        timeoutMs: 45_000,
+      },
+    })
+
+    updateTempWindowFallback.mockClear()
+    await user.clear(timeout)
+    await user.type(timeout, "300")
+    await user.tab()
+    expect(updateTempWindowFallback).not.toHaveBeenCalled()
   })
 
   it("keeps a failed window-size draft available for retry", async () => {
@@ -343,20 +532,7 @@ describe("ShieldSettings", () => {
     isDevelopmentModeMock.mockReturnValue(false)
     isProtectionBypassFirefoxEnvMock.mockReturnValue(false)
     useUserPreferencesContextMock.mockReturnValue({
-      tempWindowFallback: {
-        enabled: true,
-        automaticFeatureBypass: {
-          account_refresh: true,
-          balance_history: true,
-          checkin: true,
-          redemption_assist: true,
-          ldoh_site_lookup: true,
-          key_management: true,
-          managed_site_channels: true,
-          managed_site_model_sync: true,
-        },
-        tempContextMode: "composite",
-      },
+      tempWindowFallback: defaultShieldPreferences(),
       updateTempWindowFallback,
     })
   })

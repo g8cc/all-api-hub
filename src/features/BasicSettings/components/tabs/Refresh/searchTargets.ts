@@ -7,6 +7,7 @@ export const SHIELD_SETTINGS_TARGET_IDS = {
   enabled: "shield-enabled",
   method: "shield-method",
   turnstileAssist: SETTINGS_ANCHORS.SHIELD_TURNSTILE_ASSIST,
+  turnstileSolver: SETTINGS_ANCHORS.SHIELD_TURNSTILE_SOLVER,
   windowSize: SETTINGS_ANCHORS.SHIELD_WINDOW_SIZE,
   automaticFeatures: "shield-automatic-features",
   feature: {
@@ -25,6 +26,7 @@ export const SHIELD_SETTINGS_TARGET_IDS = {
   enabled: string
   method: string
   turnstileAssist: string
+  turnstileSolver: string
   windowSize: string
   automaticFeatures: string
   feature: Record<ProtectionBypassAutomaticFeature, string>

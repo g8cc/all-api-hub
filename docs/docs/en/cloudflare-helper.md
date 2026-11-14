@@ -31,6 +31,22 @@ History retains the latest **100 records** on this device. It records new tempor
 
 **Completed** means that the temporary-page task returned a completion result. Use the final refresh, check-in, or other operation result to confirm whether the account is working again.
 
+## Turnstile auto pass service (optional)
+
+Some New API style deployments put the check-in endpoint behind a Cloudflare Turnstile shield. The extension can satisfy it in two ways:
+
+- **Built-in path (default)**: a temporary window loads the site's own check-in page and waits for the widget. Invisible widgets pass on their own; an interactive one asks you for a single click.
+- **Third-party solver**: enter a service URL and API key in **Settings → Data Refresh → Website verification assistance → Turnstile auto pass**. The extension gets the token from that service while the verification window stays in the background, so a site whose only obstacle is Turnstile completes with no click and nothing brought to the front.
+
+Details:
+
+- **Turnstile only.** The solver returns a Turnstile token and nothing else. Image captchas, sliders and a second verification layer are never sent to it; those sites still ask you to finish the check by hand, exactly as before.
+- **Request order.** **Service first** (default) asks the solver up front and only falls back to waiting on the page when it cannot help. **Page first** lets the page try silently and asks the solver only when the page produced no token, which spends less credit.
+- **Failure never becomes an error.** If the service is unreachable, rejects the request, or the site refuses the returned token, the existing page-based flow still runs, so a solver outage is not reported as a check-in failure on its own. A failed request is never retried a second time within the same run.
+- **Costs credit.** Each request consumes quota on your solver account, so it is only used when a Turnstile token is genuinely required.
+- **Credential handling.** The API key is kept in local extension preferences, is never written to logs, and is excluded from backups, sync and diagnostics export. The repository ships an empty key: a local development build can bake in `VITE_TURNSTILE_SOLVER_API_KEY` from the git-ignored `.env.local`, otherwise fill the key only in the setting above.
+- **Switching it off.** Turn the toggle off, or leave the API key empty; an empty key disables the feature and behaviour is identical to the built-in path.
+
 ## Notes
 
 - **Wait limits**: Each automatic page check has a 20-second limit. Login sessions supporting manual continuation have a separate bounded wait. Closing the window cancels that login.
@@ -46,6 +62,7 @@ History retains the latest **100 records** on this device. It records new tempor
 | Operation still reports 403 | Review verification and permission reasons. If the operation was already submitted, confirm its result before repeating it. |
 | No pop-up but identification fails | Check the specific error and settings. Direct requests, missing permissions or an ineligible recovery may leave the browser closed. |
 | Verification page does not fit | Adjust and save the width and height under **Settings → Data Refresh → Website Verification Assistance → Verification Window Size**. Applies to newly created verification windows. |
+| Every check-in makes me click a Turnstile box | Enter the service URL and API key under **Settings → Data Refresh → Website verification assistance → Turnstile auto pass** and turn it on. If you are still asked to interact, the site demands more than Turnstile, and that part stays manual. |
 
 ## Related Documents
 

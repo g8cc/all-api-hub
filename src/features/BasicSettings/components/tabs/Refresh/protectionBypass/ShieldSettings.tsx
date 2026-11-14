@@ -12,6 +12,7 @@ import {
   CardItem,
   CardList,
   Checkbox,
+  Input,
   Muted,
   Switch,
   WorkflowTransitionButton,
@@ -27,7 +28,16 @@ import { ProtectionBypassDevTrigger } from "~/features/BasicSettings/components/
 import ProtectionBypassHistory from "~/features/BasicSettings/components/tabs/Refresh/protectionBypass/ProtectionBypassHistory"
 import { ShieldWindowSizeSettings } from "~/features/BasicSettings/components/tabs/Refresh/protectionBypass/ShieldWindowSizeSettings"
 import { SHIELD_SETTINGS_TARGET_IDS } from "~/features/BasicSettings/components/tabs/Refresh/searchTargets"
+import { useDeferredPreferenceField } from "~/hooks/preferences/useDeferredPreferenceField"
 import { cn } from "~/lib/utils"
+import {
+  TURNSTILE_SOLVER_MODES,
+  type TurnstileSolverMode,
+} from "~/services/checkin/turnstile/solverConstants"
+import {
+  normalizeTurnstileSolverPreferences,
+  type TurnstileSolverPreferences,
+} from "~/services/checkin/turnstile/solverPreferences"
 import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import { normalizeTempWindowFallbackPreferences } from "~/services/preferences/tempWindowFallbackPreferences"
 import {
@@ -44,6 +54,9 @@ import { matchesDefaultSettings } from "~/utils/preferences/matchesDefaultSettin
 
 import { TurnstileNotificationStatus } from "./TurnstileNotificationStatus"
 
+/** Seconds the solver timeout accepts, mirrored as milliseconds in preferences. */
+const TURNSTILE_SOLVER_TIMEOUT_SECONDS_LIMITS = { min: 5, max: 120 } as const
+
 /** Compares complete automatic-feature preference maps. */
 function hasSameAutomaticFeatureBypass(
   left: Record<ProtectionBypassAutomaticFeature, boolean>,
@@ -57,7 +70,7 @@ function hasSameAutomaticFeatureBypass(
 /** Renders the automatic temporary-page verification preferences. */
 export default function ShieldSettings() {
   const { t } = useTranslation("settings")
-  const { tempWindowFallback, updateTempWindowFallback } =
+  const { preferences, tempWindowFallback, updateTempWindowFallback } =
     useUserPreferencesContext()
   const [canUseTempWindowFallback, setCanUseTempWindowFallback] =
     useState(false)
@@ -157,6 +170,102 @@ export default function ShieldSettings() {
     },
     [updateTempWindowFallback],
   )
+
+  const turnstileSolver = normalizeTurnstileSolverPreferences(
+    normalizedPreferences.turnstileSolver,
+  )
+  const latestTurnstileSolverRef = useRef(turnstileSolver)
+  useEffect(() => {
+    latestTurnstileSolverRef.current = turnstileSolver
+  }, [turnstileSolver])
+
+  /**
+   * Writes one solver field while keeping its siblings.
+   *
+   * The nested block is normalized against the latest known value first, so a
+   * single-field patch never drops the endpoint, the key or the timeout, and a
+   * failed write falls back to the persisted value instead of a stale draft.
+   */
+  const patchTurnstileSolver = useCallback(
+    (patch: Partial<TurnstileSolverPreferences>) => {
+      const nextTurnstileSolver: TurnstileSolverPreferences = {
+        ...latestTurnstileSolverRef.current,
+        ...patch,
+      }
+      latestTurnstileSolverRef.current = nextTurnstileSolver
+
+      const restorePersistedSolver = () => {
+        latestTurnstileSolverRef.current = turnstileSolver
+      }
+
+      return updateTempWindowFallback({
+        turnstileSolver: nextTurnstileSolver,
+      }).then(
+        (result) => {
+          if (!result.ok) restorePersistedSolver()
+          return result
+        },
+        () => {
+          restorePersistedSolver()
+          return { ok: false } as const
+        },
+      )
+    },
+    [turnstileSolver, updateTempWindowFallback],
+  )
+
+  const savedPreferencesVersion = preferences?.lastUpdated ?? 0
+  const solverEndpoint = useDeferredPreferenceField({
+    savedValue: turnstileSolver.endpoint,
+    savedVersion: savedPreferencesVersion,
+    onCommit: async (draft) => patchTurnstileSolver({ endpoint: draft.trim() }),
+  })
+  const solverApiKey = useDeferredPreferenceField({
+    savedValue: turnstileSolver.apiKey,
+    savedVersion: savedPreferencesVersion,
+    onCommit: async (draft) => patchTurnstileSolver({ apiKey: draft.trim() }),
+  })
+  const solverTimeout = useDeferredPreferenceField({
+    savedValue: String(
+      Math.round(turnstileSolver.timeoutMs / 1_000) ||
+        TURNSTILE_SOLVER_TIMEOUT_SECONDS_LIMITS.min,
+    ),
+    savedVersion: savedPreferencesVersion,
+    preserveDraftOnError: true,
+    onCommit: async (draft) => {
+      const seconds = Number(draft)
+      if (
+        !Number.isInteger(seconds) ||
+        seconds < TURNSTILE_SOLVER_TIMEOUT_SECONDS_LIMITS.min ||
+        seconds > TURNSTILE_SOLVER_TIMEOUT_SECONDS_LIMITS.max
+      ) {
+        return { ok: false }
+      }
+      const result = await patchTurnstileSolver({
+        timeoutMs: seconds * 1_000,
+      })
+      return { ok: Boolean(result?.ok) }
+    },
+  })
+  const solverModes = [
+    {
+      value: TURNSTILE_SOLVER_MODES.ApiBeforePage,
+      label: t("refresh.shieldTurnstileSolverModeApiFirst"),
+      hint: t("refresh.shieldTurnstileSolverModeApiFirstHint"),
+    },
+    {
+      value: TURNSTILE_SOLVER_MODES.PageBeforeApi,
+      label: t("refresh.shieldTurnstileSolverModePageFirst"),
+      hint: t("refresh.shieldTurnstileSolverModePageFirstHint"),
+    },
+  ] as const satisfies readonly {
+    value: TurnstileSolverMode
+    label: string
+    hint: string
+  }[]
+  const solverModeHint =
+    solverModes.find(({ value }) => value === turnstileSolver.mode)?.hint ??
+    solverModes[0].hint
 
   const mode = normalizedPreferences.tempContextMode
   const methods = [
@@ -315,6 +424,106 @@ export default function ShieldSettings() {
                   void updateTempWindowFallback({ turnstileAssistPresentation })
                 }}
               />
+            }
+          />
+          <CardItem
+            id={SHIELD_SETTINGS_TARGET_IDS.turnstileSolver}
+            title={t("refresh.shieldTurnstileSolverTitle")}
+            description={t("refresh.shieldTurnstileSolverDesc")}
+            rightContentClassName="[@container(min-width:42rem)]:flex-1"
+            rightContent={
+              <div className="flex w-full flex-col gap-3 text-left">
+                <div className="border-border/60 bg-muted/20 flex items-start gap-4 rounded-lg border p-3.5">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <BodySmall className="text-foreground font-medium">
+                      {t("refresh.shieldTurnstileSolverEnabled")}
+                    </BodySmall>
+                    <BodySmall className="text-muted-foreground">
+                      {t("refresh.shieldTurnstileSolverCostNotice")}
+                    </BodySmall>
+                  </div>
+                  <Switch
+                    aria-label={t("refresh.shieldTurnstileSolverEnabled")}
+                    checked={turnstileSolver.enabled}
+                    onChange={(enabled) => {
+                      void patchTurnstileSolver({ enabled })
+                    }}
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <label className="gap-y-density-1 flex flex-col text-sm">
+                    {t("refresh.shieldTurnstileSolverEndpoint")}
+                    <Input
+                      type="text"
+                      dir="ltr"
+                      value={solverEndpoint.draft}
+                      disabled={solverEndpoint.isCommitting}
+                      onChange={(event) =>
+                        solverEndpoint.setDraft(event.target.value)
+                      }
+                      onBlur={() => void solverEndpoint.commit()}
+                      onKeyDown={solverEndpoint.handleKeyDown}
+                    />
+                  </label>
+                  <label className="gap-y-density-1 flex flex-col text-sm">
+                    {t("refresh.shieldTurnstileSolverApiKey")}
+                    <Input
+                      type="password"
+                      dir="ltr"
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={solverApiKey.draft}
+                      disabled={solverApiKey.isCommitting}
+                      onChange={(event) =>
+                        solverApiKey.setDraft(event.target.value)
+                      }
+                      onBlur={() => void solverApiKey.commit()}
+                      onKeyDown={solverApiKey.handleKeyDown}
+                    />
+                  </label>
+                </div>
+                {!turnstileSolver.apiKey && (
+                  <Muted role="status" className="text-xs">
+                    {t("refresh.shieldTurnstileSolverKeyMissing")}
+                  </Muted>
+                )}
+                <div className="gap-y-density-2 flex flex-col items-stretch text-left">
+                  <SegmentedControl
+                    aria-label={t("refresh.shieldTurnstileSolverModeTitle")}
+                    size="sm"
+                    layout="fill"
+                    value={turnstileSolver.mode}
+                    onValueChange={(solverMode) => {
+                      void patchTurnstileSolver({ mode: solverMode })
+                    }}
+                    options={solverModes.map(({ value, label }) => ({
+                      value,
+                      label,
+                    }))}
+                  />
+                  <Muted>{solverModeHint}</Muted>
+                </div>
+                <label className="gap-y-density-1 flex w-48 flex-col text-sm">
+                  {t("refresh.shieldTurnstileSolverTimeout")}
+                  <Input
+                    type="number"
+                    required
+                    min={TURNSTILE_SOLVER_TIMEOUT_SECONDS_LIMITS.min}
+                    max={TURNSTILE_SOLVER_TIMEOUT_SECONDS_LIMITS.max}
+                    step={1}
+                    value={solverTimeout.draft}
+                    disabled={solverTimeout.isCommitting}
+                    onChange={(event) =>
+                      solverTimeout.setDraft(event.target.value)
+                    }
+                    onBlur={(event) => {
+                      if (event.currentTarget.reportValidity())
+                        void solverTimeout.commit()
+                    }}
+                    onKeyDown={solverTimeout.handleKeyDown}
+                  />
+                </label>
+              </div>
             }
           />
           <ShieldWindowSizeSettings />

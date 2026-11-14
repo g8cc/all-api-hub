@@ -1541,6 +1541,10 @@ describe("preferencesMigration", () => {
           managed_site_channels: true,
           managed_site_model_sync: true,
         },
+        // A rebuilt v27 block also carries the current solver defaults, so an
+        // upgraded profile needs no second migration pass.
+        turnstileSolver:
+          DEFAULT_PREFERENCES.tempWindowFallback!.turnstileSolver,
       })
       for (const legacyKey of [
         "useInPopup",

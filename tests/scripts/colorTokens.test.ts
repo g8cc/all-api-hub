@@ -1,5 +1,11 @@
 import { execFileSync, spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -23,8 +29,10 @@ function createGuardRepository(baseline = {}) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key)),
   )
-  const directory = mkdtempSync(
-    path.join(os.tmpdir(), "all-api-hub-color-guard-"),
+  // Git and node report canonical paths; on macOS os.tmpdir() sits behind the
+  // /var → /private/var symlink, so compare in canonical form.
+  const directory = realpathSync(
+    mkdtempSync(path.join(os.tmpdir(), "all-api-hub-color-guard-")),
   )
   temporaryRepos.push(directory)
   mkdirSync(path.join(directory, "src"))

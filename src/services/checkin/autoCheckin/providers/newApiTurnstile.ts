@@ -215,6 +215,7 @@ async function runPreferredTurnstileAssistedAttempt(params: {
 
 /**
  * When the initial check-in attempt indicates Turnstile verification is required,
+ * replay it with a token the site's own page produced.
  */
 export async function resolveTurnstileAssistedCheckinResult(params: {
   account: SiteAccount

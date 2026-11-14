@@ -69,7 +69,9 @@ describe("loadPlaywrightEnvFiles", () => {
 
   /** Create real Git worktrees with distinct branch and shared-local defaults. */
   async function createWorktrees() {
-    const root = await createTempDir()
+    // Git-based discovery reports canonical paths; on macOS os.tmpdir() sits
+    // behind the /var → /private/var symlink, so compare in canonical form.
+    const root = await fs.realpath(await createTempDir())
     const primary = path.join(root, "primary checkout")
     const linked = path.join(root, "linked checkout")
     await fs.mkdir(primary)

@@ -423,23 +423,23 @@ export function resolveProviderErrorResult(params: {
  * specifics, so their user-facing keys live beside this mapping.
  */
 export function resolveNativePageFailureResult(params: {
-  action: TempWindowCheckinPageAction
+  action: TempWindowCheckinPageAction | undefined
   checkInUrl: string
 }): AutoCheckinProviderOutcome {
   const identityReasonCode =
-    params.action.reason === "identity_missing" ||
-    params.action.reason === "identity_mismatch"
+    params.action?.reason === "identity_missing" ||
+    params.action?.reason === "identity_mismatch"
       ? AUTO_CHECKIN_SKIP_REASON.AUTHENTICATION_REQUIRED
       : AUTO_CHECKIN_SKIP_REASON.CHECKIN_PAGE_UNAVAILABLE
   const base = {
     status: CHECKIN_RESULT_STATUS.FAILED,
     reasonCode: identityReasonCode,
     messageParams: { checkInUrl: params.checkInUrl },
-    rawMessage: params.action.error || undefined,
+    rawMessage: params.action?.error || undefined,
     data: params.action,
   } satisfies Partial<AutoCheckinProviderOutcome>
 
-  if (params.action.reason === "identity_missing") {
+  if (params.action?.reason === "identity_missing") {
     return {
       ...base,
       messageKey:
@@ -447,7 +447,7 @@ export function resolveNativePageFailureResult(params: {
     }
   }
 
-  if (params.action.reason === "identity_mismatch") {
+  if (params.action?.reason === "identity_mismatch") {
     return {
       ...base,
       messageKey:
@@ -455,7 +455,7 @@ export function resolveNativePageFailureResult(params: {
     }
   }
 
-  if (params.action.reason === "target_not_found") {
+  if (params.action?.reason === "target_not_found") {
     return {
       ...base,
       messageKey:

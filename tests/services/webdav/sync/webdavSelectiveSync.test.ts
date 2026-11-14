@@ -1510,6 +1510,10 @@ describe("WebDAV preference convergence", () => {
           managed_site_model_sync: true,
         },
         tempContextMode: "window",
+        // A profile written by this build carries the solver block; the shipped
+        // defaults are what an import of the default profile stores locally.
+        turnstileSolver:
+          DEFAULT_PREFERENCES.tempWindowFallback!.turnstileSolver,
       })
       expect(nextUpload.preferences).toMatchObject({
         preferencesVersion: CURRENT_PREFERENCES_VERSION,
