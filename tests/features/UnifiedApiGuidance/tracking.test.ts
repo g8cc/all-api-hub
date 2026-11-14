@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { SITE_TYPES } from "~/constants/siteType"
 import {
-  trackUnifiedApiGuidanceAction,
   UNIFIED_API_GUIDANCE_ACTION_KINDS,
   UNIFIED_API_GUIDANCE_SOURCE_KINDS,
   UNIFIED_API_GUIDANCE_STATUSES,
+} from "~/features/UnifiedApiGuidance/model"
+import {
+  trackUnifiedApiGuidanceAction,
   type UnifiedApiGuidanceSurfaceId,
-} from "~/features/UnifiedApiGuidance"
+} from "~/features/UnifiedApiGuidance/tracking"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -22,17 +24,20 @@ import {
 
 const trackProductAnalyticsEventMock = vi.hoisted(() => vi.fn())
 
-vi.mock("~/services/productAnalytics/dispatch", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("~/services/productAnalytics/dispatch")
-    >()
+vi.mock(
+  "~/services/productAnalytics/runtime/dispatch",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/productAnalytics/runtime/dispatch")
+      >()
 
-  return {
-    ...actual,
-    trackProductAnalyticsEvent: trackProductAnalyticsEventMock,
-  }
-})
+    return {
+      ...actual,
+      trackProductAnalyticsEvent: trackProductAnalyticsEventMock,
+    }
+  },
+)
 
 describe("trackUnifiedApiGuidanceAction", () => {
   beforeEach(() => {

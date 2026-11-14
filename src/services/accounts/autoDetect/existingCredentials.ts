@@ -3,19 +3,22 @@ import {
   ACCOUNT_SITE_ADAPTER_FAMILIES,
   type AccountSiteType,
 } from "~/constants/siteType"
-import { normalizeAccountIdentity } from "~/services/accounts/accountIdentity"
 import { accountQueries } from "~/services/accounts/accountStorage/accountQueries"
 import {
   AutoDetectCompletionError,
   type DetectedAccountIdentity,
 } from "~/services/accounts/autoDetectCompletion/types"
+import { normalizeAccountIdentity } from "~/services/accounts/identity/accountIdentity"
 import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
+import type { NovitaCredentialMode } from "~/services/apiService/novita/constants"
 
 export interface AccountAutoDetectExistingAccount {
   url: string
   siteType: AccountSiteType
   userId: string
   accessToken: string
+  aimlApiKey?: string
+  novitaCredentialMode?: NovitaCredentialMode
 }
 
 /** Keeps credential reuse bound to the API origin and deployment path. */

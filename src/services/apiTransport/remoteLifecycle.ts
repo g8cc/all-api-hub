@@ -1,9 +1,12 @@
 import { RuntimeActionIds } from "~/constants/runtimeActions"
+import { isSafeHttpMethod } from "~/services/apiTransport/httpMethods"
+import { API_OPERATION_SEMANTICS } from "~/services/apiTransport/type"
+import type { ApiOperationSemantics } from "~/services/apiTransport/type"
 import type { ApiTransportRemoteLifecycleObserver } from "~/types/tempWindowFetch"
 import {
   onRuntimeMessage,
   sendRuntimeMessage,
-} from "~/utils/browser/browserApi"
+} from "~/utils/browser/runtimeMessages"
 
 interface RemoteFetchLifecycleResult {
   transportLifecycle?: unknown
@@ -25,7 +28,6 @@ const localResultEvidenceConsumers = new Map<
   Set<ResultEvidenceConsumer>
 >()
 const REMOTE_FETCH_REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
-const REPLAY_SAFE_FETCH_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
 const ABSENT_REMOTE_LIFECYCLE_ASSESSMENT = Object.freeze({
   hasTransportLifecycle: false,
   affirmativePreDispatch: false,
@@ -36,9 +38,13 @@ const INVALID_REMOTE_LIFECYCLE_ASSESSMENT = Object.freeze({
 }) satisfies RemoteFetchLifecycleAssessment
 
 /** Returns whether repeating a remotely handed-off request is side-effect safe. */
-export function isReplaySafeRemoteFetch(options?: RequestInit): boolean {
+export function isReplaySafeRemoteFetch(
+  options?: RequestInit,
+  operationSemantics?: ApiOperationSemantics,
+): boolean {
+  if (operationSemantics === API_OPERATION_SEMANTICS.Mutation) return false
   const method = options?.method?.trim().toUpperCase() || "GET"
-  return REPLAY_SAFE_FETCH_METHODS.has(method)
+  return isSafeHttpMethod(method)
 }
 
 /** Validates the opaque identifier carried by the lifecycle side-channel. */

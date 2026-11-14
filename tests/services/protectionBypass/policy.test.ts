@@ -215,6 +215,7 @@ describe("normalizeProtectionBypassPreferences", () => {
       managed_site_model_sync: true,
     },
     tempContextMode: TEMP_CONTEXT_MODES.Composite,
+    turnstileAssistPresentation: "both" as const,
   }
 
   it("maps persisted automatic feature preferences", () => {
@@ -537,7 +538,6 @@ describe("evaluateProtectionBypassPolicy", () => {
         "explicit_page_fetch",
         "turnstile_fetch",
         "native_page_action",
-        "browser_check_in",
         "session_read",
       ],
       redemption_assist: [
@@ -555,11 +555,13 @@ describe("evaluateProtectionBypassPolicy", () => {
       managed_site_channels: ["new_api_session_read", "octopus_api_fetch"],
       managed_site_model_sync: ["new_api_session_read", "octopus_api_fetch"],
       account_onboarding: [
+        "credential_page_inspect",
         "api_fallback_fetch",
         "explicit_page_fetch",
         "profile_isolated_fetch",
         "session_read",
         "openrouter_management_key_action",
+        "requesty_management_key_action",
       ],
     }
     const taskForKind = (kind: TempContextTask["kind"]): TempContextTask => {
@@ -576,21 +578,20 @@ describe("evaluateProtectionBypassPolicy", () => {
           }
         case "native_page_action":
           return { kind, params: nativeParams }
-        case "browser_check_in":
-          return {
-            kind,
-            params: {
-              pageUrl: fetchParams.originUrl,
-              action: { kind: "page_load" },
-              success: { textPattern: "signed" },
-            },
-          }
         case "openrouter_management_key_action":
           return {
             kind,
             params: {
               requestId: "request-1",
               operation: { kind: "create", label: "Example" },
+            },
+          }
+        case "requesty_management_key_action":
+          return {
+            kind,
+            params: {
+              requestId: "request-1",
+              operation: { kind: "create", name: "Example" },
             },
           }
         case "checkin_feedback_scan":
@@ -602,6 +603,7 @@ describe("evaluateProtectionBypassPolicy", () => {
               input: { baseUrl: fetchParams.originUrl, siteType: "new-api" },
             },
           }
+        case "credential_page_inspect":
         case "rendered_title":
           return { kind, params: { originUrl: fetchParams.originUrl } }
         case "session_read":

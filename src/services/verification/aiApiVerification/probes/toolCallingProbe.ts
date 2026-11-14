@@ -10,7 +10,9 @@ import {
 import type {
   ApiVerificationApiType,
   ApiVerificationMode,
+  ApiVerificationProbePromptOverrides,
   ApiVerificationProbeResult,
+  ApiVerificationRequestProfile,
 } from "../types"
 import {
   buildSafeProbeFailureDiagnostics,
@@ -18,21 +20,23 @@ import {
   toSanitizedErrorSummary,
 } from "../utils"
 import { runProbeGeneration } from "./probeGeneration"
+import { resolveProbePrompt } from "./probePrompts"
 
 type RunToolCallingProbeParams = {
   baseUrl: string
   apiKey: string
+  requestHeaders?: Record<string, string>
+  requestProfile?: ApiVerificationRequestProfile
+  requestProfileEnhanced?: boolean
   apiType: ApiVerificationApiType
   modelId: string
   mode?: ApiVerificationMode
+  probePromptOverrides?: ApiVerificationProbePromptOverrides
   abortSignal?: AbortSignal
 }
 
 const VERIFY_TOOL_NAME = "verify_tool"
 const VERIFY_TOOL_DESCRIPTION = "Return a timestamp string."
-const TOOL_CALLING_PROMPT =
-  `Call the ${VERIFY_TOOL_NAME} tool once. ` +
-  "Reply with a short sentence that includes the returned time."
 const VERIFY_TOOL_INPUT_SCHEMA = {
   type: "object",
   properties: {},
@@ -63,14 +67,25 @@ export async function runToolCallingProbe(
 ): Promise<ApiVerificationProbeResult> {
   const startedAt = nowMs()
   const mode = params.mode ?? API_VERIFICATION_MODES.Streaming
-  const secretsToRedact = [params.apiKey]
-  const prompt = TOOL_CALLING_PROMPT
+  const secretsToRedact = [
+    params.apiKey,
+    ...Object.values(params.requestHeaders ?? {}),
+  ]
+  const prompt = resolveProbePrompt(
+    API_VERIFICATION_PROBE_IDS.ToolCalling,
+    params.probePromptOverrides,
+  )!
 
   try {
     const model = createModel({
       baseUrl: params.baseUrl,
       apiKey: params.apiKey,
+      ...(params.requestHeaders
+        ? { requestHeaders: params.requestHeaders }
+        : {}),
       apiType: params.apiType,
+      requestProfile: params.requestProfile,
+      requestProfileEnhanced: params.requestProfileEnhanced,
       modelId: params.modelId,
     })
 

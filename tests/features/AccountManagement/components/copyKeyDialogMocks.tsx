@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
+import { ACCOUNT_KEY_DEFAULT_CREATION_POLICIES as creationPolicies } from "~/services/apiAdapters/contracts/accountKeyResource"
 
 const mocks = vi.hoisted(() => ({
   fetchAccountTokensMock: vi.fn(),
@@ -84,37 +85,57 @@ vi.mock("~/lib/notify", () => ({
   },
 }))
 
-vi.mock("~/services/apiAdapters/registry", () => ({
-  getSiteTypeCapabilities: (siteType: string) => ({
-    account:
-      siteType === SITE_TYPES.SHAREDCHAT
-        ? {
-            serviceCredential: {
-              fetch: (...args: any[]) => fetchServiceCredentialMock(...args),
+vi.mock("~/services/apiAdapters/registry", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/services/apiAdapters/registry")>()
+  return {
+    ...actual,
+    getSiteTypeCapabilities: (
+      siteType: Parameters<typeof actual.getSiteTypeCapabilities>[0],
+    ) => ({
+      account:
+        siteType === SITE_TYPES.SHAREDCHAT
+          ? {
+              serviceCredential: {
+                fetch: (...args: any[]) => fetchServiceCredentialMock(...args),
+              },
+            }
+          : {
+              ...actual.getSiteTypeCapabilities(siteType).account,
+              ...(siteType === SITE_TYPES.NANOGPT
+                ? {
+                    serviceCredential: {
+                      fetch: (...args: any[]) =>
+                        fetchServiceCredentialMock(...args),
+                    },
+                  }
+                : {}),
+              keyResourceManagement: {
+                defaultCreation: creationPolicies.EditorDefaults,
+                inventorySecretAvailability:
+                  siteType === SITE_TYPES.NANOGPT
+                    ? "website-verification"
+                    : [
+                          SITE_TYPES.AIHUBMIX,
+                          SITE_TYPES.OPENROUTER,
+                          SITE_TYPES.FREEMODEL,
+                        ].includes(siteType as any)
+                      ? "create-response-only"
+                      : "recoverable",
+                open: (...args: any[]) => openAccountKeyResourcesMock(...args),
+              },
             },
-          }
-        : {
-            keyResourceManagement: {
-              defaultCreation: "editor-defaults",
-              inventorySecretAvailability: [
-                SITE_TYPES.AIHUBMIX,
-                SITE_TYPES.OPENROUTER,
-              ].includes(siteType as any)
-                ? "create-response-only"
-                : "recoverable",
-              open: (...args: any[]) => openAccountKeyResourcesMock(...args),
-            },
-          },
-  }),
-}))
+    }),
+  }
+})
 
 const inventoryFixtures = new Map<string, any[]>()
 vi.mock(
-  "~/services/accounts/accountKeyResourceInventory",
+  "~/services/accounts/keys/accountKeyResourceInventory",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/services/accounts/accountKeyResourceInventory")
+        typeof import("~/services/accounts/keys/accountKeyResourceInventory")
       >()
     const { buildNewApiKeyFacts } = await import(
       "~~/tests/test-utils/accountKeyFixtures"
@@ -125,7 +146,13 @@ vi.mock(
         account: any,
         options: any,
       ) => {
-        if (account.siteType === SITE_TYPES.OPENROUTER)
+        if (
+          [
+            SITE_TYPES.OPENROUTER,
+            SITE_TYPES.FREEMODEL,
+            SITE_TYPES.NANOGPT,
+          ].includes(account.siteType)
+        )
           return actual.fetchDisplayAccountKeyResourceInventory(
             account,
             options,
@@ -155,7 +182,7 @@ vi.mock(
         typeof import("~/services/accounts/utils/apiServiceRequest")
       >()
     const { formatAccountRuntimeKeySecretForSite } = await import(
-      "~/services/accounts/accountRuntimeKeys"
+      "~/services/accounts/keys/accountRuntimeKeys"
     )
     return {
       ...actual,
@@ -209,7 +236,7 @@ vi.mock("~/utils/core/logger", () => ({
   }),
 }))
 
-vi.mock("~/components/dialogs/ChannelDialog", () => ({
+vi.mock("~/features/ManagedSiteChannels/editor/ChannelDialog", () => ({
   ChannelDialogProvider: ({ children }: { children: ReactNode }) => children,
   useChannelDialog: () => ({
     openWithAccount: openWithAccountMock,
@@ -217,14 +244,14 @@ vi.mock("~/components/dialogs/ChannelDialog", () => ({
   }),
 }))
 
-vi.mock("~/components/CCSwitchExportDialog", () => ({
+vi.mock("~/features/CredentialExport/CCSwitchExportDialog", () => ({
   CCSwitchExportDialog: (props: unknown) => {
     ccSwitchDialogMock(props)
     return null
   },
 }))
 
-vi.mock("~/components/ClaudeCodeRouterImportDialog", () => ({
+vi.mock("~/features/CredentialExport/ClaudeCodeRouterImportDialog", () => ({
   ClaudeCodeRouterImportDialog: (props: unknown) => {
     claudeCodeRouterDialogMock(props)
     return null
@@ -238,14 +265,14 @@ vi.mock("~/components/CliProxyApiExportDialog", () => ({
   },
 }))
 
-vi.mock("~/components/KiloCodeExportDialog", () => ({
+vi.mock("~/features/KiloCodeExport/KiloCodeExportDialog", () => ({
   KiloCodeExportDialog: (props: unknown) => {
     kiloCodeExportDialogMock(props)
     return null
   },
 }))
 
-vi.mock("~/components/CursorPlusExportDialog", () => ({
+vi.mock("~/features/CredentialExport/CursorPlusExportDialog", () => ({
   CursorPlusExportDialog: (props: unknown) => {
     cursorPlusExportDialogMock(props)
     const { isOpen, onClose } = props as {
@@ -260,7 +287,7 @@ vi.mock("~/components/CursorPlusExportDialog", () => ({
   },
 }))
 
-vi.mock("~/components/KelivoExportDialog", () => ({
+vi.mock("~/features/CredentialExport/KelivoExportDialog", () => ({
   KelivoExportDialog: (props: unknown) => {
     kelivoExportDialogMock(props)
     const { isOpen, onClose } = props as {
@@ -276,7 +303,7 @@ vi.mock("~/components/KelivoExportDialog", () => ({
 }))
 
 vi.mock(
-  "~/features/ApiCredentialProfiles/components/KiloCodeProfileExportDialog",
+  "~/features/ApiCredentialProfiles/export/KiloCodeProfileExportDialog",
   () => ({
     KiloCodeProfileExportDialog: (props: unknown) => {
       kiloCodeProfileExportDialogMock(props)
@@ -313,8 +340,9 @@ vi.mock("~/services/productAnalytics/actions", async (importOriginal) => {
   }
 })
 
-vi.mock("~/services/apiCredentialProfiles/apiCredentialProfileLinks", () => ({
+vi.mock("~/services/apiCredentialProfiles/links", () => ({
   apiCredentialProfileLinks: {
+    list: async () => [],
     capture: async (input: { profile: unknown }) => {
       captureApiCredentialProfileMock(input)
       return {

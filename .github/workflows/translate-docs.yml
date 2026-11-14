@@ -226,7 +226,7 @@ jobs:
         if: steps.generated-changes.outputs.has_changes == 'true'
         uses: pnpm/action-setup@v5
         with:
-          version: 10
+          package_json_file: docs/package.json
           run_install: false
 
       - name: Setup Node.js for docs check
@@ -258,12 +258,12 @@ jobs:
             docs/docs/en/**
             docs/docs/ja/**
           commit-message: |
-            🌐 Auto-translate documentation
+            chore(docs): auto-translate documentation
 
             Source documents: ${{ steps.changed-files.outputs.source_change_count }}
           branch: auto-translate-${{ github.run_id }}
           delete-branch: true
-          title: "🌐 Auto-translate documentation"
+          title: "chore(docs): auto-translate documentation"
           body: |
             ## 📝 自动翻译
 

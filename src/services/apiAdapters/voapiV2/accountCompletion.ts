@@ -2,7 +2,7 @@ import { AUTO_DETECT_FAILURE_REASONS } from "~/constants/autoDetect"
 import { DEFAULT_USD_TO_CNY_RATE } from "~/constants/money"
 import type { AccountCompletionCapability } from "~/services/apiAdapters/contracts/accountCompletion"
 import { voApiV2AccountBootstrap } from "~/services/apiAdapters/voapiV2/accountBootstrap"
-import { fetchVoApiV2UserInfo } from "~/services/apiService/voapiV2"
+import { fetchVoApiV2UserInfo } from "~/services/apiService/voapiV2/accountData"
 import { AuthTypeEnum } from "~/types"
 
 export const voApiV2AccountCompletion: AccountCompletionCapability = {
@@ -36,12 +36,11 @@ export const voApiV2AccountCompletion: AccountCompletionCapability = {
       )
     }
 
-    const detectedUser = detected.user as Record<string, unknown> | undefined
     const userId = helpers.trimString(detected.userId) || String(userInfo.id)
     const username =
-      helpers.trimString(detectedUser?.username) ||
-      helpers.trimString(detectedUser?.display_name) ||
-      helpers.trimString(detectedUser?.email) ||
+      helpers.trimString(detected.user?.username) ||
+      helpers.trimString(detected.rawUser?.display_name) ||
+      helpers.trimString(detected.rawUser?.email) ||
       helpers.trimString(userInfo.username) ||
       helpers.trimString(userInfo.nickname) ||
       userId

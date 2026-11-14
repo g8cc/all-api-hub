@@ -1,19 +1,72 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { ModelRedirectService } from "~/services/models/modelRedirect"
+import { applyModelMappingToChannel } from "~/services/models/modelRedirect/mappingMutation"
 import { modelSyncScheduler } from "~/services/models/modelSync/scheduler"
 import { userPreferences } from "~/services/preferences/userPreferences"
 import type { ManagedModelChannel } from "~/types/managedResourceModels"
 import { DEFAULT_MODEL_REDIRECT_PREFERENCES } from "~/types/managedSiteModelRedirect"
 import { modelResourceRef } from "~~/tests/test-utils/managedModelResource"
 
-vi.mock("~/services/managedSites/legacyChannelConfigMigration", () => ({
-  ensureLegacyChannelConfigMigrationReady: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock(
+  "~/services/preferences/preferencesDefaults",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/preferences/preferencesDefaults")
+      >()
+    return {
+      ...actual,
+      DEFAULT_PREFERENCES: {
+        managedSiteModelSync: {
+          enabled: true,
+          interval: 60_000,
+          concurrency: 1,
+          maxRetries: 1,
+          rateLimit: { requestsPerMinute: 10, burst: 2 },
+          allowedModels: [],
+          globalChannelModelFilters: [],
+        },
+      },
+    }
+  },
+)
 
-const realGenerateModelMappingForChannel =
-  ModelRedirectService.generateModelMappingForChannel
+vi.mock(
+  "~/services/managedSites/configuration/legacyChannelConfigMigration",
+  () => ({
+    ensureLegacyChannelConfigMigrationReady: vi
+      .fn()
+      .mockResolvedValue(undefined),
+  }),
+)
+
+vi.mock(
+  "~/services/models/modelRedirect/modelMatching",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/models/modelRedirect/modelMatching")
+      >()
+    return {
+      ...actual,
+      generateModelMappingForChannel: vi.fn(
+        actual.generateModelMappingForChannel,
+      ),
+    }
+  },
+)
+vi.mock(
+  "~/services/models/modelRedirect/mappingMutation",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/models/modelRedirect/mappingMutation")
+      >()
+    return { ...actual, applyModelMappingToChannel: vi.fn() }
+  },
+)
+const mockedApplyModelMapping = vi.mocked(applyModelMappingToChannel)
 
 const {
   mockGetChannelConfigsForScope,
@@ -29,7 +82,7 @@ const {
   mockSaveLastExecution: vi.fn(),
 }))
 
-vi.mock("~/services/managedSites/channelConfigStorage", () => ({
+vi.mock("~/services/managedSites/configuration/channelConfigStorage", () => ({
   channelConfigStorage: {
     getConfigsForScope: mockGetChannelConfigsForScope,
   },
@@ -57,17 +110,6 @@ vi.mock("~/services/models/modelSync/modelSyncService", () => {
 })
 
 vi.mock("~/services/preferences/userPreferences", () => ({
-  DEFAULT_PREFERENCES: {
-    managedSiteModelSync: {
-      enabled: true,
-      interval: 60_000,
-      concurrency: 1,
-      maxRetries: 1,
-      rateLimit: { requestsPerMinute: 10, burst: 2 },
-      allowedModels: [],
-      globalChannelModelFilters: [],
-    },
-  },
   userPreferences: {
     getPreferences: mockGetPreferences,
     savePreferences: vi.fn(),
@@ -76,12 +118,7 @@ vi.mock("~/services/preferences/userPreferences", () => ({
 
 describe("modelSyncScheduler.executeSync - model redirect pruning", () => {
   const mockedUserPreferences = userPreferences as unknown as {
-    getPreferences: ReturnType<typeof vi.fn>
-  }
-
-  const mockedModelRedirectService = ModelRedirectService as unknown as {
-    generateModelMappingForChannel: ReturnType<typeof vi.fn>
-    applyModelMappingToChannel: ReturnType<typeof vi.fn>
+    getPreferences: Mock
   }
 
   beforeEach(() => {
@@ -90,12 +127,10 @@ describe("modelSyncScheduler.executeSync - model redirect pruning", () => {
     mockGetChannelConfigsForScope.mockResolvedValue({})
     mockSaveLastExecution.mockResolvedValue(undefined)
 
-    mockedModelRedirectService.generateModelMappingForChannel = vi.fn(
-      realGenerateModelMappingForChannel,
-    )
-    mockedModelRedirectService.applyModelMappingToChannel = vi
-      .fn()
-      .mockResolvedValue({ updated: false, prunedCount: 0 })
+    mockedApplyModelMapping.mockResolvedValue({
+      updated: false,
+      prunedCount: 0,
+    })
   })
 
   const setPrefs = (overrides: {
@@ -131,9 +166,10 @@ describe("modelSyncScheduler.executeSync - model redirect pruning", () => {
   const setServiceMocks = (params: {
     oldModels?: string[]
     newModels?: string[]
+    ref?: ManagedModelChannel["ref"]
   }) => {
     const channel: ManagedModelChannel = {
-      ref: modelResourceRef(1),
+      ref: params.ref ?? modelResourceRef(1),
       name: "channel-1",
       type: 1,
       baseUrl: "https://channel.example.com",
@@ -145,7 +181,7 @@ describe("modelSyncScheduler.executeSync - model redirect pruning", () => {
 
     mockRunBatch.mockImplementation(async (_channels: any, options: any) => {
       const lastResult = {
-        resourceRef: modelResourceRef(1),
+        resourceRef: channel.ref,
         channelName: "channel-1",
         ok: true,
         attempts: 1,
@@ -176,6 +212,24 @@ describe("modelSyncScheduler.executeSync - model redirect pruning", () => {
     return { channel }
   }
 
+  it("syncs Magpie models without attempting unsupported redirect mapping", async () => {
+    setPrefs({ pruneMissingTargetsOnModelSync: true })
+    const preferences = await mockedUserPreferences.getPreferences()
+    mockedUserPreferences.getPreferences.mockResolvedValue({
+      ...preferences,
+      managedSiteType: SITE_TYPES.MAGPIE,
+      magpie: { baseUrl: "http://magpie.test:3430", webKey: "test-web-key" },
+    })
+    const ref = modelResourceRef(1, {
+      siteType: SITE_TYPES.MAGPIE,
+      scopeKey: "http://magpie.test:3430",
+    })
+    setServiceMocks({ oldModels: ["a"], newModels: ["a", "b"], ref })
+    await modelSyncScheduler.executeSync([ref])
+    expect(mockRunBatch).toHaveBeenCalled()
+    expect(mockedApplyModelMapping).not.toHaveBeenCalled()
+  })
+
   it("passes prune options when enabled and model list changed", async () => {
     setPrefs({ pruneMissingTargetsOnModelSync: true })
     const newModels = ["a", "b"]
@@ -187,13 +241,16 @@ describe("modelSyncScheduler.executeSync - model redirect pruning", () => {
     await modelSyncScheduler.executeSync([modelResourceRef(1)])
 
     expect(mockListChannels).toHaveBeenCalledWith()
-    expect(
-      mockedModelRedirectService.applyModelMappingToChannel,
-    ).toHaveBeenCalledWith(channel, {}, expect.anything(), {
-      pruneMissingTargets: true,
-      availableModels: newModels,
-      modelMappingPolicy: { supportsChaining: true },
-    })
+    expect(mockedApplyModelMapping).toHaveBeenCalledWith(
+      channel,
+      {},
+      expect.anything(),
+      {
+        pruneMissingTargets: true,
+        availableModels: newModels,
+        modelMappingPolicy: { supportsChaining: true },
+      },
+    )
   })
 
   it("preserves dated model identities while applying normal prune orchestration", async () => {
@@ -209,13 +266,16 @@ describe("modelSyncScheduler.executeSync - model redirect pruning", () => {
 
     await modelSyncScheduler.executeSync([modelResourceRef(1)])
 
-    expect(
-      mockedModelRedirectService.applyModelMappingToChannel,
-    ).toHaveBeenCalledWith(channel, {}, expect.anything(), {
-      pruneMissingTargets: true,
-      availableModels: newModels,
-      modelMappingPolicy: { supportsChaining: true },
-    })
+    expect(mockedApplyModelMapping).toHaveBeenCalledWith(
+      channel,
+      {},
+      expect.anything(),
+      {
+        pruneMissingTargets: true,
+        availableModels: newModels,
+        modelMappingPolicy: { supportsChaining: true },
+      },
+    )
   })
 
   it("does not pass prune options when model list is unchanged (set equality)", async () => {
@@ -228,9 +288,12 @@ describe("modelSyncScheduler.executeSync - model redirect pruning", () => {
 
     await modelSyncScheduler.executeSync([modelResourceRef(1)])
 
-    expect(
-      mockedModelRedirectService.applyModelMappingToChannel,
-    ).toHaveBeenCalledWith(channel, {}, expect.anything(), undefined)
+    expect(mockedApplyModelMapping).toHaveBeenCalledWith(
+      channel,
+      {},
+      expect.anything(),
+      undefined,
+    )
   })
 
   it("does not pass prune options when newModels is empty", async () => {
@@ -242,9 +305,12 @@ describe("modelSyncScheduler.executeSync - model redirect pruning", () => {
 
     await modelSyncScheduler.executeSync([modelResourceRef(1)])
 
-    expect(
-      mockedModelRedirectService.applyModelMappingToChannel,
-    ).toHaveBeenCalledWith(channel, {}, expect.anything(), undefined)
+    expect(mockedApplyModelMapping).toHaveBeenCalledWith(
+      channel,
+      {},
+      expect.anything(),
+      undefined,
+    )
   })
 
   it("does not pass prune options when prune flag is disabled", async () => {
@@ -256,8 +322,11 @@ describe("modelSyncScheduler.executeSync - model redirect pruning", () => {
 
     await modelSyncScheduler.executeSync([modelResourceRef(1)])
 
-    expect(
-      mockedModelRedirectService.applyModelMappingToChannel,
-    ).toHaveBeenCalledWith(channel, {}, expect.anything(), undefined)
+    expect(mockedApplyModelMapping).toHaveBeenCalledWith(
+      channel,
+      {},
+      expect.anything(),
+      undefined,
+    )
   })
 })

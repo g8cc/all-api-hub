@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { aihubmixModelPricing } from "~/services/apiAdapters/aihubmix/modelPricing"
-import { createNewApiModelPricing } from "~/services/apiAdapters/newApi/modelPricing"
+import { aihubmixModelPricing } from "~/services/apiAdapters/aihubmix/models/modelPricing"
+import { createNewApiModelPricing } from "~/services/apiAdapters/newApi/pricing/modelPricing"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ModelCatalogSnapshot } from "~/services/modelCatalog/snapshot"
 import { MODEL_VENDOR_EVIDENCE_KINDS } from "~/services/models/modelDescriptor"
 import { AuthTypeEnum } from "~/types"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const {
   mockAihubmixFetchModelPricing,
@@ -23,16 +25,23 @@ vi.mock("~/services/apiService/newApiFamily/default/modelPricing", () => ({
   },
 }))
 
-vi.mock("~/services/apiAdapters/aihubmix/catalog", () => ({
+vi.mock("~/services/apiAdapters/aihubmix/models/catalog", () => ({
   fetchModelPricing: mockAihubmixFetchModelPricing,
   invalidateAIHubMixPublicCatalogs: vi.fn(),
 }))
 
-vi.mock("~/services/apiService/newApiFamily/variants/oneHub", () => ({
-  fetchModelPricing: mockOneHubFetchModelPricing,
-}))
+vi.mock(
+  "~/services/apiService/newApiFamily/variants/oneHub",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/newApiFamily/variants/oneHub")
+    >()),
+    fetchModelPricing: mockOneHubFetchModelPricing,
+  }),
+)
 
 const request = {
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://api.example.invalid",
   accountId: "account-1",
   auth: {
@@ -107,7 +116,7 @@ describe("apiAdapter modelPricing", () => {
       ...pricingResponse,
       data: [
         {
-          ...pricingResponse.data[0],
+          ...atIndex(pricingResponse.data, 0),
           vendorEvidence: {
             kind: MODEL_VENDOR_EVIDENCE_KINDS.Publisher,
             name: "Example Publisher",

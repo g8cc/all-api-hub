@@ -12,18 +12,20 @@ import {
 } from "~/services/accounts/autoDetectCompletion/completion"
 import { API_SERVICE_FETCH_CONTEXT_KINDS } from "~/services/apiTransport/type"
 import type { ApiServiceFetchContext } from "~/services/apiTransport/type"
-import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/compatibilityConfig"
+import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/configuration/compatibilityConfig"
 import { inspectCheckInMethods } from "~/services/checkin/autoCheckin/domain"
 import { createAutoCheckinMethodRegistry } from "~/services/checkin/autoCheckin/providers/registry"
 import { PROTECTION_BYPASS_USER_COMMANDS } from "~/services/protectionBypass/contracts"
 import { AuthTypeEnum } from "~/types"
 import { userCommandExecution } from "~~/tests/services/protectionBypass/fixtures"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const {
   getSiteTypeCapabilitiesMock,
   accountCompletionMock,
   loadBootstrapFactsMock,
   fetchCheckInStatusMock,
+  discoverCheckInMethodsMock,
 } = vi.hoisted(() => ({
   getSiteTypeCapabilitiesMock: vi.fn(),
   accountCompletionMock: {
@@ -31,6 +33,7 @@ const {
   },
   loadBootstrapFactsMock: vi.fn(),
   fetchCheckInStatusMock: vi.fn(),
+  discoverCheckInMethodsMock: vi.fn(),
 }))
 
 vi.mock("~/services/apiAdapters/registry", () => ({
@@ -41,6 +44,21 @@ vi.mock("~/services/apiTransport/request", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/services/apiTransport/request")>()),
   fetchApiData: fetchCheckInStatusMock,
 }))
+
+vi.mock(
+  "~/services/checkin/autoCheckin/discovery/discovery",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/checkin/autoCheckin/discovery/discovery")
+      >()
+    discoverCheckInMethodsMock.mockImplementation(actual.discoverCheckInMethods)
+    return {
+      ...actual,
+      discoverCheckInMethods: discoverCheckInMethodsMock,
+    }
+  },
+)
 
 const currentTabFetchContext = (origin: string) => ({
   kind: API_SERVICE_FETCH_CONTEXT_KINDS.CURRENT_TAB,
@@ -120,8 +138,9 @@ describe("auto-detect completion", () => {
     expect(getSiteTypeCapabilitiesMock).toHaveBeenCalledWith(SITE_TYPES.NEW_API)
     expect(accountCompletionMock.complete).toHaveBeenCalledTimes(1)
 
-    const [adapterRequest, helpers] =
-      accountCompletionMock.complete.mock.calls[0]
+    const completedCall = atIndex(accountCompletionMock.complete.mock.calls, 0)
+    const adapterRequest = atIndex(completedCall, 0)
+    const helpers = atIndex(completedCall, 1)
     expect(adapterRequest).toEqual({
       url: "https://status.example.com",
       requestedAuthType: AuthTypeEnum.AccessToken,
@@ -254,8 +273,9 @@ describe("auto-detect completion", () => {
       },
     })
 
-    const [adapterRequest, helpers] =
-      accountCompletionMock.complete.mock.calls[0]
+    const completedCall = atIndex(accountCompletionMock.complete.mock.calls, 0)
+    const adapterRequest = atIndex(completedCall, 0)
+    const helpers = atIndex(completedCall, 1)
     expect(adapterRequest.context).toEqual({
       cookieAuthSessionCookie: "session=example",
     })
@@ -266,6 +286,7 @@ describe("auto-detect completion", () => {
         context: adapterRequest.context,
       }),
     ).toEqual({
+      directRequestReason: "caller_managed" as const,
       baseUrl: "https://cookie.example.invalid",
       auth: { authType: AuthTypeEnum.Cookie, userId: "7" },
       cookieAuthSessionCookie: "session=example",
@@ -298,8 +319,9 @@ describe("auto-detect completion", () => {
       },
     })
 
-    const [adapterRequest, helpers] =
-      accountCompletionMock.complete.mock.calls[0]
+    const completedCall = atIndex(accountCompletionMock.complete.mock.calls, 0)
+    const adapterRequest = atIndex(completedCall, 0)
+    const helpers = atIndex(completedCall, 1)
     expect(adapterRequest.context).toEqual({})
     expect(
       helpers.createServiceRequest({
@@ -308,6 +330,7 @@ describe("auto-detect completion", () => {
         context: {},
       }),
     ).toEqual({
+      directRequestReason: "caller_managed" as const,
       baseUrl: "https://malformed.example.com",
       auth: { authType: AuthTypeEnum.Cookie, userId: "8" },
     })
@@ -407,6 +430,9 @@ describe("auto-detect completion", () => {
           candidateMethodIds: [...methodIds],
         }).decision.outcome,
       ).toBe(expectedDecision)
+      if (expectedDecision === "unsupported") {
+        expect(completed.checkIn.automaticExecutionEnabled).toBe(false)
+      }
     },
   )
 
@@ -485,5 +511,213 @@ describe("auto-detect completion", () => {
         },
       }),
     ).rejects.toBe(completionError)
+  })
+
+  it("starts check-in discovery early when credentials are available in detected identity", async () => {
+    accountCompletionMock.complete.mockResolvedValueOnce({
+      ...completedAccountData,
+      accessToken: "early-token",
+    })
+
+    const result = await completeAutoDetectedAccount({
+      url: "https://early.example.com",
+      requestedAuthType: AuthTypeEnum.AccessToken,
+      detected: {
+        userId: "7",
+        accessToken: "early-token",
+        siteType: SITE_TYPES.NEW_API,
+      },
+    })
+
+    expect(fetchCheckInStatusMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseUrl: "https://early.example.com",
+        auth: {
+          authType: AuthTypeEnum.AccessToken,
+          userId: "7",
+          accessToken: "early-token",
+        },
+      }),
+      expect.anything(),
+    )
+    expect(result.checkIn.selection).toEqual({
+      mode: "automatic",
+      methodId: "new-api:daily-checkin",
+    })
+  })
+
+  it("times out early check-in discovery when exceeding coordinated grace period without hanging", async () => {
+    fetchCheckInStatusMock.mockImplementationOnce(
+      () => new Promise((resolve) => setTimeout(resolve, 500)),
+    )
+    accountCompletionMock.complete.mockResolvedValueOnce(completedAccountData)
+
+    const result = await completeAutoDetectedAccount(
+      {
+        url: "https://hanging-probe.example.com",
+        requestedAuthType: AuthTypeEnum.AccessToken,
+        detected: {
+          userId: "7",
+          accessToken: "service-token",
+          siteType: SITE_TYPES.NEW_API,
+        },
+      },
+      {
+        coordinatedGracePeriodMs: 25,
+      },
+    )
+
+    expect(result).toBeDefined()
+    expect(result.userId).toBe("7")
+    // When early probe times out, completed.checkIn is preserved
+    expect(result.checkIn).toBeDefined()
+  })
+
+  it("disables automatic execution when early discovery confirms unsupported", async () => {
+    fetchCheckInStatusMock.mockRejectedValueOnce({ statusCode: 404 })
+    accountCompletionMock.complete.mockResolvedValueOnce({
+      ...completedAccountData,
+      accessToken: "early-token",
+    })
+
+    const result = await completeAutoDetectedAccount({
+      url: "https://unsupported-early.example.com",
+      requestedAuthType: AuthTypeEnum.AccessToken,
+      detected: {
+        userId: "7",
+        accessToken: "early-token",
+        siteType: SITE_TYPES.NEW_API,
+      },
+    })
+
+    expect(result.checkIn.automaticExecutionEnabled).toBe(false)
+  })
+
+  it("keeps the adapter-confirmed selection when the early probe cannot classify", async () => {
+    fetchCheckInStatusMock.mockRejectedValueOnce(new Error("network down"))
+    accountCompletionMock.complete.mockResolvedValueOnce({
+      ...completedAccountData,
+      accessToken: "early-token",
+    })
+
+    const result = await completeAutoDetectedAccount({
+      url: "https://unknown-early.example.com",
+      requestedAuthType: AuthTypeEnum.AccessToken,
+      detected: {
+        userId: "7",
+        accessToken: "early-token",
+        siteType: SITE_TYPES.NEW_API,
+      },
+    })
+
+    expect(result.checkIn.selection).toEqual({
+      mode: "automatic",
+      methodId: "new-api:daily-checkin",
+    })
+  })
+
+  it("derives the early auth type from the detected token when no auth type is requested", async () => {
+    accountCompletionMock.complete.mockResolvedValueOnce({
+      ...completedAccountData,
+      accessToken: "early-token",
+    })
+
+    await completeAutoDetectedAccount({
+      url: "https://derived-auth.example.com",
+      requestedAuthType: undefined as never,
+      detected: {
+        userId: "7",
+        accessToken: "early-token",
+        siteType: SITE_TYPES.NEW_API,
+      },
+    })
+
+    expect(fetchCheckInStatusMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth: expect.objectContaining({
+          authType: AuthTypeEnum.AccessToken,
+        }),
+      }),
+      expect.anything(),
+    )
+  })
+
+  it("derives a no-auth early credentials shape when neither token nor auth type is available", async () => {
+    accountCompletionMock.complete.mockResolvedValueOnce(completedAccountData)
+
+    const result = await completeAutoDetectedAccount({
+      url: "https://derived-none.example.com",
+      requestedAuthType: undefined as never,
+      detected: {
+        userId: "7",
+        siteType: SITE_TYPES.NEW_API,
+      },
+    })
+
+    expect(result.userId).toBe("7")
+    expect(result.checkIn.selection).toEqual({
+      mode: "automatic",
+      methodId: "new-api:daily-checkin",
+    })
+  })
+
+  it("keeps the completed check-in when the early discovery round rejects", async () => {
+    discoverCheckInMethodsMock.mockRejectedValueOnce(new Error("registry down"))
+    accountCompletionMock.complete.mockResolvedValueOnce({
+      ...completedAccountData,
+      accessToken: "early-token",
+    })
+
+    const result = await completeAutoDetectedAccount({
+      url: "https://rejected-early.example.com",
+      requestedAuthType: AuthTypeEnum.AccessToken,
+      detected: {
+        userId: "7",
+        accessToken: "early-token",
+        siteType: SITE_TYPES.NEW_API,
+      },
+    })
+
+    expect(result.checkIn).toEqual(completedAccountData.checkIn)
+  })
+
+  it("cuts off an unsettled early probe once the grace period has already elapsed", async () => {
+    let releaseProbe: (() => void) | undefined
+    discoverCheckInMethodsMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseProbe = () =>
+            resolve({
+              config: completedAccountData.checkIn,
+              decision: {
+                outcome: "resolved",
+                methodId: "new-api:daily-checkin",
+              },
+              detections: {},
+              statuses: {},
+              timedOutMethodIds: [],
+            })
+        }),
+    )
+    accountCompletionMock.complete.mockResolvedValueOnce({
+      ...completedAccountData,
+      accessToken: "early-token",
+    })
+
+    const result = await completeAutoDetectedAccount(
+      {
+        url: "https://elapsed-grace.example.com",
+        requestedAuthType: AuthTypeEnum.AccessToken,
+        detected: {
+          userId: "7",
+          accessToken: "early-token",
+          siteType: SITE_TYPES.NEW_API,
+        },
+      },
+      { coordinatedGracePeriodMs: 0 },
+    )
+
+    expect(result.checkIn).toEqual(completedAccountData.checkIn)
+    releaseProbe?.()
   })
 })

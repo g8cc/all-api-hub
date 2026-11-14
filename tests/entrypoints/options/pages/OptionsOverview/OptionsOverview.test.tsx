@@ -9,7 +9,6 @@ import {
   ACCOUNT_MANAGEMENT_ROUTE_PARAMS,
 } from "~/features/AccountManagement/routeParams"
 import { WEBDAV_AUTO_SYNC_TARGET_IDS } from "~/features/ImportExport/searchTargets"
-import { OverviewUsageSnapshot } from "~/features/OptionsOverview/components/OverviewUsageSnapshot"
 import OptionsOverview, {
   getPermissionsOnboardingReasonFromUrl,
 } from "~/features/OptionsOverview/OptionsOverview"
@@ -18,11 +17,12 @@ import type {
   OptionsOverviewUsageSnapshot,
   OptionsOverviewViewModel,
 } from "~/features/OptionsOverview/types"
+import { OverviewUsageSnapshot } from "~/features/OptionsOverview/usage/OverviewUsageSnapshot"
 import {
   UNIFIED_API_GUIDANCE_ACTION_KINDS,
   UNIFIED_API_GUIDANCE_SOURCE_KINDS,
   UNIFIED_API_GUIDANCE_STATUSES,
-} from "~/features/UnifiedApiGuidance"
+} from "~/features/UnifiedApiGuidance/model"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -32,9 +32,10 @@ import {
   PRODUCT_ANALYTICS_SURFACE_IDS,
   PRODUCT_ANALYTICS_TARGET_KINDS,
 } from "~/services/productAnalytics/contracts"
-import { trackProductAnalyticsEvent } from "~/services/productAnalytics/dispatch"
+import { trackProductAnalyticsEvent } from "~/services/productAnalytics/runtime/dispatch"
 import type { ProductAnnouncement } from "~/services/productAnnouncements/types"
 import { ACCOUNT_TODAY_METRIC_STATUSES } from "~/types/accountTodayStats"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { act, render, screen, within } from "~~/tests/test-utils/render"
 
 const {
@@ -53,7 +54,7 @@ const {
   useProductAnnouncementsMock: vi.fn(),
 }))
 
-vi.mock("~/features/OptionsOverview/useOptionsOverviewData", () => ({
+vi.mock("~/features/OptionsOverview/workspace/useOptionsOverviewData", () => ({
   useOptionsOverviewData: useOptionsOverviewDataMock,
 }))
 
@@ -92,25 +93,26 @@ vi.mock("~/services/permissions/optionalPermissionState", () => ({
   setLastSeenOptionalPermissions: setLastSeenOptionalPermissionsMock,
 }))
 
-vi.mock("~/services/productAnalytics/dispatch", async (importOriginal) => {
+vi.mock(
+  "~/services/productAnalytics/runtime/dispatch",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/productAnalytics/runtime/dispatch")
+      >()
+
+    return {
+      ...actual,
+      trackProductAnalyticsEvent: trackProductAnalyticsEventMock,
+    }
+  },
+)
+
+vi.mock("~/utils/navigation/optionsPage", async (importOriginal) => {
   const actual =
-    await importOriginal<
-      typeof import("~/services/productAnalytics/dispatch")
-    >()
+    await importOriginal<typeof import("~/utils/navigation/optionsPage")>()
 
-  return {
-    ...actual,
-    trackProductAnalyticsEvent: trackProductAnalyticsEventMock,
-  }
-})
-
-vi.mock("~/utils/navigation", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/utils/navigation")>()
-
-  return {
-    ...actual,
-    pushWithinOptionsPage: pushWithinOptionsPageMock,
-  }
+  return { ...actual, pushWithinOptionsPage: pushWithinOptionsPageMock }
 })
 
 vi.mock("~/components/icons/WorkflowTransitionIcon", () => ({
@@ -124,7 +126,7 @@ vi.mock("~/components/icons/WorkflowTransitionIcon", () => ({
 }))
 
 vi.mock(
-  "~/features/OptionsOverview/components/dialogs/PermissionOnboardingDialog",
+  "~/features/OptionsOverview/permissions/PermissionOnboardingDialog",
   () => ({
     PermissionOnboardingDialog: ({
       open,
@@ -253,7 +255,7 @@ const setupViewModel: OptionsOverviewViewModel = {
       {
         id: "autoCheckin",
         status: "warning",
-        statusLabel: "enabled",
+        statusLabel: "partial",
         primaryTarget: { menuItemId: MENU_ITEM_IDS.AUTO_CHECKIN },
         summaryRows: [
           {
@@ -298,7 +300,7 @@ const setupViewModel: OptionsOverviewViewModel = {
       {
         id: "siteAnnouncements",
         status: "success",
-        statusLabel: "enabled",
+        statusLabel: "success",
         primaryTarget: {
           menuItemId: MENU_ITEM_IDS.BASIC,
           params: { anchor: "site-announcement-notifications-enabled" },
@@ -807,7 +809,7 @@ describe("OptionsOverview", () => {
         expect.stringMatching(/1\.5K.*todayMetricAvailability\.coverage/),
       ]),
     )
-    act(() => partialValues[0].focus())
+    act(() => atIndex(partialValues, 0).focus())
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
       "optionsOverview:todayMetricAvailability.coverage",
     )
@@ -1595,7 +1597,7 @@ describe("OptionsOverview", () => {
             {
               id: "autoCheckin",
               status: "info",
-              statusLabel: "enabled",
+              statusLabel: "not_run",
               primaryTarget: { menuItemId: MENU_ITEM_IDS.AUTO_CHECKIN },
               summaryRows: [
                 { id: "lastRun", value: "", valueType: "datetime" },
@@ -1663,6 +1665,12 @@ describe("OptionsOverview", () => {
     })
 
     renderOverview()
+
+    expect(
+      screen.getByRole("button", {
+        name: /^optionsOverview:automation\.items\.autoCheckin\.label/,
+      }),
+    ).toHaveTextContent("optionsOverview:automation.status.notRun")
 
     await user.click(
       screen.getByRole("button", {

@@ -8,6 +8,7 @@ export {
 export { handleCheckCloudflareGuard } from "./cloudflareGuard"
 export { handlePerformTempWindowFetch } from "./tempWindowFetch"
 export {
+  handleReadTurnstileSitekey,
   handleTriggerCheckinPageAction,
   handleWaitForTurnstileToken,
 } from "./turnstileGuard"
@@ -16,4 +17,4 @@ export { handleWaitAndGetUserInfo } from "./waitUserInfo"
 export { handleGetRenderedTitle } from "./tempWindowTitle"
 export { handleShowShieldBypassUi } from "./shieldBypassUi"
 export { handleOpenRouterManagementKeyAction } from "./openRouterManagementKey"
-export { handleRunBrowserCheckIn } from "./browserCheckIn"
+export { handleRequestyManagementKeyAction } from "./requestyManagementKey"

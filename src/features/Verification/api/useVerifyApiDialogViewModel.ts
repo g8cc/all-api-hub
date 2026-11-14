@@ -1,0 +1,657 @@
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
+
+import { executeDialogProbe } from "~/features/Verification/api/probeExecution"
+import {
+  buildProbeState,
+  withUnfinishedProbesStopped,
+} from "~/features/Verification/api/probeState"
+import type { VerifyApiDialogProps } from "~/features/Verification/api/types"
+import { MASKED_CONTEXT_HISTORY_REQUEST } from "~/features/Verification/api/useContextCapacity"
+import { useVerificationDialogState } from "~/features/Verification/api/useVerificationDialogState"
+import {
+  useVerificationTools,
+  type VerificationToolRequestParams,
+} from "~/features/Verification/api/useVerificationTools"
+import {
+  filterVerificationRedactions as filterRedactions,
+  isVerificationAbortError,
+} from "~/features/Verification/verificationDialogUtils"
+import { useModelMetadataLookup } from "~/hooks/verification/useModelMetadataLookup"
+import { useVerificationRunLifecycle } from "~/hooks/verification/useVerificationRunLifecycle"
+import {
+  collectAccountRuntimeKeySecrets,
+  findDefaultSelectableAccountRuntimeKey,
+  formatAccountRuntimeKeySecretForSite,
+  isAccountRuntimeKeyCompatibleWithModel,
+  isSelectableAccountRuntimeKey,
+  sortAccountRuntimeKeysActiveFirst,
+  type AccountRuntimeKey,
+} from "~/services/accounts/keys/accountRuntimeKeys"
+import {
+  fetchDisplayAccountRuntimeKeys,
+  resolveDisplayAccountRuntimeKeySecret,
+} from "~/services/accounts/utils/apiServiceRequest"
+import { hasUsableApiTokenKey } from "~/services/accountTokens/apiTokenKey"
+import {
+  resolveProductAnalyticsErrorCategoryFromError,
+  startProductAnalyticsAction,
+} from "~/services/productAnalytics/actions"
+import {
+  PRODUCT_ANALYTICS_ACTION_IDS,
+  PRODUCT_ANALYTICS_ENTRYPOINTS,
+  PRODUCT_ANALYTICS_FAILURE_STAGES,
+  PRODUCT_ANALYTICS_FEATURE_IDS,
+  PRODUCT_ANALYTICS_RESULTS,
+  PRODUCT_ANALYTICS_SURFACE_IDS,
+} from "~/services/productAnalytics/contracts"
+import { resolveProductAnalyticsErrorCategoryFromProbeResult } from "~/services/productAnalytics/facts/verification"
+import type {
+  ApiVerificationApiType,
+  ApiVerificationMode,
+  ApiVerificationProbeId,
+  ApiVerificationProbeResult,
+  ApiVerificationRequestProfile,
+  ModelTestModality,
+} from "~/services/verification/aiApiVerification"
+import {
+  API_TYPES,
+  API_VERIFICATION_MODES,
+  API_VERIFICATION_PROBE_STATUSES,
+  getVerificationRequestProfileApiType,
+  MODEL_TEST_MODALITIES,
+  resolveModelTestModality,
+  resolveVerificationApiType,
+  runApiVerificationProbe,
+} from "~/services/verification/aiApiVerification"
+import { getVerificationRequestProfileOptions } from "~/services/verification/aiApiVerification/requestProfiles"
+import { API_VERIFICATION_REQUEST_PROFILES } from "~/services/verification/aiApiVerification/types"
+import { toSanitizedErrorSummary } from "~/services/verification/aiApiVerification/utils"
+import { runPelicanTest } from "~/services/verification/modelQuality/pelican"
+import { createAccountModelVerificationHistoryTarget } from "~/services/verification/verificationResultHistory"
+import { createLogger } from "~/utils/core/logger"
+
+/**
+ * Unified logger scoped to the API verification dialog.
+ */
+const logger = createLogger("VerifyApiDialog")
+
+/**
+ * Applies model/group context to the owner-projected runtime-key policy.
+ */
+function isRuntimeKeyCompatibleWithModel(
+  runtimeKey: AccountRuntimeKey,
+  options: {
+    hasModelContext: boolean
+    requestedModelId: string
+    modelEnableGroups: VerifyApiDialogProps["modelEnableGroups"]
+  },
+) {
+  if (!isSelectableAccountRuntimeKey(runtimeKey)) return false
+  if (!options.hasModelContext) return true
+  return isAccountRuntimeKeyCompatibleWithModel(runtimeKey, {
+    id: options.requestedModelId,
+    enableGroups: options.modelEnableGroups,
+  })
+}
+
+/**
+ * Owns runtime-key preparation and verification runs while reusing history state.
+ */
+export function useVerifyApiDialogViewModel({
+  isOpen,
+  account,
+  initialModelId,
+  initialRequestProfile,
+  initialSupportedEndpointTypes,
+  modelEnableGroups,
+}: Pick<
+  VerifyApiDialogProps,
+  | "isOpen"
+  | "account"
+  | "initialRequestProfile"
+  | "initialModelId"
+  | "initialSupportedEndpointTypes"
+  | "modelEnableGroups"
+>) {
+  const { t } = useTranslation("aiApiVerification")
+  const {
+    isRunning,
+    isStopped,
+    isCurrent,
+    captureContext,
+    runSuite,
+    runProbe: runProbeTask,
+    runSequentialProbes,
+    stopSuite: stopRun,
+    stopProbe,
+    reset,
+  } = useVerificationRunLifecycle()
+  const [isLoadingRuntimeKeys, setIsLoadingRuntimeKeys] = useState(false)
+  const [accountRuntimeKeys, setAccountRuntimeKeys] = useState<
+    AccountRuntimeKey[]
+  >([])
+  const [selectedRuntimeKeyId, setSelectedRuntimeKeyId] = useState<string>("")
+  const [apiType, setApiType] = useState<ApiVerificationApiType>(
+    API_TYPES.OPENAI_COMPATIBLE,
+  )
+  const [modelId, setModelId] = useState<string>(initialModelId?.trim() ?? "")
+  const [verificationMode, setVerificationMode] = useState<ApiVerificationMode>(
+    API_VERIFICATION_MODES.Streaming,
+  )
+  const [requestProfileEnhanced, setRequestProfileEnhanced] = useState(false)
+  const [showRequestProfileHint, setShowRequestProfileHint] = useState(false)
+  const [requestProfile, setRequestProfile] =
+    useState<ApiVerificationRequestProfile>(
+      API_VERIFICATION_REQUEST_PROFILES.Default,
+    )
+  const requestedModelId = modelId.trim() || initialModelId?.trim() || ""
+  const metadataLookup = useModelMetadataLookup(isOpen && !isRunning, () =>
+    probesRef.current.some((probe) => probe.isRunning),
+  )
+  const modelModality: ModelTestModality = useMemo(
+    () =>
+      resolveModelTestModality(
+        {
+          modelId: requestedModelId,
+          supportedEndpointTypes:
+            requestedModelId === initialModelId?.trim()
+              ? initialSupportedEndpointTypes
+              : undefined,
+        },
+        metadataLookup,
+      ),
+    [
+      requestedModelId,
+      initialModelId,
+      initialSupportedEndpointTypes,
+      metadataLookup,
+    ],
+  )
+  const historyTarget = useMemo(() => {
+    const trimmedModelId = initialModelId?.trim()
+    return trimmedModelId
+      ? createAccountModelVerificationHistoryTarget(account.id, trimmedModelId)
+      : null
+  }, [account.id, initialModelId])
+  const {
+    probes,
+    setProbes: replaceProbes,
+    probesRef,
+    persistedSummary,
+    setPersistedSummary: applyPersistedSummary,
+    persistCurrentResults,
+    clearVerificationHistory,
+    loadVerificationHistory,
+  } = useVerificationDialogState(historyTarget, modelModality, {
+    apiType,
+    isOpen,
+  })
+
+  const selectedRuntimeKey = accountRuntimeKeys.find(
+    (runtimeKey) => runtimeKey.id === selectedRuntimeKeyId,
+  )
+
+  const hasModelContext = requestedModelId.length > 0
+  const compatibleRuntimeKeys = useMemo(() => {
+    return accountRuntimeKeys.filter((runtimeKey) =>
+      isRuntimeKeyCompatibleWithModel(runtimeKey, {
+        hasModelContext,
+        requestedModelId,
+        modelEnableGroups,
+      }),
+    )
+  }, [accountRuntimeKeys, hasModelContext, modelEnableGroups, requestedModelId])
+  const compatibleRuntimeKeyIds = useMemo(
+    () => new Set(compatibleRuntimeKeys.map((runtimeKey) => runtimeKey.id)),
+    [compatibleRuntimeKeys],
+  )
+  const hasLoadedRuntimeKeys =
+    !isLoadingRuntimeKeys && accountRuntimeKeys.length > 0
+  const hasNoCompatibleRuntimeKey =
+    hasModelContext &&
+    hasLoadedRuntimeKeys &&
+    compatibleRuntimeKeys.length === 0
+  const selectedRuntimeKeyIsCompatible =
+    !selectedRuntimeKey || compatibleRuntimeKeyIds.has(selectedRuntimeKey.id)
+  const hasIncompatibleSelectedRuntimeKey =
+    hasModelContext &&
+    selectedRuntimeKey !== undefined &&
+    !selectedRuntimeKeyIsCompatible
+  const runtimeKeyCompatibilityHint = hasNoCompatibleRuntimeKey
+    ? t("verifyDialog.noCompatibleRuntimeKeyHint")
+    : hasIncompatibleSelectedRuntimeKey
+      ? t("verifyDialog.selectedRuntimeKeyIncompatibleHint")
+      : null
+
+  const tokenModelHint = selectedRuntimeKey?.modelAccess.suggestedModelIds[0]
+
+  const isAnyProbeRunning = probes.some((p) => p.isRunning)
+
+  /** Resolves the same credentials the probe suite would use for one action. */
+  const resolveToolRequest = useCallback(
+    async (
+      signal: AbortSignal,
+    ): Promise<VerificationToolRequestParams | null> => {
+      if (!selectedRuntimeKey || !selectedRuntimeKeyIsCompatible) return null
+
+      const resolvedRuntimeKey = await resolveDisplayAccountRuntimeKeySecret(
+        account,
+        selectedRuntimeKey,
+        { abortSignal: signal },
+      )
+      const requestedQualityModelId =
+        requestedModelId ||
+        resolvedRuntimeKey.modelAccess.suggestedModelIds[0] ||
+        ""
+      if (!requestedQualityModelId) return null
+
+      return {
+        baseUrl: resolvedRuntimeKey.baseUrl,
+        apiKey: resolvedRuntimeKey.secret,
+        apiType,
+        modelId: requestedQualityModelId,
+        mode: verificationMode,
+        requestProfile,
+        requestProfileEnhanced,
+        secrets: filterRedactions([
+          account.token,
+          account.cookieAuthSessionCookie,
+          ...collectAccountRuntimeKeySecrets([
+            selectedRuntimeKey,
+            resolvedRuntimeKey,
+          ]),
+        ]),
+      }
+    },
+    [
+      account,
+      apiType,
+      requestProfile,
+      requestProfileEnhanced,
+      requestedModelId,
+      selectedRuntimeKey,
+      selectedRuntimeKeyIsCompatible,
+      verificationMode,
+    ],
+  )
+
+  const tools = useVerificationTools({
+    runPelicanRequest: runPelicanTest,
+    modelId: requestedModelId || tokenModelHint || "",
+    enableContextCapacity: isOpen,
+    contextCapacityKey: JSON.stringify([
+      isOpen,
+      selectedRuntimeKeyId,
+      selectedRuntimeKey?.baseUrl,
+      selectedRuntimeKey?.secret,
+      selectedRuntimeKey?.keyMask,
+      selectedRuntimeKey?.createdAt,
+      selectedRuntimeKey?.siteType,
+      selectedRuntimeKeyIsCompatible,
+      tokenModelHint,
+      account.baseUrl,
+      account.token,
+      account.cookieAuthSessionCookie,
+      requestedModelId,
+      apiType,
+      verificationMode,
+      requestProfile,
+      requestProfileEnhanced,
+    ]),
+    historyTarget:
+      requestedModelId.trim() ||
+      selectedRuntimeKey?.modelAccess.suggestedModelIds[0]?.trim()
+        ? createAccountModelVerificationHistoryTarget(
+            account.id,
+            requestedModelId.trim() ||
+              selectedRuntimeKey?.modelAccess.suggestedModelIds[0]?.trim() ||
+              "",
+          )
+        : null,
+    historyApiType: apiType,
+    resolveRequest: resolveToolRequest,
+    // History may use an already available secret; opening the dialog must not
+    // fetch a hidden credential just to restore a capacity observation.
+    resolveContextHistoryRequest: async () => {
+      const modelId = requestedModelId.trim() || tokenModelHint?.trim()
+      if (!selectedRuntimeKey || !selectedRuntimeKeyIsCompatible || !modelId)
+        return null
+      if (!hasUsableApiTokenKey(selectedRuntimeKey.secret))
+        return MASKED_CONTEXT_HISTORY_REQUEST
+      return {
+        baseUrl: selectedRuntimeKey.baseUrl,
+        apiKey: formatAccountRuntimeKeySecretForSite(selectedRuntimeKey).secret,
+        apiType,
+        modelId,
+        mode: verificationMode,
+        requestProfile,
+        requestProfileEnhanced,
+        secrets: [],
+      }
+    },
+    isSupported: modelModality === MODEL_TEST_MODALITIES.Text,
+    isBlocked:
+      isLoadingRuntimeKeys ||
+      !selectedRuntimeKey ||
+      !selectedRuntimeKeyIsCompatible ||
+      !(requestedModelId.trim() || tokenModelHint?.trim()),
+  })
+
+  const canClose = !isRunning && !isAnyProbeRunning && !tools.isRunning
+
+  const hasAnyResult = probes.some((p) => p.result !== null)
+  const analyticsContext = {
+    featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ModelList,
+    actionId: PRODUCT_ANALYTICS_ACTION_IDS.VerifyModelApi,
+    surfaceId: PRODUCT_ANALYTICS_SURFACE_IDS.OptionsModelListRowActions,
+    entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
+  } as const
+
+  const loadRuntimeKeys = async () => {
+    const isCurrentContext = captureContext()
+    setIsLoadingRuntimeKeys(true)
+    try {
+      const runtimeKeys = await fetchDisplayAccountRuntimeKeys(account)
+      if (!isCurrentContext()) return
+
+      const sorted = sortAccountRuntimeKeysActiveFirst(runtimeKeys)
+
+      setAccountRuntimeKeys(sorted)
+
+      const defaultRuntimeKey = hasModelContext
+        ? (sorted.find((runtimeKey) =>
+            isRuntimeKeyCompatibleWithModel(runtimeKey, {
+              hasModelContext,
+              requestedModelId,
+              modelEnableGroups,
+            }),
+          ) ?? null)
+        : findDefaultSelectableAccountRuntimeKey(sorted)
+      setSelectedRuntimeKeyId(defaultRuntimeKey ? defaultRuntimeKey.id : "")
+    } catch (error) {
+      if (!isCurrentContext()) return
+      logger.error("Failed to load runtime keys", {
+        message: toSanitizedErrorSummary(
+          error,
+          filterRedactions([account.token, account.cookieAuthSessionCookie]),
+        ),
+      })
+      setAccountRuntimeKeys([])
+      setSelectedRuntimeKeyId("")
+    } finally {
+      if (isCurrentContext()) setIsLoadingRuntimeKeys(false)
+    }
+  }
+
+  const runProbe = async (
+    probeId: ApiVerificationProbeId,
+    abortSignal?: AbortSignal,
+  ) => {
+    if (isStopped(abortSignal)) return null
+    if (!selectedRuntimeKey || !selectedRuntimeKeyIsCompatible) return null
+    let resolvedRuntimeKey = selectedRuntimeKey
+    let executedMode: ApiVerificationMode | undefined
+    const { result } = await executeDialogProbe({
+      probeId,
+      mode: verificationMode,
+      signal: abortSignal,
+      isStopped: () => isStopped(abortSignal),
+      isCurrent: () => isCurrent(abortSignal),
+      isAbortFailure: (error) => isVerificationAbortError(error, abortSignal),
+      stoppedMode: () => executedMode,
+      readProbes: () => probesRef.current,
+      replaceProbes,
+      execute: async () => {
+        resolvedRuntimeKey = await resolveDisplayAccountRuntimeKeySecret(
+          account,
+          selectedRuntimeKey,
+          { abortSignal },
+        )
+        if (isStopped(abortSignal))
+          throw new DOMException("Aborted", "AbortError")
+        executedMode = verificationMode
+        return runApiVerificationProbe({
+          ...getVerificationRequestProfileOptions(
+            requestProfile,
+            requestProfileEnhanced,
+          ),
+          baseUrl: resolvedRuntimeKey.baseUrl,
+          apiKey: resolvedRuntimeKey.secret,
+          apiType,
+          mode: executedMode,
+          modelId: modelId.trim() || undefined,
+          fallbackModelId: resolvedRuntimeKey.modelAccess.suggestedModelIds[0],
+          probeId,
+          abortSignal,
+        })
+      },
+      acceptResult: (nextProbes) =>
+        persistCurrentResults(
+          apiType,
+          nextProbes,
+          modelId.trim() || tokenModelHint || initialModelId?.trim(),
+        ),
+      failure: {
+        secrets: () =>
+          filterRedactions([
+            account.token,
+            account.cookieAuthSessionCookie,
+            ...collectAccountRuntimeKeySecrets([
+              selectedRuntimeKey,
+              resolvedRuntimeKey,
+            ]),
+          ]),
+        summary: t("verifyDialog.errors.unexpected"),
+        report: (message) => logger.error("Probe failed", { probeId, message }),
+      },
+    })
+    return result
+  }
+
+  const clearHistory = async () => {
+    if (!historyTarget) return
+    await clearVerificationHistory(apiType)
+    tools.clearPelicanHistory?.()
+    tools.clearContextCapacityHistory?.(historyTarget)
+  }
+
+  // The suite can always run the models probe without a model id.
+  const canRunAll = !!selectedRuntimeKey && selectedRuntimeKeyIsCompatible
+
+  const runAll = async () => {
+    if (!canRunAll) return
+
+    return runSuite(async (signal) => {
+      const tracker = startProductAnalyticsAction(analyticsContext)
+      let successCount = 0
+      let failureCount = 0
+      let hasExecutedProbe = false
+      let failedProbeResult: ApiVerificationProbeResult | undefined
+      replaceProbes(buildProbeState(apiType, null, modelModality))
+      try {
+        // Run sequentially so each probe updates independently (and can be retried individually).
+        await runSequentialProbes(
+          apiType,
+          async (probe) => {
+            if (probe.requiresModelId && !modelId.trim() && !tokenModelHint)
+              return
+
+            const result = await runProbe(probe.id, signal)
+            if (!result) return
+            if (result.status === API_VERIFICATION_PROBE_STATUSES.Pass) {
+              hasExecutedProbe = true
+              successCount += 1
+            } else if (result.status === API_VERIFICATION_PROBE_STATUSES.Fail) {
+              hasExecutedProbe = true
+              failureCount += 1
+              failedProbeResult ??= result
+            }
+          },
+          signal,
+          modelModality,
+        )
+        if (isStopped(signal)) {
+          if (isCurrent(signal))
+            replaceProbes(withUnfinishedProbesStopped(probesRef.current))
+          tracker.complete(PRODUCT_ANALYTICS_RESULTS.Cancelled, {
+            insights: {
+              successCount,
+              failureCount,
+            },
+          })
+          return
+        }
+
+        const completionResult =
+          failureCount > 0
+            ? PRODUCT_ANALYTICS_RESULTS.Failure
+            : hasExecutedProbe
+              ? PRODUCT_ANALYTICS_RESULTS.Success
+              : PRODUCT_ANALYTICS_RESULTS.Skipped
+        tracker.complete(completionResult, {
+          ...(completionResult === PRODUCT_ANALYTICS_RESULTS.Failure
+            ? {
+                errorCategory:
+                  resolveProductAnalyticsErrorCategoryFromProbeResult(
+                    failedProbeResult,
+                  ),
+              }
+            : {}),
+          insights: {
+            failureStage:
+              completionResult === PRODUCT_ANALYTICS_RESULTS.Failure
+                ? PRODUCT_ANALYTICS_FAILURE_STAGES.Execute
+                : undefined,
+            successCount,
+            failureCount,
+          },
+        })
+      } catch (error) {
+        if (isCurrent(signal))
+          replaceProbes(withUnfinishedProbesStopped(probesRef.current))
+        tracker.complete(PRODUCT_ANALYTICS_RESULTS.Failure, {
+          errorCategory: resolveProductAnalyticsErrorCategoryFromError(error),
+          insights: {
+            failureStage: PRODUCT_ANALYTICS_FAILURE_STAGES.Execute,
+            successCount,
+            failureCount,
+          },
+        })
+      }
+    })
+  }
+
+  useEffect(() => {
+    reset()
+    if (!isOpen) return
+
+    let cancelled = false
+    const trimmedModelId = initialModelId?.trim() ?? ""
+    setAccountRuntimeKeys([])
+    setSelectedRuntimeKeyId("")
+    setModelId(trimmedModelId)
+    setVerificationMode(API_VERIFICATION_MODES.Streaming)
+    setRequestProfileEnhanced(false)
+    setRequestProfile(
+      initialRequestProfile ?? API_VERIFICATION_REQUEST_PROFILES.Default,
+    )
+    setShowRequestProfileHint(
+      !!initialRequestProfile &&
+        initialRequestProfile !== API_VERIFICATION_REQUEST_PROFILES.Default,
+    )
+    applyPersistedSummary(null)
+
+    const initialApiType =
+      (initialRequestProfile &&
+        getVerificationRequestProfileApiType(initialRequestProfile)) ||
+      resolveVerificationApiType({
+        modelId: trimmedModelId,
+        supportedEndpointTypes: initialSupportedEndpointTypes,
+      })
+
+    setApiType(initialApiType)
+    replaceProbes(buildProbeState(initialApiType, null, modelModality))
+
+    void loadVerificationHistory({
+      apiType: initialApiType,
+      isCancelled: () => cancelled,
+      onResolvedModelId: (resolvedModelId) => {
+        setModelId((current) => current.trim() || resolvedModelId)
+      },
+    })
+
+    void loadRuntimeKeys()
+
+    return () => {
+      cancelled = true
+      reset()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    account.id,
+    historyTarget,
+    initialModelId,
+    initialRequestProfile,
+    initialSupportedEndpointTypes,
+    isOpen,
+  ])
+
+  const runSingleProbe = (probeId: ApiVerificationProbeId) => {
+    void runProbeTask(probeId, (signal) => runProbe(probeId, signal))
+  }
+
+  return {
+    isRunning,
+    isLoadingRuntimeKeys,
+    accountRuntimeKeys,
+    selectedRuntimeKeyId,
+    setSelectedRuntimeKeyId,
+    apiType,
+    setApiType: (next: ApiVerificationApiType) => {
+      setShowRequestProfileHint(false)
+      setApiType(next)
+    },
+    requestProfile,
+    showRequestProfileHint,
+    requestProfileEnhanced,
+    setRequestProfileEnhanced: (value: boolean) => {
+      if (!canClose) return
+      setRequestProfileEnhanced(value)
+      applyPersistedSummary(null)
+      replaceProbes(buildProbeState(apiType, null, modelModality))
+    },
+    setRequestProfile: (next: ApiVerificationRequestProfile) => {
+      if (!canClose) return
+      setShowRequestProfileHint(false)
+      const nextApiType = getVerificationRequestProfileApiType(next) ?? apiType
+      setApiType(nextApiType)
+      setRequestProfileEnhanced(false)
+      setRequestProfile(next)
+      applyPersistedSummary(null)
+      replaceProbes(buildProbeState(nextApiType, null, modelModality))
+    },
+    modelId,
+    setModelId,
+    verificationMode,
+    setVerificationMode,
+    historyTarget,
+    probes,
+    persistedSummary,
+    selectedRuntimeKey,
+    compatibleRuntimeKeyIds,
+    selectedRuntimeKeyIsCompatible,
+    runtimeKeyCompatibilityHint,
+    tokenModelHint,
+    canClose,
+    hasAnyResult,
+    clearHistory,
+    canRunAll,
+    runAll,
+    stopRun,
+    stopProbe,
+    runSingleProbe,
+    modelModality,
+    tools,
+  }
+}

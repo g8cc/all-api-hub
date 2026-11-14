@@ -1,5 +1,5 @@
-import { validateNewApiSessionReadResource } from "~/services/managedSites/providers/newApiProtectionBypassResource"
-import { validateOctopusApiFetchResource } from "~/services/managedSites/providers/octopusProtectionBypassResource"
+import { validateNewApiSessionReadResource } from "~/services/managedSites/providers/newApi/newApiProtectionBypassResource"
+import { validateOctopusApiFetchResource } from "~/services/managedSites/providers/octopus/octopusProtectionBypassResource"
 import {
   TEMP_CONTEXT_TASK_KINDS,
   type ResolvedProtectionBypassExecution,
@@ -28,9 +28,10 @@ export const validateProtectionBypassTaskResource: ValidateProtectionBypassTaskR
       case TEMP_CONTEXT_TASK_KINDS.ProfileIsolatedFetch:
       case TEMP_CONTEXT_TASK_KINDS.TurnstileFetch:
       case TEMP_CONTEXT_TASK_KINDS.NativePageAction:
-      case TEMP_CONTEXT_TASK_KINDS.BrowserCheckIn:
       case TEMP_CONTEXT_TASK_KINDS.OpenRouterManagementKeyAction:
+      case TEMP_CONTEXT_TASK_KINDS.RequestyManagementKeyAction:
       case TEMP_CONTEXT_TASK_KINDS.CheckinFeedbackScan:
+      case TEMP_CONTEXT_TASK_KINDS.CredentialPageInspect:
       case TEMP_CONTEXT_TASK_KINDS.RenderedTitle:
       case TEMP_CONTEXT_TASK_KINDS.SessionRead:
       case TEMP_CONTEXT_TASK_KINDS.OpenContext:

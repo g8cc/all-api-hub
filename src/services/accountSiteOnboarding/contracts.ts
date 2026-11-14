@@ -4,12 +4,16 @@ import type {
   AccountSiteDetectionMetadata,
   AccountSiteRouteConfig,
 } from "~/services/accountSiteDefinitions/contracts"
+import type { KimiOpenPlatformAuthConfig } from "~/types"
+
+import type { AccountDetectionDiagnostics } from "./diagnostics"
 
 export type ContentSessionExtractionContext = {
   url?: string
   siteTypeHint?: AccountSiteType
-  /** Allows an explicit current-tab auto-detect to probe the modern New API session. */
-  allowNewApiAuthProbe?: boolean
+  /** Allows explicit onboarding to try registered session probes for unknown sites. */
+  allowSessionProbe?: boolean
+  diagnostics?: AccountDetectionDiagnostics
 }
 
 export const NEW_API_DASHBOARD_TRANSIENT_AUTH_KIND = "new_api_dashboard_bearer"
@@ -26,7 +30,16 @@ export type NewApiDashboardTransientAuth = {
   origin: string
 }
 
-export type ContentSessionTransientAuth = NewApiDashboardTransientAuth
+export type AimlApiConsoleTransientAuth = {
+  kind: typeof AIMLAPI_CONSOLE_TRANSIENT_AUTH_KIND
+  token: string
+  origin: string
+  userId: string
+}
+export const AIMLAPI_CONSOLE_TRANSIENT_AUTH_KIND = "aimlapi_console"
+export type ContentSessionTransientAuth =
+  | NewApiDashboardTransientAuth
+  | AimlApiConsoleTransientAuth
 
 export type ContentSessionExtractionResult = {
   userId: string | number
@@ -38,6 +51,7 @@ export type ContentSessionExtractionResult = {
     refreshToken: string
     tokenExpiresAt?: number
   }
+  kimiOpenPlatformAuth?: KimiOpenPlatformAuthConfig
 }
 
 /** Untrusted session payload context; probe permission never implies permission to persist auth. */
@@ -45,11 +59,20 @@ export type ContentSessionTransientAuthContext = {
   baseUrl: string
   siteType: AccountSiteType
   siteTypeHint?: AccountSiteType
-  allowNewApiAuthProbe?: boolean
+  allowSessionProbe?: boolean
 }
+
+/** A recognized protocol failed; speculative fallback must not replace its identity. */
+export class ContentSessionProtocolError extends Error {}
 
 export type ContentSessionExtractor = {
   id: string
+  /** Cached generic identity only; defer it and never use it to hide a failed probe. */
+  isUnverifiedFallback?: boolean
+  /** Optional protocol-aware discovery. Called only for explicit unknown-site onboarding. */
+  probe?(
+    context: ContentSessionExtractionContext,
+  ): Promise<ContentSessionExtractionResult | null>
   canExtract(context: ContentSessionExtractionContext): boolean
   extract(
     context: ContentSessionExtractionContext,

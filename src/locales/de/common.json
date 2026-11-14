@@ -1,5 +1,6 @@
 {
   "actions": {
+    "add": "Hinzufügen",
     "cancel": "Abbrechen",
     "clear": "Leeren",
     "close": "Schließen",
@@ -11,9 +12,12 @@
     "import": "Importieren",
     "loadField": "{{field}} laden",
     "more": "Mehr",
+    "moveDownItem": "{{name}} nach unten verschieben",
+    "moveUpItem": "{{name}} nach oben verschieben",
     "openSidePanel": "In der Seitenleiste öffnen",
     "refresh": "Aktualisieren",
     "refreshField": "{{field}} aktualisieren",
+    "remove": "Entfernen",
     "reset": "Zurücksetzen",
     "retry": "Wiederholen",
     "save": "Speichern"
@@ -68,7 +72,6 @@
     "disabled": "Deaktiviert",
     "disabling": "Wird deaktiviert...",
     "enabled": "Aktiviert",
-    "enabling": "Wird aktiviert...",
     "error": "Fehler",
     "exporting": "Wird exportiert...",
     "failed": "Fehlgeschlagen",

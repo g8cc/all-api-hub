@@ -1,26 +1,20 @@
-import { RuntimeActionIds } from "~/constants/runtimeActions"
+import { resolveDeploymentApiOrigin } from "~/constants/deploymentApiOrigins"
 import { buildCompatUserIdHeaders } from "~/services/apiTransport/compatHeaders"
 import { mapCompatibilityResponse } from "~/services/apiTransport/compatibilityResponse"
 import { REQUEST_CONFIG } from "~/services/apiTransport/constant"
-import {
-  API_ERROR_CODES,
-  ApiError,
-  type ApiErrorCode,
-} from "~/services/apiTransport/errors"
+import { executeWithCurrentTabContentPreference } from "~/services/apiTransport/currentTabTransport"
+import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
 import { createMinIntervalLimiter } from "~/services/apiTransport/minIntervalLimiter"
-import {
-  isReplaySafeRemoteFetch,
-  observeRemoteFetchLifecycle,
-} from "~/services/apiTransport/remoteLifecycle"
 import { executePreparedRequest } from "~/services/apiTransport/requestExecution"
 import {
+  assertNotProtectionResponse,
   extractDataFromApiResponseBody,
   isApiResponseBody,
 } from "~/services/apiTransport/response"
+import { withSafariNativeCookieSession } from "~/services/apiTransport/safariNativeCookie"
 import type {
   ApiAuthTokenMode,
   ApiResponse,
-  ApiTransportFetchContext,
   ApiTransportRequest,
   ApiTransportResponse,
   AuthConfig,
@@ -28,8 +22,6 @@ import type {
 } from "~/services/apiTransport/type"
 import {
   API_AUTH_TOKEN_MODES,
-  API_TRANSPORT_CURRENT_TAB_FALLBACK_MODES,
-  API_TRANSPORT_FETCH_CONTEXT_KINDS,
   summarizeApiTransportFetchContext,
 } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
@@ -38,24 +30,15 @@ import type {
   TempWindowResponseType,
 } from "~/types/tempWindowFetch"
 import {
-  isMessageReceiverUnavailableError,
-  sendTabMessageWithRetry,
-} from "~/utils/browser/browserApi"
-import {
   addAuthMethodHeader,
   addExtensionHeader,
   AUTH_MODE,
   COOKIE_AUTH_HEADER_NAME,
   COOKIE_SESSION_OVERRIDE_HEADER_NAME,
 } from "~/utils/browser/cookieHelper"
-import {
-  normalizeHeaderInit,
-  normalizeRequestInitForMessage,
-} from "~/utils/browser/requestInitMessage"
+import { normalizeHeaderInit } from "~/utils/browser/requestInitMessage"
 import { executeWithTempWindowFallback } from "~/utils/browser/tempWindowFetch"
 import { isTestMode } from "~/utils/core/environment"
-import { getErrorMessage } from "~/utils/core/error"
-import { safeRandomUUID } from "~/utils/core/identifier"
 import { createLogger } from "~/utils/core/logger"
 import { joinUrl } from "~/utils/core/url"
 import { normalizeUrlForOriginKey } from "~/utils/core/urlParsing"
@@ -88,41 +71,6 @@ type MessageResponseMapper<TResult> = (
   response: TempWindowFetch,
 ) => TResult | Promise<TResult>
 
-interface ContentFetchResponse<T> {
-  success?: boolean
-  status?: number
-  headers?: Record<string, string>
-  data?: T
-  error?: string
-  code?: ApiErrorCode
-}
-
-/** Copies the controlled message response fields before lifecycle disposal. */
-function snapshotContentFetchResponse<T>(
-  value: unknown,
-): ContentFetchResponse<T> {
-  if (!value || typeof value !== "object") return {}
-  const response = value as ContentFetchResponse<T>
-  return {
-    success: response.success,
-    status: response.status,
-    headers: response.headers,
-    data: response.data,
-    error: response.error,
-    code: response.code,
-  }
-}
-
-/** Redacts the exact request credential before emitting transport diagnostics. */
-function getSafeTransportErrorMessage(
-  error: unknown,
-  requestAccessToken: string | undefined,
-): string {
-  const message = getErrorMessage(error)
-  if (!requestAccessToken?.trim()) return message
-  return message.split(requestAccessToken).join("[REDACTED]")
-}
-
 const logger = createLogger("ApiTransportRequest")
 
 // Throttle log endpoints (`/api/log*`) to reduce burst traffic that can trigger
@@ -146,7 +94,7 @@ function isLogApiEndpoint(endpoint: string | undefined): boolean {
   const trimmed = endpoint.trim()
   if (!trimmed) return false
 
-  const [rawPath] = trimmed.split("?")
+  const [rawPath = ""] = trimmed.split("?")
   const normalizedPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`
   if (normalizedPath === "/api/log" || normalizedPath.startsWith("/api/log/")) {
     return true
@@ -256,231 +204,33 @@ const createBaseRequest = (
   delete requestOptions.headers
   delete requestOptions.method
 
-  const defaultHeaders: HeadersInit = {
-    ...headers,
+  const defaultHeaders: Record<string, string> = {
+    ...normalizeHeaderInit(headers),
     // 非 GET 请求自动加 Content-Type
     ...(method !== "GET" ? { "Content-Type": "application/json" } : {}),
   }
+  const callerHeaders = normalizeHeaderInit(options.headers)
+  const callerHeaderNames = new Set(
+    Object.keys(callerHeaders).map((name) => name.toLowerCase()),
+  )
+  // Header names are case-insensitive. A capitalized default next to a
+  // lowercased caller value reaches the network as one comma-joined header,
+  // which strict gateways reject as an unreadable body.
+  const mergedHeaders = Object.fromEntries(
+    Object.entries(defaultHeaders).filter(
+      ([name]) => !callerHeaderNames.has(name.toLowerCase()),
+    ),
+  )
 
   return {
     method,
     headers: {
-      ...defaultHeaders,
-      ...(options.headers || {}), // 用户自定义 headers 可覆盖默认值
+      ...mergedHeaders,
+      ...callerHeaders, // 用户自定义 headers 可覆盖默认值
     },
     credentials,
     ...requestOptions,
   }
-}
-
-/**
- * Checks whether a request can safely prefer the matched current tab transport.
- */
-function isCurrentTabContentFetchEligible(params: {
-  request: ApiTransportRequest
-  url: string
-  options: FetchApiOptions
-}): boolean {
-  if (params.options.currentTabTransport === "disabled") return false
-  const responseType = params.options.responseType ?? "json"
-  if (responseType !== "json" && responseType !== "text") return false
-
-  const fetchContext = params.request.fetchContext
-  if (fetchContext?.kind !== API_TRANSPORT_FETCH_CONTEXT_KINDS.CURRENT_TAB)
-    return false
-  if (typeof fetchContext.tabId !== "number") return false
-
-  try {
-    const requestOrigin = new URL(params.url).origin
-    const contextOrigin = new URL(fetchContext.origin).origin
-    return requestOrigin === contextOrigin
-  } catch {
-    return false
-  }
-}
-
-/**
- * Sends the prepared request through the matched tab's content script.
- */
-async function fetchViaCurrentTabContent<T>(context: {
-  fetchContext: Extract<
-    ApiTransportFetchContext,
-    { kind: typeof API_TRANSPORT_FETCH_CONTEXT_KINDS.CURRENT_TAB }
-  >
-  url: string
-  endpoint: string
-  fetchOptions: RequestInit
-  responseType: TempWindowResponseType
-  onDispatch: () => void
-  onResponse: () => void
-  onResponseInspectionError: () => void
-}): Promise<AcquiredTransportResponse<T>> {
-  const requestId = safeRandomUUID("current-tab-fetch")
-  const lifecycle = observeRemoteFetchLifecycle(requestId, {
-    onDispatch: context.onDispatch,
-    onResponse: context.onResponse,
-  })
-  const replaySafe = isReplaySafeRemoteFetch(context.fetchOptions)
-  const abortSignal = context.fetchOptions.signal
-  let hasAffirmativePreDispatchEvidence = false
-  const disposeLifecycle = () => lifecycle.dispose()
-  const disposeAfterAbort = () => {
-    if (!replaySafe && !hasAffirmativePreDispatchEvidence) {
-      lifecycle.markPossiblyDispatched()
-    }
-    disposeLifecycle()
-  }
-  abortSignal?.addEventListener("abort", disposeAfterAbort, { once: true })
-
-  try {
-    let response: unknown
-    try {
-      response = await sendTabMessageWithRetry(context.fetchContext.tabId, {
-        action: RuntimeActionIds.ContentPerformTempWindowFetch,
-        requestId,
-        expectedOrigin: new URL(context.fetchContext.origin).origin,
-        fetchUrl: context.url,
-        fetchOptions: normalizeRequestInitForMessage(context.fetchOptions),
-        responseType: context.responseType,
-      })
-    } catch (error) {
-      if (!replaySafe && !isMessageReceiverUnavailableError(error)) {
-        lifecycle.markPossiblyDispatched()
-      }
-      throw error
-    }
-    let responseSnapshot: ContentFetchResponse<ApiResponse<T> | T>
-    try {
-      hasAffirmativePreDispatchEvidence =
-        lifecycle.applyResultEvidence(response).affirmativePreDispatch
-      responseSnapshot = snapshotContentFetchResponse<ApiResponse<T> | T>(
-        response,
-      )
-      if (
-        !replaySafe &&
-        !(
-          responseSnapshot.success === false &&
-          hasAffirmativePreDispatchEvidence
-        )
-      ) {
-        lifecycle.markPossiblyDispatched()
-      }
-    } catch (error) {
-      if (!replaySafe && !hasAffirmativePreDispatchEvidence) {
-        lifecycle.markPossiblyDispatched()
-      }
-      context.onResponseInspectionError()
-      throw error
-    }
-
-    const success = responseSnapshot.success
-    if (typeof success !== "boolean") {
-      throw new ApiError(
-        responseSnapshot.error || "Current-tab content fetch failed",
-        responseSnapshot.status,
-        context.endpoint,
-        responseSnapshot.code,
-      )
-    }
-
-    const status = responseSnapshot.status ?? (success ? 200 : undefined)
-    if (status === undefined) {
-      throw new ApiError(
-        responseSnapshot.error || "Current-tab content fetch failed",
-        undefined,
-        context.endpoint,
-        responseSnapshot.code,
-      )
-    }
-
-    return {
-      ok: success,
-      status,
-      headers: responseSnapshot.headers ?? {},
-      body: responseSnapshot.data as T,
-    }
-  } finally {
-    abortSignal?.removeEventListener("abort", disposeAfterAbort)
-    disposeLifecycle()
-  }
-}
-
-/**
- * Runs current-tab content fetch first when eligible, then falls back normally.
- */
-async function executeWithCurrentTabContentPreference<T, TResult>(
-  context: {
-    request: ApiTransportRequest
-    url: string
-    endpoint: string
-    fetchOptions: RequestInit
-    responseType: TempWindowResponseType
-    options: FetchApiOptions
-    onDispatch: () => void
-    onResponse: () => void
-    wasDispatched: () => boolean
-  },
-  mapResponse: TransportResponseMapper<T, TResult>,
-  fallback: () => Promise<TResult>,
-): Promise<TResult> {
-  if (
-    !isCurrentTabContentFetchEligible({
-      request: context.request,
-      url: context.url,
-      options: context.options,
-    })
-  ) {
-    return await fallback()
-  }
-
-  const fetchContext = context.request.fetchContext as Extract<
-    ApiTransportFetchContext,
-    { kind: typeof API_TRANSPORT_FETCH_CONTEXT_KINDS.CURRENT_TAB }
-  >
-
-  let response: AcquiredTransportResponse<T>
-  let responseInspectionFailed = false
-  try {
-    response = await fetchViaCurrentTabContent<T>({
-      fetchContext,
-      url: context.url,
-      endpoint: context.endpoint,
-      fetchOptions: context.fetchOptions,
-      responseType: context.responseType,
-      onDispatch: context.onDispatch,
-      onResponse: context.onResponse,
-      onResponseInspectionError: () => {
-        responseInspectionFailed = true
-      },
-    })
-  } catch (error) {
-    const replaySafe = isReplaySafeRemoteFetch(context.fetchOptions)
-    const dispatched = context.wasDispatched()
-    const mustNotFallback =
-      context.request.currentTabFallback ===
-        API_TRANSPORT_CURRENT_TAB_FALLBACK_MODES.Forbid ||
-      responseInspectionFailed ||
-      (dispatched && !replaySafe)
-    logger.debug(
-      mustNotFallback
-        ? "Current-tab content fetch failed without a safe fallback"
-        : "Current-tab content fetch failed; falling back",
-      {
-        endpoint: context.endpoint,
-        url: context.url,
-        error: getSafeTransportErrorMessage(
-          error,
-          context.request.auth.accessToken,
-        ),
-      },
-    )
-    if (mustNotFallback) throw error
-    return await fallback()
-  }
-
-  // Mapping happens after transport acquisition so an HTTP/application error
-  // cannot replay a request that the current tab already dispatched.
-  return await mapResponse(response)
 }
 
 /**
@@ -524,7 +274,18 @@ const readApiResponse = async <T>(
   const contentType = response.headers.get("content-type") || ""
 
   if (responseType === "json") {
+    assertNotProtectionResponse(
+      undefined,
+      response.status,
+      endpoint,
+      response.headers,
+    )
     if (response.ok && contentType && !/\bjson\b/i.test(contentType)) {
+      assertNotProtectionResponse(
+        await response.text(),
+        response.status,
+        endpoint,
+      )
       throw new ApiError(
         `响应 content type mismatch: expected JSON but got ${contentType}`,
         response.status,
@@ -564,6 +325,8 @@ const readApiResponse = async <T>(
     throw error
   }
 
+  if (responseType === "json")
+    assertNotProtectionResponse(body, response.status, endpoint)
   return {
     ok: response.ok,
     status: response.status,
@@ -610,11 +373,27 @@ const _fetchApiWithMapper = async <T, TResult>(
   mapResponse: TransportResponseMapper<T, TResult>,
   mapTempWindowResponse: MessageResponseMapper<TResult>,
 ): Promise<TResult> => {
+  if (!request.protectionBypassExecution && !request.directRequestReason) {
+    throw new ApiError(
+      t("messages:errors.api.missingRecoveryPolicy"),
+      undefined,
+      options.endpoint,
+      API_ERROR_CODES.REQUEST_RECOVERY_POLICY_MISSING,
+    )
+  }
+  request = withSafariNativeCookieSession(request)
   const responseType = options.responseType ?? "json"
   const { baseUrl, accountId } = request
   const userId = request.auth?.userId
 
-  const url = joinUrl(baseUrl, options.endpoint)
+  // Split-origin deployments answer their API on a different origin than the
+  // dashboard they are addressed by. `request.baseUrl` keeps the browser origin:
+  // session reading, temporary-window fallback and the current-tab origin guard
+  // all depend on it.
+  const url = joinUrl(
+    request.managementApiBaseUrl ?? resolveDeploymentApiOrigin(baseUrl),
+    options.endpoint,
+  )
 
   const resolvedAuth: NormalizedAuthContext = {
     authType: request.auth?.authType ?? AuthTypeEnum.None,
@@ -643,6 +422,7 @@ const _fetchApiWithMapper = async <T, TResult>(
     responseType,
     tempWindowRequestSource: request.tempWindowRequestSource,
     tempWindowFallback: options.tempWindowFallback,
+    operationSemantics: options.operationSemantics,
     accountId,
     authType: resolvedAuth.authType,
     cookieAuthSessionCookie:
@@ -671,11 +451,23 @@ const _fetchApiWithMapper = async <T, TResult>(
       dispatch,
       onDispatch,
       onResponse,
-      wasDispatched,
+      onRateLimit,
     }) => {
       const dispatchedContext = {
         ...context,
         fetchOptions: dispatchedFetchOptions,
+      }
+      const mapObservedResponse: typeof mapResponse = (response) => {
+        if (response.status === 429)
+          onRateLimit(response.headers["retry-after"])
+        if (responseType === "json")
+          assertNotProtectionResponse(
+            response.body,
+            response.status,
+            options.endpoint,
+            response.headers,
+          )
+        return mapResponse(response)
       }
       const primaryRequest = async () => {
         const response = await readApiResponse<T>(
@@ -683,8 +475,10 @@ const _fetchApiWithMapper = async <T, TResult>(
           options.endpoint,
           responseType,
         )
-        return await mapResponse(response)
+        return await mapObservedResponse(response)
       }
+      // Private credentials must never degrade to ambient cookies or a page.
+      if (request.cookieSession) return await primaryRequest()
       const fallback = async () => {
         const execution = request.protectionBypassExecution
         if (!execution) {
@@ -706,10 +500,41 @@ const _fetchApiWithMapper = async <T, TResult>(
             transportLifecycleObserver: { onDispatch, onResponse },
           },
           primaryRequest,
-          mapTempWindowResponse,
+          (response) => {
+            const normalized = normalizeMessageFetchResponse<T>(
+              response,
+              options.endpoint,
+            )
+            if (normalized.status === 429)
+              onRateLimit(normalized.headers["retry-after"])
+            if (responseType === "json")
+              assertNotProtectionResponse(
+                normalized.body,
+                normalized.status,
+                options.endpoint,
+                normalized.headers,
+              )
+            return mapTempWindowResponse(response)
+          },
         )
       }
 
+      // Credential overrides are owned by extension fetch. Do not silently
+      // retry through a page context that cannot honor their UA isolation.
+      if (
+        request.requestHeaders &&
+        Object.keys(request.requestHeaders).length
+      ) {
+        if (dispatchedContext.forceTempWindow) {
+          throw new ApiError(
+            t("messages:background.tempWindowPolicyContextInvalid"),
+            undefined,
+            options.endpoint,
+            API_ERROR_CODES.TEMP_WINDOW_POLICY_CONTEXT_INVALID,
+          )
+        }
+        return await primaryRequest()
+      }
       if (dispatchedContext.forceTempWindow) return await fallback()
 
       return await executeWithCurrentTabContentPreference<T, TResult>(
@@ -722,9 +547,8 @@ const _fetchApiWithMapper = async <T, TResult>(
           options,
           onDispatch,
           onResponse,
-          wasDispatched,
         },
-        mapResponse,
+        mapObservedResponse,
         fallback,
       )
     },
@@ -881,10 +705,12 @@ async function parseResponseByType<T>(
     case "blob":
       return (await response.blob()) as T
     case "json":
-    default:
+    default: {
+      const text = await response.text()
       try {
-        return (await response.json()) as ApiResponse<T>
+        return JSON.parse(text) as ApiResponse<T>
       } catch {
+        assertNotProtectionResponse(text, response.status, endpoint)
         throw new ApiError(
           t("messages:errors.api.invalidResponseFormat"),
           response.status,
@@ -892,5 +718,6 @@ async function parseResponseByType<T>(
           API_ERROR_CODES.JSON_PARSE_ERROR,
         )
       }
+    }
   }
 }

@@ -1,15 +1,11 @@
 import type { AccountSiteType } from "~/constants/siteType"
 import type { ApiErrorCode } from "~/services/apiTransport/errors"
+import type { ApiOperationSemantics } from "~/services/apiTransport/type"
+import type { TurnstileSolverFailureCode } from "~/services/checkin/turnstile/solverContracts"
 import type {
   ProtectionBypassExecution,
   TempWindowFetchTaskKind,
 } from "~/services/protectionBypass/contracts"
-import type {
-  BrowserCheckInAction,
-  BrowserCheckInExecutionResult,
-  BrowserCheckInIdentityCondition,
-  BrowserCheckInSuccessCondition,
-} from "~/types/checkinAutomation"
 import type { AuthTypeEnum } from "~/types/index"
 import type {
   CheckinPageActionTriggerResult,
@@ -94,15 +90,34 @@ export interface TempWindowOctopusApiFetchParams {
   resourceBinding?: OctopusApiResourceBinding
 }
 
+export const TEMP_WINDOW_TURNSTILE_STATUSES = {
+  NotPresent: "not_present",
+  TokenObtained: "token_obtained",
+  Timeout: "timeout",
+  Error: "error",
+} as const
+
 export type TempWindowTurnstileStatus =
-  | "not_present"
-  | "token_obtained"
-  | "timeout"
-  | "error"
+  (typeof TEMP_WINDOW_TURNSTILE_STATUSES)[keyof typeof TEMP_WINDOW_TURNSTILE_STATUSES]
+
+/**
+ * Outcome of the optional solving service, kept separate from `status` because
+ * the token that finally produced the result may come from either source.
+ */
+export interface TempWindowTurnstileSolverMeta {
+  /** Whether a solve request was attempted at all. */
+  attempted: boolean
+  /** Whether the service returned a usable token. */
+  ok: boolean
+  /** Why the service did not help; absent when it succeeded. */
+  code?: TurnstileSolverFailureCode
+  elapsedMs?: number
+}
 
 export interface TempWindowTurnstileMeta {
   status: TempWindowTurnstileStatus
   hasTurnstile: boolean
+  solver?: TempWindowTurnstileSolverMeta
 }
 
 export interface TempWindowTurnstileFetchParams extends TempWindowFetchParams {
@@ -118,28 +133,26 @@ export interface TempWindowTurnstileFetchParams extends TempWindowFetchParams {
   useIncognito?: boolean
   /** Timeout (ms) for Turnstile token wait in the content script. */
   turnstileTimeoutMs?: number
-  /**
-   * Allow foregrounding the temporary context and waiting longer so the user can
-   * complete an interactive challenge in person.
-   *
-   * Only user-initiated runs may set this. Automatic runs must stay in the
-   * background and fail fast rather than steal focus from the user.
-   */
-  allowInteractiveVerification?: boolean
-  /** Query parameter name used for token attachment (default: `turnstile`). */
+  /** Token field name (default: `turnstile`); applies to the chosen placement. */
   turnstileParamName?: string
+  /** Defaults to query for existing callers; JSON APIs can opt into body attachment. */
+  turnstileTokenPlacement?: "query" | "json-body"
   /** Optional pre-trigger used to render the Turnstile widget (best-effort). */
   turnstilePreTrigger?: TurnstilePreTrigger
 }
 
+export const TEMP_WINDOW_CHECKIN_PAGE_ACTION_REASONS = {
+  Clicked: "clicked",
+  IdentityMissing: "identity_missing",
+  IdentityMismatch: "identity_mismatch",
+  InvalidRequest: "invalid_request",
+  TargetNotFound: "target_not_found",
+  Throttled: "throttled",
+  TriggerFailed: "trigger_failed",
+} as const
+
 export type TempWindowCheckinPageActionReason =
-  | "clicked"
-  | "identity_missing"
-  | "identity_mismatch"
-  | "invalid_request"
-  | "target_not_found"
-  | "throttled"
-  | "trigger_failed"
+  (typeof TEMP_WINDOW_CHECKIN_PAGE_ACTION_REASONS)[keyof typeof TEMP_WINDOW_CHECKIN_PAGE_ACTION_REASONS]
 
 export interface TempWindowPageAccountIdentity {
   userId: string
@@ -162,26 +175,6 @@ export interface TempWindowCheckinPageActionParams {
   cookieStoreId?: string
   protectionBypassExecution: ProtectionBypassExecution
 }
-
-export interface TempWindowBrowserCheckInParams {
-  pageUrl: string
-  requestId?: string
-  tempWindowRequestSource?: TempWindowRequestSource
-  suppressMinimize?: boolean
-  useIncognito?: boolean
-  action: BrowserCheckInAction
-  success: BrowserCheckInSuccessCondition
-  identity?: BrowserCheckInIdentityCondition
-  timeoutMs?: number
-  /**
-   * Allow foregrounding the temporary context so the user can complete an
-   * interactive challenge in person. Set only for user-initiated runs.
-   */
-  allowInteractiveVerification?: boolean
-  protectionBypassExecution: ProtectionBypassExecution
-}
-
-export type TempWindowBrowserCheckIn = BrowserCheckInExecutionResult
 
 export interface TempWindowFetch {
   transportLifecycle?: ApiTransportRemoteLifecycleEvidence
@@ -236,6 +229,8 @@ export interface TempWindowFallbackContext {
   url: string
   endpoint: string
   fetchOptions: RequestInit
+  /** Explicit effects may forbid replay even when the HTTP method is GET. */
+  operationSemantics?: ApiOperationSemantics
   onlyData: boolean
   responseType: TempWindowResponseType
   tempWindowRequestSource?: TempWindowRequestSource

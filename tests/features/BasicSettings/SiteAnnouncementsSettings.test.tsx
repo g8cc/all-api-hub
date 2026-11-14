@@ -7,7 +7,7 @@ import SiteAnnouncementsSettings, {
   normalizePollingIntervalInput,
 } from "~/features/BasicSettings/components/tabs/SiteAnnouncements/SiteAnnouncementsSettings"
 import toast from "~/lib/notify"
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import { render, screen, waitFor } from "~~/tests/test-utils/render"
 
 const {
@@ -41,7 +41,7 @@ vi.mock("~/utils/feedback/preferenceFeedback", () => ({
   showUpdateToast: (...args: unknown[]) => showUpdateToastMock(...args),
 }))
 
-vi.mock("~/utils/navigation", () => ({
+vi.mock("~/utils/navigation/optionsPage", () => ({
   openOrFocusOptionsMenuItem: (...args: unknown[]) =>
     openOrFocusOptionsMenuItemMock(...args),
 }))

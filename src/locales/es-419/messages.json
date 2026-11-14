@@ -21,14 +21,30 @@
     "oneTimeKeyPromptCancelled": "Cuenta guardada. Puedes crear una clave de API de AIHubMix manualmente en Gestión de claves más tarde.",
     "oneTimeKeyUnavailableAfterCreate": "La cuenta se guardó, pero no se pudo recuperar la clave de API completa de AIHubMix. Las claves de AIHubMix solo se muestran una vez después de crearlas; crea una clave nueva en Gestión de claves y guarda la clave completa de inmediato."
   },
+  "aimlapi": {
+    "credentialInvalid": "La clave de AI/ML API no es válida o ha caducado.",
+    "credentialScopeDenied": "Esta credencial de AI/ML API no puede realizar esa acción. La gestión de claves requiere una clave de administración; el saldo y la facturación requieren una clave de API normal.",
+    "malformedResponse": "AI/ML API devolvió una respuesta que esta aplicación no puede leer.",
+    "managementKeyRequired": "AI/ML API requiere una clave de administración. Créala en \"Management keys\" y pégala aquí.",
+    "networkFallback": "No se pudo conectar con AI/ML API. Revisa la red e inténtalo de nuevo."
+  },
+  "aiToolbox": {
+    "attemptingRedirect": "Intentando redirigir a AI Toolbox",
+    "invalidApp": "Aplicación de destino de AI Toolbox no compatible",
+    "invalidBaseUrl": "URL base de API no válida o faltante",
+    "invalidHomepage": "URL de página principal no válida o faltante",
+    "missingCredentials": "Falta información requerida de cuenta o clave",
+    "unableToOpen": "No se puede abrir AI Toolbox; asegúrate de que esté instalado"
+  },
   "autodetect": {
-    "currentTabNeedsReload": "Es posible que esta página se haya abierto antes de instalar o actualizar la extensión, por lo que la extensión todavía no puede leer datos de esta pestaña. Recarga la página actual y vuelve a intentar la detección automática.",
+    "currentTabNeedsReload": "La extensión no puede conectarse al script de detección de esta página. Recarga la página y vuelve a intentar la detección automática. Si sigue fallando, verifica que la extensión tenga acceso a este sitio.",
     "failed": "La detección automática falló: {{error}}",
     "forbidden": "Acceso denegado. Confirma si el firewall del sitio web está bloqueando la solicitud",
     "loginThisSite": "Iniciar sesión en este sitio",
     "networkError": "Falló la conexión de red; revisa tu conexión e inténtalo de nuevo",
     "notFound": "No se pudo detectar este sitio automáticamente. Revisa que la dirección sea correcta, o inicia sesión en el sitio de destino y vuelve a intentarlo.",
     "notLoggedIn": "No has iniciado sesión en el sitio actual, o la información de inicio de sesión expiró. No se puede agregar automáticamente. Revisa la documentación de ayuda o haz clic para iniciar sesión primero",
+    "rateLimited": "Demasiadas solicitudes. Inténtalo de nuevo más tarde.",
     "serverError": "Error del servidor. Inténtalo de nuevo más tarde",
     "timeout": "Tiempo de espera agotado en la detección automática; intenta agregar manualmente",
     "unexpectedData": "La detección automática falló; el sitio devolvió datos inesperados. Ingresa la información manualmente o asegúrate de haber iniciado sesión en el sitio de destino"
@@ -71,7 +87,6 @@
     "updateSuccess": "Se actualizó correctamente el proveedor {{name}} de Claude Code Router"
   },
   "cliProxyApi": {
-    "managementApiConnectionSuccess": "Conexión exitosa",
     "managementApiForbidden": "CLIProxyAPI rechazó la solicitud. Revisa si la clave de administración se ingresó incorrectamente demasiadas veces o si el acceso está restringido en el servidor.",
     "managementApiHttpError": "La API de administración de CLIProxyAPI devolvió un código de estado inesperado (HTTP {{status}})",
     "managementApiInvalidKey": "La clave de administración de CLIProxyAPI no es válida. Verifica la clave en la configuración.",
@@ -82,6 +97,12 @@
     "userInfoNotFound": "No se encontró información del usuario; asegúrate de haber iniciado sesión",
     "waitUserInfoTimeout": "Se agotó el tiempo de espera para la información del usuario; asegúrate de haber iniciado sesión"
   },
+  "cookieTransport": {
+    "permissionRequired": "Este navegador no puede enviar una solicitud con la Cookie de esta cuenta. Revisa los permisos de la extensión o actualiza el navegador y vuelve a intentarlo.",
+    "requestUnavailable": "No se pudo preparar la solicitud. Vuelve a intentarlo; si el error persiste, recarga la extensión.",
+    "scopeUnavailable": "Esta solicitud no puede usar el ámbito de cookies seleccionado. Importa la cookie de la cuenta deseada o usa su sesión normal del navegador.",
+    "sessionUnavailable": "La sesión no está disponible. Inicia sesión de nuevo en la misma cuenta; si usas una cookie importada, vuelve a importarla."
+  },
   "donehub": {
     "configMissing": "Primero configura la dirección de Done Hub, el token de administrador y el ID de usuario en la configuración básica",
     "noChannelsToSync": "No hay canales para sincronizar"
@@ -89,14 +110,20 @@
   "errors": {
     "api": {
       "invalidResponseFormat": "Formato de respuesta no válido",
+      "missingRecoveryPolicy": "La extensión no pudo preparar esta solicitud. Actualiza la extensión o reporta el problema.",
+      "nonJsonContent": "devolvió {{contentType}} en lugar de JSON (HTTP {{status}})",
       "onlyJsonSupported": "Solo se admiten respuestas JSON",
-      "requestFailed": "La solicitud falló: {{status}}"
+      "requestFailed": "La solicitud falló: {{status}}",
+      "verificationRequired": "El sitio devolvió una página de verificación. Completa la verificación en el sitio y vuelve a intentarlo."
     },
+    "dayaRedemptionUnconfirmed": "Revisa el resultado en la consola oficial. Comprueba la entrega o termina de aplicar el descuento antes de volver a intentarlo.",
     "operation": {
       "accountDataFetchTimeout": "Se agotó el tiempo al obtener datos de la cuenta ({{seconds}}s)",
       "failed": "La operación falló: {{error}}",
       "saveFailed": "Error al guardar: {{error}}"
     },
+    "relayForRedemptionUnconfirmed": "No se confirmó el canje. Revisa la consola oficial antes de reintentar.",
+    "relayForVerificationRequired": "Esta operación requiere un código de verificación. Complétala en la consola oficial y actualiza aquí.",
     "unknown": "Error desconocido",
     "validation": {
       "bookmarkNameRequired": "El nombre del marcador no puede estar vacío",
@@ -108,6 +135,14 @@
       "userIdNumeric": "El ID de usuario debe ser un número"
     }
   },
+  "gptLoad": {
+    "configMissing": "Configure the gpt-load deployment address and management key in settings first",
+    "noChannelsToSync": "No channels to sync"
+  },
+  "grsai": {
+    "openApiTokenRejected": "Este es el Token que aparece en la página de información del usuario de Grsai. Está pensado para las API abiertas de la plataforma y la consola no lo acepta. Usa la detección automática para leer la sesión de la consola ya iniciada, o pega el token de sesión de la consola.",
+    "sessionExpired": "La sesión de la consola de Grsai guardada ha caducado (una sesión dura unos 30 días). Inicia sesión de nuevo en la consola de Grsai y luego añade la cuenta con la detección automática."
+  },
   "kelivo": {
     "copied": "Código de importación de Kelivo móvil copiado. Pégalo en la importación de proveedores de Kelivo móvil.",
     "copyFailed": "No se pudo copiar el código de importación de Kelivo. Revisa el permiso del portapapeles e inténtalo de nuevo.",
@@ -116,6 +151,10 @@
     "missingCredentials": "Se requiere un nombre de proveedor y una clave API completa.",
     "unsupportedApiType": "Este protocolo de API no se puede exportar a Kelivo."
   },
+  "magpie": {
+    "configMissing": "Primero configura la dirección de Magpie Web y la clave de administración Web en la configuración.",
+    "noChannelsToSync": "No hay canales para sincronizar"
+  },
   "managedSite": {
     "unsupportedModelSync": "{{siteName}} no admite la sincronización de modelos de sitios administrados en esta versión"
   },
@@ -123,9 +162,22 @@
     "configMissing": "Primero configura la dirección de New API, el token de administrador y el ID de usuario en la configuración básica",
     "noChannelsToSync": "No hay canales para sincronizar"
   },
+  "novita": {
+    "apiKeyRequired": "Ingresa una API Key completa de Novita o inicia sesión en la misma cuenta para obtener una credencial de consola. Puedes guardar ambas.",
+    "consoleAcquisitionFailed": "No se pudo obtener el token de consola. Inicia sesión en esta cuenta de Novita, actualiza la página y reintenta, o pega el token directamente. Tu API Key se conserva.",
+    "consoleCredentialRequired": "Esta acción requiere autorización de consola. Edita la cuenta y obtén una credencial de consola de la misma cuenta de Novita.",
+    "credentialInvalid": "La credencial de Novita no es válida o venció. Para la consola, inicia sesión y detecta de nuevo; de lo contrario, reemplaza la API Key.",
+    "keyChanged": "La clave cambió en Novita. Abre de nuevo el editor.",
+    "malformedResponse": "Novita devolvió una respuesta inesperada. Inténtalo de nuevo más tarde.",
+    "networkFallback": "No se puede conectar con Novita. Comprueba tu conexión de red e inténtalo de nuevo."
+  },
   "octopus": {
     "configMissing": "Primero configura la dirección, el nombre de usuario y la contraseña de Octopus en la configuración básica",
     "corsError": "Esto puede deberse a la configuración de CORS. Revisa la lista de permitidos de CORS en la configuración de Octopus.",
+    "noChannelsToSync": "No hay canales para sincronizar"
+  },
+  "omniroute": {
+    "configMissing": "Configura primero la dirección y el token de acceso de OmniRoute en los ajustes",
     "noChannelsToSync": "No hay canales para sincronizar"
   },
   "openrouter": {
@@ -148,12 +200,13 @@
   },
   "operations": {
     "detection": {
+      "cookieSessionRejected": "El sitio rechazó la sesión de cookies. Inicia sesión de nuevo.",
       "failed": "La detección automática falló; ingresa la información manualmente o asegúrate de haber iniciado sesión en el sitio de destino",
       "getAccessTokenFailedDetailed": "La cuenta fue detectada, pero no se pudo recuperar ningún token de acceso. Confirma que la cuenta pueda crear o ver tokens de API, o ingresa el token manualmente.",
       "getInfoFailed": "No se pudo obtener el nombre de usuario o el token de acceso",
       "getSiteStatusFailedDetailed": "La cuenta fue detectada, pero no se pudo leer el estado del sitio. Inténtalo más tarde; si sigue fallando, guarda la cuenta manualmente primero.",
       "getUserIdFailed": "No se pudo obtener el ID de usuario",
-      "getUserIdFailedDetailed": "Se conectó al sitio, pero no se pudo leer el ID de usuario. Asegúrate de haber iniciado sesión en el sitio de destino y vuelve a intentarlo.",
+      "getUserIdFailedDetailed": "No se pudo confirmar la cuenta con la sesión iniciada. Abre el sitio de destino en este navegador, asegúrate de haber iniciado sesión y vuelve a intentarlo. Si sigue fallando, completa manualmente los datos de la cuenta.",
       "getUsernameFailedDetailed": "La cuenta fue detectada, pero el sitio no devolvió un nombre de usuario. Asegúrate de haber iniciado sesión o ingresa la cuenta manualmente."
     }
   },
@@ -232,6 +285,9 @@
     "configMissing": "Primero configura la dirección de Veloera, el token de administrador y el ID de usuario en la configuración básica",
     "noChannelsToSync": "No hay canales para sincronizar"
   },
+  "vercelAiGateway": {
+    "accessTokenRequired": "Vercel AI Gateway requiere un token de acceso de Vercel para el equipo propietario de la puerta de enlace."
+  },
   "warnings": {
     "accountSavedWithoutDataRefresh": "La cuenta se guardó, pero no se pudieron obtener el saldo, la cuota y el uso de hoy más recientes. Los valores actuales pueden ser marcadores de posición. Actualiza esta cuenta más tarde desde la lista de cuentas.",
     "accountUpdatedWithoutDataRefresh": "La configuración de la cuenta se guardó, pero no se pudieron actualizar el saldo, la cuota y el uso de hoy más recientes. Los valores actuales podrían seguir desactualizados. Actualiza esta cuenta más tarde desde la lista de cuentas."
@@ -246,10 +302,10 @@
     "encryptFailedNoPassword": "El cifrado está habilitado, pero no hay contraseña configurada",
     "fileNotFound": "El archivo remoto de copia de seguridad no existe",
     "invalidBackupJson": "El archivo de copia de seguridad en la nube está incompleto y no se puede usar para sincronizar. La sincronización se detuvo para evitar fusionar datos dañados. Si este dispositivo tiene datos locales completos, usa Subir a WebDAV para recrear la copia en la nube. Si no, sube desde otro dispositivo que tenga datos completos o importa primero un archivo de copia de seguridad completo.",
-    "safeCommitFailed": "Este servicio WebDAV no pudo guardar la copia de seguridad de forma segura. Se conservó tu copia de seguridad existente en la nube. Inténtalo de nuevo más tarde o usa un servicio WebDAV que admita mover o renombrar archivos.",
+    "safeCommitFailed": "No se pudo confirmar que se guardó la copia de seguridad en la nube. Revisa la conexión y los permisos de lectura y escritura, e inténtalo de nuevo.",
     "syncDataSelectionRequired": "Selecciona al menos un dominio de datos para sincronizar",
     "uploadFailed": "La carga falló, código de estado: {{status}}",
-    "uploadStillProcessing": "El servicio en la nube todavía está procesando la copia de seguridad cargada, por lo que la verificación aún no pudo completarse. Tu copia de seguridad existente no fue reemplazada. Inténtalo de nuevo más tarde.",
-    "uploadVerificationFailed": "La verificación de la copia de seguridad falló después de la carga. Es posible que el servicio en la nube no haya guardado el archivo por completo. Se conservó tu copia de seguridad existente en la nube."
+    "uploadStillProcessing": "El servicio en la nube todavía está procesando la copia de seguridad cargada, por lo que la verificación aún no pudo completarse. Inténtalo de nuevo más tarde.",
+    "uploadVerificationFailed": "La verificación de la copia de seguridad falló después de la carga. El archivo en la nube podría estar incompleto. Reintenta la sincronización o restaura una copia de seguridad local si es necesario."
   }
 }

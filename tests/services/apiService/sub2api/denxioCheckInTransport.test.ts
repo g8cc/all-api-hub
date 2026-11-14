@@ -4,19 +4,20 @@ import { ACCOUNT_BROWSER_SESSION_SOURCES } from "~/services/accountBrowserSessio
 import {
   SUB2API_AUTH_PERSISTENCE_STATUSES,
   type Sub2ApiAuthSessionRequest,
-} from "~/services/apiService/sub2api/authSession"
-import { recoverSub2ApiBrowserAuth as resyncSub2ApiAuthToken } from "~/services/apiService/sub2api/browserAuth"
+} from "~/services/apiService/sub2api/auth/authSession"
+import { recoverSub2ApiBrowserAuth as resyncSub2ApiAuthToken } from "~/services/apiService/sub2api/auth/browserAuth"
 import {
   DENXIO_DAILY_CHECK_IN_BEGIN_ENDPOINT,
   DENXIO_DAILY_CHECK_IN_CLAIM_ENDPOINT,
   DENXIO_DAILY_CHECK_IN_STATUS_ENDPOINT,
   fetchDenxioDailyCheckInStatus,
   performDenxioDailyCheckIn,
-} from "~/services/apiService/sub2api/denxioCheckIn"
+} from "~/services/apiService/sub2api/checkin/denxioCheckIn"
 import {
   fetchApiResponse,
   notifyApiTransportObserver,
 } from "~/services/apiTransport/request"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ApiTransportResponse } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 import { TEMP_WINDOW_REQUEST_SOURCES } from "~/types/tempWindowFetch"
@@ -32,16 +33,19 @@ vi.mock("~/services/apiTransport/request", async (importOriginal) => ({
   notifyApiTransportObserver: vi.fn(),
 }))
 
-vi.mock("~/services/apiService/sub2api/browserAuth", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("~/services/apiService/sub2api/browserAuth")
-    >()
-  return {
-    ...actual,
-    recoverSub2ApiBrowserAuth: vi.fn(),
-  }
-})
+vi.mock(
+  "~/services/apiService/sub2api/auth/browserAuth",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/apiService/sub2api/auth/browserAuth")
+      >()
+    return {
+      ...actual,
+      recoverSub2ApiBrowserAuth: vi.fn(),
+    }
+  },
+)
 
 const response = (
   status: number,
@@ -75,6 +79,7 @@ const claimBody = {
 }
 
 const createRequest = (): Sub2ApiAuthSessionRequest => ({
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://checkin.example.invalid",
   accountId: "account-1",
   auth: {
@@ -177,7 +182,7 @@ describe("Denxio daily check-in authenticated transport", () => {
     ).resolves.toEqual({ kind: "applied", rewardAmount: 0.5 })
 
     expect(wait).toHaveBeenCalledWith(3_000)
-    expect(beforeRecoveredMutation).toHaveBeenCalledOnce()
+    expect(beforeRecoveredMutation).toHaveBeenCalledTimes(3)
     expect(fetchApiResponse).toHaveBeenCalledTimes(2)
     const [, beginOptions] = vi.mocked(fetchApiResponse).mock.calls[0]!
     const [, claimOptions] = vi.mocked(fetchApiResponse).mock.calls[1]!
@@ -387,7 +392,10 @@ describe("Denxio daily check-in authenticated transport", () => {
     await expect(
       performDenxioDailyCheckIn(createRequest(), {
         wait: async () => {},
-        beforeRecoveredMutation: async () => false,
+        beforeRecoveredMutation: vi
+          .fn()
+          .mockResolvedValueOnce(true)
+          .mockResolvedValue(false),
       }),
     ).resolves.toEqual({ kind: "recovery_precondition_failed" })
     expect(fetchApiResponse).toHaveBeenCalledTimes(2)
@@ -399,7 +407,10 @@ describe("Denxio daily check-in authenticated transport", () => {
     await expect(
       performDenxioDailyCheckIn(createRequest(), {
         wait: async () => {},
-        beforeRecoveredMutation: async () => false,
+        beforeRecoveredMutation: vi
+          .fn()
+          .mockResolvedValueOnce(true)
+          .mockResolvedValue(false),
       }),
     ).resolves.toEqual({ kind: "recovery_precondition_failed" })
 

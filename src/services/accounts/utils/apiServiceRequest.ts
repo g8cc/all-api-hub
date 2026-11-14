@@ -1,4 +1,7 @@
+import { resolveDeploymentApiOrigin } from "~/constants/deploymentApiOrigins"
 import type { AccountSiteType } from "~/constants/siteType"
+import { getAccountSiteProductProfile } from "~/services/accounts/accountSiteProfile"
+import { withAccountAuthSession } from "~/services/accounts/accountSiteProfile/authSession"
 import {
   ACCOUNT_RUNTIME_KEY_STATUSES,
   buildAccountKeyResourceRuntimeKeyFromFacts,
@@ -10,13 +13,12 @@ import {
   isAccountKeyResourceRuntimeKey,
   isServiceCredentialRuntimeKey,
   type AccountRuntimeKey,
-} from "~/services/accounts/accountRuntimeKeys"
-import { shouldDecorateAccountApiRequestWithAuthSession } from "~/services/accounts/accountSiteProfile"
-import { accountSub2ApiAuthSession } from "~/services/accounts/sub2apiAuthSession"
+} from "~/services/accounts/keys/accountRuntimeKeys"
 import { hasUsableApiTokenKey } from "~/services/accountTokens/apiTokenKey"
 import {
   ACCOUNT_KEY_RUNTIME_KEY_RESOLUTION_KINDS,
   AccountKeyResourceError,
+  ACCOUNT_KEY_RESOURCE_FAILURE_CODES as keyFailures,
   type AccountKeyResourceCapability,
   type AccountRuntimeKeyResolution,
 } from "~/services/apiAdapters/contracts/accountKeyResource"
@@ -32,13 +34,16 @@ import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
 import {
   ASSOCIATED_PROFILE_SECRET_RESOLUTION_STATUSES,
   resolveAssociatedProfileSecret,
-} from "~/services/apiCredentialProfiles/accountRuntimeKeyRecovery"
-import type { Sub2ApiAuthSessionRequest } from "~/services/apiService/sub2api/authSession"
+} from "~/services/apiCredentialProfiles/accountImport/accountRuntimeKeyRecovery"
+import type { Sub2ApiAuthSessionRequest } from "~/services/apiService/sub2api/auth/authSession"
 import {
   createDeferredAbortDeadline,
   runAbortableTask,
 } from "~/services/apiTransport/abortableTask"
+import { bindApiTransportRequest } from "~/services/apiTransport/recovery"
 import type { RequestScheduling } from "~/services/apiTransport/requestScheduling"
+import { isSafariNativeCookieEnabled } from "~/services/apiTransport/safariNativeCookie"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ApiServiceRequest } from "~/services/apiTransport/type"
 import { normalizeInviteLinkError } from "~/services/inviteLinks/errors"
 import type { ProtectionBypassExecution } from "~/services/protectionBypass/contracts"
@@ -85,6 +90,8 @@ export interface DisplayAccountApiSnapshot {
   userId: DisplaySiteData["userId"]
   token: DisplaySiteData["token"]
   cookieAuthSessionCookie?: DisplaySiteData["cookieAuthSessionCookie"]
+  /** Second static credential for sites whose console splits capabilities. */
+  aimlApiKey?: string
   tagIds?: DisplaySiteData["tagIds"]
 }
 
@@ -108,6 +115,7 @@ interface StoredAccountApiRequestSource {
   authType: SiteAccount["authType"]
   account_info: SiteAccount["account_info"]
   cookieAuth?: SiteAccount["cookieAuth"]
+  aimlApiAuth?: SiteAccount["aimlApiAuth"]
 }
 
 interface AccountApiRequestSource {
@@ -118,6 +126,7 @@ interface AccountApiRequestSource {
   userId: unknown
   accessToken: unknown
   cookie: unknown
+  aimlApiKey: unknown
 }
 
 const createAccountApiContextFromSource = (
@@ -161,6 +170,8 @@ const createAccountApiContextFromSource = (
 
   if (
     source.authType === AuthTypeEnum.Cookie &&
+    !getAccountSiteProductProfile(source.siteType).auth
+      .usesBrowserCookieSession &&
     !hasNonEmptyString(accessToken) &&
     !hasNonEmptyString(cookie)
   ) {
@@ -170,9 +181,27 @@ const createAccountApiContextFromSource = (
     )
   }
 
+  const aimlApiKey =
+    typeof source.aimlApiKey === "string" ? source.aimlApiKey.trim() : ""
   const request: ApiServiceRequest = {
+    directRequestReason: API_DIRECT_REQUEST_REASONS.CallerManaged,
+    protectionBypassExecution: undefined,
+    siteType: source.siteType,
     baseUrl: source.siteUrl,
+    ...(aimlApiKey ? { aimlApiKey } : {}),
+    managementApiBaseUrl: resolveDeploymentApiOrigin(source.siteUrl),
     accountId: source.id,
+    allowAccountCredentialRecovery: true,
+    ...(isSafariNativeCookieEnabled() &&
+    source.authType === AuthTypeEnum.Cookie &&
+    hasNonEmptyString(cookie)
+      ? {
+          cookieSession: {
+            origin: new URL(source.siteUrl).origin,
+            cookieHeader: cookie,
+          },
+        }
+      : {}),
     auth: {
       authType: source.authType,
       userId: source.userId,
@@ -184,10 +213,7 @@ const createAccountApiContextFromSource = (
   return {
     accountId: source.id,
     siteType: source.siteType,
-    request: withDisplayAccountAuthSession(
-      { siteType: source.siteType },
-      request,
-    ),
+    request: withAccountAuthSession(source.siteType, request),
   }
 }
 
@@ -202,21 +228,8 @@ export const createAccountApiRequestFromStoredAccount = (
     userId: account.account_info?.id,
     accessToken: account.account_info?.access_token ?? "",
     cookie: account.cookieAuth?.sessionCookie,
+    aimlApiKey: account.aimlApiAuth?.apiKey ?? "",
   })
-
-const withDisplayAccountAuthSession = (
-  account: Pick<DisplaySiteData, "siteType">,
-  request: ApiServiceRequest,
-): ApiServiceRequest | Sub2ApiAuthSessionRequest => {
-  if (!shouldDecorateAccountApiRequestWithAuthSession(account.siteType)) {
-    return request
-  }
-
-  return {
-    ...request,
-    sub2apiAuthSession: accountSub2ApiAuthSession,
-  } satisfies Sub2ApiAuthSessionRequest
-}
 
 /**
  * Build the request DTO for a display account snapshot.
@@ -232,6 +245,7 @@ export const createDisplayAccountRequestContext = (
     userId: account.userId,
     accessToken: account.token,
     cookie: account.cookieAuthSessionCookie,
+    aimlApiKey: account.aimlApiKey,
   })
 
 /**
@@ -328,16 +342,20 @@ class AccountRuntimeKeySecretUnavailableError extends Error {
 const buildSecretResolutionRequest = (
   request: ApiServiceRequest,
   options: ResolveAccountRuntimeKeySecretOptions,
-): ApiServiceRequest => ({
-  ...request,
-  ...(options.requestScheduling
-    ? { requestScheduling: options.requestScheduling }
-    : {}),
-  ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
-  ...(options.protectionBypassExecution
-    ? { protectionBypassExecution: options.protectionBypassExecution }
-    : {}),
-})
+): ApiServiceRequest =>
+  bindApiTransportRequest(
+    {
+      ...request,
+      ...(options.requestScheduling
+        ? { requestScheduling: options.requestScheduling }
+        : {}),
+      ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+      ...(options.protectionBypassExecution
+        ? { protectionBypassExecution: options.protectionBypassExecution }
+        : {}),
+    },
+    API_DIRECT_REQUEST_REASONS.CallerManaged,
+  )
 
 const resolveRequiredAssociatedProfileSecret = async (
   locator: ReturnType<typeof getAccountRuntimeKeyLocator>,
@@ -370,36 +388,80 @@ export async function fetchDisplayAccountRuntimeKeys(
   const runtimeKeyAccount = buildAccountRuntimeKeyAccount(account)
 
   const resources = capabilities.account?.keyResourceManagement
+  let serviceFailure: { error: unknown } | undefined
+  const serviceKeys = await fetchDisplayAccountServiceRuntimeKeys(
+    account,
+    options,
+  ).catch((error: unknown) => {
+    if (!resources || options.signal?.aborted) throw error
+    serviceFailure = { error }
+    return []
+  })
   if (resources) {
-    const session = await resources.open(
-      {
-        account: runtimeKeyAccount,
-        request,
-      },
-      options,
-    )
-    const scope = await session.resolveDefaultScope(options)
-    const collection = await session.openCollection(scope.scopeKey, options)
-    const facts = await collectAccountKeyResourceInventory(collection, options)
-    return facts
-      .filter((item) => item.runtimeKey)
-      .map((item) => buildAccountKeyResourceRuntimeKeyFromFacts(account, item))
+    try {
+      const session = await resources.open(
+        { account: runtimeKeyAccount, request },
+        options,
+      )
+      const scope = await session.resolveDefaultScope(options)
+      const collection = await session.openCollection(scope.scopeKey, options)
+      const facts = await collectAccountKeyResourceInventory(
+        collection,
+        options,
+      )
+      const runtimeKeys = [
+        ...serviceKeys,
+        ...facts
+          .filter((item) => item.runtimeKey)
+          .map((item) =>
+            buildAccountKeyResourceRuntimeKeyFromFacts(account, item),
+          ),
+      ]
+      if (!runtimeKeys.length && serviceFailure) throw serviceFailure.error
+      return runtimeKeys
+    } catch (error) {
+      // Independent runtime credentials stay usable when their management inventory is inaccessible.
+      // The native Key Management workspace still reports its own management failure.
+      if (
+        serviceKeys.length &&
+        error instanceof AccountKeyResourceError &&
+        [
+          keyFailures.ConfigurationRequired,
+          keyFailures.PermissionDenied,
+          keyFailures.AuthenticationFailed,
+        ].some((code) => code === error.failure.code)
+      )
+        return serviceKeys
+      throw error
+    }
   }
-
   if (!serviceCredential)
-    throw new AccountKeyResourceError({ code: "unavailable" })
+    throw new AccountKeyResourceError({ code: keyFailures.Unavailable })
+  return serviceKeys
+}
 
+/** Reads the independent saved service credential without opening management inventory. */
+export async function fetchDisplayAccountServiceRuntimeKeys(
+  account: DisplayAccountApiSnapshot,
+  options: { signal?: AbortSignal } = {},
+): Promise<AccountRuntimeKey[]> {
+  const { serviceCredential, request } = createDisplayAccountApiContext(account)
+  if (!serviceCredential) return []
   const credential = await serviceCredential.fetch({
     ...request,
     ...(options.signal ? { abortSignal: options.signal } : {}),
   })
-  if (!credential.key.trim()) return []
-
-  return [
-    buildServiceCredentialRuntimeKey(runtimeKeyAccount, credential, {
-      canRotate: typeof serviceCredential.rotate === "function",
-    }),
-  ]
+  return credential.key.trim()
+    ? [
+        buildServiceCredentialRuntimeKey(
+          buildAccountRuntimeKeyAccount(account),
+          credential,
+          {
+            canRotate: typeof serviceCredential.rotate === "function",
+          },
+        ),
+      ]
+    : []
 }
 
 const resolveProviderAccountKeyResourceSecret = async (
@@ -522,6 +584,17 @@ export async function resolveDisplayAccountRuntimeKeySecret<
       hasUsableApiTokenKey(runtimeKey.secret)
     ) {
       return projectResolvedRuntimeKey(runtimeKey.secret)
+    }
+
+    // The account's own credential is the stored token, so its plaintext needs
+    // no provider read or profile association. Export eligibility still decides
+    // whether it may leave the extension.
+    if (
+      source === ACCOUNT_RUNTIME_KEY_SECRET_SOURCES.Auto &&
+      runtimeKey.accountCredential &&
+      account.token.trim()
+    ) {
+      return projectResolvedRuntimeKey(account.token.trim())
     }
 
     if (

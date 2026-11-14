@@ -12,11 +12,22 @@ on:
       - "tests/**"
       - "!tests/docs_assistant/**"
       - ".github/workflows/release-pr-check.yml"
+      - "commitlint.config.mjs"
+      - ".husky/commit-msg"
+      - ".github/workflows/commitlint.yml"
+      - ".github/workflows/commitlint-title.yml"
+      - ".github/workflows/translate-docs.yml"
+      - ".github/workflows/permission-warnings.yml"
       - "scripts/release-pr-check.mjs"
+      - "scripts/check-unit-test-reports.mjs"
+      - "scripts/write-unit-test-durations.mjs"
+      - "scripts/utils/unitTestDurations.mjs"
+      - "scripts/utils/vitestBlob.mjs"
+      - "vitest.shardSequencer.ts"
       - "tests/scripts/release-pr-check.test.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
-      - "knip.ts"
+      - "pnpm-workspace.yaml"
       - "i18next.config.ts"
       - "scripts/run-i18n-check-if-staged.mjs"
       - "scripts/run-push-check-if-needed.mjs"
@@ -25,6 +36,8 @@ on:
       - "vitest.config.ts"
       - "wxt.config.ts"
       - ".github/workflows/test.yml"
+      - ".github/actions/setup/**"
+      - ".github/actions/setup-unit-test-browser/**"
   pull_request:
     paths:
       - "src/**"
@@ -33,11 +46,22 @@ on:
       - "tests/**"
       - "!tests/docs_assistant/**"
       - ".github/workflows/release-pr-check.yml"
+      - "commitlint.config.mjs"
+      - ".husky/commit-msg"
+      - ".github/workflows/commitlint.yml"
+      - ".github/workflows/commitlint-title.yml"
+      - ".github/workflows/translate-docs.yml"
+      - ".github/workflows/permission-warnings.yml"
       - "scripts/release-pr-check.mjs"
+      - "scripts/check-unit-test-reports.mjs"
+      - "scripts/write-unit-test-durations.mjs"
+      - "scripts/utils/unitTestDurations.mjs"
+      - "scripts/utils/vitestBlob.mjs"
+      - "vitest.shardSequencer.ts"
       - "tests/scripts/release-pr-check.test.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
-      - "knip.ts"
+      - "pnpm-workspace.yaml"
       - "i18next.config.ts"
       - "scripts/run-i18n-check-if-staged.mjs"
       - "scripts/run-push-check-if-needed.mjs"
@@ -46,62 +70,38 @@ on:
       - "vitest.config.ts"
       - "wxt.config.ts"
       - ".github/workflows/test.yml"
-  workflow_dispatch: {}
+      - ".github/actions/setup/**"
+      - ".github/actions/setup-unit-test-browser/**"
+  workflow_dispatch:
+    inputs:
+      durations_cache_key:
+        description: "Exact timing cache key for comparisons with fixed shard assignments"
+        required: false
+        default: ""
+        type: string
+      node_version:
+        description: "Explicit Node.js version for controlled CI measurements"
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  UNIT_TEST_SHARD_TOTAL: 6
+
 jobs:
   release-changes:
+    # Ordinary changes need no diff exemption, so avoid a serial runner allocation.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'release-please--branches--')
     uses: ./.github/workflows/release-pr-check.yml
-
-  quality:
-    needs: release-changes
-    if: needs.release-changes.outputs.release-only != 'true'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v5
-        with:
-          version: 10
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-          cache: "pnpm"
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Run type check
-        run: pnpm compile
-
-      - name: Run lint
-        run: pnpm lint
-
-      - name: Run knip
-        run: pnpm knip
-
-      - name: Run i18n extract check
-        run: pnpm run i18n:extract:ci
-
-      - name: Run i18n status check
-        run: pnpm run i18n:status
 
   unit-tests:
     needs: release-changes
-    if: needs.release-changes.outputs.release-only != 'true'
+    if: ${{ !cancelled() && needs.release-changes.result != 'failure' && needs.release-changes.outputs.release-only != 'true' }}
     runs-on: ubuntu-latest
-    env:
-      UNIT_TEST_SHARD_TOTAL: 6
     strategy:
       fail-fast: false
       matrix:
@@ -117,21 +117,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup
         with:
-          version: 10
-          run_install: false
+          node-version: ${{ inputs.node_version }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version-file: .nvmrc
-          cache: "pnpm"
-          cache-dependency-path: pnpm-lock.yaml
+      - name: Test CI report and release guards
+        # Only one full-suite shard needs to repeat the CI CLI guards.
+        if: matrix.shard == 1
+        run: pnpm run test:ci:scripts
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Record runner capacity
+        id: runtime
+        run: node -e 'const fs = require("node:fs"); const os = require("node:os"); console.log(JSON.stringify({node:process.version,cpus:os.availableParallelism(),memoryBytes:os.totalmem(),cpuModel:os.cpus()[0]?.model})); fs.appendFileSync(process.env.GITHUB_OUTPUT, "node=" + process.version + "\n")'
 
       - name: Restore unit test durations
         uses: actions/cache/restore@v5
@@ -139,36 +137,66 @@ jobs:
           # Timings published by the previous run's merge job. A miss (first run, or an
           # evicted cache) only means this shard falls back to file-count sharding.
           path: .vitest-durations
-          key: unit-test-durations-${{ github.run_id }}-${{ github.run_attempt }}
+          # An explicit key freezes the same main profile that PR iterations use.
+          key: ${{ inputs.durations_cache_key || format('unit-test-durations-{0}-{1}', github.run_id, github.run_attempt) }}
+          restore-keys: ${{ !inputs.durations_cache_key && 'unit-test-durations-' || '' }}
+
+      - name: Restore compiled test modules
+        id: modules
+        continue-on-error: true
+        uses: actions/cache/restore@v5
+        with:
+          path: node_modules/.vitest-cache
+          key: unit-test-modules-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.node }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'vitest*.ts', 'tsconfig*.json') }}-${{ matrix.shard }}-${{ hashFiles('src/**', 'tests/**', 'scripts/**', 'plugins/**') }}
           restore-keys: |
-            unit-test-durations-
+            unit-test-modules-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.node }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'vitest*.ts', 'tsconfig*.json') }}-${{ matrix.shard }}-
+
+      - name: Setup Chromium for unit tests
+        uses: ./.github/actions/setup-unit-test-browser
 
       - name: Run test shard with coverage
+        # The merge job renders final HTML/LCOV; blobs retain each shard's coverage.
         env:
           UNIT_TEST_SHARD_DURATIONS: .vitest-durations/shard-durations.json
-        run: >
-          pnpm exec vitest --run --coverage
-          --coverage.thresholds.statements=0
-          --coverage.thresholds.branches=0
-          --coverage.thresholds.functions=0
-          --coverage.thresholds.lines=0
-          --reporter=default
-          --reporter=blob
-          --shard=${{ matrix.shard }}/${{ env.UNIT_TEST_SHARD_TOTAL }}
+          VITEST_FS_MODULE_CACHE: "1"
+        run: |
+          /usr/bin/time -v pnpm exec vitest --run --coverage \
+            --maxWorkers=4 \
+            --coverage.reporter=json \
+            --coverage.thresholds.statements=0 \
+            --coverage.thresholds.branches=0 \
+            --coverage.thresholds.functions=0 \
+            --coverage.thresholds.lines=0 \
+            --reporter=default \
+            --reporter=blob \
+            --shard=${{ matrix.shard }}/${{ env.UNIT_TEST_SHARD_TOTAL }}
 
       - name: Upload Vitest blob report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ !cancelled() }}
         with:
           name: vitest-blob-report-${{ matrix.shard }}
-          path: .vitest-reports/*.json
+          path: .vitest/blob/*.json
           include-hidden-files: true
+          if-no-files-found: error
           retention-days: 1
+          # The merge job downloads this by name. A rerun must replace the
+          # previous attempt's blob instead of adding a second artifact.
+          overwrite: true
+
+      - name: Save compiled test modules
+        # Assertion failures still leave reusable transforms; tests execute again.
+        if: ${{ !cancelled() && steps.modules.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: node_modules/.vitest-cache
+          key: ${{ steps.modules.outputs.cache-primary-key }}
 
   unit-tests-merge:
     runs-on: ubuntu-latest
     needs: [release-changes, unit-tests]
-    if: ${{ !cancelled() && needs.release-changes.result == 'success' && needs.release-changes.outputs.release-only != 'true' }}
+    if: ${{ !cancelled() && needs.release-changes.result != 'failure' && needs.release-changes.outputs.release-only != 'true' && (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'failure') }}
 
     steps:
       - name: Checkout code
@@ -176,58 +204,57 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup
         with:
-          version: 10
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version-file: .nvmrc
-          cache: "pnpm"
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
+          node-version: ${{ inputs.node_version }}
 
       - name: Download Vitest blob reports
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          path: .vitest-reports
+          path: .vitest/blob
           pattern: vitest-blob-report-*
           merge-multiple: true
 
+      - name: Check shard report completeness
+        id: reports
+        run: |
+          duration_args=()
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            duration_args=(--durations-output .vitest-durations/shard-durations.json)
+          fi
+          node scripts/check-unit-test-reports.mjs "${duration_args[@]}"
+
       - name: Merge test and coverage reports
-        run: >
-          pnpm exec vitest --merge-reports=.vitest-reports --coverage
-          --reporter=default
-          --reporter=junit
-          --outputFile.junit=test-report.junit.xml
+        # Keep partial reports available as artifacts when the completeness gate fails.
+        if: ${{ !cancelled() && hashFiles('.vitest/blob/*.json') != '' }}
+        run: |
+          pnpm exec vitest --merge-reports=.vitest/blob --coverage \
+            --reporter=default \
+            --reporter=junit \
+            --outputFile.junit=test-report.junit.xml
 
       - name: Upload coverage to Codecov
+        # A failed assertion makes the merge command fail, but its coverage is usable.
+        if: ${{ !cancelled() && steps.reports.outputs.complete == 'true' && hashFiles('coverage/lcov.info') != '' }}
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage/lcov.info
-
-      - name: Generate unit test durations
-        # Per-file timings for the next run's shard sequencer, derived from the blob
-        # reports every shard already uploads.
-        run: node scripts/write-unit-test-durations.mjs
+          disable_search: true
+          fail_ci_if_error: true
 
       - name: Save unit test durations
         # Only runs that may publish to the base repository's cache scope write timings;
         # pull requests restore main's copy instead of republishing their own.
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ github.event_name != 'pull_request' && !inputs.durations_cache_key }}
         uses: actions/cache/save@v5
         with:
           path: .vitest-durations
           key: unit-test-durations-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && hashFiles('test-report.junit.xml') != '' }}
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

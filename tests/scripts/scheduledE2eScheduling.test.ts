@@ -1,0 +1,282 @@
+import { readFileSync } from "node:fs"
+import { describe, expect, it } from "vitest"
+
+function workflow(name: string) {
+  return readFileSync(`.github/workflows/${name}.yml`, "utf8")
+}
+
+function job(source: string, name: string) {
+  const body = source
+    .split(new RegExp(`^  ${name}:\\r?$`, "m"))[1]
+    ?.split(/^ {2}[\w-]+:\r?$/m)[0]
+  if (!body) throw new Error(`Missing job ${name}`)
+  return body
+}
+
+describe("scheduled E2E build reuse", () => {
+  it("installs the video recorder before compatibility tests use ordinary page fixtures", () => {
+    const source = job(workflow("e2e-browser-compat"), "chrome-compat")
+    const install = source.indexOf("run: pnpm exec playwright install ffmpeg")
+    expect(install).toBeGreaterThan(source.indexOf("run: pnpm install"))
+    expect(install).toBeLessThan(
+      source.indexOf("- name: Run browser compatibility E2E"),
+    )
+  })
+  it("ships the resolved Node version on both fresh builds and cache hits", () => {
+    const build = job(workflow("e2e-build"), "build")
+    const record = build
+      .split("      - name: Record artifact Node version")[1]
+      ?.split("      - name:")[0]
+    expect(record).toBeDefined()
+    expect(record).not.toContain("if:")
+    expect(record).toContain('node -p "process.versions.node"')
+    expect(record).toContain('> "$E2E_EXTENSION_DIR/.node-version"')
+    expect(record).toContain(
+      "E2E_EXTENSION_DIR: .output/${{ steps.variant.outputs.extension_dir }}",
+    )
+    const recordIndex = build.indexOf("- name: Record artifact Node version")
+    expect(recordIndex).toBeGreaterThan(
+      build.indexOf("- name: Validate cached E2E build"),
+    )
+    expect(recordIndex).toBeGreaterThan(
+      build.indexOf("- name: Build E2E extension"),
+    )
+    expect(recordIndex).toBeLessThan(
+      build.indexOf("- name: Upload E2E extension"),
+    )
+  })
+
+  it.each([
+    ["e2e-browser-compat", "chrome-compat", "chrome-mv3-test"],
+    ["e2e-real-site", "real-site-e2e", "chrome-mv3-test"],
+    ["e2e-smoke", "e2e-smoke", "${{ matrix.extension_dir }}"],
+    ["permission-warnings", "warnings", "chrome-mv3-test"],
+  ])(
+    "%s installs the Node version from its own artifact before dependencies",
+    (name, jobName, directory) => {
+      const tests = job(workflow(name), jobName)
+      const setup = tests
+        .split(/uses: actions\/setup-node@[^\r\n]+/)[1]
+        ?.split(/\r?\n {6}- /)[0]
+      expect(setup).toContain(
+        `node-version-file: .output/${directory}/.node-version`,
+      )
+      expect(setup).not.toMatch(/\bnode-version:/)
+      const downloadIndex = tests.indexOf("uses: actions/download-artifact@")
+      const setupIndex = tests.indexOf("uses: actions/setup-node@")
+      expect(downloadIndex).toBeGreaterThan(-1)
+      expect(downloadIndex).toBeLessThan(setupIndex)
+      expect(setupIndex).toBeLessThan(tests.indexOf("run: pnpm install"))
+    },
+  )
+
+  it("isolates performance measurements from concurrent browser contexts", () => {
+    const source = workflow("e2e-browser-compat")
+    expect(source).toContain('--grep-invert="major pages with"')
+    const performance = source
+      .split("      - name: Run isolated performance E2E")[1]
+      ?.split("      - name:")[0]
+    expect(performance).toBeDefined()
+    expect(performance).toContain(
+      "if: ${{ !cancelled() && matrix.shard == 2 }}",
+    )
+    expect(performance).toContain('AAH_E2E_WORKERS: "1"')
+    expect(performance).toContain("e2e/multiAccountPerformance.spec.ts")
+    expect(performance).not.toContain("--shard=")
+    expect(performance).toContain(
+      "PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/performance",
+    )
+    expect(source).toContain(
+      "PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/compatibility",
+    )
+  })
+  it("bounds compatibility file concurrency while retaining every version and shard", () => {
+    const source = workflow("e2e-browser-compat")
+    const tests = job(source, "chrome-compat")
+    expect(tests).toContain("AAH_E2E_WORKERS: ${{ inputs.workers || '2' }}")
+    expect(source).toContain('default: "2"')
+    expect(source).toContain("type: choice")
+    expect(source).toMatch(/options:\s*\n\s*- "2"\s*\n\s*- "4"/)
+    expect(tests).toContain("shard: [1, 2, 3]")
+    for (const version of [
+      "114",
+      "116",
+      "120",
+      "122",
+      "144",
+      "147",
+      "148",
+      "stable",
+    ]) {
+      expect(tests).toContain(`- "${version}"`)
+    }
+    expect(tests).toContain("--shard=${{ matrix.shard }}/3")
+    expect(readFileSync("playwright.config.ts", "utf8")).not.toMatch(
+      /fullyParallel:\s*true/,
+    )
+  })
+
+  it.each([
+    ["e2e-browser-compat", "e2e-build", "chrome-compat"],
+    ["e2e-real-site", "e2e-build", "real-site-e2e"],
+  ])(
+    "%s builds once and transfers the complete extension",
+    (name, producer, consumer) => {
+      const source = workflow(name)
+      const build = job(source, producer)
+      const tests = job(source, consumer)
+      expect(build).toContain("uses: ./.github/workflows/e2e-build.yml")
+      expect(source).not.toContain("run: pnpm build:e2e")
+      expect(tests.match(/^ {4}needs: (.+)$/m)?.[1]).toContain(producer)
+      expect(tests).toContain("uses: actions/download-artifact@v7")
+      expect(tests).toContain("name: e2e-extension-default")
+      expect(tests).toContain("path: .output/chrome-mv3-test")
+      expect(tests).toContain('AAH_SKIP_E2E_BUILD: "1"')
+      expect(tests).not.toContain("run: pnpm build:e2e")
+    },
+  )
+
+  it("provides independent inference credentials to the shared real-site matrix", () => {
+    const source = workflow("e2e-real-site")
+    const tests = job(source, "real-site-e2e")
+    expect(tests).toContain("needs: [real-site-matrix, e2e-build]")
+    for (const name of [
+      "AAH_E2E_UPSTREAM_BASE_URL",
+      "AAH_E2E_UPSTREAM_API_KEY",
+    ]) {
+      expect(tests).toContain(name + ": ${{ secrets." + name + " }}")
+    }
+    expect(source).not.toContain("AAH_E2E_WORKERS")
+  })
+
+  it("shares a variant-specific, content-addressed cache across workflows and queues producers", () => {
+    const source = workflow("e2e-build")
+    const build = job(source, "build")
+    expect(build).toContain("queue: max")
+    expect(build).toContain("cancel-in-progress: false")
+    expect(build).toContain("${{ github.ref }}-${{ inputs.build_variant }}")
+    expect(build).toContain("uses: actions/cache/restore@v5")
+    expect(build).toContain("uses: actions/cache/save@v5")
+    expect(build).toContain(
+      "${{ runner.os }}-${{ runner.arch }}-${{ steps.variant.outputs.input_hash }}-${{ inputs.build_variant }}",
+    )
+    expect(build).not.toContain("github.sha")
+    expect(build.indexOf("- name: Setup Node.js")).toBeLessThan(
+      build.indexOf("- name: Resolve extension directory"),
+    )
+    const restoreBuild = build
+      .split("      - name: Restore E2E build")[1]
+      ?.split("      - name:")[0]
+    expect(restoreBuild).toBeDefined()
+    // Build fingerprints must stay exact; the separate timing profile may be older.
+    expect(restoreBuild).not.toContain("restore-keys:")
+    expect(build).toContain("node scripts/e2e-ci-build-cache.mjs")
+    for (const name of [
+      "Setup pnpm",
+      "Install dependencies",
+      "Build E2E extension",
+      "Save E2E build",
+    ]) {
+      const step = build
+        .split(`      - name: ${name}`)[1]
+        ?.split("      - name:")[0]
+      expect(step).toContain("if: steps.cached_build.outputs.usable != 'true'")
+    }
+    expect(build).toContain("include-hidden-files: true")
+    expect(build).toContain("if-no-files-found: error")
+    const smoke = workflow("e2e-smoke")
+    const smokeBuild = job(smoke, "e2e-build")
+    expect(smoke.match(/- "\.nvmrc"/g)).toHaveLength(2)
+    expect(smoke.match(/- "\.env\*"/g)).toHaveLength(2)
+    expect(smokeBuild).toContain("uses: ./.github/workflows/e2e-build.yml")
+    expect(smokeBuild).toContain("build_variant: default")
+    expect(smokeBuild).toContain("derive_variants: true")
+    expect(smokeBuild).toContain("optional:")
+    expect(build).toContain("continue-on-error: ${{ inputs.optional }}")
+  })
+
+  it("derives every variant from one build instead of building each", () => {
+    const build = job(workflow("e2e-build"), "build")
+    const derive = build
+      .split("      - name: Derive manifest variants")[1]
+      ?.split("      - name:")[0]
+    expect(derive).toBeDefined()
+    expect(derive).toContain("if: inputs.derive_variants")
+    expect(derive).toContain("node scripts/e2e-build-variants.mjs")
+    // Deriving needs the source manifest and the recorded Node version.
+    expect(build.indexOf("- name: Derive manifest variants")).toBeGreaterThan(
+      build.indexOf("- name: Record artifact Node version"),
+    )
+
+    const variants = JSON.parse(
+      readFileSync("e2e/e2e-build-variants.json", "utf8"),
+    ).variants
+    for (const name of ["dnr-required", "bookmarks-required"]) {
+      const upload = build
+        .split(`      - name: Upload derived E2E extension (${name})`)[1]
+        ?.split("      - name:")[0]
+      expect(upload).toBeDefined()
+      expect(upload).toContain("if: inputs.derive_variants")
+      expect(upload).toContain(`name: e2e-extension-${name}`)
+      // Downstream jobs download by variant name, so the path must match its config.
+      expect(upload).toContain(
+        `path: .output/${variants[name].extensionDirName}`,
+      )
+    }
+  })
+})
+
+describe("duration-balanced smoke shards", () => {
+  it("downloads this run's timings before planning and still falls back to --shard", () => {
+    const source = workflow("e2e-smoke")
+    const tests = job(source, "e2e-smoke")
+    const restoreProfile = tests
+      .split("      - name: Restore E2E spec durations")[1]
+      ?.split("      - name:")[0]
+    expect(restoreProfile).toBeDefined()
+    expect(restoreProfile).toContain("uses: actions/download-artifact@v7")
+    expect(restoreProfile).toContain("name: e2e-shard-duration-profile")
+    expect(restoreProfile).toContain("path: .e2e-durations")
+    expect(restoreProfile).toContain("if: ${{ matrix.e2e_type == 'default' }}")
+    expect(restoreProfile).not.toContain("run-id:")
+    // Reruns must not read a newer shared cache and change shard membership.
+    expect(tests).not.toContain("uses: actions/cache/restore@v5")
+    expect(tests.indexOf("- name: Restore E2E spec durations")).toBeLessThan(
+      tests.indexOf("- name: Run E2E smoke"),
+    )
+    expect(tests).toContain("node scripts/e2e-shard-plan.mjs")
+    expect(tests).toContain(
+      "--shard=${AAH_E2E_SHARD_INDEX}/${AAH_E2E_SHARD_TOTAL}",
+    )
+    expect(tests).toContain("AAH_E2E_SHARD_INDEX: ${{ matrix.shard }}")
+    expect(tests).toContain("AAH_E2E_JSON_REPORT:")
+    // The plan must cover exactly the shards the matrix runs.
+    expect(source).toMatch(/AAH_E2E_SHARD_TOTAL: "6"/)
+    const runStep = tests
+      .split("      - name: Run E2E smoke")[1]
+      ?.split("      - name:")[0]
+    expect(runStep).toContain("set -euo pipefail")
+    expect(runStep).toContain("mapfile -t planned")
+    expect(runStep).toContain('spec_args+=(--grep-invert="major pages with")')
+  })
+
+  it("publishes timings only from runs that produced reports", () => {
+    const source = workflow("e2e-smoke")
+    const upload = job(source, "e2e-smoke")
+      .split("      - name: Upload E2E spec durations")[1]
+      ?.split("      - name:")[0]
+    expect(upload).toBeDefined()
+    expect(upload).toContain("github.event_name != 'pull_request'")
+    expect(upload).toContain("hashFiles('.e2e-durations/reports/*.json')")
+
+    const publish = job(source, "e2e-durations")
+    expect(publish).toContain("needs: e2e-smoke")
+    expect(publish).toContain("uses: actions/download-artifact@v7")
+    expect(publish).toContain("pattern: e2e-spec-durations-*")
+    expect(publish).toContain("node scripts/write-e2e-spec-durations.mjs")
+    expect(publish).toContain("uses: actions/cache/save@v5")
+    expect(source).toContain(
+      "key: e2e-spec-durations-${{ github.run_id }}-${{ github.run_attempt }}",
+    )
+  })
+})

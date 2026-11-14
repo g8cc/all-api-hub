@@ -3,18 +3,20 @@ import {
   SITE_TYPES,
   type AccountSiteType,
 } from "~/constants/siteType"
+import { createNewApiAccountBootstrap } from "~/services/apiAdapters/newApi/account/accountBootstrap"
+import { createNewApiAccountCompletion } from "~/services/apiAdapters/newApi/account/accountCompletion"
+import { createNewApiAccountData } from "~/services/apiAdapters/newApi/account/accountData"
+import { createNewApiAccountLogin } from "~/services/apiAdapters/newApi/account/accountLogin"
+import { createNewApiAccountRefresh } from "~/services/apiAdapters/newApi/account/accountRefresh"
+import { createNewApiInviteLink } from "~/services/apiAdapters/newApi/account/inviteLink"
+import { createNewApiRedemption } from "~/services/apiAdapters/newApi/account/redemption"
+import { createNewApiSiteNotice } from "~/services/apiAdapters/newApi/announcements/siteNotice"
+import { newApiSiteStructuredAnnouncements } from "~/services/apiAdapters/newApi/announcements/siteStructuredAnnouncements"
+import { createNewApiAccountKeyResources } from "~/services/apiAdapters/newApi/keys/accountKeyResource"
+import { createNewApiModelPricing } from "~/services/apiAdapters/newApi/pricing/modelPricing"
 
 import type { SiteTypeCapabilities } from "../contracts/siteTypeCapabilities"
-import { createNewApiAccountBootstrap } from "./accountBootstrap"
-import { createNewApiAccountCompletion } from "./accountCompletion"
-import { createNewApiAccountData } from "./accountData"
-import { createNewApiAccountKeyResources } from "./accountKeyResource"
-import { createNewApiAccountRefresh } from "./accountRefresh"
-import { createNewApiInviteLink } from "./inviteLink"
-import { createNewApiModelPricing } from "./modelPricing"
-import { createNewApiRedemption } from "./redemption"
-import { newApiSiteNotice } from "./siteNotice"
-import { newApiSiteStructuredAnnouncements } from "./siteStructuredAnnouncements"
+import { getNewApiVariantRegistration } from "./variantRegistration"
 
 export const createNewApiCapabilities = (
   siteType: AccountSiteType = SITE_TYPES.NEW_API,
@@ -23,13 +25,17 @@ export const createNewApiCapabilities = (
   family: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
   site: {
     announcements: newApiSiteStructuredAnnouncements,
-    notice: newApiSiteNotice,
+    notice: createNewApiSiteNotice(siteType),
   },
   account: {
+    ...(getNewApiVariantRegistration(siteType).announcements
+      ? { announcements: getNewApiVariantRegistration(siteType).announcements }
+      : {}),
+    login: createNewApiAccountLogin(siteType),
     data: createNewApiAccountData(siteType),
     bootstrap: createNewApiAccountBootstrap(siteType),
     completion: createNewApiAccountCompletion(siteType),
-    inviteLink: createNewApiInviteLink(),
+    inviteLink: createNewApiInviteLink(siteType),
     keyResourceManagement: createNewApiAccountKeyResources(siteType),
     refresh: createNewApiAccountRefresh(siteType),
     modelPricing: createNewApiModelPricing(siteType),
@@ -37,4 +43,4 @@ export const createNewApiCapabilities = (
   },
 })
 
-export { createNewApiAccountKeyResources } from "./accountKeyResource"
+export { createNewApiAccountKeyResources } from "~/services/apiAdapters/newApi/keys/accountKeyResource"

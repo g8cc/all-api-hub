@@ -1,5 +1,5 @@
-import { CHANNEL_DIALOG_TEST_IDS } from "~/components/dialogs/ChannelDialog/testIds"
 import { SITE_TYPES } from "~/constants/siteType"
+import { CHANNEL_DIALOG_TEST_IDS } from "~/features/ManagedSiteChannels/editor/ChannelDialog/testIds"
 import {
   getManagedSiteChannelRowEditActionTestId,
   getManagedSiteChannelRowSelectTestId,
@@ -407,7 +407,10 @@ test("runs the AxonHub native edit and migration preview through the shared UI",
   await expect(
     page.getByTestId(MANAGED_SITE_CHANNELS_TEST_IDS.addChannelButton),
   ).toBeVisible()
-  await expect(page.getByRole("columnheader", { name: "ID" })).toBeVisible()
+  // Canonical tables carry no placeholder ID column: the value was hard-coded
+  // to an empty string, so the column is gone rather than rendering "—" on
+  // every row.
+  await expect(page.getByRole("columnheader", { name: "ID" })).toHaveCount(0)
   await expect(
     page.getByRole("columnheader", { name: "Channel" }),
   ).toBeVisible()
@@ -450,6 +453,7 @@ test("runs the AxonHub native edit and migration preview through the shared UI",
   await tagsInput.scrollIntoViewIfNeeded()
   await tagsInput.fill("edited-tag")
   await tagsInput.press("Enter")
+  await tagsInput.press("Escape")
   const listRequestsBeforeSave = getInterceptedAxonHubListRequestCount()
   const saveChangesButton = page.getByRole("button", {
     name: "Save Changes",
@@ -501,9 +505,12 @@ test("runs the AxonHub native edit and migration preview through the shared UI",
   await expect(startMigration).toHaveCount(1)
   await expect(startMigration).toBeEnabled()
   await expect(migrationDialog.getByText("Migration limitations")).toBeVisible()
-  await migrationDialog
-    .getByRole("button", { name: /Example primary edited/ })
-    .click()
+  const previewRow = migrationDialog.getByRole("button", {
+    name: /Example primary edited/,
+  })
+  const warnings = previewRow.getByText("2 warnings", { exact: true })
+  await warnings.click()
+  await expect(previewRow).toHaveAttribute("aria-expanded", "true")
   await expect(
     migrationDialog.getByText("Base URL", { exact: true }),
   ).toBeVisible()

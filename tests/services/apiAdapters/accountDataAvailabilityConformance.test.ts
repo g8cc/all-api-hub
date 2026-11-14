@@ -1,7 +1,7 @@
 import { http, HttpResponse, type HttpHandler } from "msw"
-import { beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { QUOTA_PER_USD } from "~/constants/money"
+import { DEFAULT_USD_TO_CNY_RATE, QUOTA_PER_USD } from "~/constants/money"
 import {
   ACCOUNT_SITE_ADAPTER_FAMILIES,
   ACCOUNT_SITE_TYPES,
@@ -9,18 +9,23 @@ import {
   type AccountSiteType,
 } from "~/constants/siteType"
 import type { AccountData } from "~/services/accounts/accountDataModel"
-import { normalizeAccountTodayStatsAvailability } from "~/services/accounts/accountTodayStats"
+import { normalizeAccountTodayStatsAvailability } from "~/services/accounts/metrics/accountTodayStats"
 import type { SiteBackendFamily } from "~/services/apiAdapters/contracts/siteTypeCapabilities"
 import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
+import { EMRANK_SESSION_COOKIE_NAME } from "~/services/apiService/emrank/constants"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { LogType } from "~/services/history/usageHistory/usageLogModel"
 import {
   ACCOUNT_TODAY_METRIC_REASONS,
   ACCOUNT_TODAY_METRIC_STATUSES,
   AuthTypeEnum,
+  SiteHealthStatus,
 } from "~/types"
 import type { AccountTodayStatsAvailability } from "~/types/accountTodayStats"
 import { server } from "~~/tests/msw/server"
+import { accountStorageTestSurface } from "~~/tests/test-utils/accountStorageTestSurface"
 import { buildCheckInConfig } from "~~/tests/test-utils/checkIn"
+import { installCookieTransport } from "~~/tests/test-utils/cookieTransport"
 
 const complete = { status: ACCOUNT_TODAY_METRIC_STATUSES.Complete } as const
 const unavailable = (
@@ -30,6 +35,9 @@ const partial = (
   reason: (typeof ACCOUNT_TODAY_METRIC_REASONS)[keyof typeof ACCOUNT_TODAY_METRIC_REASONS],
 ) => ({ status: ACCOUNT_TODAY_METRIC_STATUSES.Partial, reason }) as const
 
+/** Neutral fixture identity: NanoGPT keys prove the account through this address. */
+const NANOGPT_CONFORMANCE_DEPOSIT_ADDRESS = "nano_conformance_deposit_address"
+
 const collectedRequests = {
   newApiStat: 0,
   newApiIncome: 0,
@@ -38,6 +46,19 @@ const collectedRequests = {
   sharedChatUsage: 0,
   voApiV2Stats: 0,
   openRouterCredits: 0,
+  requestyOrg: 0,
+  rightCodeAccount: 0,
+  rightCodeTodayStats: 0,
+  rightCodeOverall: 0,
+  kimiAccount: 0,
+  grsaiAccount: 0,
+  freeModelAccount: 0,
+  cubenceAccount: 0,
+  relayForAccount: 0,
+  vercelAiGatewayCredits: 0,
+  novitaBalance: 0,
+  aimlApiBilling: 0,
+  nanoGptBalance: 0,
 }
 
 const expectClassifiedAvailability = (data: AccountData) => {
@@ -69,7 +90,372 @@ type ProducerFixture = {
   expectRequests: (snapshotCount: number) => void
 }
 
+/**
+ * Kimi is one producer family with two consoles, and each site type answers
+ * only on its own account domain, so the family fixture cannot serve both.
+ */
+const kimiConsoleOriginBySiteType: Partial<Record<AccountSiteType, string>> = {
+  [SITE_TYPES.KIMI]: "https://platform.kimi.com",
+  [SITE_TYPES.KIMI_GLOBAL]: "https://platform.kimi.ai",
+}
+
 const producerFixturesByFamily = {
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.Xiaoen]: {
+    baseUrl: "https://free.supxh.xin",
+    authType: AuthTypeEnum.Cookie,
+    expectedAvailability: {
+      consumption: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://free.supxh.xin/api/auth/me", () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            id: "user-1",
+            username: "user",
+            quota: 36000,
+            permanentQuota: 36000,
+            dailyQuota: 0,
+            hasSignedInToday: true,
+          },
+        }),
+      ),
+    ],
+    expectRequests: () => {},
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.Emrank]: {
+    baseUrl: "https://emrank.tech",
+    authType: AuthTypeEnum.Cookie,
+    expectedAvailability: {
+      consumption: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://emrank.tech/api/auth/session", () =>
+        HttpResponse.json({
+          authenticated: true,
+          user: { id: 6088, username: "user", display_name: "User" },
+        }),
+      ),
+      http.get("https://emrank.tech/api/account", () =>
+        HttpResponse.json({ quota: "20000000", tokens_per_m: "1000000" }),
+      ),
+    ],
+    expectRequests: () => {},
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.Krill]: {
+    baseUrl: "https://www.krill-code.com",
+    authType: AuthTypeEnum.Cookie,
+    expectedAvailability: {
+      consumption: complete,
+      requests: complete,
+      tokens: complete,
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://www.krill-code.com/api/auth/me", () =>
+        HttpResponse.json({
+          success: true,
+          code: 0,
+          data: {
+            id: 7,
+            email: "user@example.com",
+            credit_balance_usd: "0.000000",
+            enterprise_memberships: [],
+          },
+        }),
+      ),
+      http.get("https://www.krill-code.com/api/subscription", () =>
+        HttpResponse.json({
+          success: true,
+          code: 0,
+          data: {
+            subscriptions: [],
+            summary: {
+              total_daily_quota_usd: "0",
+              total_used_usd: "0",
+              total_remaining_usd: "0",
+              total_forwarded_remaining_usd: "0",
+              entry_route_keys: [],
+              subscription_end_at: null,
+            },
+            credit_balance_usd: "0.000000",
+            welfare_balance_usd: "0",
+            request_count_quota: null,
+            freeze_policy: {
+              enabled: true,
+              free_mode: false,
+              can_freeze: false,
+            },
+          },
+        }),
+      ),
+      http.post("https://www.krill-code.com/api/request-logs/stats", () =>
+        HttpResponse.json({
+          success: true,
+          code: 0,
+          data: {
+            total_requests: 0,
+            success_requests: 0,
+            failed_requests: 0,
+            input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            total_cost_usd: "0",
+            rpm: 0,
+            peak_rpm: 0,
+            tpm: 0,
+            range_start: "2026-10-14T16:00:00Z",
+            range_end: "2026-10-14T23:59:59Z",
+            bucket_seconds: 3600,
+            trend: [],
+          },
+        }),
+      ),
+    ],
+    expectRequests: () => {},
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.Daya]: {
+    baseUrl: "https://api.dayaai.com",
+    authType: AuthTypeEnum.Cookie,
+    expectedAvailability: {
+      consumption: complete,
+      requests: complete,
+      tokens: complete,
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://api.dayaai.com/api/v1/auth/me", () =>
+        HttpResponse.json({
+          code: 0,
+          message: "success",
+          data: {
+            id: 615,
+            username: "daya-test-user",
+            balance: 3.5,
+            status: "active",
+          },
+        }),
+      ),
+      http.get("https://api.dayaai.com/api/v1/usage/dashboard/stats", () =>
+        HttpResponse.json({
+          code: 0,
+          message: "success",
+          data: {
+            total_api_keys: 1,
+            active_api_keys: 1,
+            total_requests: 0,
+            total_input_tokens: 0,
+            total_output_tokens: 0,
+            total_cache_creation_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_tokens: 0,
+            total_cost: 0,
+            total_actual_cost: 0,
+            today_requests: 0,
+            today_input_tokens: 0,
+            today_output_tokens: 0,
+            today_cache_creation_tokens: 0,
+            today_cache_read_tokens: 0,
+            today_tokens: 0,
+            today_cost: 0,
+            today_actual_cost: 0,
+            average_duration_ms: 0,
+            rpm: 0,
+            tpm: 0,
+          },
+        }),
+      ),
+    ],
+    expectRequests: () => {},
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.Pmapi]: {
+    baseUrl: "https://pmcat.top",
+    authType: AuthTypeEnum.AccessToken,
+    expectedAvailability: {
+      consumption: complete,
+      requests: complete,
+      tokens: complete,
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://pmcat.top/api/me", () =>
+        HttpResponse.json({
+          success: true,
+          message: "",
+          data: {
+            id: 10171,
+            username: "pm-test-user",
+            quota: 0,
+            used_quota: 0,
+            checked_in_today: false,
+          },
+        }),
+      ),
+      http.get("https://pmcat.top/api/me/stats", () =>
+        HttpResponse.json({
+          success: true,
+          message: "",
+          data: {
+            models: [],
+            rpm: 0,
+            series: [],
+            today: { latency: 0, quota: 0, requests: 0, tokens: 0 },
+            token_count: 0,
+          },
+        }),
+      ),
+    ],
+    expectRequests: () => {},
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.FoxCode]: {
+    baseUrl: "https://foxcode.rjj.cc",
+    authType: AuthTypeEnum.Cookie,
+    expectedAvailability: {
+      consumption: unavailable(ACCOUNT_TODAY_METRIC_REASONS.NotCollected),
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.NotCollected),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.NotCollected),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.NotCollected),
+    },
+    handlers: [
+      http.get("https://foxcode.rjj.cc/api/auth/me", () =>
+        HttpResponse.json({
+          success: true,
+          data: { user: { id: "user-1", name: "Work" } },
+        }),
+      ),
+      http.get("https://foxcode.rjj.cc/api/user/dashboard", () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            user: { id: "user-1", name: "Work" },
+            subscription: { active: [] },
+          },
+        }),
+      ),
+      http.get("https://foxcode.rjj.cc/api/user/quota/usage", () =>
+        HttpResponse.json({
+          success: true,
+          data: { records: [], pagination: { page: 1, pages: 1 } },
+        }),
+      ),
+    ],
+    expectRequests: () => {},
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.Dahl]: {
+    baseUrl: "https://inference.dahl.global",
+    authType: AuthTypeEnum.Cookie,
+    expectedAvailability: {
+      consumption: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://inference.dahl.global/v1/account", () =>
+        HttpResponse.json({
+          user: {
+            user_id: "00000000-0000-4000-8000-000000000001",
+            username: "sample",
+          },
+          token_balance: 100000000,
+          tokens_on_keys: 0,
+        }),
+      ),
+      http.get("https://inference.dahl.global/v1/account/usage", () =>
+        HttpResponse.json({
+          total_input_tokens: 0,
+          total_output_tokens: 0,
+          total_requests: 0,
+        }),
+      ),
+    ],
+    expectRequests: () => {},
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.Cubence]: {
+    baseUrl: "https://cubence.com",
+    authType: AuthTypeEnum.Cookie,
+    expectedAvailability: {
+      consumption: complete,
+      requests: complete,
+      tokens: complete,
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://cubence.com/api/v1/auth/me", ({ request }) => {
+        expect(request.headers.get("cookie")).toBe("token=browser-account")
+        collectedRequests.cubenceAccount += 1
+        return HttpResponse.json({
+          user: {
+            id: 7,
+            username: "Example",
+            active: true,
+            normal_balance: 1000000,
+          },
+        })
+      }),
+      http.get(
+        "https://cubence.com/api/v1/analytics/apikeys/hourly-usage",
+        () =>
+          HttpResponse.json({
+            code: 200,
+            range: "today",
+            window_start: `${new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)}T00:00:00+08:00`,
+            summary: {
+              cost: 10,
+              calls: 1,
+              tokens: 5,
+              input_tokens: 2,
+              output_tokens: 3,
+              cache_read_tokens: 0,
+              cache_creation_tokens: 0,
+            },
+          }),
+      ),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.cubenceAccount).toBe(snapshotCount)
+    },
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.FreeModel]: {
+    baseUrl: "https://freemodel.dev",
+    authType: AuthTypeEnum.Cookie,
+    expectedAvailability: {
+      consumption: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://freemodel.dev/api/auth/me", () =>
+        HttpResponse.json({ user: { id: 7, name: "Example" } }),
+      ),
+      http.get("https://freemodel.dev/api/billing", () => {
+        collectedRequests.freeModelAccount += 1
+        return HttpResponse.json({
+          creditCents: 125,
+          signupCreditCents: 0,
+          subscription: { planId: "free", status: "canceled" },
+        })
+      }),
+      http.get("https://freemodel.dev/api/usage", () =>
+        HttpResponse.json({
+          window5h: { usedCents: 0, limitCents: 0 },
+          windowWeek: { usedCents: 0, limitCents: 0 },
+        }),
+      ),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.freeModelAccount).toBe(snapshotCount)
+    },
+  },
   [ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily]: {
     baseUrl: "https://new-api-family.example.invalid",
     authType: AuthTypeEnum.AccessToken,
@@ -266,6 +652,354 @@ const producerFixturesByFamily = {
       expect(collectedRequests.openRouterCredits).toBe(snapshotCount)
     },
   },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.Requesty]: {
+    baseUrl: "https://app.requesty.ai",
+    authType: AuthTypeEnum.AccessToken,
+    expectedAvailability: {
+      consumption: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://api-v2.requesty.ai/v1/manage/org", () => {
+        collectedRequests.requestyOrg += 1
+        return HttpResponse.json({ name: "example-org", balance: "12.5" })
+      }),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.requestyOrg).toBe(snapshotCount)
+    },
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.VercelAiGateway]: {
+    // The saved URL stays the console origin; credits answer on the gateway.
+    baseUrl: "https://vercel.com",
+    authType: AuthTypeEnum.AccessToken,
+    expectedAvailability: {
+      // Spend reports are plan-gated, so no today window is published.
+      consumption: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://ai-gateway.vercel.sh/v1/credits", ({ request }) => {
+        collectedRequests.vercelAiGatewayCredits += 1
+        // The team must be named on the request; the access token alone is
+        // rejected by the deployment.
+        expect(new URL(request.url).searchParams.get("teamId")).toBe("user-1")
+        return HttpResponse.json({ balance: "12.5", total_used: "3" })
+      }),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.vercelAiGatewayCredits).toBe(snapshotCount)
+    },
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.RightCode]: {
+    baseUrl: "https://right-code.example.invalid",
+    authType: AuthTypeEnum.AccessToken,
+    expectedAvailability: {
+      consumption: complete,
+      requests: complete,
+      tokens: complete,
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://right-code.example.invalid/auth/me", () => {
+        collectedRequests.rightCodeAccount += 1
+        return HttpResponse.json({
+          id: 1,
+          username: "example-user",
+          user_token: "account-token",
+          balance: 1,
+        })
+      }),
+      http.get("https://right-code.example.invalid/use-log/stats", () => {
+        collectedRequests.rightCodeTodayStats += 1
+        return HttpResponse.json({
+          total_requests: 2,
+          total_tokens: 3,
+          total_cost: 0.5,
+          start_date: "2026-09-24T00:00",
+          end_date: "2026-09-24T00:00",
+        })
+      }),
+      http.get(
+        "https://right-code.example.invalid/use-log/stats/overall",
+        () => {
+          collectedRequests.rightCodeOverall += 1
+          return HttpResponse.json({
+            total_requests: 5,
+            total_tokens: 6,
+            total_cost: 0.25,
+            period_days: 0,
+            note: "统计范围为全部历史",
+          })
+        },
+      ),
+      http.get("https://right-code.example.invalid/subscriptions/list", () =>
+        HttpResponse.json({ subscriptions: [], total: 0 }),
+      ),
+      http.get(
+        "https://right-code.example.invalid/subscriptions/summary/total",
+        () =>
+          HttpResponse.json({
+            total_quota: 0,
+            used_quota: 0,
+            remaining_quota: 0,
+            active_subscription_count: 0,
+          }),
+      ),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.rightCodeAccount).toBe(snapshotCount)
+      expect(collectedRequests.rightCodeTodayStats).toBe(snapshotCount)
+      expect(collectedRequests.rightCodeOverall).toBe(snapshotCount)
+    },
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.KimiOpenPlatform]: {
+    baseUrl: "https://platform.kimi.ai",
+    authType: AuthTypeEnum.AccessToken,
+    expectedAvailability: {
+      consumption: complete,
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get(/^https:\/\/platform\.kimi\.(?:com|ai)\/api$/, ({ request }) => {
+        collectedRequests.kimiAccount += 1
+        const endpoint = new URL(request.url).searchParams.get("endpoint")
+        if (endpoint !== "organizationAccountInfo") {
+          return HttpResponse.json(
+            { code: 404, message: "unexpected" },
+            { status: 404 },
+          )
+        }
+        return HttpResponse.json({
+          code: 0,
+          data: {
+            cur: 1,
+            voucher_cur: 0,
+            acc: 0,
+            voucher_acc: 0,
+            voucher_expired: 0,
+            recharge_bonus_percent: 0,
+            use: 0,
+            today_consume: 0.25,
+          },
+        })
+      }),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.kimiAccount).toBe(snapshotCount)
+    },
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.Grsai]: {
+    // The console serves its frontend and its data API from different hosts, so
+    // the account's own origin is not where the adapter reads from.
+    baseUrl: "https://grsai.com",
+    authType: AuthTypeEnum.AccessToken,
+    expectedAvailability: {
+      consumption: complete,
+      // The deployment reports no request, token or income series at all.
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.post("https://eb.grsaiapi.com/client/common/getConfig", () =>
+        HttpResponse.json({
+          code: 0,
+          msg: "success",
+          data: {
+            token: "grsai-session-token",
+            kis: "kis-blob",
+            ra1: "ra1",
+            ra2: "ra2",
+            random: "1234567890",
+            isAuth: true,
+          },
+        }),
+      ),
+      http.post("https://eb.grsaiapi.com/client/grsai/getUserInfo", () =>
+        HttpResponse.json({
+          code: 0,
+          msg: "success",
+          data: {
+            id: "user-1",
+            mail: "example@example.invalid",
+            credits: 5000,
+          },
+        }),
+      ),
+      http.post("https://eb.grsaiapi.com/client/grsai/getDashboardData", () => {
+        collectedRequests.grsaiAccount += 1
+        return HttpResponse.json({
+          code: 0,
+          msg: "success",
+          data: { credits: 5000, todayConsumed: 1000, totalConsumed: 250000 },
+        })
+      }),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.grsaiAccount).toBe(snapshotCount)
+    },
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.RelayFor]: {
+    baseUrl: "https://relayfor.example.invalid",
+    authType: AuthTypeEnum.AccessToken,
+    expectedAvailability: {
+      consumption: complete,
+      requests: complete,
+      tokens: complete,
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://relayfor.example.invalid/api/user/overview", () => {
+        collectedRequests.relayForAccount += 1
+        return HttpResponse.json({
+          user: {
+            id: 1,
+            username: "relay-user",
+            quota: 500000,
+            role: 1,
+          },
+          today: {
+            requests: 5,
+            tokens: 100,
+            quota: 2500,
+          },
+          requests: 50,
+          token_count: 1000,
+          total_quota: 25000,
+        })
+      }),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.relayForAccount).toBe(snapshotCount)
+    },
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.Novita]: {
+    // The console origin stays on novita.ai while the account reads go to the
+    // key-authenticated OpenAPI on api.novita.ai.
+    baseUrl: "https://novita.example.invalid",
+    authType: AuthTypeEnum.AccessToken,
+    expectedAvailability: {
+      consumption: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get(
+        "https://api.novita.ai/openapi/v1/billing/balance/detail",
+        () => {
+          collectedRequests.novitaBalance += 1
+          return HttpResponse.json({
+            availableBalance: "1000000",
+            cashBalance: "800000",
+            creditLimit: "200000",
+            pendingCharges: "0",
+            outstandingInvoices: "0",
+          })
+        },
+      ),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.novitaBalance).toBe(snapshotCount)
+    },
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.AiMlApi]: {
+    // Balance and today's usage come from the saved-key API host, not from
+    // the console origin the user adds.
+    baseUrl: "https://aimlapi.com",
+    authType: AuthTypeEnum.AccessToken,
+    expectedAvailability: {
+      consumption: complete,
+      requests: complete,
+      tokens: complete,
+      // The deployment reports no income series at all.
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.get("https://api.aimlapi.com/v2/billing", () => {
+        collectedRequests.aimlApiBilling += 1
+        return HttpResponse.json({ current_balance: 4, currency: "USD" })
+      }),
+      http.get("https://api.aimlapi.com/v2/usage/detail", () =>
+        HttpResponse.json({
+          api_key_prefix: null,
+          start: "2026-10-24T00:00:00.000Z",
+          end: "2026-10-25T00:00:00.000Z",
+          spend: 1,
+          currency: "USD",
+          requests: 2,
+          models: [],
+          groups: [
+            {
+              day: "2026-10-24",
+              spend: 1,
+              tokens: { input: 10, output: 20, total: 30 },
+              requests: { total: 2, charged: 2, succeeded: 2, failed: 0 },
+            },
+          ],
+        }),
+      ),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.aimlApiBilling).toBe(snapshotCount)
+    },
+  },
+  [ACCOUNT_SITE_ADAPTER_FAMILIES.NanoGPT]: {
+    // The saved inference key reads its account routes on the documented direct
+    // API host, not on the console origin the account is stored against.
+    baseUrl: "https://nano-gpt.example.invalid",
+    authType: AuthTypeEnum.AccessToken,
+    expectedAvailability: {
+      // The only usage contract is a key-scoped UTC aggregate with no day
+      // boundary, so no per-day series is claimed.
+      consumption: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      requests: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      tokens: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+      income: unavailable(ACCOUNT_TODAY_METRIC_REASONS.Unsupported),
+    },
+    handlers: [
+      http.post("https://api.nano-gpt.com/api/check-balance", () => {
+        collectedRequests.nanoGptBalance += 1
+        return HttpResponse.json({
+          usd_balance: "12.5",
+          nano_balance: "0",
+          nanoDepositAddress: NANOGPT_CONFORMANCE_DEPOSIT_ADDRESS,
+        })
+      }),
+      http.get("https://api.nano-gpt.com/api/v1/usage", () =>
+        HttpResponse.json({
+          object: "usage",
+          totals: {
+            requests: 3,
+            costUsd: 0.25,
+            netCostUsd: 0.2,
+            totalTokens: 4096,
+          },
+        }),
+      ),
+      http.get("https://api.nano-gpt.com/api/subscription/v1/usage", () =>
+        HttpResponse.json({
+          active: false,
+          state: "inactive",
+          limits: {
+            dailyInputTokens: null,
+            weeklyInputTokens: null,
+            dailyImages: null,
+          },
+        }),
+      ),
+    ],
+    expectRequests: (snapshotCount: number) => {
+      expect(collectedRequests.nanoGptBalance).toBe(snapshotCount)
+    },
+  },
 } satisfies Record<ProducerFamily, ProducerFixture>
 
 const getProducerFixture = (siteType: AccountSiteType): ProducerFixture => {
@@ -276,23 +1010,113 @@ const getProducerFixture = (siteType: AccountSiteType): ProducerFixture => {
   return producerFixturesByFamily[family]
 }
 
+const resolveConformanceBaseUrl = (siteType: AccountSiteType): string =>
+  kimiConsoleOriginBySiteType[siteType] ?? getProducerFixture(siteType).baseUrl
+
 const createRequest = (siteType: AccountSiteType) => {
   const fixture = getProducerFixture(siteType)
   return {
-    baseUrl: fixture.baseUrl,
+    directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
+    baseUrl: resolveConformanceBaseUrl(siteType),
     accountId: `account-${siteType}`,
     auth: {
       authType: fixture.authType,
-      userId: "user-1",
+      userId:
+        siteType === SITE_TYPES.DAHL
+          ? "00000000-0000-4000-8000-000000000001"
+          : siteType === SITE_TYPES.FREEMODEL ||
+              siteType === SITE_TYPES.CUBENCE ||
+              siteType === SITE_TYPES.KRILL
+            ? "7"
+            : siteType === SITE_TYPES.EMRANK
+              ? "6088"
+              : siteType === SITE_TYPES.DAYA
+                ? "615"
+                : siteType === SITE_TYPES.PMAPI
+                  ? "10171"
+                  : siteType === SITE_TYPES.NANOGPT
+                    ? NANOGPT_CONFORMANCE_DEPOSIT_ADDRESS
+                    : "user-1",
       accessToken: "account-token",
     },
     checkIn: buildCheckInConfig(),
     includeTodayCashflow: true,
+    // AI/ML API keeps billing behind the account's regular API key; production
+    // callers carry it on the request from the saved account.
+    ...(getSiteTypeCapabilities(siteType).family ===
+    ACCOUNT_SITE_ADAPTER_FAMILIES.AiMlApi
+      ? { aimlApiKey: "regular-api-key" }
+      : {}),
+    ...(getSiteTypeCapabilities(siteType).family ===
+    ACCOUNT_SITE_ADAPTER_FAMILIES.KimiOpenPlatform
+      ? {
+          kimiOpenPlatformAuth: {
+            accessToken: "account-token",
+            refreshToken: "refresh-token",
+            organizationId: "org-1",
+          },
+        }
+      : {}),
   }
 }
 
+/**
+ * Kimi reloads its saved console session by account id and rejects the request
+ * when that account's site type, origin, identity, or session has moved on, so
+ * that path needs the stored account its production callers always have.
+ */
+const createStoredKimiAccount = async (
+  siteType: AccountSiteType,
+  baseUrl: string,
+) =>
+  accountStorageTestSurface.addAccount({
+    site_name: `Conformance ${siteType}`,
+    site_url: baseUrl,
+    site_type: siteType,
+    health: { status: SiteHealthStatus.Healthy },
+    authType: AuthTypeEnum.AccessToken,
+    disabled: false,
+    excludeFromTotalBalance: false,
+    excludeFromTodayIncome: false,
+    exchange_rate: DEFAULT_USD_TO_CNY_RATE,
+    notes: "",
+    tagIds: [],
+    checkIn: buildCheckInConfig(),
+    last_sync_time: 0,
+    account_info: {
+      id: "user-1",
+      access_token: "account-token",
+      username: "user-1",
+      quota: 0,
+      today_prompt_tokens: 0,
+      today_completion_tokens: 0,
+      today_quota_consumption: 0,
+      today_requests_count: 0,
+      today_income: 0,
+    },
+    kimiOpenPlatformAuth: {
+      refreshToken: "refresh-token",
+      organizationId: "org-1",
+    },
+  })
+
+const createAccountScopedRequest = async (siteType: AccountSiteType) => {
+  const request = createRequest(siteType)
+  if (
+    getSiteTypeCapabilities(siteType).family !==
+    ACCOUNT_SITE_ADAPTER_FAMILIES.KimiOpenPlatform
+  ) {
+    return request
+  }
+  const accountId = await createStoredKimiAccount(siteType, request.baseUrl)
+  return { ...request, accountId }
+}
+
 describe("AccountData availability producer conformance", () => {
+  afterEach(() => vi.restoreAllMocks())
+
   beforeEach(() => {
+    vi.spyOn(browser.permissions, "contains").mockResolvedValue(false)
     server.resetHandlers()
     Object.assign(collectedRequests, {
       newApiStat: 0,
@@ -302,6 +1126,19 @@ describe("AccountData availability producer conformance", () => {
       sharedChatUsage: 0,
       voApiV2Stats: 0,
       openRouterCredits: 0,
+      requestyOrg: 0,
+      rightCodeAccount: 0,
+      rightCodeTodayStats: 0,
+      rightCodeOverall: 0,
+      kimiAccount: 0,
+      grsaiAccount: 0,
+      freeModelAccount: 0,
+      cubenceAccount: 0,
+      relayForAccount: 0,
+      vercelAiGatewayCredits: 0,
+      novitaBalance: 0,
+      aimlApiBilling: 0,
+      nanoGptBalance: 0,
     })
     server.use(
       ...Object.values(producerFixturesByFamily).flatMap(
@@ -401,7 +1238,7 @@ describe("AccountData availability producer conformance", () => {
     expectClassifiedAvailability(data)
   })
 
-  it("uses income content only for absent quota and classifies invalid rows as partial", async () => {
+  it("uses content for absent or zero quota, prefers nonzero quota, and classifies invalid rows as partial", async () => {
     server.use(
       http.get(
         "https://new-api-family.example.invalid/api/log/self",
@@ -415,10 +1252,11 @@ describe("AccountData availability producer conformance", () => {
                 ? {
                     items: [
                       { quota: 0, content: "$50" },
+                      { quota: 5, content: "$20" },
                       { quota: "5", content: "$20" },
                       { content: "$2" },
                     ],
-                    total: 3,
+                    total: 4,
                   }
                 : { items: [], total: 0 },
           })
@@ -431,7 +1269,7 @@ describe("AccountData availability producer conformance", () => {
       createRequest(SITE_TYPES.NEW_API),
     )
 
-    expect(data.today_income).toBe(QUOTA_PER_USD * 2)
+    expect(data.today_income).toBe(QUOTA_PER_USD * 52 + 5)
     expect(data.todayStatsAvailability?.income).toEqual(
       partial(ACCOUNT_TODAY_METRIC_REASONS.SourcePartial),
     )
@@ -467,8 +1305,45 @@ describe("AccountData availability producer conformance", () => {
     "classifies both registered producer paths for %s",
     async (siteType) => {
       const capabilities = getSiteTypeCapabilities(siteType)
+      if (capabilities.family === ACCOUNT_SITE_ADAPTER_FAMILIES.Xiaoen) {
+        const boundary = installCookieTransport()
+        const cookie = (await browser.cookies.getAll({}))[0]!
+        boundary.cookies.mockResolvedValue([
+          { ...cookie, domain: "free.supxh.xin", name: "auth_token" },
+        ])
+      }
+      if (capabilities.family === ACCOUNT_SITE_ADAPTER_FAMILIES.FoxCode) {
+        const boundary = installCookieTransport()
+        const cookie = (await browser.cookies.getAll({}))[0]!
+        boundary.cookies.mockResolvedValue([
+          { ...cookie, domain: "foxcode.rjj.cc", name: "auth_token" },
+        ])
+      }
+      if (capabilities.family === ACCOUNT_SITE_ADAPTER_FAMILIES.Cubence) {
+        installCookieTransport()
+      }
+      if (capabilities.family === ACCOUNT_SITE_ADAPTER_FAMILIES.Krill) {
+        const boundary = installCookieTransport()
+        const cookie = (await browser.cookies.getAll({}))[0]!
+        boundary.cookies.mockResolvedValue([
+          { ...cookie, domain: "www.krill-code.com", name: "krill_jwt" },
+        ])
+      }
+      if (capabilities.family === ACCOUNT_SITE_ADAPTER_FAMILIES.Emrank) {
+        installCookieTransport(EMRANK_SESSION_COOKIE_NAME, "emrank.tech")
+      }
+      if (capabilities.family === ACCOUNT_SITE_ADAPTER_FAMILIES.Daya) {
+        installCookieTransport("daya_sid", "api.dayaai.com")
+      }
+      if (capabilities.family === ACCOUNT_SITE_ADAPTER_FAMILIES.Dahl) {
+        const boundary = installCookieTransport()
+        const cookie = (await browser.cookies.getAll({}))[0]!
+        boundary.cookies.mockResolvedValue([
+          { ...cookie, domain: "inference.dahl.global", name: "dahl_session" },
+        ])
+      }
       const fixture = getProducerFixture(siteType)
-      const request = createRequest(siteType)
+      const request = await createAccountScopedRequest(siteType)
       const fetchData = capabilities.account?.data?.fetchData
       const refreshAccount = capabilities.account?.refresh?.refreshAccount
 

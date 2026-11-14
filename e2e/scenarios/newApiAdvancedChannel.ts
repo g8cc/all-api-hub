@@ -2,13 +2,14 @@ import { randomUUID } from "node:crypto"
 import { isDeepStrictEqual } from "node:util"
 import type { BrowserContext, Page } from "@playwright/test"
 
-import { CHANNEL_DIALOG_TEST_IDS } from "~/components/dialogs/ChannelDialog/testIds"
 import { OPTIONS_PAGE_PATH } from "~/constants/extensionPages"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
+import { CHANNEL_DIALOG_TEST_IDS } from "~/features/ManagedSiteChannels/editor/ChannelDialog/testIds"
 import { MANAGED_SITE_CHANNELS_TEST_IDS } from "~/features/ManagedSiteChannels/testIds"
 import { expect, test } from "~~/e2e/fixtures/extensionTest"
 import { openManagedSiteChannelRowActions } from "~~/e2e/scenarios/managedSiteChannels"
 import { runScenarioWithCleanup } from "~~/e2e/utils/scenarioErrors"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 type Snapshot = Record<string, unknown>
 
@@ -178,7 +179,7 @@ export async function runNewApiAdvancedChannelScenario(params: {
       })
       const channels = await findOwned()
       expect(channels.length).toBe(1)
-      const id = ownedId(channels[0])
+      const id = ownedId(atIndex(channels, 0))
       const before: Snapshot = await request(`/api/channel/${id}`)
       expect(before.status === 2).toBe(true)
       expect(jsonObject(before.setting).force_format === true).toBe(true)
@@ -195,6 +196,7 @@ export async function runNewApiAdvancedChannelScenario(params: {
         await toggle("Automatically disable channel").check()
         await combo("Ignored upstream models").fill("e2e-ignored-model")
         await combo("Ignored upstream models").press("Enter")
+        await combo("Ignored upstream models").press("Escape")
         await combo("Test model").fill("e2e-test-model")
         await combo("Test model").press("Tab")
         await dialog

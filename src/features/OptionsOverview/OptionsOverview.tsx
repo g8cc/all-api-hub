@@ -1,16 +1,18 @@
-import { AlertTriangle, LayoutDashboard } from "lucide-react"
+import { LayoutDashboard, TriangleAlert } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { PageHeader } from "~/components/PageHeader"
 import { Alert, Button, Spinner } from "~/components/ui"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
-import { PermissionOnboardingDialog } from "~/features/OptionsOverview/components/dialogs/PermissionOnboardingDialog"
+import { PermissionOnboardingDialog } from "~/features/OptionsOverview/permissions/PermissionOnboardingDialog"
+import { OptionsOverviewGrid } from "~/features/OptionsOverview/workspace/OptionsOverviewGrid"
+import { useOptionsOverviewData } from "~/features/OptionsOverview/workspace/useOptionsOverviewData"
 import { requestProductAnnouncementPopoverOpen } from "~/features/ProductAnnouncements/events"
 import { useProductAnnouncements } from "~/features/ProductAnnouncements/hooks/useProductAnnouncements"
 import { ProductAnnouncementBanner } from "~/features/ProductAnnouncements/ProductAnnouncementBanner"
 import { ProductTourInvitation } from "~/features/ProductTour"
-import { UNIFIED_API_GUIDANCE_STATUSES } from "~/features/UnifiedApiGuidance"
+import { UNIFIED_API_GUIDANCE_STATUSES } from "~/features/UnifiedApiGuidance/model"
 import { useGatewayGuidancePresentation } from "~/features/UnifiedApiGuidance/useGatewayGuidancePresentation"
 import { setLastSeenOptionalPermissions } from "~/services/permissions/optionalPermissionState"
 import {
@@ -22,14 +24,12 @@ import {
   PRODUCT_ANALYTICS_SURFACE_IDS,
   PRODUCT_ANALYTICS_TARGET_KINDS,
 } from "~/services/productAnalytics/contracts"
-import { trackProductAnalyticsEvent } from "~/services/productAnalytics/dispatch"
+import { trackProductAnalyticsEvent } from "~/services/productAnalytics/runtime/dispatch"
 import { PRODUCT_ANNOUNCEMENT_SEVERITIES } from "~/services/productAnnouncements/constants"
-import { pushWithinOptionsPage } from "~/utils/navigation"
+import { pushWithinOptionsPage } from "~/utils/navigation/optionsPage"
 
-import { OptionsOverviewGrid } from "./components/OptionsOverviewGrid"
 import { OPTIONS_OVERVIEW_TEST_IDS } from "./testIds"
 import type { OptionsOverviewNavigationIntent } from "./types"
-import { useOptionsOverviewData } from "./useOptionsOverviewData"
 
 const overviewWidgetSurfaceIds = {
   statusSummary: PRODUCT_ANALYTICS_SURFACE_IDS.OptionsOverviewStatusSummary,
@@ -166,28 +166,35 @@ export default function OptionsOverview() {
 
   return (
     <div
-      className="space-y-density-6 py-density-6 px-6"
+      className="space-y-density-6 py-density-4 sm:py-density-6 px-4 sm:px-6"
       data-testid={OPTIONS_OVERVIEW_TEST_IDS.page}
+      data-options-page-pending={isLoading && !viewModel ? "" : undefined}
     >
-      <PageHeader
-        icon={LayoutDashboard}
-        title={t("optionsOverview:title")}
-        description={t("optionsOverview:description")}
-        actions={
-          gatewayGuidanceComplete ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-expanded={gatewayGuidance.expanded}
-              onClick={gatewayGuidance.toggle}
-            >
-              {t("optionsOverview:unifiedApiGuidance.overview.reopen")}
-            </Button>
-          ) : undefined
-        }
-      />
+      <div>
+        <PageHeader
+          icon={LayoutDashboard}
+          title={t("optionsOverview:title")}
+          description={t("optionsOverview:description")}
+          actions={
+            gatewayGuidanceComplete ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-expanded={gatewayGuidance.expanded}
+                onClick={gatewayGuidance.toggle}
+              >
+                {t("optionsOverview:unifiedApiGuidance.overview.reopen")}
+              </Button>
+            ) : undefined
+          }
+        />
+      </div>
 
-      {!showPermissionsOnboarding ? <ProductTourInvitation /> : null}
+      {!showPermissionsOnboarding ? (
+        <div className="empty:hidden">
+          <ProductTourInvitation />
+        </div>
+      ) : null}
 
       {isLoading && !viewModel ? (
         <div className="dark:text-secondary-foreground text-muted-foreground gap-y-density-3 flex min-h-64 items-center justify-center gap-x-3 text-sm">
@@ -197,36 +204,40 @@ export default function OptionsOverview() {
       ) : null}
 
       {error ? (
-        <Alert
-          variant="warning"
-          compact
-          title={t("optionsOverview:states.loadedWithError")}
-          showIcon
-        >
-          <div className="gap-y-density-3 flex flex-col gap-x-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-sm">{error}</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleRetry}
-              leftIcon={<AlertTriangle className="h-4 w-4" />}
-            >
-              {t("common:actions.retry")}
-            </Button>
-          </div>
-        </Alert>
+        <div>
+          <Alert
+            variant="warning"
+            compact
+            title={t("optionsOverview:states.loadedWithError")}
+            showIcon
+          >
+            <div className="gap-y-density-3 flex flex-col gap-x-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-sm">{error}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRetry}
+                leftIcon={<TriangleAlert className="h-4 w-4" />}
+              >
+                {t("common:actions.retry")}
+              </Button>
+            </div>
+          </Alert>
+        </div>
       ) : null}
 
       {viewModel ? (
         <>
           {primaryRiskNotice ? (
-            <ProductAnnouncementBanner
-              notice={primaryRiskNotice}
-              additionalCount={additionalRiskNoticeCount}
-              onViewAll={handleViewAllProductAnnouncements}
-              onDismiss={dismissProductAnnouncement}
-            />
+            <div>
+              <ProductAnnouncementBanner
+                notice={primaryRiskNotice}
+                additionalCount={additionalRiskNoticeCount}
+                onViewAll={handleViewAllProductAnnouncements}
+                onDismiss={dismissProductAnnouncement}
+              />
+            </div>
           ) : null}
           <OptionsOverviewGrid
             viewModel={viewModel}

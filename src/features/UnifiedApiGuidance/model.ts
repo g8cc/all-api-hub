@@ -13,9 +13,9 @@ import type {
   FeatureGuidanceState,
   GatewayGuidanceSurface,
 } from "~/services/featureGuidance/featureGuidanceState"
-import { hasValidManagedSiteConfig } from "~/services/managedSites/runtimeConfig"
+import { hasValidManagedSiteConfig } from "~/services/managedSites/configuration/runtimeConfig"
 import { supportsManagedSiteModelSync } from "~/services/managedSites/utils/managedSite"
-import type { UserPreferences } from "~/services/preferences/userPreferences"
+import type { UserPreferences } from "~/services/preferences/preferencesSchema"
 import {
   PRODUCT_ANALYTICS_UNIFIED_API_GUIDANCE_ACTION_KINDS,
   PRODUCT_ANALYTICS_UNIFIED_API_GUIDANCE_STATUSES,

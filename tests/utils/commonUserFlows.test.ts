@@ -7,9 +7,11 @@ import {
 import { MODEL_METADATA_URL } from "~/services/models/modelMetadata/constants"
 import {
   installExtensionPageGuards,
+  stubCommunityRemoteCatalog,
   stubLlmMetadataIndex,
   stubSponsorRemoteCatalog,
 } from "~~/e2e/utils/commonUserFlows"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 describe("installExtensionPageGuards", () => {
   it("throws on extension console errors, including resource-load failures", () => {
@@ -23,7 +25,10 @@ describe("installExtensionPageGuards", () => {
     installExtensionPageGuards(page)
 
     expect(() =>
-      handlers.console({
+      atIndex(
+        handlers,
+        "console",
+      )({
         type: () => "error",
         text: () => "Failed to load resource: net::ERR_FILE_NOT_FOUND",
       }),
@@ -41,7 +46,10 @@ describe("installExtensionPageGuards", () => {
     installExtensionPageGuards(page)
 
     expect(() =>
-      handlers.console({
+      atIndex(
+        handlers,
+        "console",
+      )({
         type: () => "warning",
         text: () => "non-blocking warning",
       }),
@@ -61,7 +69,10 @@ describe("installExtensionPageGuards", () => {
     })
 
     expect(() =>
-      handlers.console({
+      atIndex(
+        handlers,
+        "console",
+      )({
         type: () => "error",
         text: () => "ResizeObserver loop limit exceeded",
       }),
@@ -70,7 +81,20 @@ describe("installExtensionPageGuards", () => {
 })
 
 describe("E2E external route stubs", () => {
-  it("stubs both metadata and sponsor catalog endpoints used by extension pages", async () => {
+  it("serves a valid empty community catalog without using the network", async () => {
+    const context = { route: vi.fn() } as any
+    await stubCommunityRemoteCatalog(context)
+    const [, handler] = context.route.mock.calls[0]!
+    const route = { fulfill: vi.fn() }
+
+    await handler(route)
+
+    expect(route.fulfill).toHaveBeenCalledWith({
+      json: { schemaVersion: 1, channels: [] },
+    })
+  })
+
+  it("stubs metadata, sponsor and community catalog endpoints used by extension pages", async () => {
     const context = {
       route: vi.fn(),
     } as any
@@ -83,6 +107,10 @@ describe("E2E external route stubs", () => {
     )
     expect(context.route).toHaveBeenCalledWith(
       SPONSOR_REMOTE_CATALOG_V5_URL,
+      expect.any(Function),
+    )
+    expect(context.route).toHaveBeenCalledWith(
+      "https://raw.githubusercontent.com/qixing-jk/all-api-hub/main/public/community-resources.v1.json",
       expect.any(Function),
     )
   })

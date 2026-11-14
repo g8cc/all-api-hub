@@ -1,7 +1,12 @@
 import { SITE_TYPES, type AccountSiteType } from "~/constants/siteType"
 import type { ContentSessionTransientAuth } from "~/services/accountSiteOnboarding/contracts"
 import type { ApiServiceFetchContext } from "~/services/apiTransport/type"
-import type { AuthTypeEnum, CheckInConfig, Sub2ApiAuthConfig } from "~/types"
+import type {
+  AuthTypeEnum,
+  CheckInConfig,
+  KimiOpenPlatformAuthConfig,
+  Sub2ApiAuthConfig,
+} from "~/types"
 
 /**
  * Private, local-only account fields retained when auto-detection cannot finish.
@@ -13,13 +18,16 @@ export interface AccountAutoDetectRecoveryData {
   siteName?: string
   username?: string
   accessToken?: string
+  aimlApiKey?: string
   userId?: string
   exchangeRate?: number | null
   authType?: AuthTypeEnum
+  login?: import("~/types/accountLogin").AccountLoginConfiguration
   checkIn?: CheckInConfig
   cookieAuthSessionCookie?: string
   transientAuth?: ContentSessionTransientAuth
   sub2apiAuth?: Sub2ApiAuthConfig
+  kimiOpenPlatformAuth?: KimiOpenPlatformAuthConfig
   fetchContext?: ApiServiceFetchContext
 }
 
@@ -27,9 +35,11 @@ interface DetectedAccountRecoverySource {
   siteType: AccountSiteType
   userId?: unknown
   user?: unknown
+  rawUser?: Record<string, unknown>
   accessToken?: unknown
   transientAuth?: ContentSessionTransientAuth
   sub2apiAuth?: Sub2ApiAuthConfig
+  kimiOpenPlatformAuth?: KimiOpenPlatformAuthConfig
   fetchContext?: ApiServiceFetchContext
 }
 
@@ -46,10 +56,10 @@ export function createDetectedAccountRecoveryData(params: {
       : undefined
   const username = [
     detectedUser?.username,
-    detectedUser?.name,
-    detectedUser?.display_name,
-    detectedUser?.nickname,
-    detectedUser?.email,
+    detected.rawUser?.name ?? detectedUser?.name,
+    detected.rawUser?.display_name ?? detectedUser?.display_name,
+    detected.rawUser?.nickname ?? detectedUser?.nickname,
+    detected.rawUser?.email ?? detectedUser?.email,
   ].find(
     (value): value is string => typeof value === "string" && !!value.trim(),
   )
@@ -75,6 +85,9 @@ export function createDetectedAccountRecoveryData(params: {
       ? { transientAuth: detected.transientAuth }
       : {}),
     ...(detected.sub2apiAuth ? { sub2apiAuth: detected.sub2apiAuth } : {}),
+    ...(detected.kimiOpenPlatformAuth
+      ? { kimiOpenPlatformAuth: detected.kimiOpenPlatformAuth }
+      : {}),
     ...(detected.fetchContext ? { fetchContext: detected.fetchContext } : {}),
   }
 }

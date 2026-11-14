@@ -5,6 +5,7 @@ import type { AccountBootstrapCapability } from "./accountBootstrap"
 import type { AccountCompletionCapability } from "./accountCompletion"
 import type { AccountDataCapability } from "./accountData"
 import type { AccountKeyResourceCapability } from "./accountKeyResource"
+import type { AccountLoginCapability } from "./accountLogin"
 import type { AccountPersistenceCapability } from "./accountPersistence"
 import type { AccountRefreshCapability } from "./accountRefresh"
 import type { InviteLinkCapability } from "./inviteLink"
@@ -16,7 +17,7 @@ import type { RedemptionCapability } from "./redemption"
 import type { ServiceCredentialCapability } from "./serviceCredential"
 import type { SiteAnnouncementsCapability } from "./siteAnnouncements"
 import type { SiteNoticeCapability } from "./siteNotice"
-import type { SiteStructuredAnnouncementsCapability } from "./siteStructuredAnnouncements"
+import type { UsageHistoryCapability } from "./usageHistory"
 
 export type SiteType = AccountSiteType | ManagedSiteType
 
@@ -26,10 +27,11 @@ export type SiteTypeCapabilities = {
   siteType: SiteType
   family?: SiteBackendFamily
   site?: {
-    announcements?: SiteStructuredAnnouncementsCapability
+    announcements?: SiteAnnouncementsCapability
     notice?: SiteNoticeCapability
   }
   account?: {
+    login?: AccountLoginCapability
     announcements?: SiteAnnouncementsCapability
     modelCatalog?: ModelCatalogCapability
     providerModelCatalog?: ProviderModelCatalogCapability
@@ -44,6 +46,7 @@ export type SiteTypeCapabilities = {
     serviceCredential?: ServiceCredentialCapability
     refresh?: AccountRefreshCapability
     redemption?: RedemptionCapability
+    usageHistory?: UsageHistoryCapability
   }
   managedSites?: Partial<ManagedSiteCapabilities>
 }

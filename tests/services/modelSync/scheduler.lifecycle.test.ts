@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { getManagedSiteRuntimeConfigFingerprint } from "~/services/managedSites/runtimeConfig"
+import { getManagedSiteRuntimeConfigFingerprint } from "~/services/managedSites/configuration/runtimeConfig"
 import { modelSyncScheduler } from "~/services/models/modelSync/scheduler"
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -24,11 +24,41 @@ import type {
 } from "~/types/managedSiteModelSync"
 import { automaticExecution } from "~~/tests/services/protectionBypass/fixtures"
 import { createDeferred } from "~~/tests/test-utils/deferred"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { modelResourceRef } from "~~/tests/test-utils/managedModelResource"
 
-vi.mock("~/services/managedSites/legacyChannelConfigMigration", () => ({
-  ensureLegacyChannelConfigMigrationReady: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock(
+  "~/services/preferences/preferencesDefaults",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/preferences/preferencesDefaults")
+      >()
+    return {
+      ...actual,
+      DEFAULT_PREFERENCES: {
+        managedSiteModelSync: {
+          enabled: true,
+          interval: 60_000,
+          concurrency: 1,
+          maxRetries: 1,
+          rateLimit: { requestsPerMinute: 10, burst: 2 },
+          allowedModels: [],
+          globalChannelModelFilters: [],
+        },
+      },
+    }
+  },
+)
+
+vi.mock(
+  "~/services/managedSites/configuration/legacyChannelConfigMigration",
+  () => ({
+    ensureLegacyChannelConfigMigrationReady: vi
+      .fn()
+      .mockResolvedValue(undefined),
+  }),
+)
 
 const mocks = vi.hoisted(() => ({
   clearAlarm: vi.fn(),
@@ -64,9 +94,8 @@ vi.mock("~/utils/core/error", () => ({
     error instanceof Error ? error.message : String(error),
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+vi.mock("~/utils/browser/alarms", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/utils/browser/alarms")>()
   return {
     ...actual,
     clearAlarm: mocks.clearAlarm,
@@ -74,29 +103,22 @@ vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
     getAlarm: mocks.getAlarm,
     hasAlarmsAPI: mocks.hasAlarmsAPI,
     onAlarm: mocks.onAlarm,
-    sendRuntimeMessage: mocks.sendRuntimeMessage,
   }
+})
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
+  return { ...actual, sendRuntimeMessage: mocks.sendRuntimeMessage }
 })
 
 vi.mock("~/services/preferences/userPreferences", () => ({
-  DEFAULT_PREFERENCES: {
-    managedSiteModelSync: {
-      enabled: true,
-      interval: 60_000,
-      concurrency: 1,
-      maxRetries: 1,
-      rateLimit: { requestsPerMinute: 10, burst: 2 },
-      allowedModels: [],
-      globalChannelModelFilters: [],
-    },
-  },
   userPreferences: {
     getPreferences: mocks.getPreferences,
     savePreferences: mocks.savePreferences,
   },
 }))
 
-vi.mock("~/services/managedSites/channelConfigStorage", () => ({
+vi.mock("~/services/managedSites/configuration/channelConfigStorage", () => ({
   channelConfigStorage: {
     getConfigsForScope: mocks.getConfigsForScope,
   },
@@ -128,11 +150,11 @@ vi.mock("~/services/models/modelSync/modelCollection", () => ({
   collectModelsFromExecution: mocks.collectModelsFromExecution,
 }))
 
-vi.mock("~/services/models/modelRedirect", () => ({
-  ModelRedirectService: {
-    generateModelMappingForChannel: mocks.generateModelMappingForChannel,
-    applyModelMappingToChannel: mocks.applyModelMappingToChannel,
-  },
+vi.mock("~/services/models/modelRedirect/modelMatching", () => ({
+  generateModelMappingForChannel: mocks.generateModelMappingForChannel,
+}))
+vi.mock("~/services/models/modelRedirect/mappingMutation", () => ({
+  applyModelMappingToChannel: mocks.applyModelMappingToChannel,
 }))
 
 vi.mock("~/services/notifications/taskNotificationService", () => ({
@@ -143,13 +165,15 @@ vi.mock("~/services/productAnalytics/actions", () => ({
   startProductAnalyticsAction: mocks.startProductAnalyticsAction,
 }))
 
-vi.mock("~/services/apiService/octopus", () => ({
+vi.mock("~/services/apiService/octopus/channels", () => ({
   listChannels: mocks.octopusListChannels,
+}))
+vi.mock("~/services/apiService/octopus/models", () => ({
   fetchGroups: vi.fn(),
   fetchAvailableModels: vi.fn(),
 }))
 
-vi.mock("~/services/apiAdapters/managedResources/octopusModelSync", () => ({
+vi.mock("~/services/apiAdapters/managedResources/octopus/modelSync", () => ({
   createOctopusModelSyncCapability: mocks.createOctopusModelSyncCapability,
 }))
 
@@ -166,7 +190,7 @@ describe("modelSyncScheduler lifecycle and edge flows", () => {
     vi.restoreAllMocks()
     vi.clearAllMocks()
     ;(modelSyncScheduler as any).isInitialized = false
-    ;(modelSyncScheduler as any).currentProgress = null
+    ;(modelSyncScheduler as any).execution.currentProgress = null
 
     mocks.hasAlarmsAPI.mockReturnValue(true)
     mocks.onAlarm.mockReturnValue(undefined)
@@ -273,7 +297,7 @@ describe("modelSyncScheduler lifecycle and edge flows", () => {
         newApi: { ...preferences.newApi, userId: "2" },
         octopus: { ...preferences.octopus, password: "second-password" },
       }
-      await batches[0].options.onProgress?.({
+      await atIndex(batches, 0).options.onProgress?.({
         completed: 1,
         total: 1,
         lastResult,
@@ -292,12 +316,12 @@ describe("modelSyncScheduler lifecycle and edge flows", () => {
       await vi.waitFor(() => expect(batches).toHaveLength(2))
       const messagesBeforeStaleProgress =
         mocks.sendRuntimeMessage.mock.calls.length
-      await batches[0].options.onProgress?.({
+      await atIndex(batches, 0).options.onProgress?.({
         completed: 1,
         total: 1,
         lastResult,
       })
-      batches[0].completion.resolve(result)
+      atIndex(batches, 0).completion.resolve(result)
       await firstRun
 
       expect(modelSyncScheduler.getProgress()).toMatchObject({
@@ -308,12 +332,12 @@ describe("modelSyncScheduler lifecycle and edge flows", () => {
       expect(mocks.sendRuntimeMessage).toHaveBeenCalledTimes(
         messagesBeforeStaleProgress,
       )
-      await batches[1].options.onProgress?.({
+      await atIndex(batches, 1).options.onProgress?.({
         completed: 1,
         total: 1,
         lastResult,
       })
-      batches[1].completion.resolve(result)
+      atIndex(batches, 1).completion.resolve(result)
       await secondRun
 
       expect(modelSyncScheduler.getProgress()).toBeNull()
@@ -514,6 +538,90 @@ describe("modelSyncScheduler lifecycle and edge flows", () => {
     )
   })
 
+  it("reports all-skipped scheduled runs without a failure or successful-sync count", async () => {
+    let alarmHandler: ((alarm: { name: string }) => Promise<void>) | undefined
+    mocks.onAlarm.mockImplementation((handler) => {
+      alarmHandler = handler
+    })
+    vi.spyOn(modelSyncScheduler, "setupAlarm").mockResolvedValue(undefined)
+    vi.spyOn(modelSyncScheduler, "executeSync").mockResolvedValue({
+      items: [
+        {
+          resourceRef: modelResourceRef(1),
+          channelName: "Excluded",
+          ok: false,
+          skipReason: "excluded",
+          attempts: 0,
+          finishedAt: 1,
+        },
+      ],
+      statistics: {
+        total: 0,
+        successCount: 0,
+        failureCount: 0,
+        skippedCount: 1,
+        startedAt: 1,
+        endedAt: 1,
+        durationMs: 0,
+      },
+    })
+    await modelSyncScheduler.initialize()
+    await alarmHandler?.({ name: "managedSiteModelSync" })
+    expect(mocks.notifyTaskResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "success",
+        counts: { total: 1, success: 0, failed: 0, skipped: 1 },
+        title: "managedSiteModelSync:messages.notification.allSkippedTitle",
+        message: "managedSiteModelSync:messages.notification.allSkippedBody",
+      }),
+    )
+    expect(mocks.completeProductAnalyticsAction).toHaveBeenCalledWith(
+      PRODUCT_ANALYTICS_RESULTS.Skipped,
+      expect.objectContaining({
+        insights: expect.objectContaining({
+          itemCount: 1,
+          skippedCount: 1,
+          successCount: 0,
+          failureCount: 0,
+        }),
+      }),
+    )
+  })
+
+  it.each([
+    { success: 2, failed: 0, status: "success" },
+    { success: 1, failed: 1, status: "partial_success" },
+    { success: 0, failed: 2, status: "failure" },
+  ])(
+    "keeps skipped channels separate in $status scheduled notifications",
+    async ({ success, failed, status }) => {
+      let alarmHandler: ((alarm: { name: string }) => Promise<void>) | undefined
+      mocks.onAlarm.mockImplementation((handler) => {
+        alarmHandler = handler
+      })
+      vi.spyOn(modelSyncScheduler, "setupAlarm").mockResolvedValue(undefined)
+      vi.spyOn(modelSyncScheduler, "executeSync").mockResolvedValue({
+        items: [],
+        statistics: {
+          total: success + failed,
+          successCount: success,
+          failureCount: failed,
+          skippedCount: 3,
+          startedAt: 1,
+          endedAt: 2,
+          durationMs: 1,
+        },
+      })
+      await modelSyncScheduler.initialize()
+      await alarmHandler?.({ name: "managedSiteModelSync" })
+      expect(mocks.notifyTaskResult).toHaveBeenCalledWith({
+        task: "managedSiteModelSync",
+        status,
+        counts: { total: 5, success, failed, skipped: 3 },
+      })
+    },
+  )
+
   it("notifies scheduled sync success counts after the alarm handler runs", async () => {
     let alarmHandler: ((alarm: { name: string }) => Promise<void>) | undefined
     mocks.onAlarm.mockImplementation((handler) => {
@@ -590,6 +698,45 @@ describe("modelSyncScheduler lifecycle and edge flows", () => {
         errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Auth,
       }),
     )
+  })
+
+  it("records Skipped without executing or notifying when no managed site is configured", async () => {
+    let alarmHandler: ((alarm: { name: string }) => Promise<void>) | undefined
+    mocks.onAlarm.mockImplementation((handler) => {
+      alarmHandler = handler
+    })
+
+    vi.spyOn(modelSyncScheduler, "setupAlarm").mockResolvedValue(undefined)
+    const executeSpy = vi.spyOn(modelSyncScheduler, "executeSync")
+    // NEW_API requires baseUrl + adminToken + a valid userId; empty config
+    // resolves to no managed-site target.
+    mocks.getPreferences.mockResolvedValue({
+      managedSiteType: SITE_TYPES.NEW_API,
+      newApi: { baseUrl: "", adminToken: "", userId: "" },
+      managedSiteModelSync: {
+        ...(DEFAULT_PREFERENCES as any).managedSiteModelSync,
+      },
+      modelRedirect: {
+        enabled: true,
+        standardModels: ["gpt-4o"],
+        pruneMissingTargetsOnModelSync: false,
+      },
+    })
+
+    await modelSyncScheduler.initialize()
+    await alarmHandler?.({ name: "managedSiteModelSync" })
+
+    expect(executeSpy).not.toHaveBeenCalled()
+    expect(mocks.completeProductAnalyticsAction).toHaveBeenCalledWith(
+      PRODUCT_ANALYTICS_RESULTS.Skipped,
+      expect.objectContaining({
+        insights: expect.objectContaining({
+          sourceKind: PRODUCT_ANALYTICS_SOURCE_KINDS.Auto,
+          managedSiteType: PRODUCT_ANALYTICS_MANAGED_SITE_TYPES.NewApi,
+        }),
+      }),
+    )
+    expect(mocks.notifyTaskResult).not.toHaveBeenCalled()
   })
 
   it("lists only Octopus channel selection facts and validates config", async () => {
@@ -1025,7 +1172,7 @@ describe("modelSyncScheduler lifecycle and edge flows", () => {
       expect.objectContaining({ baseUrl: "https://octopus.example.com" }),
       execution,
     )
-    expect(mocks.prepareOctopusBatch).toHaveBeenCalledWith([selectedRef])
+    expect(mocks.prepareOctopusBatch).toHaveBeenCalledWith([selectedRef], [])
     expect(mocks.runOctopusBatch).toHaveBeenCalledWith(
       expect.objectContaining({
         concurrency: 2,
@@ -1103,7 +1250,7 @@ describe("modelSyncScheduler lifecycle and edge flows", () => {
         surface: PROTECTION_BYPASS_SURFACES.Background,
       }),
     )
-    expect(mocks.prepareOctopusBatch).toHaveBeenCalledWith(undefined)
+    expect(mocks.prepareOctopusBatch).toHaveBeenCalledWith(undefined, [])
     expect(mocks.runOctopusBatch).toHaveBeenCalledWith(
       expect.not.objectContaining({
         protectionBypassExecution: expect.anything(),
@@ -1209,7 +1356,7 @@ describe("modelSyncScheduler lifecycle and edge flows", () => {
     })
 
     const executeSpy = vi
-      .spyOn(modelSyncScheduler, "executeSync")
+      .spyOn((modelSyncScheduler as any).execution, "executeSync")
       .mockResolvedValue({ items: [], statistics: { total: 2 } } as any)
 
     await expect(modelSyncScheduler.executeFailedOnly()).resolves.toEqual({

@@ -1,25 +1,79 @@
 import type { TFunction } from "i18next"
 
-import { QUOTA_PER_USD } from "~/constants/money"
-import { ACCOUNT_SITE_ADAPTER_FAMILIES, SITE_TYPES } from "~/constants/siteType"
-import { getAccountSiteDefinition } from "~/services/accountSiteDefinitions/registry"
-import type { AccountKeyResourceFacts } from "~/services/apiAdapters/contracts/accountKeyResource"
+import { isProviderConfirmedAccountCredential } from "~/services/accounts/keys/accountCredentialIdentityFacts"
+import { ACCOUNT_RUNTIME_KEY_STATUSES } from "~/services/accounts/keys/accountRuntimeKeys"
+import { hasAccountKeyManagementPermission } from "~/services/apiAdapters/accountKeyResources/displayFacts"
+import {
+  ACCOUNT_KEY_DETAIL_AVAILABILITIES,
+  ACCOUNT_KEY_RESOURCE_STATUSES,
+  type AccountKeyResourceFacts,
+} from "~/services/apiAdapters/contracts/accountKeyResource"
 import { INVENTORY_SECRET_AVAILABILITIES } from "~/services/apiAdapters/contracts/inventorySecret"
 import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
-import { formatKeyTime, formatLocaleDateTime } from "~/utils/core/formatters"
+import {
+  VERCEL_KEY_SPEND_ATTRIBUTIONS as attributions,
+  VERCEL_BUDGET_REFRESH_PERIODS as budgetPeriods,
+} from "~/services/apiService/vercelAiGateway/keys"
+import { formatQuotaAmount } from "~/services/quotaAssets/quotaAsset"
+import { formatLocaleDateTime } from "~/utils/core/formatters"
 
+import { buildAccountCredentialBadges } from "./accountCredentialBadges"
 import type { AccountKeyResourceCardAdapter } from "./accountKeyResourceCardAdapter"
-import type { KeyResourceFact } from "./keyResourceCard"
+import type {
+  KeyResourceActionPolicy,
+  KeyResourceBadge,
+  KeyResourceFact,
+} from "./keyResourceCard"
+import {
+  KEY_RESOURCE_CARD_KINDS as cardKinds,
+  getKeyResourcePresentationPolicy,
+  KEY_RESOURCE_SCOPE_KINDS as scopeKinds,
+} from "./keyResourcePresentationPolicy"
 import { openRouterKeyResourceCardAdapter } from "./openRouterKeyResourceCard"
+
+/** Omit the field entirely so cards without highlights keep no empty array. */
+const badgesProp = (badges: KeyResourceBadge[]) =>
+  badges.length ? { badges } : {}
+
+/**
+ * Secret actions follow the credential's role, not only its secret source.
+ *
+ * The account's own credential is readable because the extension already stores
+ * it. Export stays limited to inference keys: a management key can answer
+ * completions, but exporting it would hand every client authority over the
+ * organization's other credentials.
+ */
+const secretActionPolicy = (params: {
+  hasAssociatedSecret: boolean
+  recoverable: boolean
+  accountCredential: boolean
+  inferenceCapable: boolean
+}): Omit<KeyResourceActionPolicy, "edit" | "delete"> => {
+  const readable =
+    params.hasAssociatedSecret || params.recoverable || params.accountCredential
+  const exportable = readable && params.inferenceCapable
+  return {
+    copySecret: readable,
+    revealSecret: readable,
+    verifySecret: readable,
+    exportSecret: exportable,
+    batchSelect: exportable,
+  }
+}
 
 /** Common facts remain usable without interpreting an unregistered provider's fields. */
 const genericKeyResourceCardAdapter: AccountKeyResourceCardAdapter = {
-  buildPresentation(row, t, { hasAssociatedSecret }) {
-    const availability = hasAssociatedSecret
-      ? INVENTORY_SECRET_AVAILABILITIES.Recoverable
-      : getSiteTypeCapabilities(row.facts.ref.siteType).account
-          ?.keyResourceManagement?.inventorySecretAvailability ??
-        INVENTORY_SECRET_AVAILABILITIES.Unavailable
+  buildPresentation(
+    row,
+    t,
+    { hasAssociatedSecret, accountCredentialIdentity },
+  ) {
+    const availability =
+      hasAssociatedSecret || Boolean(row.facts.runtimeSecret)
+        ? INVENTORY_SECRET_AVAILABILITIES.Recoverable
+        : getSiteTypeCapabilities(row.facts.ref.siteType).account
+            ?.keyResourceManagement?.inventorySecretAvailability ??
+          INVENTORY_SECRET_AVAILABILITIES.Unavailable
     const status = row.facts.status
     const contextFact = {
       id: "scope",
@@ -31,17 +85,17 @@ const genericKeyResourceCardAdapter: AccountKeyResourceCardAdapter = {
       title: row.facts.displayName,
       accountLabel: row.accountName,
       status:
-        status === "enabled"
-          ? "active"
-          : status === "unknown"
+        status === ACCOUNT_KEY_RESOURCE_STATUSES.Enabled
+          ? ACCOUNT_RUNTIME_KEY_STATUSES.Active
+          : status === ACCOUNT_KEY_RESOURCE_STATUSES.Unknown
             ? "unknown"
-            : "inactive",
+            : ACCOUNT_RUNTIME_KEY_STATUSES.Inactive,
       statusLabel:
-        status === "enabled"
+        status === ACCOUNT_KEY_RESOURCE_STATUSES.Enabled
           ? t("keyManagement:native.status.enabled")
-          : status === "disabled"
+          : status === ACCOUNT_KEY_RESOURCE_STATUSES.Disabled
             ? t("keyManagement:native.status.disabled")
-            : status === "expired"
+            : status === ACCOUNT_KEY_RESOURCE_STATUSES.Expired
               ? t("keyManagement:native.status.expired")
               : t("keyManagement:native.status.unknown"),
       secretAvailability: availability,
@@ -52,10 +106,23 @@ const genericKeyResourceCardAdapter: AccountKeyResourceCardAdapter = {
               "keyManagement:keyDetails.createResponseOnlySecret",
             ),
           }
-        : {}),
+        : availability === INVENTORY_SECRET_AVAILABILITIES.WebsiteVerification
+          ? {
+              secretAvailabilityMessage: t(
+                "keyManagement:keyDetails.websiteVerificationSecret",
+              ),
+            }
+          : {}),
       contextFact,
       summaryFacts: [contextFact],
       detailFacts: [],
+      ...badgesProp(
+        buildAccountCredentialBadges(
+          accountCredentialIdentity ?? row.facts.accountCredentialIdentity,
+          hasAccountKeyManagementPermission(row.facts),
+          t,
+        ),
+      ),
       actions: {
         copySecret: hasAssociatedSecret,
         revealSecret: hasAssociatedSecret,
@@ -73,103 +140,180 @@ const genericKeyResourceCardAdapter: AccountKeyResourceCardAdapter = {
     t("keyManagement:native.detailsLoadFailed"),
 }
 
-const cardAdapters = new Map<string, AccountKeyResourceCardAdapter>([
-  [SITE_TYPES.OPENROUTER, openRouterKeyResourceCardAdapter],
-])
+const displayText = (value: string | readonly string[]) =>
+  typeof value === "string" ? value : value.join(", ")
 
-/** Format only fields declared by the explicitly supported native providers. */
+/** Format only semantics declared by the explicitly supported native providers. */
 const nativeDetailFacts = (
   facts: AccountKeyResourceFacts,
   t: TFunction,
 ): KeyResourceFact[] => {
-  const siteType = facts.ref.siteType
-  const byId = new Map(facts.fields.map((field) => [field.fieldId, field]))
-  const unlimited = [
-    "unlimitedQuota",
-    "unlimited_quota",
-    "boundlessAmount",
-  ].some((id) => {
-    const fact = byId.get(id)
-    return fact?.kind === "boolean" && fact.value
-  })
-  const rawQuotaUnits =
-    getSiteTypeCapabilities(siteType).family ===
-      ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily ||
-    siteType === SITE_TYPES.AIHUBMIX
-  const money = (value: number) =>
-    `$${(value / (rawQuotaUnits ? QUOTA_PER_USD : 1)).toLocaleString(undefined, { maximumFractionDigits: 6 })}`
   const details: KeyResourceFact[] = []
-  for (const field of facts.fields) {
-    const remaining = [
-      "remainingQuota",
-      "remain_quota",
-      "remainingQuotaUsd",
-      "amount",
-    ].includes(field.fieldId)
-    const used = ["usedQuota", "used_quota", "quota_used", "used"].includes(
-      field.fieldId,
-    )
+  for (const fact of facts.displayFacts ?? []) {
     if (
-      field.kind === "number" &&
-      (remaining || used || field.fieldId === "quota")
+      fact.kind === "money" ||
+      fact.kind === "credits" ||
+      fact.kind === "quota"
     ) {
       details.push({
-        id: field.fieldId,
-        label: remaining
-          ? t("keyManagement:keyDetails.remainingQuota")
-          : used
-            ? t("keyManagement:keyDetails.usedQuota")
-            : t("keyManagement:native.editor.totalQuotaUsd"),
+        id: fact.fieldId,
+        label:
+          getKeyResourcePresentationPolicy(facts.ref.siteType).factLabels?.[
+            fact.fieldId
+          ]?.(t) ??
+          (fact.kind === "credits"
+            ? t("keyManagement:native.editor.quotaCredits")
+            : fact.role === "remaining"
+              ? t("keyManagement:keyDetails.remainingQuota")
+              : fact.role === "used"
+                ? t("keyManagement:keyDetails.usedQuota")
+                : fact.kind === "quota"
+                  ? t("keyManagement:keyDetails.totalQuota")
+                  : t("keyManagement:native.editor.totalQuotaUsd")),
         value:
-          unlimited && !used
-            ? t("keyManagement:dialog.unlimitedQuota")
-            : money(field.value),
+          fact.kind === "money" && fact.followsAccount
+            ? t("keyManagement:native.editor.followsAccount")
+            : fact.unlimited
+              ? t("keyManagement:dialog.unlimitedQuota")
+              : fact.kind === "money"
+                ? `$${fact.amountUsd.toLocaleString(undefined, { maximumFractionDigits: 6 })}`
+                : fact.kind === "quota"
+                  ? formatQuotaAmount(fact.value, fact.asset)
+                  : fact.value.toLocaleString(),
       })
-    } else if (
-      ["expired_time", "expires_at", "expireTime"].includes(field.fieldId) &&
-      (field.kind === "number" || field.kind === "text")
-    ) {
-      const value =
-        typeof field.value === "number"
-          ? field.value
-          : field.value
-            ? Date.parse(field.value)
-            : -1
+    } else if (fact.kind === "rate-limit") {
       details.push({
-        id: field.fieldId,
+        id: fact.fieldId,
+        label: t("keyManagement:native.editor.budgetsAndLimits"),
+        value: `RPM ${fact.rpm || t("keyManagement:native.editor.followsAccount")} · ${t("keyManagement:native.editor.keyConcurrency")}: ${fact.concurrency || t("keyManagement:native.editor.followsAccount")}`,
+      })
+    } else if (fact.kind === "spend-budget") {
+      const period =
+        fact.period === budgetPeriods.Daily
+          ? t("keyManagement:native.editor.vercelAiGateway.period.daily")
+          : fact.period === budgetPeriods.Weekly
+            ? t("keyManagement:native.editor.vercelAiGateway.period.weekly")
+            : fact.period === budgetPeriods.Monthly
+              ? t("keyManagement:native.editor.vercelAiGateway.period.monthly")
+              : t("keyManagement:native.editor.vercelAiGateway.period.none")
+      details.push({
+        id: fact.fieldId,
+        label: t("keyManagement:native.editor.vercelAiGateway.budgetEnabled"),
+        value:
+          fact.source === "unavailable"
+            ? t("keyManagement:native.editor.vercelAiGateway.budgetUnavailable")
+            : fact.source === "none"
+              ? t("keyManagement:native.editor.vercelAiGateway.noBudget")
+              : [
+                  fact.source === "inherited"
+                    ? t(
+                        "keyManagement:native.editor.vercelAiGateway.inheritedBudget",
+                      )
+                    : undefined,
+                  typeof fact.usedUsd === "number"
+                    ? `$${fact.usedUsd} / $${fact.limitUsd}`
+                    : `$${fact.limitUsd}`,
+                  period,
+                  fact.active === false
+                    ? t(
+                        "keyManagement:native.editor.vercelAiGateway.budgetInactive",
+                      )
+                    : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
+      })
+    } else if (fact.kind === "budget") {
+      const budgetLabel =
+        fact.window === "5h"
+          ? t("keyManagement:native.editor.budget5h")
+          : fact.window === "day"
+            ? t("keyManagement:native.editor.budgetDay")
+            : fact.window === "week"
+              ? t("keyManagement:native.editor.budgetWeek")
+              : t("keyManagement:native.editor.budgetMonth")
+      details.push({
+        id: fact.fieldId,
+        label: budgetLabel,
+        value:
+          t("keyManagement:native.editor.budgetUsage", {
+            used: fact.usedUsd,
+            limit: fact.limitUsd,
+            remaining: fact.remainingUsd,
+            reserved: fact.reservedUsd,
+          }) +
+          " · " +
+          (fact.nextResetAt
+            ? t("keyManagement:native.editor.budgetNextReset", {
+                time: new Date(fact.nextResetAt).toLocaleString(undefined, {
+                  timeZone: "Asia/Shanghai",
+                  timeZoneName: "short",
+                }),
+              })
+            : t("keyManagement:native.editor.budgetRolling")),
+      })
+    } else if (fact.kind === "expiry") {
+      const date =
+        typeof fact.timestampMs === "number" ? new Date(fact.timestampMs) : null
+      details.push({
+        id: fact.fieldId,
         label: t("keyManagement:keyDetails.expireTime"),
-        value: formatKeyTime(value),
+        value:
+          fact.timestampMs === "never"
+            ? t("keyManagement:keyDetails.neverExpires")
+            : date && Number.isFinite(date.getTime())
+              ? date.toLocaleDateString()
+              : t("common:labels.notAvailable"),
       })
-    } else if (
-      field.fieldId === "accessed_time" &&
-      field.kind === "number" &&
-      field.value > 0
-    ) {
+    } else if (fact.kind === "attribution") {
       details.push({
-        id: field.fieldId,
+        id: fact.fieldId,
+        label: t(
+          "keyManagement:native.editor.vercelAiGateway.spendAttribution",
+        ),
+        // Provider-declared keys only; unknown values stay verbatim.
+        value:
+          fact.value === attributions.User
+            ? t("keyManagement:native.editor.vercelAiGateway.attribution.user")
+            : fact.value === attributions.Team
+              ? t(
+                  "keyManagement:native.editor.vercelAiGateway.attribution.team",
+                )
+              : fact.value,
+      })
+    } else if (fact.kind === "last-used") {
+      details.push({
+        id: fact.fieldId,
         label: t("keyManagement:keyDetails.lastUsedTime"),
         value: formatLocaleDateTime(
-          field.value,
+          new Date(fact.timestampMs),
           t("common:labels.notAvailable"),
         ),
       })
-    } else if (
-      ["models", "allow_ips", "ip_whitelist", "subnet"].includes(
-        field.fieldId,
-      ) &&
-      (field.kind === "text" || field.kind === "list")
-    ) {
-      const value =
-        typeof field.value === "string" ? field.value : field.value.join(", ")
+    }
+  }
+  for (const fact of facts.displayFacts ?? []) {
+    if (fact.kind === "permission") {
+      details.push({
+        id: fact.fieldId,
+        label: t("keyManagement:native.permission.manage"),
+        value: fact.granted
+          ? t("keyManagement:native.permission.manageGranted")
+          : t("keyManagement:native.permission.manageNotGranted"),
+      })
+    } else if (fact.kind === "restriction") {
+      const value = displayText(fact.value)
       if (value)
         details.push({
-          id: field.fieldId,
+          id: fact.fieldId,
           label:
-            field.fieldId === "models"
+            fact.role === "models"
               ? t("keyManagement:keyDetails.models")
-              : field.fieldId === "subnet"
-                ? t("keyManagement:dialog.subnetLimits")
-                : t("keyManagement:keyDetails.ipLimits"),
+              : fact.role === "tools"
+                ? t("keyManagement:keyDetails.tools")
+                : fact.role === "subnet"
+                  ? t("keyManagement:dialog.subnetLimits")
+                  : t("keyManagement:keyDetails.ipLimits"),
           value,
         })
     }
@@ -179,7 +323,7 @@ const nativeDetailFacts = (
       id: "createdAt",
       label: t("keyManagement:keyDetails.createTime"),
       value: formatLocaleDateTime(
-        facts.runtimeKey.createdAt,
+        new Date(facts.runtimeKey.createdAt),
         t("common:labels.notAvailable"),
       ),
     })
@@ -189,6 +333,20 @@ const nativeDetailFacts = (
       label: t("keyManagement:keyDetails.note"),
       value: facts.runtimeKey.notes,
     })
+  const labels = getKeyResourcePresentationPolicy(facts.ref.siteType).factLabels
+  for (const field of facts.fields) {
+    const label = labels?.[field.fieldId]
+    if (
+      label &&
+      !details.some((detail) => detail.id === field.fieldId) &&
+      (field.kind === "text" || field.kind === "number")
+    )
+      details.push({
+        id: field.fieldId,
+        label: label(t),
+        value: String(field.value),
+      })
+  }
   return details
 }
 
@@ -199,46 +357,54 @@ const nativeKeyResourceCardAdapter: AccountKeyResourceCardAdapter = {
       t,
       options,
     )
-    const usableSecret =
-      options.hasAssociatedSecret ||
-      base.secretAvailability === INVENTORY_SECRET_AVAILABILITIES.Recoverable
-    const group = row.facts.fields.find(
-      (field) => field.fieldId === "group" || field.fieldId === "groups",
+    const group = row.facts.displayFacts?.find(
+      (fact) => fact.kind === "group" || fact.kind === "channels",
     )
-    const groupValue =
-      group?.kind === "text"
-        ? group.value
-        : group?.kind === "list"
-          ? group.value.join(", ")
-          : ""
     const contextFact = group
-      ? {
-          id: "group",
-          label: t("keyManagement:keyDetails.group"),
-          value:
-            groupValue ||
-            (getSiteTypeCapabilities(row.facts.ref.siteType).family ===
-            ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily
-              ? t("keyManagement:keyDetails.followsAccountGroup")
-              : t("keyManagement:keyDetails.ungrouped")),
-        }
+      ? group.kind === "channels"
+        ? {
+            id: "channels",
+            label: t("keyManagement:keyDetails.channels"),
+            value: group.usesDefault
+              ? `${t("keyManagement:keyDetails.defaultChannels")}${group.value.length ? ` (${displayText(group.value)})` : ""}`
+              : displayText(group.value) || t("common:labels.notAvailable"),
+          }
+        : {
+            id: "group",
+            label: t("keyManagement:keyDetails.group"),
+            value:
+              displayText(group.value) ||
+              (group.emptyValue === "account-group"
+                ? t("keyManagement:keyDetails.followsAccountGroup")
+                : t("keyManagement:keyDetails.ungrouped")),
+          }
       : undefined
     const details = nativeDetailFacts(row.facts, t)
+    const summaryDetailCount = 4 - (contextFact ? 1 : 0)
+    const secretActions = secretActionPolicy({
+      hasAssociatedSecret: options.hasAssociatedSecret,
+      recoverable:
+        base.secretAvailability === INVENTORY_SECRET_AVAILABILITIES.Recoverable,
+      accountCredential: isProviderConfirmedAccountCredential(
+        row.facts.accountCredentialIdentity,
+      ),
+      inferenceCapable: row.facts.runtimeKey?.inference !== false,
+    })
     return {
       ...base,
       contextFact,
-      summaryFacts: [...(contextFact ? [contextFact] : []), ...details].slice(
-        0,
-        4,
-      ),
-      detailFacts: details,
+      summaryFacts: [
+        ...(contextFact ? [contextFact] : []),
+        ...details.slice(0, summaryDetailCount),
+      ],
+      detailFacts:
+        row.facts.detailAvailability ===
+        ACCOUNT_KEY_DETAIL_AVAILABILITIES.Complete
+          ? details.slice(summaryDetailCount)
+          : details,
       actions: {
         ...base.actions,
-        copySecret: usableSecret,
-        revealSecret: usableSecret,
-        verifySecret: usableSecret,
-        exportSecret: usableSecret,
-        batchSelect: usableSecret,
+        ...secretActions,
       },
     }
   },
@@ -247,21 +413,14 @@ const nativeKeyResourceCardAdapter: AccountKeyResourceCardAdapter = {
     t("keyManagement:native.detailsLoadFailed"),
 }
 
-const nativeCardFamilies = new Set<string>([
-  ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
-  ACCOUNT_SITE_ADAPTER_FAMILIES.Sub2Api,
-  ACCOUNT_SITE_ADAPTER_FAMILIES.VoApiV2,
-  ACCOUNT_SITE_ADAPTER_FAMILIES.Aihubmix,
-])
-
-/** Resolves presentation independently of whether a provider implements native CRUD. */
+/** Resolves all card choices from the same policy as the editor and scope UI. */
 export function getAccountKeyResourceCardAdapter(siteType: string) {
-  const registered = cardAdapters.get(siteType)
-  if (registered) return registered
-  const family = getAccountSiteDefinition(siteType)?.adapterFamily
-  return family && nativeCardFamilies.has(family)
-    ? nativeKeyResourceCardAdapter
-    : genericKeyResourceCardAdapter
+  const adapters = {
+    [cardKinds.Native]: nativeKeyResourceCardAdapter,
+    [cardKinds.OpenRouter]: openRouterKeyResourceCardAdapter,
+    [cardKinds.Generic]: genericKeyResourceCardAdapter,
+  }
+  return adapters[getKeyResourcePresentationPolicy(siteType).card]
 }
 
 /**
@@ -272,7 +431,10 @@ export function shouldShowAccountKeyScopeSelector(
   siteType: string | undefined,
   scopeCount: number,
 ) {
-  return siteType === SITE_TYPES.OPENROUTER || scopeCount > 1
+  return (
+    getKeyResourcePresentationPolicy(siteType).scope === scopeKinds.Workspace ||
+    scopeCount > 1
+  )
 }
 
 /** Workspace terminology belongs to OpenRouter; other scopes use neutral copy. */
@@ -280,7 +442,9 @@ export function getAccountKeyScopeMessages(
   siteType: string | undefined,
   t: TFunction,
 ) {
-  if (siteType === SITE_TYPES.OPENROUTER) {
+  if (
+    getKeyResourcePresentationPolicy(siteType).scope === scopeKinds.Workspace
+  ) {
     return {
       heading: t("keyManagement:openRouter.workspace.heading"),
       fallback: t("keyManagement:openRouter.workspace.fallback"),

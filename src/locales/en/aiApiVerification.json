@@ -1,10 +1,12 @@
 {
   "verifyDialog": {
+    "about": "Test information",
     "actions": {
       "close": "Close",
       "manageModelKey": "Open model key setup",
       "retry": "Retry",
-      "run": "Run",
+      "runAll": "Run routine tests",
+      "runAllHint": "Runs routine tests only. Start on-demand tests separately.",
       "running": "Running...",
       "runOne": "Run",
       "stop": "Stop",
@@ -16,55 +18,127 @@
       "openai": "OpenAI",
       "openaiCompatible": "OpenAI-compatible"
     },
+    "associatedCredentialHint": "This site cannot return the full key again. Tests use the full key saved in the API Credential Library and linked to the selected key. If none is linked, open key management to save or associate the key first.",
     "details": {
       "input": "Input",
-      "output": "Output"
+      "output": "Output",
+      "result": "Execution result"
     },
     "errors": {
       "unexpected": "Unexpected error"
     },
+    "generatedImagePreview": "Generated image preview",
+    "generatedVideoPreview": "Generated video preview",
     "history": {
       "clear": "Clear history",
-      "lastVerified": "Last verified"
+      "lastVerified": "Last tested",
+      "previousResult": "Previously: {{result}}",
+      "storage": {
+        "context": "History keeps measurements, without individual request details.",
+        "drawing": "History does not retain the drawing or execution details.",
+        "needle": "History keeps measurements. The same sample ID and settings can recreate the test text.",
+        "probe": "History keeps the test summary, without request or response content."
+      }
     },
-    "idleHint": "Select a key to start verification. Model id is required for model-dependent probes.",
+    "intro": {
+      "probes": {
+        "decision": "Send a sample state to the decision endpoint and check for a decision value or probabilities.",
+        "embedding": "Send sample text and check the returned vector and its dimensions.",
+        "image-generation": "Send an image prompt, check the response and preview the generated image.",
+        "models": "Fetch model names and counts from the endpoint to choose models for further tests.",
+        "rerank": "Submit a query and candidate documents, then check their relevance ranking.",
+        "structured-output": "Ask the model for JSON containing ok: true, then validate the field value and structure.",
+        "text-generation": "Check whether the model follows a prompt. A reply containing OK passes, regardless of letter case.",
+        "tool-calling": "Ask the model to call the built-in timestamp tool. The test passes when that tool call is detected.",
+        "video-generation": "Submit a video generation task, wait for its status and inspect the generated video.",
+        "web-search": "Check whether the API can use web search and inspect the results and citations."
+      },
+      "startHint": "Select <run>Run</run> to start this test."
+    },
     "loadingRuntimeKeysHint": "Loading keys...",
+    "mediaPreviewUnavailable": "The preview could not be loaded.",
     "meta": {
       "apiType": "API type",
       "apiTypePlaceholder": "Select API type",
+      "configuration": "Request configuration",
       "mode": "Test mode",
       "model": "Model",
       "modelPlaceholder": "Enter model id",
+      "requestProfile": "Client simulation",
       "runtimeKey": "Key",
       "runtimeKeyIncompatible": "Not available for this model",
       "runtimeKeyPlaceholder": "Select key"
+    },
+    "modalityNotice": {
+      "image": "This is an image generation model; test calls incur per-request quota consumption.",
+      "quotaCost": "Per-call",
+      "video": "Creates a video and waits up to two minutes for playback. Stopping only ends local waiting; the server task may continue and incur charges."
     },
     "modes": {
       "nonStreaming": "Non-streaming",
       "streaming": "Streaming"
     },
     "noCompatibleRuntimeKeyHint": "No key is available for this model's group. Create or choose a key for an enabled group in Key Management.",
-    "notRunYet": "Not run yet",
+    "openGeneratedMedia": "Open generated media",
     "probes": {
+      "decision": "Decision",
+      "embedding": "Embedding",
+      "image-generation": "Image generation",
       "models": "Model list",
-      "structured-output": "Structured output (schema JSON)",
+      "rerank": "Reranker",
+      "structured-output": "Structured output",
       "text-generation": "Text generation",
       "tool-calling": "Tool/function calling",
-      "web-search": "Web search / grounding"
+      "video-generation": "Video task",
+      "web-search": "Web search"
+    },
+    "requestProfiles": {
+      "claude": "Claude Code",
+      "codex": "Codex CLI",
+      "default": "Ordinary API",
+      "enhancedBadge": "Enhanced",
+      "enhancedCostHint": "May increase input usage",
+      "enhancedHint": "Add known identity prompts, SDK headers, cache and session features. May increase input usage; acceptance depends on the site.",
+      "enhancedLabel": "Enhanced CLI simulation",
+      "gemini": "Gemini CLI",
+      "hint": "Selecting a client sets its default protocol. You can still change the protocol manually. Tests simulate the client’s API requests without launching a CLI on your device.",
+      "protocolMismatch": "Differs from the client’s default protocol ({{apiType}}); compatibility may be limited.",
+      "shortcutHint": "{{client}} is selected. Run a test or choose another client.",
+      "shortcutTooltip": "Test this API’s support for CLI clients"
     },
     "requiresModelId": "Enter a model id to run this test.",
+    "sections": {
+      "onDemand": "On-demand tests",
+      "routine": "Routine tests"
+    },
     "selectedRuntimeKeyIncompatibleHint": "The selected key is not available for this model's group. Choose a compatible key before running verification.",
+    "source": {
+      "account": "Account: {{name}}",
+      "profile": "Credential: {{name}}"
+    },
     "status": {
+      "emptyResponse": "No answer text",
       "fail": "Fail",
+      "inconclusive": "Inconclusive",
       "pass": "Pass",
+      "paused": "Paused",
       "pending": "Pending",
+      "stopped": "Stopped",
+      "timeout": "Request timed out",
       "unsupported": "Unsupported",
-      "unverified": "Unverified"
+      "unverified": "Not tested"
     },
     "summaries": {
+      "decisionSucceeded": "Decision probe succeeded.",
+      "decisionUnexpectedResponse": "Unexpected decision response.",
+      "embeddingSucceeded": "Embedding generated successfully (dimension: {{dimension}}).",
+      "embeddingUnexpectedResponse": "Unexpected embedding response.",
+      "embeddingUnsupportedAnthropic": "Anthropic does not provide native embedding models.",
       "endpointNotFound": "Endpoint not found (404): this API may not be supported",
       "forbidden": "Forbidden (403): access denied",
       "httpError": "HTTP error ({{status}})",
+      "imageGenerationNoData": "No image data returned.",
+      "imageGenerationSucceeded": "Image generation succeeded.",
       "modelsFetched": "Fetched {{count}} models.",
       "modelsFetched_one": "Fetched {{count}} model.",
       "modelsFetched_other": "Fetched {{count}} models.",
@@ -75,6 +149,11 @@
       "noModelIdProvidedToRunProbes": "No model id provided to run probes.",
       "noModelsReturned": "No models returned.",
       "noToolCallDetected": "No tool call detected (model may not support tools).",
+      "probeRequiresOpenAiProtocol": "This test requires an OpenAI-compatible API endpoint. Select that protocol only if your service provides it.",
+      "requestProfileIncompatible": "This client simulation does not support the selected API protocol or test.",
+      "requestTimedOut": "The request timed out without a conclusive result. Try again later; a timeout does not establish that the model lacks this capability.",
+      "rerankSucceeded": "Rerank succeeded.",
+      "rerankUnexpectedResponse": "Unexpected rerank response.",
       "stopped": "Stopped by user.",
       "structuredOutputInvalid": "Invalid output.",
       "structuredOutputSucceeded": "Structured output succeeded.",
@@ -82,6 +161,12 @@
       "textGenerationUnexpectedResponse": "Unexpected response text.",
       "toolCallSucceeded": "Tool call succeeded.",
       "unauthorized": "Unauthorized (401): invalid key or missing auth",
+      "videoGenerationSucceeded": "Video generated successfully.",
+      "videoGenerationTimedOut": "Video generation did not finish within two minutes. The server task may still be running.",
+      "videoNoPlayableResult": "The video task completed without a playable URL.",
+      "videoNoTaskReturned": "No video task id returned.",
+      "videoTaskAccepted": "Video task accepted.",
+      "videoUnexpectedResponse": "Video task failed or returned an invalid response.",
       "webSearchGroundingNoResults": "No web search/grounding results.",
       "webSearchGroundingSucceeded": "Web search/grounding succeeded.",
       "webSearchNoResults": "No web search results.",
@@ -90,8 +175,228 @@
       "webSearchUnsupportedAnthropic": "Web search probe is not supported for Anthropic endpoints.",
       "webSearchUnsupportedForApiType": "Web search probe is not supported for this API type."
     },
-    "title": "API Verification",
+    "title": "API Testing",
+    "tools": {
+      "agent": {
+        "calls": "Tool activity",
+        "completed": "An SVG file was generated. Judge the drawing yourself.",
+        "files": "Workspace files",
+        "hint": "Let the model check and improve its drawing. This may increase usage.",
+        "label": "Agent test mode",
+        "noArtifact": "The model did not create pelican.svg with complete SVG markup. Its final reply is not used as the artifact.",
+        "summary": "Turns: {{steps}} · Tool calls: {{calls}} · {{seconds}} s"
+      },
+      "context": {
+        "about": "About the model context test",
+        "acceptedTitle": "Model context: about {{tokens}} tokens verified",
+        "comparison": "metadata declares {{expected}} tokens",
+        "continue": "Continue probe",
+        "counter": "Tokenizer: {{encoding}}.",
+        "coverage": "Context ≈{{percent}}%",
+        "description": "Uses the declared model context as the test cap, or up to 1M tokens when unknown. Each batch has about an 8M-token cumulative input budget and can resume after pausing.",
+        "details": "Test details",
+        "discard": "Discard interrupted tests",
+        "discardWarning": "Too many interrupted tests are saved. Discard inactive records to continue. Their charge status is unknown; running tests are kept.",
+        "emptyResponse": "The response ended normally without answer text; input acceptance remains unconfirmed.",
+        "errorTitle": "Probe could not finish",
+        "estimated": "Estimated model encoding.",
+        "hint": "Tests the input context the model can accept. Results depend on the API and request configuration and do not establish the full context window.",
+        "historyError": "History is unavailable. The current result is still shown.",
+        "incompleteResponse": "No conclusive response was received. Finish reason: {{reason}}.",
+        "interrupted": "The request was interrupted; its charge status is unknown. It was not retried. Start a new test only if you accept the possible additional usage.",
+        "lower": "Largest accepted input: {{tokens}} local text tokens",
+        "maskedHistoryHint": "Saved measurement for this masked key. The current credential has not been revalidated.",
+        "matched": "Model encoding matched; full-request token count may differ.",
+        "measuredBadge": "Accepted ≈{{tokens}} tokens",
+        "measurementDetails": "Measurement evidence",
+        "outputLimited": "Input accepted; output was truncated at a length limit. This does not invalidate input acceptance.",
+        "pausedTitle": "Probe paused",
+        "progress": "Requests: {{requests}} · Approx. cumulative input budget used: {{tokens}} tokens (including failed requests)",
+        "reasons": {
+          "bracketed": "Found an approximate input boundary for this connection.",
+          "budget": "This batch reached its request or cumulative input budget. Continue from here to allow more usage.",
+          "inconclusive": "The response did not confirm a capacity limit. Retry or open execution details to see the cause.",
+          "test-limit": "This input length was accepted. The actual capacity may be larger.",
+          "timeout": "The request timed out before input acceptance could be confirmed. A timeout does not prove the input exceeds model capacity. Try again later; retrying sends long text again and may use credits."
+        },
+        "reportedUsage": "Reported usage: input {{input}} + output {{output}} = total {{total}} tokens",
+        "requestDetails": "Request and usage",
+        "resultLabel": "Context capacity result",
+        "run": "Run context probe",
+        "startHint": "Sends long text and uses API credits. Pauses at its usage budget.",
+        "stoppedTitle": "Probe stopped",
+        "title": "Model context test",
+        "unableTitle": "Could not confirm input capacity",
+        "upper": "Capacity rejection at: {{tokens}} local text tokens"
+      },
+      "errors": {
+        "unexpected": "Request failed: {{message}}"
+      },
+      "needle": {
+        "automatic": "Automatic",
+        "automaticLimit": "Automatic ({{limit}})",
+        "budget": "About {{tokens}} input tokens, plus output. This test uses your API quota.",
+        "cancelledCell": "Cancelled",
+        "cancelledUnknown": "No gradable result was obtained.",
+        "capacityRunning": "Checking available context. Test lengths will update when it finishes.",
+        "capped": "This run is capped at 1M input tokens per request.",
+        "cell": "Local input: {{tokens}} tokens · Actual position: {{depth}}% · {{latency}} ms",
+        "cellDetails": "Cell details",
+        "cumulativeScore": "Cumulative results: {{hits}}/{{graded}} graded answers matched",
+        "custom": "Custom",
+        "customLimit": "Custom length (tokens)",
+        "description": "Check whether the model can find a specific record at different positions in a long text.",
+        "errors": {
+          "busy": "A test for this connection is already running in another page.",
+          "failed": "The needle test could not finish: {{detail}}",
+          "metadata": "Unable to load context information. Try again.",
+          "request": "Select a model and a usable credential before running."
+        },
+        "exactLengths": "Exact lengths: {{lengths}} tokens",
+        "exactTotal": "Estimated total input: {{tokens}} tokens",
+        "expected": "Expected: {{value}}",
+        "invalid": "Text length must be an integer from 1,024 to 1,048,576; sample ID must be an integer from 0 to 4,294,967,295.",
+        "length": "Tokens",
+        "lengthRule": "Lengths double from 8K, with a final step at the input limit of {{limit}}.",
+        "limit": "Maximum text length (tokens)",
+        "limitation": "A match verifies this sample only. A miss does not prove truncation, a smaller context window or a different model.",
+        "matrix": "Retrieval by input length and position",
+        "matrixHint": "Click a status to view details and run or retest that cell. Row and column buttons run every cell in their scope, including previous results. Stop buttons affect only their cell, row or column.",
+        "notRun": "Not run",
+        "notScheduled": "Not in this run",
+        "outcomes": {
+          "contextLimit": "Too long",
+          "error": "Error",
+          "hit": "Match",
+          "incomplete": "Incomplete",
+          "interrupted": "Unknown",
+          "miss": "Miss"
+        },
+        "planDetails": "How are lengths chosen?",
+        "planned": "Planned",
+        "plannedLengths": "Text lengths (tokens)",
+        "positionRule": "Each length is tested at {{positions}}, covering the beginning, middle and end.",
+        "preparing": "Preparing the test plan…",
+        "preparingCellState": "Preparing…",
+        "previewPositions": "Each length is tested at {{positions}}.",
+        "previewTitle": "Test preview",
+        "previousResult": "Previous result (before this run)",
+        "probeFirst": "Check available context",
+        "progress": "Latest run: Processed {{completed}}/{{total}} requests",
+        "quick": "Test only the longest text",
+        "quickHint": "Run only the three positions at the longest planned length. Other lengths are excluded from this run and can be tested separately by row or column.",
+        "randomSample": "New random sample",
+        "reasons": {
+          "budget": "Budget reached",
+          "complete": "Finished",
+          "error": "Request failed",
+          "interrupted": "Interrupted; outcome unknown"
+        },
+        "reference": {
+          "context": "Model metadata: {{tokens}} context (unverified)",
+          "input": "Model metadata: {{tokens}} input limit (unverified)",
+          "measured": "Previously accepted: {{tokens}} input (maximum unknown)",
+          "unknown": "Context limit unavailable. Automatic uses {{tokens}} tokens until a context check provides a new value."
+        },
+        "reproduce": "Sample {{seed}} · Tokenizer: {{encoding}}.",
+        "requestCount_one": "{{count}} request",
+        "requestCount_other": "{{count}} requests",
+        "requestDetails": "Request and answer details",
+        "resultDetails": "Test parameters and reproduction",
+        "retestCell": "Retest this cell",
+        "retestColumn": "Retest {{depth}}% column ({{requests}})",
+        "retestRow": "Retest {{length}} row ({{requests}})",
+        "retry": "Retry",
+        "run": "Run needle test",
+        "runCell": "Run this cell",
+        "runColumn": "Run {{depth}}% column ({{requests}})",
+        "runRow": "Run {{length}} row ({{requests}})",
+        "savedResult": "Saved result",
+        "scopeProgress": "Processed {{completed}}/{{total}}",
+        "score": "{{hits}}/{{total}} matched",
+        "seedHint": "Leave blank for a new sample each time. Use the same ID and settings to repeat a sample.",
+        "seedInput": "Test sample ID (optional)",
+        "singleLengthRule": "This plan tests just one length: {{limit}}.",
+        "sources": {
+          "custom": "You set the maximum test input to {{limit}}. This plan uses that limit.",
+          "declaredContext": "Model metadata lists a {{context}} total context. Reserving {{reserve}} for the reply leaves an input limit of {{input}}. This has not been verified on the current API.",
+          "declaredInput": "Model metadata lists a separate input limit of {{input}}, which sets the test lengths. This has not been verified on the current API.",
+          "fallback": "No usable model limits or accepted-input records are available. This plan uses a default limit of {{limit}}. Adjust it in test settings or check available context first.",
+          "measured": "Based on input previously accepted by this connection, this plan tests up to {{limit}}. This does not establish the model's maximum capacity."
+        },
+        "stopCapacity": "Stop context probe",
+        "stopCell": "Stop {{length}} · {{depth}}%",
+        "stopColumn": "Stop {{depth}}% column",
+        "stopFailed": "Could not stop. Try again.",
+        "stoppingCell": "Stopping…",
+        "stopRow": "Stop {{length}} row",
+        "title": "Needle in a haystack",
+        "tokenUnits": "In this test, 1K = 1,024 tokens and 1M = 1,048,576 tokens."
+      },
+      "pelican": {
+        "analysis": "{{shapes}} shapes · {{wheels}} circles/ellipses · viewBox {{viewBox}}",
+        "description": "Asks the model to draw a pelican riding a bicycle as SVG for a side-by-side look. Judgement stays manual.",
+        "noSvg": "The model returned no SVG markup.",
+        "outcomes": {
+          "error": "Execution failed",
+          "generated": "Drawing generated",
+          "no-artifact": "No drawing artifact"
+        },
+        "previewAlt": "Generated drawing",
+        "previewFailed": "The SVG could not be displayed. It may contain invalid XML, such as duplicate attributes. Expand the raw answer or workspace files to inspect it.",
+        "raw": "Raw answer",
+        "run": "Run drawing test",
+        "title": "Drawing test",
+        "unsafe": "The answer contained script or external references, so it was not rendered."
+      },
+      "prompts": {
+        "editorLabel": "{{probe}} prompt",
+        "label": "Prompt",
+        "resetOne": "Reset this prompt",
+        "saveFailed": "Could not save prompts: {{message}}",
+        "sharedHint": "Saved prompts are shared by every test entry point."
+      },
+      "questionAnswer": {
+        "comparison": "Answer comparison",
+        "comparisonHint": "Only final-answer text is compared. Review the full response to assess the reasoning.",
+        "description": "Use your own question to inspect the model’s answer and reasoning. Add a reference answer to compare the final answer.",
+        "draftChanged": "The question or reference has changed. This result is from the previous run; run again to compare your changes.",
+        "finalAnswer": "Extracted final answer",
+        "loadFailed": "Could not load question settings. Retry to keep your saved draft.",
+        "notIdentified": "Not identified",
+        "outcomes": {
+          "empty": "No answer returned",
+          "incomplete": "Incomplete response",
+          "manual": "Response received",
+          "matched": "Matches reference",
+          "mismatched": "Does not match reference",
+          "ungraded": "Final answer unclear"
+        },
+        "question": "Question",
+        "questionRequired": "Enter a question to run the test.",
+        "reference": "Reference answer (optional)",
+        "requestFailed": "Request failed",
+        "reset": "Reset question and answer",
+        "response": "Model response",
+        "rules": {
+          "extraction": "When a reference is provided, the model is asked to put its final answer on the last line starting with FINAL_ANSWER:. The text after the colon is extracted. Without a reference, the response is shown without grading.",
+          "matching": "Leading and trailing whitespace is removed and compatibility characters, such as full-width characters, are normalized before an exact text match. For example, ２１ matches 21, but 21 items does not match 21. Case, punctuation and internal spaces still matter.",
+          "privacy": "The reference is used locally and is never sent to the model.",
+          "title": "Comparison rules",
+          "unavailable": "Without a formatted final answer, a match is accepted only when the entire response matches the reference. Otherwise, the result is “Final answer unclear”. Empty or incomplete responses are reported separately."
+        },
+        "run": "Run Q&A test",
+        "runQuestion": "Question used for this run",
+        "runReference": "Reference answer for this run",
+        "saveFailed": "Could not save settings. Your current draft can still be used.",
+        "saving": "Saving…",
+        "title": "Q&A test"
+      },
+      "settingsTitle": "Test settings",
+      "stop": "Stop",
+      "stopped": "Stopped before finishing; nothing was recorded."
+    },
     "unsupportedProbeForApiType": "{{probe}} probe is not supported for this API type.",
-    "warning": "When support is detected, it is highly likely to be genuine. When support is not detected, it may still be supported. Results are for reference only; rely on actual tool usage."
+    "warning": "Results apply only to the API, model and request configuration used in this test."
   }
 }

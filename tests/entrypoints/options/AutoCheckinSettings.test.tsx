@@ -2,7 +2,7 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import AutoCheckinSettings from "~/features/BasicSettings/components/tabs/CheckinRedeem/AutoCheckinSettings"
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -12,6 +12,7 @@ import {
   AUTO_CHECKIN_SCHEDULE_MODE,
   type AutoCheckinPreferences,
 } from "~/types/autoCheckin"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import {
   act,
   fireEvent,
@@ -61,8 +62,9 @@ vi.mock("~/contexts/UserPreferencesContext", async (importOriginal) => {
   }
 })
 
-vi.mock("~/utils/navigation", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/utils/navigation")>()
+vi.mock("~/utils/navigation/optionsPage", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/utils/navigation/optionsPage")>()
 
   return {
     ...actual,
@@ -76,18 +78,21 @@ vi.mock("~/services/productAnalytics/actions", () => ({
     trackProductAnalyticsActionStartedMock(...args),
 }))
 
-vi.mock("~/services/productAnalytics/dispatch", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("~/services/productAnalytics/dispatch")
-    >()
+vi.mock(
+  "~/services/productAnalytics/runtime/dispatch",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/productAnalytics/runtime/dispatch")
+      >()
 
-  return {
-    ...actual,
-    trackProductAnalyticsEvent: (...args: unknown[]) =>
-      trackProductAnalyticsEventMock(...args),
-  }
-})
+    return {
+      ...actual,
+      trackProductAnalyticsEvent: (...args: unknown[]) =>
+        trackProductAnalyticsEventMock(...args),
+    }
+  },
+)
 
 describe("AutoCheckinSettings", () => {
   const updateAutoCheckin = vi.fn()
@@ -121,6 +126,21 @@ describe("AutoCheckinSettings", () => {
       },
       updateAutoCheckin,
       resetAutoCheckinConfig,
+    })
+  })
+
+  it("keeps native-page clicking off for old preferences and saves explicit opt-in", async () => {
+    render(<AutoCheckinSettings />, {
+      withUserPreferencesProvider: false,
+      withThemeProvider: false,
+    })
+    const toggle = screen.getByRole("switch", {
+      name: "autoCheckin:settings.continueWhenVerificationRequired",
+    })
+    expect(toggle).not.toBeChecked()
+    await userEvent.setup().click(toggle)
+    expect(updateAutoCheckin).toHaveBeenCalledWith({
+      continueWhenVerificationRequired: true,
     })
   })
 
@@ -211,6 +231,42 @@ describe("AutoCheckinSettings", () => {
     )
     expect(toastMocks.error).toHaveBeenNthCalledWith(
       3,
+      "autoCheckin:messages.error.deterministicTimeOutsideWindow",
+    )
+    expect(updateAutoCheckin).not.toHaveBeenCalled()
+  })
+
+  it("rejects a stored boundary that has no minute", async () => {
+    useUserPreferencesContextMock.mockReturnValue({
+      preferences: {
+        autoCheckin: createPreferences({ windowEnd: "10" }),
+      },
+      updateAutoCheckin,
+      resetAutoCheckinConfig,
+    })
+    render(<AutoCheckinSettings />, {
+      withUserPreferencesProvider: false,
+      withThemeProvider: false,
+    })
+
+    const windowStartInput = screen.getByLabelText(
+      "autoCheckin:settings.windowStart",
+    )
+    fireEvent.change(windowStartInput, { target: { value: "07:30" } })
+    fireEvent.blur(windowStartInput)
+    await waitFor(() => expect(windowStartInput).toHaveValue("08:00"))
+
+    const deterministicTimeInput = screen.getByLabelText(
+      "autoCheckin:settings.deterministicTimeTitle",
+    )
+    fireEvent.change(deterministicTimeInput, { target: { value: "09:30" } })
+    fireEvent.blur(deterministicTimeInput)
+    await waitFor(() => expect(deterministicTimeInput).toHaveValue("09:00"))
+
+    expect(toastMocks.error).toHaveBeenCalledWith(
+      "autoCheckin:messages.error.invalidTimeWindow",
+    )
+    expect(toastMocks.error).toHaveBeenCalledWith(
       "autoCheckin:messages.error.deterministicTimeOutsideWindow",
     )
     expect(updateAutoCheckin).not.toHaveBeenCalled()
@@ -419,7 +475,7 @@ describe("AutoCheckinSettings", () => {
       withThemeProvider: false,
     })
 
-    await user.click(screen.getAllByRole("switch")[0])
+    await user.click(atIndex(screen.getAllByRole("switch"), 0))
     const randomModeButton = screen.getByRole("button", {
       name: "autoCheckin:settings.scheduleModeRandom",
     })
@@ -441,7 +497,7 @@ describe("AutoCheckinSettings", () => {
       withThemeProvider: false,
     })
 
-    fireEvent.click(screen.getAllByRole("switch")[0])
+    fireEvent.click(atIndex(screen.getAllByRole("switch"), 0))
     await waitFor(() => {
       expect(updateAutoCheckin).toHaveBeenCalledWith({ globalEnabled: false })
     })
@@ -488,7 +544,7 @@ describe("AutoCheckinSettings", () => {
     fireEvent.change(retryMaxAttemptsInput, { target: { value: "-1" } })
     fireEvent.blur(retryMaxAttemptsInput)
     await waitFor(() => expect(retryMaxAttemptsInput).toHaveValue(3))
-    fireEvent.click(screen.getAllByRole("switch")[0])
+    fireEvent.click(atIndex(screen.getAllByRole("switch"), 0))
 
     expect(toastMocks.error).toHaveBeenNthCalledWith(
       1,

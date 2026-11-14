@@ -13,15 +13,13 @@ import {
   KEY_MANAGEMENT_GUIDED_IMPORT_TARGETS,
   KEY_MANAGEMENT_ROUTE_PARAMS,
 } from "~/features/KeyManagement/constants"
-import { ACCOUNT_RUNTIME_KEY_SOURCES } from "~/services/accounts/accountRuntimeKeys"
+import { ACCOUNT_RUNTIME_KEY_SOURCES } from "~/services/accounts/keys/accountRuntimeKeys"
 import {
   createEmptyFeatureGuidanceState,
   type FeatureGuidanceState,
 } from "~/services/featureGuidance/featureGuidanceState"
-import {
-  DEFAULT_PREFERENCES,
-  type UserPreferences,
-} from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { type UserPreferences } from "~/services/preferences/preferencesSchema"
 import { API_TYPES } from "~/services/verification/aiApiVerification"
 import {
   createProfileVerificationHistoryTarget,
@@ -47,6 +45,23 @@ import {
   waitFor,
   within,
 } from "~~/tests/test-utils/render"
+
+// The profile store below is an in-memory fixture; retention reads the same owners.
+vi.mock(
+  "~/services/apiCredentialProfiles/storage/configReader",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/apiCredentialProfiles/storage/configReader")
+      >()
+    return {
+      ...actual,
+      listApiCredentialProfileIdsOrThrow: vi.fn(async () =>
+        store.map(({ id }) => id),
+      ),
+    }
+  },
+)
 
 let store: ApiCredentialProfile[] = []
 let profileLinks: ApiCredentialProfileLink[] = []
@@ -246,22 +261,19 @@ const seedExportableProfile = () => {
   ]
 }
 
-vi.mock(
-  "~/services/apiCredentialProfiles/apiCredentialProfilesStorage",
-  () => ({
-    subscribeToApiCredentialProfilesChanges: () => () => {},
-    apiCredentialProfilesStorage: {
-      listProfiles: () => mockListProfiles(),
-      listLinks: () => mockListProfileLinks(),
-      createProfile: (input: any) => mockCreateProfile(input),
-      updateProfile: (id: string, updates: Partial<ApiCredentialProfile>) =>
-        mockUpdateProfile(id, updates),
-      deleteProfile: (id: string) => mockDeleteProfile(id),
-    },
-  }),
-)
+vi.mock("~/services/apiCredentialProfiles/storage/profiles", () => ({
+  subscribeToApiCredentialProfilesChanges: () => () => {},
+  apiCredentialProfilesStorage: {
+    listProfiles: () => mockListProfiles(),
+    listLinks: () => mockListProfileLinks(),
+    createProfile: (input: any) => mockCreateProfile(input),
+    updateProfile: (id: string, updates: Partial<ApiCredentialProfile>) =>
+      mockUpdateProfile(id, updates),
+    deleteProfile: (id: string) => mockDeleteProfile(id),
+  },
+}))
 
-vi.mock("~/services/apiCredentialProfiles/apiCredentialProfileLinks", () => ({
+vi.mock("~/services/apiCredentialProfiles/links", () => ({
   apiCredentialProfileLinks: {
     list: () => mockListProfileLinks(),
     relink: mockRelinkProfileLink,
@@ -277,12 +289,12 @@ vi.mock("~/lib/notify", () => ({
   },
 }))
 
-vi.mock("~/components/dialogs/ChannelDialog", () => ({
+vi.mock("~/features/ManagedSiteChannels/editor/ChannelDialog", () => ({
   ChannelDialogProvider: ({ children }: { children: ReactNode }) => children,
   useChannelDialog: () => ({ openWithCredentials: mockOpenWithCredentials }),
 }))
 
-vi.mock("~/components/CCSwitchExportDialog", () => ({
+vi.mock("~/features/CredentialExport/CCSwitchExportDialog", () => ({
   CCSwitchExportDialog: ({ onClose }: { onClose: () => void }) => (
     <div role="dialog" aria-label={CC_SWITCH_EXPORT_DIALOG_NAME}>
       <button type="button" onClick={onClose}>
@@ -293,7 +305,7 @@ vi.mock("~/components/CCSwitchExportDialog", () => ({
 }))
 
 vi.mock(
-  "~/features/ApiCredentialProfiles/components/KiloCodeProfileExportDialog",
+  "~/features/ApiCredentialProfiles/export/KiloCodeProfileExportDialog",
   () => ({
     KiloCodeProfileExportDialog: () => (
       <div role="dialog" aria-label={KILO_CODE_EXPORT_DIALOG_NAME} />
@@ -301,7 +313,7 @@ vi.mock(
   }),
 )
 
-vi.mock("~/hooks/useAccountData", () => ({
+vi.mock("~/features/AccountManagement/data/useAccountData", () => ({
   useAccountData: () => ({
     displayData: [
       { id: "account-example", name: "Example account" },
@@ -355,11 +367,13 @@ vi.mock("~/contexts/FeatureGuidanceContext", () => ({
 vi.mock("~/utils/navigation", () => ({
   openModelsPage: (...args: unknown[]) => mockOpenModelsPage(...args),
   openSettingsTab: (...args: unknown[]) => mockOpenSettingsTab(...args),
+  openKeysPage: (...args: unknown[]) => mockOpenKeysPage(...args),
+}))
+vi.mock("~/utils/navigation/optionsPage", () => ({
   pushWithinOptionsPage: (...args: unknown[]) =>
     pushWithinOptionsPageMock(...args),
   replaceWithinOptionsPage: (...args: unknown[]) =>
     replaceWithinOptionsPageMock(...args),
-  openKeysPage: (...args: unknown[]) => mockOpenKeysPage(...args),
 }))
 
 vi.mock("~/services/aiApi/openaiCompatible", () => ({
@@ -604,6 +618,7 @@ describe("ApiCredentialProfiles page", () => {
     await waitFor(() => expect(targetRow).toHaveFocus())
     expect(screen.queryByText("First Profile")).not.toBeInTheDocument()
     expect(scrollIntoViewSpy).toHaveBeenCalledWith({
+      behavior: "auto",
       block: "center",
       inline: "nearest",
     })
@@ -1290,6 +1305,79 @@ describe("ApiCredentialProfiles page", () => {
     ).toBeInTheDocument()
   })
 
+  it.each(["rejected", "not-deleted"])(
+    "preserves a profile and reports a failed deletion (%s)",
+    async (failure) => {
+      const user = userEvent.setup()
+      store = [
+        {
+          id: "p-1",
+          name: "Keep profile",
+          apiType: API_TYPES.OPENAI,
+          baseUrl: "https://example.com",
+          apiKey: "sk-test",
+          tagIds: [],
+          notes: "",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]
+      if (failure === "rejected")
+        mockDeleteProfile.mockRejectedValueOnce(new Error("storage rejected"))
+      else mockDeleteProfile.mockResolvedValueOnce(false)
+      render(<ApiCredentialProfiles />)
+      await screen.findByText("Keep profile")
+      await user.click(
+        screen.getByRole("button", { name: "common:actions.delete" }),
+      )
+      const dialog = await screen.findByRole("dialog")
+      await user.click(
+        within(dialog).getByRole("button", { name: "common:actions.delete" }),
+      )
+      await waitFor(() =>
+        expect(mockToastError).toHaveBeenCalledWith(
+          "apiCredentialProfiles:messages.deleteFailed",
+        ),
+      )
+      expect(store.map(({ id }) => id)).toEqual(["p-1"])
+      if (failure === "rejected")
+        expect(
+          within(dialog).getByRole("button", { name: "common:actions.delete" }),
+        ).toBeEnabled()
+    },
+  )
+
+  it("cancels profile deletion without a storage write", async () => {
+    const user = userEvent.setup()
+    store = [
+      {
+        id: "p-1",
+        name: "Keep profile",
+        apiType: API_TYPES.OPENAI,
+        baseUrl: "https://example.com",
+        apiKey: "sk-test",
+        tagIds: [],
+        notes: "",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]
+    render(<ApiCredentialProfiles />)
+    await screen.findByText("Keep profile")
+    await user.click(
+      screen.getByRole("button", { name: "common:actions.delete" }),
+    )
+    const dialog = await screen.findByRole("dialog")
+    await user.click(
+      within(dialog).getByRole("button", { name: "common:actions.cancel" }),
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    )
+    expect(mockDeleteProfile).not.toHaveBeenCalled()
+    expect(store.map(({ id }) => id)).toEqual(["p-1"])
+  })
+
   it("filters profiles by search and apiType", async () => {
     const user = userEvent.setup()
 
@@ -1473,23 +1561,23 @@ describe("ApiCredentialProfiles page", () => {
     )
 
     expect(
-      await screen.findByText("cliSupportVerification:verifyDialog.title"),
+      await screen.findByText("aiApiVerification:verifyDialog.title"),
     ).toBeInTheDocument()
     expect(
       screen.getByRole("combobox", {
-        name: "cliSupportVerification:verifyDialog.meta.model",
+        name: "aiApiVerification:verifyDialog.meta.model",
       }),
     ).toBeInTheDocument()
     await user.click(
       screen.getByRole("combobox", {
-        name: "cliSupportVerification:verifyDialog.meta.model",
+        name: "aiApiVerification:verifyDialog.meta.model",
       }),
     )
     expect(
       await screen.findByRole("option", { name: "gpt-4o-mini" }),
     ).toBeInTheDocument()
     expect(
-      screen.queryByText("cliSupportVerification:verifyDialog.meta.runtimeKey"),
+      screen.queryByText("aiApiVerification:verifyDialog.meta.runtimeKey"),
     ).not.toBeInTheDocument()
   })
 

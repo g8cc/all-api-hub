@@ -1,5 +1,6 @@
 {
   "actions": {
+    "add": "Agregar",
     "cancel": "Cancelar",
     "clear": "Limpiar",
     "close": "Cerrar",
@@ -11,9 +12,12 @@
     "import": "Importar",
     "loadField": "Cargar {{field}}",
     "more": "Más",
+    "moveDownItem": "Bajar {{name}}",
+    "moveUpItem": "Subir {{name}}",
     "openSidePanel": "Abrir en SidePanel",
     "refresh": "Actualizar",
     "refreshField": "Actualizar {{field}}",
+    "remove": "Quitar",
     "reset": "Restablecer",
     "retry": "Reintentar",
     "save": "Guardar"
@@ -68,7 +72,6 @@
     "disabled": "Deshabilitado",
     "disabling": "Deshabilitando...",
     "enabled": "Habilitado",
-    "enabling": "Habilitando...",
     "error": "Error",
     "exporting": "Exportando...",
     "failed": "Falló",

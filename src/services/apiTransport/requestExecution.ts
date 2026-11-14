@@ -2,7 +2,10 @@ import {
   composeAbortSignals,
   startAbortableTask,
 } from "~/services/apiTransport/abortableTask"
+import { fetchWithHeaderOverrides } from "~/services/apiTransport/headerOverrides"
+import { assertNotProtectionResponse } from "~/services/apiTransport/response"
 import {
+  reportSiteRateLimit,
   resolveSiteRequestLimitKey,
   withSiteApiRequestLease,
 } from "~/services/apiTransport/siteRequestLimiter"
@@ -16,6 +19,7 @@ import { createLogger } from "~/utils/core/logger"
 /** Execution controls shared by protocol-specific request preparation. */
 type RequestExecutionControls = Pick<
   ApiTransportRequest,
+  | "siteType"
   | "baseUrl"
   | "abortSignal"
   | "abortDeadline"
@@ -23,6 +27,8 @@ type RequestExecutionControls = Pick<
   | "requestScheduling"
   | "bypassSiteRequestLimit"
   | "observer"
+  | "requestHeaders"
+  | "cookieSession"
 >
 
 interface PreparedHttpRequest {
@@ -35,7 +41,7 @@ interface PreparedRequestExecution {
   dispatch: () => Promise<Response>
   onDispatch: () => void
   onResponse: () => void
-  wasDispatched: () => boolean
+  onRateLimit: (retryAfter?: string) => void
 }
 
 const logger = createLogger("ApiTransportRequest")
@@ -43,12 +49,18 @@ const logger = createLogger("ApiTransportRequest")
 /** Keeps optional lifecycle evidence isolated from transport results. */
 export function notifyApiTransportObserver(
   observer: ApiTransportRequestObserver | undefined,
-  event: keyof ApiTransportRequestObserver,
+  ...notification:
+    | [event: Exclude<keyof ApiTransportRequestObserver, "onCookieRecovered">]
+    | [event: "onCookieRecovered", cookie: string, generation: number]
 ): void {
   try {
-    observer?.[event]?.()
+    if (notification[0] === "onCookieRecovered")
+      observer?.onCookieRecovered?.(notification[1], notification[2])
+    else observer?.[notification[0]]?.()
   } catch {
-    logger.warn("API transport observer callback failed", { event })
+    logger.warn("API transport observer callback failed", {
+      event: notification[0],
+    })
   }
 }
 
@@ -82,19 +94,34 @@ export async function executePreparedRequest<T>(
             responseObserved = true
             notifyApiTransportObserver(request.observer, "onResponse")
           }
+          let rateLimitObserved = false
+          const onRateLimit = (retryAfter?: string) => {
+            if (rateLimitObserved) return
+            rateLimitObserved = true
+            reportSiteRateLimit(
+              resolveSiteRequestLimitKey(prepared.url),
+              retryAfter,
+            )
+          }
           const options = { ...prepared.options, signal }
 
           return await run({
             options,
             dispatch: async () => {
-              onDispatch()
-              const response = await fetch(prepared.url, options)
+              const response = await fetchWithHeaderOverrides(
+                prepared.url,
+                options,
+                request.requestHeaders,
+                { cookieSession: request.cookieSession, onDispatch },
+              )
               onResponse()
+              if (response.status === 429)
+                onRateLimit(response.headers.get("retry-after") ?? undefined)
               return response
             },
             onDispatch,
             onResponse,
-            wasDispatched: () => dispatchObserved,
+            onRateLimit,
           })
         } catch (error) {
           taskFailure = { error }
@@ -123,10 +150,11 @@ export async function executePreparedRequest<T>(
   const admissionAbort = composeAbortSignals(signals)
   try {
     return await withSiteApiRequestLease(
-      resolveSiteRequestLimitKey(request.baseUrl),
+      resolveSiteRequestLimitKey(prepared.url),
       startRequest,
       admissionAbort.signal,
       request.requestScheduling,
+      request.siteType,
     )
   } finally {
     admissionAbort.dispose()
@@ -147,12 +175,26 @@ export async function fetchPreparedJsonResponse(
     prepared,
     async ({ dispatch }) => {
       const response = await dispatch()
-      let body: unknown = null
+      assertNotProtectionResponse(
+        undefined,
+        response.status,
+        prepared.url,
+        response.headers,
+      )
+      let body: unknown
+      let text: string | undefined
       try {
-        body = await response.json()
+        text = await response.text()
+        body = JSON.parse(text)
       } catch {
         body = null
       }
+      assertNotProtectionResponse(
+        text,
+        response.status,
+        prepared.url,
+        response.headers,
+      )
 
       return {
         ok: response.ok,

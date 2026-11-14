@@ -5,7 +5,7 @@ import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { RuntimeActionIds } from "~/constants/runtimeActions"
 import { WEB_AI_API_CHECK_TARGET_IDS } from "~/features/BasicSettings/components/tabs/WebAiApiCheck/searchTargets"
 import { NEW_API_OWNED_SESSION_ACTIONS } from "~/services/managedSites/newApiOwnedSession/contracts"
-import { ProductAnalyticsMessageTypes } from "~/services/productAnalytics/messaging"
+import { ProductAnalyticsMessageTypes } from "~/services/productAnalytics/runtime/messaging"
 import { RedemptionAssistMessageTypes } from "~/services/redemption/redemptionAssistMessaging"
 
 type RuntimeMessageListener = (
@@ -67,11 +67,16 @@ const mocks = vi.hoisted(() => ({
   executeProtectionBypassTask: vi.fn(),
   handleOwnedSessionRequest: vi.fn(),
   cancelTempCheckinFeedbackScan: vi.fn(),
-  markStarPromotionCompleted: vi.fn(),
+  recordGitHubStarState: vi.fn(),
+  openStarPromotionRepository: vi.fn(),
   trackStarPromotionAction: vi.fn(),
 }))
 
-vi.mock("~/entrypoints/background/checkinFeedbackScan", () => ({
+vi.mock("~/services/starPromotion/openRepository", () => ({
+  openStarPromotionRepository: mocks.openStarPromotionRepository,
+}))
+
+vi.mock("~/services/browsingContext/tempPage/checkinFeedbackScan", () => ({
   cancelTempCheckinFeedbackScan: mocks.cancelTempCheckinFeedbackScan,
 }))
 
@@ -87,12 +92,14 @@ vi.mock("~/services/managedSites/newApiOwnedSession/background", () => ({
   },
 }))
 
-vi.mock("~/utils/browser/browserApi", () => ({
+vi.mock("~/utils/browser/permissions", () => ({
   containsPermissions: mocks.containsPermissions,
+}))
+vi.mock("~/utils/browser/runtimeMessages", () => ({
   onRuntimeMessage: mocks.onRuntimeMessage,
 }))
 
-vi.mock("~/entrypoints/background/actionClickBehavior", () => ({
+vi.mock("~/services/preferences/runtime/actionClickBehavior", () => ({
   applyActionClickBehavior: mocks.applyActionClickBehavior,
 }))
 
@@ -101,7 +108,7 @@ vi.mock("~/utils/browser/cookieHelper", () => ({
   hasCookieReadPermissionForUrl: mocks.hasCookieReadPermissionForUrl,
 }))
 
-vi.mock("~/entrypoints/background/contextMenus", () => ({
+vi.mock("~/services/preferences/runtime/contextMenus", () => ({
   setupContextMenus: mocks.setupContextMenus,
 }))
 
@@ -109,24 +116,31 @@ vi.mock("~/entrypoints/background/cookieInterceptor", () => ({
   trackCookieInterceptorUrl: mocks.trackCookieInterceptorUrl,
 }))
 
-vi.mock("~/utils/navigation", () => ({
+vi.mock("~/utils/navigation/optionsPage", () => ({
   openOrFocusOptionsMenuItem: mocks.openOrFocusOptionsMenuItem,
+}))
+vi.mock("~/utils/navigation", () => ({
   openProtectionBypassHistory: mocks.openProtectionBypassHistory,
+}))
+vi.mock("~/utils/navigation/feedbackPages", () => ({
   openBugReportPage: mocks.openBugReportPage,
 }))
 
-vi.mock("~/entrypoints/background/tempWindowPool", () => ({
+vi.mock("~/services/browsingContext/tempPage/runtime", () => ({
   handleCloseTempWindow: mocks.handleCloseTempWindow,
 }))
 
-vi.mock("~/entrypoints/background/openrouter/managementKeyAction", () => ({
-  handleTempWindowOpenRouterManagementKeyAction:
-    mocks.handleTempWindowOpenRouterManagementKeyAction,
-  cancelTempWindowOpenRouterManagementKeyAction:
-    mocks.cancelTempWindowOpenRouterManagementKeyAction,
-  markTempWindowOpenRouterManagementKeyDispatched:
-    mocks.markTempWindowOpenRouterManagementKeyDispatched,
-}))
+vi.mock(
+  "~/services/browsingContext/tempPage/openrouterManagementKeyAction",
+  () => ({
+    handleTempWindowOpenRouterManagementKeyAction:
+      mocks.handleTempWindowOpenRouterManagementKeyAction,
+    cancelTempWindowOpenRouterManagementKeyAction:
+      mocks.cancelTempWindowOpenRouterManagementKeyAction,
+    markTempWindowOpenRouterManagementKeyDispatched:
+      mocks.markTempWindowOpenRouterManagementKeyDispatched,
+  }),
+)
 
 vi.mock("~/services/models/modelSync", () => ({
   setupManagedSiteModelSyncMessagingListeners:
@@ -138,15 +152,15 @@ vi.mock("~/services/updates/releaseUpdateService", () => ({
     mocks.setupReleaseUpdateMessagingListeners,
 }))
 
-vi.mock("~/services/checkin/autoCheckin/scheduler", () => ({
+vi.mock("~/services/checkin/autoCheckin/scheduling/schedulerMessaging", () => ({
   setupAutoCheckinMessagingListeners: mocks.setupAutoCheckinMessagingListeners,
 }))
 
-vi.mock("~/services/accounts/autoRefreshService", () => ({
+vi.mock("~/services/accounts/refresh/autoRefreshService", () => ({
   setupAutoRefreshMessagingListeners: mocks.setupAutoRefreshMessagingListeners,
 }))
 
-vi.mock("~/services/managedSites/channelConfigStorage", () => ({
+vi.mock("~/services/managedSites/configuration/channelConfigHandlers", () => ({
   setupChannelConfigMessagingListeners:
     mocks.setupChannelConfigMessagingListeners,
 }))
@@ -172,7 +186,7 @@ vi.mock("~/services/history/dailyBalanceHistory/scheduler", () => ({
     mocks.setupDailyBalanceHistoryMessagingListeners,
 }))
 
-vi.mock("~/services/webdav/webdavAutoSyncService", () => ({
+vi.mock("~/services/webdav/autoSync/webdavAutoSyncMessageHandlers", () => ({
   setupWebdavAutoSyncMessagingListeners:
     mocks.setupWebdavAutoSyncMessagingListeners,
 }))
@@ -182,7 +196,7 @@ vi.mock("~/services/notifications/taskNotificationService", () => ({
     mocks.setupTaskNotificationMessagingListeners,
 }))
 
-vi.mock("~/services/siteAnnouncements/scheduler", () => ({
+vi.mock("~/services/siteAnnouncements/runtimeMessages", () => ({
   setupSiteAnnouncementsMessagingListeners:
     mocks.setupSiteAnnouncementsMessagingListeners,
 }))
@@ -192,7 +206,7 @@ vi.mock("~/services/productAnnouncements/service", () => ({
     mocks.setupProductAnnouncementMessagingListeners,
 }))
 
-vi.mock("~/services/preferences/runtimePreferencesService", () => ({
+vi.mock("~/services/preferences/runtime/runtimePreferencesService", () => ({
   setupPreferencesMessagingListeners: mocks.setupPreferencesMessagingListeners,
 }))
 
@@ -211,18 +225,18 @@ vi.mock("~/services/accounts/accountKeyAutoProvisioning", () => ({
     mocks.setupAccountKeyRepairMessagingListeners,
 }))
 
-vi.mock("~/services/productAnalytics/runtime", () => ({
+vi.mock("~/services/productAnalytics/runtime/runtime", () => ({
   setupProductAnalyticsMessagingListeners:
     mocks.setupProductAnalyticsMessagingListeners,
 }))
 
 vi.mock("~/services/starPromotion/state", () => ({
   starPromotionState: {
-    markCompleted: mocks.markStarPromotionCompleted,
+    recordGitHubStarState: mocks.recordGitHubStarState,
   },
 }))
 
-vi.mock("~/services/productAnalytics/starPromotion", () => ({
+vi.mock("~/services/productAnalytics/facts/starPromotion", () => ({
   trackStarPromotionAction: mocks.trackStarPromotionAction,
 }))
 
@@ -250,7 +264,7 @@ describe("setupRuntimeMessageListeners additional routing", () => {
     mocks.setupContextMenus.mockResolvedValue(undefined)
     mocks.trackCookieInterceptorUrl.mockResolvedValue(undefined)
     mocks.containsPermissions.mockResolvedValue(true)
-    mocks.markStarPromotionCompleted.mockResolvedValue(undefined)
+    mocks.recordGitHubStarState.mockResolvedValue(undefined)
     ;(globalThis as any).browser = {}
   })
 
@@ -416,7 +430,7 @@ describe("setupRuntimeMessageListeners additional routing", () => {
     ).toBe(true)
 
     await vi.waitFor(() => {
-      expect(mocks.markStarPromotionCompleted).toHaveBeenCalledTimes(1)
+      expect(mocks.recordGitHubStarState).toHaveBeenCalledTimes(1)
       expect(mocks.trackStarPromotionAction).toHaveBeenCalledWith(
         "suppress_star_promotion_detected",
         {
@@ -428,12 +442,54 @@ describe("setupRuntimeMessageListeners additional routing", () => {
     })
   })
 
+  it.each([false, true])(
+    "completes a popup repository handoff in the background with result %s",
+    async (success) => {
+      mocks.openStarPromotionRepository.mockResolvedValueOnce(success)
+      const listener = await loadListener()
+      const sendResponse = vi.fn()
+      expect(
+        listener(
+          { action: RuntimeActionIds.StarPromotionOpenRepository },
+          {},
+          sendResponse,
+        ),
+      ).toBe(true)
+      await vi.waitFor(() =>
+        expect(sendResponse).toHaveBeenCalledWith({ success }),
+      )
+      expect(mocks.openStarPromotionRepository).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it.each([false, true])(
+    "records an unstarred observation with removal evidence %s without suppression telemetry",
+    async (starRemoved) => {
+      const listener = await loadListener()
+      const sendResponse = vi.fn()
+      listener(
+        {
+          action: RuntimeActionIds.ContentStarPromotionReport,
+          starred: false,
+          starRemoved,
+        },
+        { url: "https://github.com/qixing-jk/all-api-hub" },
+        sendResponse,
+      )
+      await vi.waitFor(() =>
+        expect(sendResponse).toHaveBeenCalledWith({ success: true }),
+      )
+      expect(mocks.recordGitHubStarState).toHaveBeenCalledWith(false, {
+        starRemoved,
+      })
+      expect(mocks.trackStarPromotionAction).not.toHaveBeenCalled()
+    },
+  )
+
   it("rejects repository-star detection when persistence fails", async () => {
     const listener = await loadListener()
     const sendResponse = vi.fn()
-    mocks.markStarPromotionCompleted.mockRejectedValue(
-      new Error("write failed"),
-    )
+    mocks.recordGitHubStarState.mockRejectedValue(new Error("write failed"))
 
     listener(
       {
@@ -464,7 +520,7 @@ describe("setupRuntimeMessageListeners additional routing", () => {
     )
 
     expect(sendResponse).toHaveBeenCalledWith({ success: false })
-    expect(mocks.markStarPromotionCompleted).not.toHaveBeenCalled()
+    expect(mocks.recordGitHubStarState).not.toHaveBeenCalled()
   })
 
   it("tracks cookie interceptor URLs and surfaces tracker failures", async () => {
@@ -510,6 +566,29 @@ describe("setupRuntimeMessageListeners additional routing", () => {
     expect(failedResponse).toHaveBeenCalledWith({
       success: false,
       error: "track boom",
+    })
+  })
+
+  it("opens Turnstile reminder settings from a content script and reports navigation failures", async () => {
+    const listener = await loadListener()
+    mocks.openOrFocusOptionsMenuItem.mockResolvedValueOnce(undefined)
+    const success = vi.fn()
+    listener({ action: "openSettings:turnstileAssist" }, {}, success)
+    await waitForAsyncResponse()
+    expect(mocks.openOrFocusOptionsMenuItem).toHaveBeenLastCalledWith(
+      MENU_ITEM_IDS.BASIC,
+      { tab: "refresh", anchor: "shield-turnstile-assist" },
+    )
+    expect(success).toHaveBeenCalledWith({ success: true })
+    mocks.openOrFocusOptionsMenuItem.mockRejectedValueOnce(
+      new Error("cannot open"),
+    )
+    const failure = vi.fn()
+    listener({ action: "openSettings:turnstileAssist" }, {}, failure)
+    await waitForAsyncResponse()
+    expect(failure).toHaveBeenCalledWith({
+      success: false,
+      error: "cannot open",
     })
   })
 

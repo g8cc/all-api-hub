@@ -19,6 +19,22 @@ vi.mock("~/services/productAnalytics/actions", () => ({
 }))
 
 describe("Button", () => {
+  it("offers an extra-small text action that can wrap instead of clipping", async () => {
+    render(
+      <Button size="xs" variant="ghost">
+        Copy a localized result
+      </Button>,
+    )
+    const action = await screen.findByRole("button", {
+      name: "Copy a localized result",
+    })
+    expect(action).toHaveClass(
+      "min-h-(--density-control-xs)",
+      "h-auto",
+      "whitespace-normal",
+    )
+    expect(action).toHaveAttribute("data-variant", "ghost")
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     trackStartedMock.mockResolvedValue(undefined)
@@ -263,6 +279,99 @@ describe("Button", () => {
       "true",
     )
     expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  })
+
+  it("paints the loading spinner in the button's own foreground color", async () => {
+    const { container } = render(
+      <>
+        <Button loading spinnerProps={{ id: "solid-spinner" }}>
+          Solid
+        </Button>
+        <Button
+          loading
+          variant="destructive"
+          spinnerProps={{ id: "destructive-spinner" }}
+        >
+          Destructive
+        </Button>
+        <Button
+          loading
+          variant="warning"
+          spinnerProps={{ id: "warning-spinner" }}
+        >
+          Warning
+        </Button>
+      </>,
+    )
+
+    await screen.findByRole("button", { name: "Solid" })
+
+    for (const id of [
+      "solid-spinner",
+      "destructive-spinner",
+      "warning-spinner",
+    ]) {
+      const spinner = container.querySelector(`#${id}`)
+
+      expect(spinner).toHaveClass("text-current")
+      // --spinner-primary-color resolves to --primary, the same CSS variable as
+      // --button-primary-bg, so the default would erase the icon on a solid
+      // button and ignore the foreground of destructive/warning surfaces.
+      expect(spinner).not.toHaveClass("text-[var(--spinner-primary-color)]")
+    }
+  })
+
+  it("lets an explicit spinner variant override the button foreground", async () => {
+    const { container } = render(
+      <Button loading spinnerProps={{ id: "white-spinner", variant: "white" }}>
+        Save
+      </Button>,
+    )
+
+    await screen.findByRole("button", { name: "Save" })
+
+    const spinner = container.querySelector("#white-spinner")
+
+    expect(spinner).toHaveClass("text-[var(--spinner-white-color)]")
+    expect(spinner).not.toHaveClass("text-current")
+  })
+
+  it("keeps a loading button at full strength instead of fading it", async () => {
+    render(
+      <>
+        <Button loading>Save</Button>
+        <Button disabled>Save</Button>
+      </>,
+    )
+
+    const [busy, inert] = await screen.findAllByRole("button", {
+      name: "Save",
+    })
+
+    // A busy button is disabled for input, but it is doing the most visible
+    // work on screen, so it must not also read as inert.
+    expect(busy).toHaveAttribute("aria-busy", "true")
+    expect(busy).toHaveClass("disabled:not-aria-busy:opacity-50")
+    expect(busy).not.toHaveClass("disabled:opacity-50")
+
+    expect(inert).not.toHaveAttribute("aria-busy")
+    expect(inert).toHaveClass("disabled:not-aria-busy:opacity-50")
+    expect(inert).toBeDisabled()
+  })
+
+  it("keeps a loading slotted control at full strength instead of fading it", async () => {
+    render(
+      <Button asChild loading>
+        <a href="/settings">Saving changes</a>
+      </Button>,
+    )
+
+    const anchor = await screen.findByRole("link", {
+      name: "Saving changes",
+    })
+
+    expect(anchor).toHaveClass("aria-disabled:not-aria-busy:opacity-50")
+    expect(anchor).not.toHaveClass("aria-disabled:opacity-50")
   })
 
   it("disables user interaction while loading", async () => {

@@ -75,7 +75,7 @@
 ### 🚀 Web からのクイック取り込みとクライアント連携
 
 - **Web ページからのクイック取り込み**：Web ページから Base URL と API Key を検出し、その場でテストして認証情報ライブラリへ保存できます。
-- **クライアントへのワンクリックエクスポート**：CherryStudio、CC Switch、Claude Code Router、Kilo Code などの [連携ツール](https://all-api-hub.qixing1217.top/ja/supported-export-tools.html)へ認証情報をすばやくエクスポートできます。
+- **クライアントへのワンクリックエクスポート**：CC Switch、Cherry Studio、Claude Code Router、Kilo Code、Roo Code、Kelivo、AI Toolbox、Cursor++ などの[サポートされているエクスポートツール](https://all-api-hub.qixing1217.top/ja/supported-export-tools.html)へ認証情報をすばやくエクスポートできます。
 
 ### 🧪 API 検証とトラブルシューティング
 
@@ -89,7 +89,7 @@
 
 ### 🛠️ セルフホスト AI ゲートウェイ管理
 
-- **主要 AI ゲートウェイを一元管理**：CLIProxyAPI、New API、Sub2API、AxonHub、Claude Code Hub、Octopus、Veloera、DoneHub のチャネルやプロバイダーを、個別の管理画面を開かずに拡張機能から直接管理できます。
+- **主要 AI ゲートウェイを一元管理**：OmniRoute、CLIProxyAPI、New API、Sub2API、Magpie、gpt-load、AxonHub、Claude Code Hub、Octopus、Veloera、DoneHub のチャネルやプロバイダーを、個別の管理画面を開かずに拡張機能から直接管理できます。
 - **ゲートウェイチャネルをすばやく作成**：保存済みのサイトアカウントや API 認証情報ライブラリの認証情報から、セルフホスト AI ゲートウェイのチャネルをすばやく作成できます。その後はゲートウェイ経由で各種モデルをまとめて呼び出し、チャネルを柔軟に切り替えられます。
 - **モデル同期とリダイレクト**：対応サイトでは、チャネルのモデル一覧を手動またはスケジュールで自動同期し、上流のモデル変更に追従できます。モデルリダイレクトも自由に設定でき、クライアントでは任意のモデル名で呼び出せます。
 
@@ -118,7 +118,7 @@
 | GitHub Stable       | [Stable をダウンロード](https://github.com/qixing-jk/all-api-hub/releases/latest)       | ストア版をインストールできない場合、または公開済み修正を一時的に手動導入したい場合   |
 | Nightly pre-release | [Nightly をダウンロード](https://github.com/qixing-jk/all-api-hub/releases/tag/nightly) | 新機能を早めに試し、テストに協力したい場合。ストア安定版より不安定な可能性があります |
 
-GitHub Stable と Nightly は手動インストール用チャネルで、自動更新されません。新しいバージョン通知を受け取りたい場合は、リポジトリを Star / Watch してください。詳しくは [インストールと更新ガイド](https://all-api-hub.qixing1217.top/ja/extension-update-install.html) を参照してください。
+GitHub Stable と Nightly は手動インストール用チャネルです。GitHub からインストールする必要がある場合、Chromium ユーザーには `all-api-hub-chrome.crx`（Nightly は `all-api-hub-nightly-chrome.crx`）を推奨します。ストア版と同じように自動更新されます。詳しくは [インストールと更新ガイド](https://all-api-hub.qixing1217.top/ja/extension-update-install.html) と [Chromium CRX 自己更新インストール](https://all-api-hub.qixing1217.top/ja/chromium-crx-self-update.html) を参照してください。
 
 **その他の環境：**
 
@@ -161,12 +161,12 @@ GitHub Stable と Nightly は手動インストール用チャネルで、自動
 <hr>
 
 <div>
-  <a href="https://www.packyapi.com/register?aff=all-api-hub">
+  <a href="https://www.packyapi.ai/register?aff=all-api-hub">
     <img src="resources/partners/packycode.png" alt="PackyCode" width="128" align="left" hspace="10" vspace="4">
   </a>
   <p>
     PackyCode は、Claude Code、Codex、Gemini などの中継サービスを提供する、信頼性と効率性に優れた API 中継サービスプロバイダーです。
-    All API Hub ユーザー向けの特別割引として、<a href="https://www.packyapi.com/register?aff=all-api-hub">こちらのリンク</a> から登録し、初回チャージ時にプロモコード "all-api-hub" を入力すると 10% オフになります（<a href="https://all-api-hub.qixing1217.top/ja/sponsor-guides/packycode.html">設定ガイド</a>）。
+    All API Hub ユーザー向けの特別割引として、<a href="https://www.packyapi.ai/register?aff=all-api-hub">こちらのリンク</a> から登録し、初回チャージ時にプロモコード "all-api-hub" を入力すると 10% オフになります（<a href="https://all-api-hub.qixing1217.top/ja/sponsor-guides/packycode.html">設定ガイド</a>）。
   </p>
 </div>
 
@@ -184,28 +184,6 @@ GitHub Stable と Nightly は手動インストール用チャネルで、自動
 <hr>
 
 <div>
-  <a href="https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB">
-    <img src="resources/partners/xuanshu-api.png" alt="XuanShu API" width="180" align="left" hspace="10" vspace="4">
-  </a>
-  <p>
-    XuanShu API は、企業、技術チーム、個人開発者向けの次世代 AI モデルルーティングゲートウェイです。Claude、GPT、Grok など世界トップクラスのモデルへ、エンタープライズ級の安定性を備えた API で一括アクセスできます。モデル料金は通常価格の 10% から 60% まで。<a href="https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB">こちらのリンク</a>から登録するとチャージ特典が追加され、初回チャージはさらにお得です。法人のお客様は法人銀行振込と請求書発行に対応しています（<a href="https://all-api-hub.qixing1217.top/ja/service-guides/xuanshuapi.html">設定ガイド</a>）。
-  </p>
-</div>
-
-<hr>
-
-<div>
-  <a href="https://www.aicodemirror.ai/register?invitecode=7IQNR8">
-    <img src="resources/partners/aicodemirror.png" alt="AICodeMirror" width="128" align="left" hspace="10" vspace="4">
-  </a>
-  <p>
-    AICodeMirror は Claude Code / Codex / Gemini CLI 向けの公式高安定中継サービスを提供し、エンタープライズ級の高同時実行、迅速な請求書発行、24 時間 365 日の専任技術サポートに対応しています。Claude Code / Codex / Gemini の公式チャネルを通常価格の 38% / 2% / 9% 程度から利用でき、チャージ時の追加割引もあります。All API Hub ユーザー向け特典として、<a href="https://www.aicodemirror.ai/register?invitecode=7IQNR8">こちらのリンク</a>から登録すると初回チャージが 20% オフになり、エンタープライズ顧客は最大 25% オフを受けられます。
-  </p>
-</div>
-
-<hr>
-
-<div>
   <a href="https://sui-xiang.com/">
     <img src="resources/partners/suixiang.jpg" alt="Suixiang AI Relay" width="128" align="left" hspace="10" vspace="4">
   </a>
@@ -217,11 +195,22 @@ GitHub Stable と Nightly は手動インストール用チャネルで、自動
 <hr>
 
 <div>
-  <a href="https://go.apimart.ai/gh-all-api-hub">
-    <img src="resources/partners/apimart.png" alt="APIMart" width="180" align="left" hspace="10" vspace="4">
+  <a href="https://88api.ai/register?aff=XcTj">
+    <img src="resources/partners/88api.jpg" alt="88API Token集約プラットフォーム" width="180" align="left" hspace="10" vspace="4">
   </a>
   <p>
-    APIMart は AI 画像・動画生成に特化した低価格 API プラットフォームです。GPT-Image-2 は 1 枚 $0.006 から、1 ドルで 160 枚以上の画像を生成できます。画像と動画をひとつの非同期 API でカバーし、タスクを送信して ID を取得、ポーリングまたはコールバックで結果を取得できます。数万枚のバッチ処理もタイムアウトなしで実行でき、モデルを切り替えてもコードの変更は不要です。従量課金・月額料金なし。<a href="https://go.apimart.ai/gh-all-api-hub">こちらのリンク</a>から登録して利用を始められます。
+    88API Token集約プラットフォームによる本プロジェクトへのご支援に感謝します！ 香港企業が運営する、開発者・クリエイター・AI アプリユーザー向けのマルチモデル API プラットフォームです。統一 API でテキスト・画像・音声・動画モデルに接続し、AI コーディング、翻訳、コンテンツ制作、ナレーション、画像生成、動画生成に対応します。CC Switch で直接 Provider を追加・切り替えでき、主要な国際決済、請求書発行、安定した企業向けサービスにも対応します。 <a href="https://88api.ai/register?aff=XcTj">専用リンクから登録すると、特典クレジットを受け取れます！</a>
+  </p>
+</div>
+
+<hr>
+
+<div>
+  <a href="https://dzhsmartai.com/">
+    <img src="resources/partners/ccccccapi.jpg" alt="ccccccapi" width="64" align="left" hspace="10" vspace="4">
+  </a>
+  <p>
+    ccccccapi ChatGPT、Claude、Gemini、Deepseek などに対応。ネット最安値で、お財布にもやさしい。<a href="https://dzhsmartai.com/">仲間なら、お得に使い倒そう！</a>
   </p>
 </div>
 
@@ -260,57 +249,100 @@ GitHub Stable と Nightly は手動インストール用チャネルで、自動
 
 どのアーキテクチャを使っていても、高い確率で対応しています。
 
-- **アカウントサイト互換アーキテクチャ**：[new-api](https://github.com/QuantumNous/new-api)、[one-api](https://github.com/songquanpeng/one-api)、[Sub2API](https://github.com/Wei-Shaw/sub2api)、[one-hub](https://github.com/MartialBE/one-hub)、[Veloera](https://github.com/Veloera/Veloera)、[done-hub](https://github.com/deanxv/done-hub) など
-- **特色あるアカウントプラットフォームと互換実装**：[AnyRouter](https://anyrouter.top/register?aff=tDKX)、[AgentRouter](https://agentrouter.org/register?aff=TUX6)、[AIHubMix](https://aihubmix.com/?aff=W3DN)、Super-API、v-api、Neo-API など
-- **セルフホスト型管理バックエンド**：[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)、[New API](https://github.com/QuantumNous/new-api)、[Sub2API](https://github.com/Wei-Shaw/sub2api)、[AxonHub](https://github.com/looplj/axonhub)、[Claude Code Hub](https://github.com/ding113/claude-code-hub)、[Octopus](https://github.com/bestruirui/octopus)、[Veloera](https://github.com/Veloera/Veloera)、[DoneHub](https://github.com/deanxv/done-hub) など。チャネルやプロバイダーの管理に利用でき、対応サイトでは移行とモデル同期も行えます
-- **完全な一覧**：👉 [対応サイト](https://all-api-hub.qixing1217.top/ja/supported-sites.html)
+- **アカウントサイト互換アーキテクチャ**：[New API](https://github.com/QuantumNous/new-api)、[Sub2API](https://github.com/Wei-Shaw/sub2api)、[One API](https://github.com/songquanpeng/one-api)、[one-hub](https://github.com/MartialBE/one-hub)、[Veloera](https://github.com/Veloera/Veloera)、[VoAPI / VoAPI v2](https://github.com/VoAPI/VoAPI)、[DoneHub](https://github.com/deanxv/done-hub)、[Super-API](https://github.com/SuperAI-Api/Super-API)、API易、ModelFlare、v-api、および Neo-API、RIX_API などの派生版。
+- **特色あるアカウントプラットフォームと中継サービス**：[OpenRouter](https://openrouter.ai)、[Kimi オープンプラットフォーム（国内版/国際版）](https://platform.kimi.ai)、[AnyRouter](https://anyrouter.top/register?aff=tDKX)、[AgentRouter](https://agentrouter.org/register?aff=TUX6)、[AIHubMix](https://aihubmix.com/?aff=W3DN)、老張 API、Dahl、FoxCode、肖恩 AI、Cubence、RightCode、Grsai、FreeModel、SharedChat、WONG公益站、Krill AI、EMRank、RelayFor、Daya API、[Vercel AI Gateway](https://vercel.com/ai-gateway)、PM-API, [Requesty](https://app.requesty.ai)、Novita AI、AI/ML API、NanoGPT など
+- **セルフホスト型管理バックエンドと AI ゲートウェイ**：[OmniRoute](https://github.com/diegosouzapw/OmniRoute)、[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)、[New API](https://github.com/QuantumNous/new-api)、[Sub2API](https://github.com/Wei-Shaw/sub2api)、[Magpie](https://github.com/yetone/magpie)、[gpt-load](https://github.com/tbphp/gpt-load)、[AxonHub](https://github.com/looplj/axonhub)、[Claude Code Hub](https://github.com/ding113/claude-code-hub)、[Octopus](https://github.com/bestruirui/octopus)、[Veloera](https://github.com/Veloera/Veloera)、[DoneHub](https://github.com/deanxv/done-hub) など。チャネルやプロバイダーの管理に利用でき、対応サイトでは移行とモデル同期も行えます
+  - Magpie、New API、Octopus、gpt-load、AxonHub の通常 API キーチャネル、CLIProxyAPI の OpenAI 互換リソースでは、同じサイトのキーをまとめてインポートできます。キーの振り分けは対象ゲートウェイが行います。 Magpie では同じアドレスとプロトコルの既存チャネルに未登録のキーを追加でき、既存の設定とモデル設定を保持します。
+- **クライアントおよび開発ツールへのエクスポート**：CC Switch、Cherry Studio、Claude Code Router、Kilo Code、Roo Code、Kelivo、AI Toolbox、Cursor++ など、詳細は [サポートされているエクスポートツールリスト](https://all-api-hub.qixing1217.top/ja/supported-export-tools.html)
+- **完全な一覧**：👉 [対応サイト](https://all-api-hub.qixing1217.top/ja/supported-sites.html) と [サポートされているエクスポートツールリスト](https://all-api-hub.qixing1217.top/ja/supported-export-tools.html)
 
 <a id="ui-preview"></a>
 
 ## 🖼️ UI プレビュー
 
+<div align="center">
+  <img src="docs/docs/static/image/ja/options-overview.png" alt="options-overview" style="width:100%; height:auto;"/>
+  <p><em>オールインワン設定ダッシュボード：全体資産、要対応事項、統合 API 設定、ヘルス状態を一元把握</em></p>
+</div>
+
+### アカウントと API キー
+
 <table>
   <tr>
-    <td align="center">
-      <img src="docs/docs/static/image/en/account-manage.png" alt="account-manage" style="width:100%; height:auto;"/>
-      <div>アカウント管理の概要</div>
-    </td>
-    <td align="center">
-      <img src="docs/docs/static/image/en/model-list.png" alt="model-list" style="width:100%; height:auto;"/>
-      <div>モデル一覧と価格</div>
+    <td align="center" colspan="2" width="100%">
+      <img src="docs/docs/static/image/ja/account-manage.png" alt="account-manage" style="width:100%; height:auto;"/>
+      <div><b>複数アカウント・資産管理</b><br/>各中継サイトの残高追跡、為替換算、タグ絞り込み</div>
     </td>
   </tr>
   <tr>
-    <td align="center">
-      <img src="docs/docs/static/image/en/api-key-list.png" alt="api-key-list" style="width:100%; height:auto;"/>
-      <div>キー一覧とエクスポート</div>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/ja/api-key-list.png" alt="api-key-list" style="width:100%; height:auto;"/>
+      <div><b>API キー統合管理とエクスポート</b><br/>クォータ照会、ワンクリックコピー、クライアント設定出力</div>
     </td>
-    <td align="center">
-      <img src="docs/docs/static/image/en/auto-check-in.png" alt="auto-check-in" style="width:100%; height:auto;"/>
-      <div>自動チェックイン</div>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="docs/docs/static/image/en/account-model-usage-overview.png" alt="account-model-usage-overview" style="width:100%; height:auto;"/>
-      <div>アカウント別モデル使用量の概要</div>
-    </td>
-    <td align="center">
-      <img src="docs/docs/static/image/en/account-model-latency-overview.png" alt="account-model-latency-overview" style="width:100%; height:auto;"/>
-      <div>アカウント別モデル遅延の概要</div>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="docs/docs/static/image/en/new-api-channel-sync.png" alt="new-api-channel-sync" style="width:100%; height:auto;"/>
-      <div>New API モデル同期</div>
-    </td>
-    <td align="center">
-      <img src="docs/docs/static/image/en/new-api-channel-manage.png" alt="new-api-channel-manage" style="width:100%; height:auto;"/>
-      <div>New API チャネル管理</div>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/ja/api-credential-profile-list.png" alt="api-credential-profile-list" style="width:100%; height:auto;"/>
+      <div><b>API 認証情報プロファイル</b><br/>アカウント不要の Key 管理、CLI 互換性検証、クイック利用</div>
     </td>
   </tr>
 </table>
+
+### モデル選択と API 検証
+
+<table>
+  <tr>
+    <td align="center" colspan="2" width="100%">
+      <img src="docs/docs/static/image/ja/model-list.png" alt="model-list" style="width:100%; height:auto;"/>
+      <div><b>モデル一覧と価格比較</b><br/>同じモデルのサイト別料金を使用シーンに応じて換算し、最安値を表示</div>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/ja/web-ai-api-check-trigger.png" alt="web-ai-api-check-trigger" style="width:100%; height:auto;"/>
+      <div><b>Webページ内のクイック API テスト</b><br/>ページ上の API URL とキーをコピーし、検出後に「開く」を押してテスト</div>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/ja/web-ai-api-check-results.png" alt="web-ai-api-check-results" style="width:100%; height:auto;"/>
+      <div><b>Web ページ内で API をテスト</b><br/>モデル一覧、テキスト生成、ツール呼び出し、構造化出力、描画などを確認</div>
+    </td>
+  </tr>
+</table>
+
+### チェックイン・残高・使用量
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/ja/auto-check-in.png" alt="auto-check-in" style="width:100%; height:auto;"/>
+      <div><b>自動デイリーチェックイン</b><br/>複数アカウントの定期実行、自動リトライ、獲得履歴確認</div>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/ja/balance-history.png" alt="balance-history" style="width:100%; height:auto;"/>
+      <div><b>残高推移と収支トレンド</b><br/>アカウント別の残高推移、消費分布、収支サマリー</div>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/ja/account-model-usage-overview.png" alt="account-model-usage-overview" style="width:100%; height:auto;"/>
+      <div><b>多次元使用量分析</b><br/>Token 消費内訳、アカウント別シェア、コスト推計</div>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/ja/account-model-latency-overview.png" alt="account-model-latency-overview" style="width:100%; height:auto;"/>
+      <div><b>応答遅延とスロークエリ分析</b><br/>モデル別レイテンシ比較、高遅延リクエスト診断、警告表示</div>
+    </td>
+  </tr>
+</table>
+
+### セルフホストゲートウェイとモデル同期
+
+<div align="center">
+      <img src="docs/docs/static/image/ja/new-api-channel-manage.png" alt="new-api-channel-manage" style="width:100%; height:auto;"/>
+      <div><b>自建ゲートウェイチャネル管理</b><br/>対応ゲートウェイ、チャネル状態、疎通確認とサイト間移行</div>
+    </div>
+
+<div align="center">
+      <img src="docs/docs/static/image/ja/new-api-channel-sync.png" alt="new-api-channel-sync" style="width:100%; height:auto;"/>
+      <div><b>上流モデル自動同期</b><br/>チャネルモデル自動取得、差分比較、ワンクリック反映</div>
+    </div>
 
 <a id="development-guide"></a>
 

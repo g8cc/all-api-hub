@@ -65,6 +65,9 @@ function cloneOnboarding(
     accountForm: onboarding.accountForm
       ? { ...onboarding.accountForm }
       : undefined,
+    accessTokenVerificationGuide: onboarding.accessTokenVerificationGuide
+      ? { ...onboarding.accessTokenVerificationGuide }
+      : undefined,
   }
 }
 
@@ -138,6 +141,9 @@ function cloneDefinition(
     ...definition,
     scopes: [...definition.scopes],
     tokenKey: definition.tokenKey ? { ...definition.tokenKey } : undefined,
+    accountLogin: definition.accountLogin
+      ? structuredClone(definition.accountLogin)
+      : undefined,
     managedResource: definition.managedResource
       ? {
           ...definition.managedResource,

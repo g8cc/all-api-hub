@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test"
 
-import { generateNewApiTotpCode } from "~/services/managedSites/providers/newApiTotp"
+import { generateNewApiTotpCode } from "~/services/managedSites/providers/newApi/newApiTotp"
 
 import {
   createLocatorFactory,
@@ -78,6 +78,8 @@ export interface CompatibleApiRealSiteLoginResult {
   reusedSession: boolean
   user: Record<string, unknown>
   cleanupOwnedSession?: () => Promise<void>
+  /** Read-only proof that detection cannot fall back to rotating a legacy PAT. */
+  probeScopedAccessTokens?: () => Promise<boolean>
 }
 
 type CompatibleApiLoginApiPayload = {
@@ -182,7 +184,11 @@ export async function loginToCompatibleApiRealSite(
   config: CompatibleApiRealSiteConfig,
   options: CompatibleApiLoginOptions,
 ): Promise<CompatibleApiRealSiteLoginResult> {
-  await ensureRealSiteOriginPage(page, config.loginUrl)
+  // A cold frontend can send an anonymous refresh whose late 401 clears a
+  // cookie created by API login. Establish modern auth before loading it.
+  if (!options.authBundle) {
+    await ensureRealSiteOriginPage(page, config.loginUrl)
+  }
   let loginPayloadMode: CompatibleLoginPayloadMode = options.authBundle
     ? "authBundleFirst"
     : "legacyFirst"
@@ -190,6 +196,7 @@ export async function loginToCompatibleApiRealSite(
   if (options.authBundle) {
     const probeResult = await probeCompatibleAuthBundle(page, config, options)
     if (probeResult.kind === "authBundle") {
+      await ensureRealSiteOriginPage(page, config.loginUrl)
       return await createAuthBundleLoginResult(
         page,
         config,
@@ -201,6 +208,7 @@ export async function loginToCompatibleApiRealSite(
 
     if (probeResult.kind === "legacyFallback") {
       loginPayloadMode = "legacyFirst"
+      await ensureRealSiteOriginPage(page, config.loginUrl)
       const existingUser = await waitForStoredUser(page, 2_500)
       if (existingUser) {
         return {
@@ -226,9 +234,16 @@ export async function loginToCompatibleApiRealSite(
     loginPayloadMode,
   )
   if (apiLoginResult) {
+    try {
+      await ensureRealSiteOriginPage(page, config.loginUrl)
+    } catch (error) {
+      await apiLoginResult.cleanupOwnedSession?.()
+      throw error
+    }
     return apiLoginResult
   }
 
+  await ensureRealSiteOriginPage(page, config.loginUrl)
   const locatorFactory = createLocatorFactory(`AAH_E2E_${options.envPrefix}`)
   const emptySelectors: Pick<
     CompatibleApiRealSiteConfig,
@@ -652,6 +667,30 @@ async function createAuthBundleLoginResult(
   const result = {
     reusedSession,
     user: authBundle.user,
+    probeScopedAccessTokens: async () => {
+      try {
+        const response = await page.request.get(
+          resolveRealSiteUrl(config.baseUrl, "/api/user/access_tokens"),
+          {
+            timeout: 10_000,
+            headers: {
+              Authorization: `Bearer ${authBundle.accessToken}`,
+              Accept: "application/json",
+            },
+          },
+        )
+        if (!response.ok()) return false
+        const body = safeParseJson(await response.text())
+        return (
+          isRecord(body) &&
+          body.success === true &&
+          isRecord(body.data) &&
+          Array.isArray(body.data.items)
+        )
+      } catch {
+        return false
+      }
+    },
     ...(reusedSession
       ? {}
       : {
@@ -1059,7 +1098,7 @@ async function fetchCompatibleApiUser(
   return parseCompatibleApiUser(payload)
 }
 
-function extractCompatibleApiPayload(payload: unknown) {
+export function extractCompatibleApiPayload(payload: unknown) {
   if (!payload || typeof payload !== "object") {
     return null
   }

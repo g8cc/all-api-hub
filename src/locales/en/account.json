@@ -39,6 +39,7 @@
     "modelManagement": "Model List",
     "openAllExternalCheckIn": "Open all external check-ins",
     "openAllExternalCheckInHint": "Open unchecked external check-ins. Ctrl/Cmd: open all. Shift: open in new window. Ctrl/Cmd+Shift: open all in new window.",
+    "openSite": "Open site",
     "pin": "Pin account",
     "pinned": "Pinned",
     "quickCheckin": "Quick check-in",
@@ -58,7 +59,7 @@
   "addFirstAccount": "Add your first account",
   "bulk": {
     "clearAll": "Clear selection",
-    "clearVisible": "Clear visible selection",
+    "clearVisible": "Deselect all in this list",
     "copyInviteLinks": "Copy invite links",
     "copyInviteLinksClipboardFailed": "Clipboard access was blocked. Copy the generated invite links manually.",
     "copyInviteLinksClipboardFailedWithReasons": "Clipboard access was blocked. Copy the generated invite links manually. Other accounts: {{reasonSummary}}.",
@@ -68,6 +69,11 @@
     "copyInviteLinksSuccess_one": "Copied {{count}} invite link.",
     "copyInviteLinksSuccess_other": "Copied {{count}} invite links.",
     "copyInviteLinksUnsupported": "The current selection does not support invite links.",
+    "copySiteUrls": "Copy site URLs",
+    "copySiteUrlsClipboardFailed": "Clipboard access was blocked. Copy the site URLs from the account list manually.",
+    "copySiteUrlsNone": "The selected accounts do not have site addresses to copy.",
+    "copySiteUrlsSuccess_one": "Copied {{count}} site URL.",
+    "copySiteUrlsSuccess_other": "Copied {{count}} site URLs.",
     "deleteConfirmAction": "Delete selected",
     "deleteConfirmDescription_one": "You are about to delete {{count}} selected account. Review the selection carefully before confirming.",
     "deleteConfirmDescription_other": "You are about to delete {{count}} selected accounts. Review the selection carefully before confirming.",
@@ -96,12 +102,14 @@
     "selectedSummary_other": "{{selected}} selected",
     "selectionEmpty": "No accounts selected",
     "selectionScope": "Selection",
-    "selectVisible": "Select visible results"
+    "selectVisible": "Select all in this list"
   },
-  "currentLoginAdded": "⚠️The current login for {{siteName}} is already in your list",
-  "currentSiteAdded": "⚠️{{siteName}} already has a saved account",
-  "currentSiteAddedCount_one": "⚠️This site already has {{count}} saved account",
-  "currentSiteAddedCount_other": "⚠️This site already has {{count}} saved accounts",
+  "currentLoginAdded": "The current login for {{siteName}} is already in your list",
+  "currentSiteAdded": "{{siteName}} already has a saved account",
+  "currentSiteAddedCount_one": "This site already has {{count}} saved account",
+  "currentSiteAddedCount_other": "This site already has {{count}} saved accounts",
+  "currentSiteFilterAction": "View",
+  "currentSiteFilterHint": "Click to filter your list to this site's accounts",
   "description": "Manage site accounts and check balances, usage and health.",
   "emptyState": "No accounts yet",
   "emptyStateDescription": "Add an account to manage balances, health, API keys, and usage in one place.",
@@ -109,10 +117,14 @@
     "checkIn": {
       "all": "All check-in states",
       "checked-in": "Checked in",
+      "configuration": "Configuration / method unavailable",
+      "manual": "Cannot query",
       "not-checked-in": "Not checked in",
-      "outdated": "Status outdated",
+      "outdated": "Needs updating",
+      "pending": "Not queried yet",
       "placeholder": "Check-in status",
-      "status-unavailable": "Status unavailable",
+      "query-failed": "Query failed",
+      "site-disabled": "Disabled by site",
       "unsupported": "Unsupported"
     },
     "disabled": {
@@ -226,7 +238,21 @@
     "resetSort": "Reset to default order",
     "site": {
       "checkedInToday": "Checked in today, click to view",
-      "checkInStatusOutdated": "Check-in status wasn't detected today (last check time: {{time}}). Click to refresh",
+      "checkInAccountDisabled": "Account disabled; automatic check-in is paused",
+      "checkInAutomationBlocked": "Automatic check-in is blocked: {{reason}}",
+      "checkInAutomationDisabled": "Account automatic check-in is off",
+      "checkInAutomationEnabled": "Account automatic check-in is enabled",
+      "checkInAutomationGloballyDisabled": "Account automatic check-in is enabled, but the global switch is off",
+      "checkInLastKnownChecked": "Last confirmed checked in: {{time}}",
+      "checkInLastKnownNotChecked": "Last confirmed not checked in: {{time}}",
+      "checkInNeedsConfiguration": "Automatic check-in needs configuration: {{reason}}. Click to edit the account",
+      "checkInNeedsRedetection": "Check-in method needs re-detection: {{reason}}. Click to re-detect",
+      "checkInRefreshPartial": "Account data for {{accountName}} was refreshed, but check-in status could not be updated. Please retry",
+      "checkInSiteDisabled": "The site has check-in disabled. Click to view the site",
+      "checkInStatusFailed": "Could not update check-in status (attempt: {{time}}). Click to retry",
+      "checkInStatusManual": "This method cannot query check-in status. Click to check on the site",
+      "checkInStatusOutdated": "Check-in status needs updating (last confirmed: {{time}}). Click to refresh",
+      "checkInStatusPending": "Check-in status has not been queried. Click to refresh",
       "currentSite": "Current Site",
       "currentSiteBoostHint": "Matches the signed-in account on the current site and appears before other accounts. Disabled accounts stay last.",
       "currentSiteExists": "Same site as the current tab",
@@ -245,7 +271,12 @@
     "sortMenu": "Sort by",
     "toggleSortOrder": "Toggle sort order"
   },
+  "popupOnboarding": {
+    "signInHint": "Sign in to your API site, then add an account using automatic detection or manual entry."
+  },
   "refresh": {
+    "checkInStatusFailed_one": "Check-in status could not be updated for {{count}} account. Please retry",
+    "checkInStatusFailed_other": "Check-in status could not be updated for {{count}} accounts. Please retry",
     "refreshComplete": "Refresh complete: {{success}} success, {{failed}} failed",
     "refreshDisabledComplete": "Disabled account probe complete: {{restored}} restored, {{stillDisabled}} still disabled",
     "refreshDisabledCompleteWithFailures": "Disabled account probe complete: {{restored}} restored, {{stillDisabled}} still disabled, {{failed}} failed",
@@ -271,6 +302,15 @@
       "description": "Register on a provider's website, then follow the card to add an account, save API credentials, or bookmark the site.",
       "title": "Explore available providers"
     },
+    "openWorkflowFailed": "Could not open setup. Please try again.",
+    "popupApiCredentialProfiles": {
+      "description": "Need developer API or Coding Plan access? Quickly prefill Base URL and get keys from the provider console:",
+      "title": "Recommended Providers & Subscriptions"
+    },
+    "popupBookmarks": {
+      "description": "One-click bookmarking for quick and convenient access anytime:",
+      "title": "Featured Site Recommendations"
+    },
     "recommendedProviders": "Recommended providers",
     "supportStatus": {
       "fallbackApiCredentialProfiles": "Add as credential",
@@ -281,17 +321,44 @@
     }
   },
   "stats": {
+    "allowanceExpiry": "Expires: {{time}}",
+    "allowanceReset": "Resets: {{time}}",
+    "allowances": "Allowance details",
+    "allowanceScope": "Quota group: {{scope}}",
     "completion": "Completion",
     "estimatedTodayIncome": "Estimated income",
+    "groupAllowance": "Group allowance",
+    "nativeCredits": "credits",
+    "nativeCreditsDetail": "Fixed {{permanent, number}} · Today {{daily, number}} (expires daily)",
+    "novitaBalance": {
+      "available": "Available balance",
+      "cash": "Top-up balance",
+      "creditLimit": "Credit limit (maximum debt)",
+      "description": "Available balance is reported by Novita. Top-up balance is your remaining top-up funds; credit limit is the maximum amount you can owe. The extension currently excludes Novita balances from total balance, balance history and income estimates.",
+      "title": "Balance details"
+    },
+    "permanentAllowance": "Permanent",
     "prompt": "Prompt",
-    "subscriptionInactive": "Inactive or expired",
+    "scopedAllowances": "Group and subscription allowances may have usage restrictions. Native allowances are excluded from balance totals, balance history and income estimates.",
     "subscriptionRemainingCount": "Remaining subscription requests",
+    "subscriptionRemainingTokens": "Remaining token credit (pool + keys); dollar balance is the published price equivalent, including free tokens.",
+    "subscriptionState": {
+      "active": "Subscription active",
+      "expired": "Subscription expired",
+      "grace": "Subscription grace period",
+      "inactive": "No active subscription",
+      "unavailable": "Subscription status unavailable"
+    },
     "subscriptionStatus": "Subscription status",
     "subscriptionTitle": "Subscription",
+    "timedAllowance": "Timed allowance",
+    "timedDetailsUnavailable": "Timed allowance details could not be loaded. Refresh the account to try again.",
     "todayConsumption": "Today's Consumption",
     "todayIncome": "Today's Income",
+    "tokenCredit": "tokens",
     "totalBalance": "Total Balance",
     "trustedTodayIncome": "Trusted income",
+    "unlockedModels": "Unlocked models: {{models}}",
     "usageRequests": "Period requests",
     "usageTokens": "Period tokens"
   },

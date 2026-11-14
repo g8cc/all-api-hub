@@ -2,6 +2,13 @@
  * Persisted backup and synchronization contracts. Protocol splits add a new
  * ID instead of renaming an existing value.
  */
+export const CHECK_IN_ROUTE_OVERRIDE_SOURCES = {
+  /** Entered in the account dialog by the user. */
+  Manual: "manual",
+  /** Verified by a redetection probe against the deployment's own assets. */
+  Discovery: "discovery",
+} as const
+
 export const AUTO_CHECKIN_METHOD_IDS = {
   NewApiDailyCheckIn: "new-api:daily-checkin",
   VeloeraDailyCheckIn: "veloera:daily-checkin",
@@ -12,7 +19,21 @@ export const AUTO_CHECKIN_METHOD_IDS = {
   Sub2ApiProDailyCheckIn: "sub2api-pro:daily-checkin",
   GeniusProgrammerDailyCheckIn: "genius-programmer:daily-checkin",
   DenxioDailyCheckIn: "denxio:daily-checkin",
-  BrowserAutomationDailyCheckIn: "browser-automation:daily-checkin",
+  XiaobaiCodeDailyCheckIn: "xiaobai-code:daily-checkin",
+  AiRouterDailyCheckIn: "ai-router:daily-checkin",
+  ToolcodeDailyCheckIn: "toolcode:daily-checkin",
+  HiyoDailyCheckIn: "hiyo:daily-checkin",
+  ClawhudDailyCheckIn: "clawhud:daily-checkin",
+  DaiguaDailyCheckIn: "daigua:daily-checkin",
+  XiaoenDailyCheckIn: "xiaoen:daily-checkin",
+  SidruneDailyCheckIn: "sidrune:daily-checkin",
+  FreeApiDailyCheckIn: "freeapi:daily-checkin",
+  NexaVlinksDailyCheckIn: "nexavlinks:daily-checkin",
+  EmrankDailyCheckIn: "emrank:daily-checkin",
+  RelayForDailyCheckIn: "relayfor:daily-checkin",
+  DayaDailyCheckIn: "daya:daily-checkin",
+  PmApiDailyCheckIn: "pmapi:daily-checkin",
+  BaiApiDailyCheckIn: "bai-api:daily-checkin",
 } as const
 
 export const CHECK_IN_METHOD_UNKNOWN_REASON_CODES = {
@@ -52,7 +73,6 @@ export const CHECK_IN_METHOD_DETECTION_EVIDENCE_SOURCES = {
   Probe: "probe",
   LegacyMigration: "legacy_migration",
   CompatibilityRegistration: "compatibility_registration",
-  UserConfiguration: "user_configuration",
 } as const
 
 export const CHECK_IN_METHOD_STATUS_OUTCOMES = {
@@ -84,6 +104,9 @@ export const CHECK_IN_SELECTION_MODES = {
 /** Minimum interval between unattended full-discovery attempts for an account. */
 export const AUTOMATIC_CHECK_IN_DISCOVERY_COOLDOWN_MS = 24 * 60 * 60 * 1_000
 
+/** A full discovery round allows browser startup and protection recovery before timing out. */
+export const FULL_CHECK_IN_DISCOVERY_TIMEOUT_MS = 60_000
+
 export const CHECK_IN_DISCOVERY_DECISION_OUTCOMES = {
   Resolved: "resolved",
   Ambiguous: "ambiguous",
@@ -110,6 +133,7 @@ export const CHECK_IN_EXECUTION_SKIP_REASONS = {
   GlobalAutomaticExecutionDisabled: "global_automatic_execution_disabled",
   AutomaticExecutionDisabled: "automatic_execution_disabled",
   NoSelectedMethod: "no_selected_method",
+  NoAvailableMethod: "no_available_method",
   MethodUnavailable: CHECK_IN_SELECTION_STALE_REASONS.MethodUnavailable,
   MethodNotMatched: CHECK_IN_SELECTION_STALE_REASONS.MethodNotMatched,
   MethodUnsupported: CHECK_IN_SELECTION_STALE_REASONS.MethodUnsupported,
@@ -131,4 +155,11 @@ export const CHECK_IN_METHOD_EXECUTION_RESULT_KINDS = {
   Executed: "executed",
   Skipped: "skipped",
   Blocked: "blocked",
+} as const
+
+export const CHECK_IN_STATUS_REFRESH_OUTCOMES = {
+  Read: "read",
+  Unavailable: "unavailable",
+  Unsupported: "unsupported",
+  NoSelection: "no_selection",
 } as const

@@ -1,4 +1,5 @@
 import type { AccountSiteType } from "~/constants/siteType"
+import { ACCOUNT_KEY_DEFAULT_CREATION_POLICIES as creationPolicies } from "~/services/apiAdapters/contracts/accountKeyResource"
 import type {
   AccountSiteCapabilities,
   SiteTypeCapabilities,
@@ -7,6 +8,7 @@ import type {
 type AccountSiteCapabilityId = keyof AccountSiteCapabilities
 
 const ACCOUNT_SITE_CAPABILITY_INVENTORY = {
+  login: true,
   announcements: true,
   modelCatalog: true,
   providerModelCatalog: true,
@@ -20,6 +22,7 @@ const ACCOUNT_SITE_CAPABILITY_INVENTORY = {
   serviceCredential: true,
   refresh: true,
   redemption: true,
+  usageHistory: true,
 } as const satisfies Record<AccountSiteCapabilityId, true>
 
 export const ACCOUNT_SITE_CAPABILITY_IDS = Object.keys(
@@ -70,7 +73,7 @@ const ACCOUNT_USER_FEATURE_SELECTORS = {
   ) => {
     const resource = capabilities.account?.keyResourceManagement
     return resource?.defaultCreation &&
-      resource.defaultCreation !== "requires-input"
+      resource.defaultCreation !== creationPolicies.RequiresInput
       ? resource
       : undefined
   },

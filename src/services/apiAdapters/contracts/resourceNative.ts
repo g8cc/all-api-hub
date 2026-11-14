@@ -1,3 +1,5 @@
+import type { ApiOperationContext } from "~/services/apiTransport/operationContext"
+
 export const RESOURCE_FIELD_TYPES = {
   Text: "text",
   Textarea: "textarea",
@@ -70,7 +72,10 @@ export const RESOURCE_SECRET_REPLACEMENT_BLOCK_REASONS = {
 export type ResourceSecretReplacementBlockReason =
   (typeof RESOURCE_SECRET_REPLACEMENT_BLOCK_REASONS)[keyof typeof RESOURCE_SECRET_REPLACEMENT_BLOCK_REASONS]
 
-export type ResourceOperationOptions = { signal?: AbortSignal }
+export type ResourceOperationOptions = {
+  signal?: AbortSignal
+  operationContext?: ApiOperationContext
+}
 
 export type ResourceListQuery = {
   cursor?: string
@@ -138,15 +143,20 @@ export type ResourceSecretListValue = {
 export type ResourceSecretListDescriptor = ResourceFieldDescriptorBase & {
   type: "secret-list"
   minEntries?: number
+  /** Split a multiline or separated paste into new, independently editable rows. */
+  allowBulkPaste?: boolean
   savedEntries: readonly {
     id: string
     secretState: ResourceSecretState
     /** Opaque target accepted by the editor's existing loadSecret operation. */
     loadFieldId?: string
+    canReplace?: boolean
+    maskedValue?: string
   }[]
   entryFields: readonly {
     fieldId: string
-    type: "text" | "number" | "boolean"
+    type: "text" | "number" | "boolean" | "select"
+    options?: readonly ResourceFieldOption[]
     min?: number
     max?: number
   }[]
@@ -169,6 +179,8 @@ export type ResourceFieldOption = {
   value: string
   displayLabel?: string
   secondaryLabel?: string
+  badgeLabel?: string
+  description?: string
 }
 
 type ResourceFieldOptionLoadTrigger =
@@ -186,6 +198,8 @@ type ResourceSelectFieldDescriptor = ResourceFieldDescriptorBase & {
     | (typeof RESOURCE_FIELD_TYPES)["Select"]
     | (typeof RESOURCE_FIELD_TYPES)["MultiSelect"]
   options: readonly ResourceFieldOption[]
+  /** Allow typed multi-select values even when the loaded option list is empty. */
+  allowCustom?: boolean
   optionLoader?: {
     dependsOn: readonly string[]
     /** Manual loading is useful when dependencies include credentials or remote probes. */

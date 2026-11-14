@@ -15,19 +15,42 @@ import {
   updateModelSyncSettings,
 } from "~/services/models/modelSync/scheduler"
 import { managedSiteModelSyncStorage } from "~/services/models/modelSync/storage"
-import {
-  DEFAULT_PREFERENCES,
-  userPreferences,
-} from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { userPreferences } from "~/services/preferences/userPreferences"
 import { PROTECTION_BYPASS_USER_COMMANDS } from "~/services/protectionBypass/contracts"
 import {
   clearAlarm,
   getAlarm,
   hasAlarmsAPI,
   onAlarm,
-} from "~/utils/browser/browserApi"
+} from "~/utils/browser/alarms"
 import { userCommandExecution } from "~~/tests/services/protectionBypass/fixtures"
 import { modelResourceRef } from "~~/tests/test-utils/managedModelResource"
+
+vi.mock(
+  "~/services/preferences/preferencesDefaults",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/preferences/preferencesDefaults")
+      >()
+    return {
+      ...actual,
+      DEFAULT_PREFERENCES: {
+        managedSiteModelSync: {
+          enabled: true,
+          interval: 60_000,
+          concurrency: 2,
+          maxRetries: 1,
+          rateLimit: { requestsPerMinute: 10, burst: 2 },
+          channelProcessingTimeout: 0,
+          allowedModels: [],
+          globalChannelModelFilters: [],
+        },
+      },
+    }
+  },
+)
 
 const MODEL_SYNC_EXECUTION = userCommandExecution(
   PROTECTION_BYPASS_USER_COMMANDS.SyncManagedSiteModels,
@@ -59,18 +82,6 @@ vi.mock("~/services/models/modelSync/messaging", () => ({
 }))
 
 vi.mock("~/services/preferences/userPreferences", () => ({
-  DEFAULT_PREFERENCES: {
-    managedSiteModelSync: {
-      enabled: true,
-      interval: 60_000,
-      concurrency: 2,
-      maxRetries: 1,
-      rateLimit: { requestsPerMinute: 10, burst: 2 },
-      channelProcessingTimeout: 0,
-      allowedModels: [],
-      globalChannelModelFilters: [],
-    },
-  },
   userPreferences: {
     getPreferences: vi.fn(),
     savePreferences: vi.fn(),
@@ -87,9 +98,8 @@ vi.mock("~/services/models/modelSync/storage", () => ({
   },
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+vi.mock("~/utils/browser/alarms", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/utils/browser/alarms")>()
 
   return {
     ...actual,
@@ -98,8 +108,13 @@ vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
     getAlarm: vi.fn(),
     hasAlarmsAPI: vi.fn(),
     onAlarm: vi.fn(),
-    sendRuntimeMessage: vi.fn(),
   }
+})
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
+
+  return { ...actual, sendRuntimeMessage: vi.fn() }
 })
 
 vi.mock("~/utils/i18n/core", () => ({

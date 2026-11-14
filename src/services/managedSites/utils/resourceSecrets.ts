@@ -1,4 +1,4 @@
-import type { ManagedSiteRuntimeConfigValue } from "~/services/managedSites/runtimeConfig"
+import type { ManagedSiteRuntimeConfigValue } from "~/services/managedSites/configuration/runtimeConfig"
 
 export const collectManagedConfigSecrets = (
   managedConfig: ManagedSiteRuntimeConfigValue,
@@ -15,6 +15,15 @@ export const collectManagedConfigSecrets = (
     typeof managedConfig.password === "string"
   ) {
     secrets.push(managedConfig.password)
+  }
+  if (
+    "managementKey" in managedConfig &&
+    typeof managedConfig.managementKey === "string"
+  ) {
+    secrets.push(managedConfig.managementKey)
+  }
+  if ("webKey" in managedConfig && typeof managedConfig.webKey === "string") {
+    secrets.push(managedConfig.webKey)
   }
   return secrets
 }
@@ -190,11 +199,11 @@ export const collectManagedResourceSecrets = (
     const propertyCount = Math.min(keys.length, remainingPropertyBudget)
     if (propertyCount < keys.length) complete = false
     scheduledProperties += propertyCount
-    for (let index = propertyCount - 1; index >= 0; index -= 1) {
+    for (const key of keys.slice(0, propertyCount).reverse()) {
       stack.push({
         kind: "property",
         owner: frame.value,
-        key: keys[index],
+        key,
         insideSecretField: frame.insideSecretField,
         insideOverrideOperations: frame.insideOverrideOperations,
         depth: frame.depth + 1,

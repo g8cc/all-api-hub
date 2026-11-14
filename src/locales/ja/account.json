@@ -39,6 +39,7 @@
     "modelManagement": "モデル一覧",
     "openAllExternalCheckIn": "すべての外部チェックインを開く",
     "openAllExternalCheckInHint": "未チェックの外部チェックインを開きます。Ctrl/Cmd: すべて開く。Shift: 新しいウィンドウで開く。Ctrl/Cmd+Shift: すべてを新しいウィンドウで開く。",
+    "openSite": "サイトを開く",
     "pin": "アカウントをピン留め",
     "pinned": "ピン留め済み",
     "quickCheckin": "クイックチェックイン",
@@ -58,7 +59,7 @@
   "addFirstAccount": "最初のアカウントを追加",
   "bulk": {
     "clearAll": "選択を解除",
-    "clearVisible": "表示中の選択を解除",
+    "clearVisible": "現在のリストの選択を解除",
     "copyInviteLinks": "招待リンクをコピー",
     "copyInviteLinksClipboardFailed": "クリップボードに書き込めませんでした。生成された招待リンクを手動でコピーしてください。",
     "copyInviteLinksClipboardFailedWithReasons": "クリップボードに書き込めませんでした。生成された招待リンクを手動でコピーしてください。その他のアカウント：{{reasonSummary}}。",
@@ -67,6 +68,10 @@
     "copyInviteLinksPartialSuccess": "{{successCount}} 件の招待リンクをコピーしました。その他のアカウント：{{reasonSummary}}。",
     "copyInviteLinksSuccess_other": "{{count}} 件の招待リンクをコピーしました。",
     "copyInviteLinksUnsupported": "現在の選択では招待リンクに対応していません。",
+    "copySiteUrls": "サイト URL をコピー",
+    "copySiteUrlsClipboardFailed": "ブラウザーがクリップボードに書き込めません。アカウント一覧のサイト URL を手動でコピーしてください。",
+    "copySiteUrlsNone": "選択したアカウントにはコピーできるサイト URL がありません。",
+    "copySiteUrlsSuccess_other": "{{count}} 件のサイト URL をコピーしました。",
     "deleteConfirmAction": "選択したアカウントを削除",
     "deleteConfirmDescription_other": "選択した {{count}} 件のアカウントを削除しようとしています。確認前に選択内容をよく確認してください。",
     "deleteConfirmTitle": "選択したアカウントを削除",
@@ -88,11 +93,13 @@
     "selectedSummary_other": "{{selected}} 件を選択",
     "selectionEmpty": "アカウントが選択されていません",
     "selectionScope": "選択範囲",
-    "selectVisible": "表示中の結果を選択"
+    "selectVisible": "現在のリストをすべて選択"
   },
-  "currentLoginAdded": "⚠️{{siteName}} の現在のログインは一覧に追加済みです",
-  "currentSiteAdded": "⚠️{{siteName}} には保存済みアカウントがあります",
-  "currentSiteAddedCount_other": "⚠️このサイトには保存済みアカウントが {{count}} 件あります",
+  "currentLoginAdded": "{{siteName}} の現在のログインは一覧に追加済みです",
+  "currentSiteAdded": "{{siteName}} には保存済みアカウントがあります",
+  "currentSiteAddedCount_other": "このサイトには保存済みアカウントが {{count}} 件あります",
+  "currentSiteFilterAction": "表示",
+  "currentSiteFilterHint": "クリックしてこのサイトのアカウントを一覧から絞り込む",
   "description": "サイトのアカウントを管理し、残高、使用量、状態を確認します。",
   "emptyState": "まだアカウントがありません",
   "emptyStateDescription": "アカウントを追加すると、残高、稼働状況、API キー、使用状況をまとめて管理できます。",
@@ -100,10 +107,14 @@
     "checkIn": {
       "all": "すべてのチェックイン状態",
       "checked-in": "チェックイン済み",
+      "configuration": "設定待ち／方法が無効",
+      "manual": "照会不可",
       "not-checked-in": "未チェックイン",
-      "outdated": "状態期限切れ",
+      "outdated": "更新待ち",
+      "pending": "未照会",
       "placeholder": "チェックイン状態",
-      "status-unavailable": "ステータス取得不可",
+      "query-failed": "照会失敗",
+      "site-disabled": "サイトで無効",
       "unsupported": "未対応"
     },
     "disabled": {
@@ -204,7 +215,21 @@
     "resetSort": "既定の並び順に戻す",
     "site": {
       "checkedInToday": "本日はチェックイン済み、クリックして表示",
-      "checkInStatusOutdated": "本日のチェックイン状態はまだ検出されていません（前回確認時刻: {{time}}）。クリックして更新",
+      "checkInAccountDisabled": "アカウントが無効のため、自動チェックインは停止中です",
+      "checkInAutomationBlocked": "自動チェックインを実行できません：{{reason}}",
+      "checkInAutomationDisabled": "アカウントの自動チェックインは無効です",
+      "checkInAutomationEnabled": "アカウントの自動チェックインは有効です",
+      "checkInAutomationGloballyDisabled": "アカウントの自動チェックインは有効ですが、全体設定は無効です",
+      "checkInLastKnownChecked": "前回チェックイン済みと確認：{{time}}",
+      "checkInLastKnownNotChecked": "前回未チェックインと確認：{{time}}",
+      "checkInNeedsConfiguration": "自動チェックインの設定が必要です：{{reason}}。クリックしてアカウントを編集",
+      "checkInNeedsRedetection": "チェックイン方法の再検出が必要です：{{reason}}。クリックして再検出",
+      "checkInRefreshPartial": "{{accountName}} のアカウント情報は更新されましたが、チェックイン状態は更新できませんでした。再試行してください",
+      "checkInSiteDisabled": "サイトでチェックインが無効です。クリックしてサイトを確認",
+      "checkInStatusFailed": "チェックイン状態の更新に失敗しました（試行：{{time}}）。クリックして再試行",
+      "checkInStatusManual": "この方法では状態を照会できません。クリックしてサイトで確認",
+      "checkInStatusOutdated": "チェックイン状態の更新が必要です（最終確認：{{time}}）。クリックして更新",
+      "checkInStatusPending": "チェックイン状態は未確認です。クリックして更新",
       "currentSite": "現在のサイト",
       "currentSiteBoostHint": "現在のサイトでログイン中のアカウントに一致するため、他のアカウントより先に表示されます。無効なアカウントは末尾に残ります。",
       "currentSiteExists": "現在のタブと同じサイトです",
@@ -223,7 +248,11 @@
     "sortMenu": "並び替え",
     "toggleSortOrder": "昇順・降順を切り替え"
   },
+  "popupOnboarding": {
+    "signInHint": "API サイトにログインしてから、自動検出または手動入力でアカウントを追加してください。"
+  },
   "refresh": {
+    "checkInStatusFailed_other": "{{count}} 件のアカウントのチェックイン状態を更新できませんでした。再試行してください",
     "refreshComplete": "更新完了: 成功 {{success}} 件、失敗 {{failed}} 件",
     "refreshDisabledComplete": "無効アカウントの再検出が完了しました: {{restored}} 件を復旧、{{stillDisabled}} 件は無効のまま",
     "refreshDisabledCompleteWithFailures": "無効アカウントの再検出が完了しました: {{restored}} 件を復旧、{{stillDisabled}} 件は無効のまま、{{failed}} 件失敗",
@@ -249,6 +278,15 @@
       "description": "プロバイダーのサイトで登録し、カードの案内に従ってアカウントの追加、API 認証情報の保存、またはサイトのブックマークを行えます。",
       "title": "利用可能なプロバイダーを探す"
     },
+    "openWorkflowFailed": "追加画面を開けませんでした。もう一度お試しください。",
+    "popupApiCredentialProfiles": {
+      "description": "開発用 API または Coding Plan の枠が必要ですか？Base URL の自動入力とキー取得リンクに対応：",
+      "title": "おすすめプロバイダーとサブスクリプション"
+    },
+    "popupBookmarks": {
+      "description": "ワンクリックでブックマークに追加し、いつでも素早くアクセス：",
+      "title": "おすすめサイト"
+    },
     "recommendedProviders": "おすすめプロバイダー",
     "supportStatus": {
       "fallbackApiCredentialProfiles": "認証情報として追加可能",
@@ -259,17 +297,44 @@
     }
   },
   "stats": {
+    "allowanceExpiry": "有効期限：{{time}}",
+    "allowanceReset": "リセット：{{time}}",
+    "allowances": "利用枠の詳細",
+    "allowanceScope": "クォータグループ：{{scope}}",
     "completion": "補完",
     "estimatedTodayIncome": "推定収入",
+    "groupAllowance": "グループ枠",
+    "nativeCredits": "クレジット",
+    "nativeCreditsDetail": "永久 {{permanent, number}} · 本日 {{daily, number}}（翌日失効）",
+    "novitaBalance": {
+      "available": "利用可能残高",
+      "cash": "チャージ残高",
+      "creditLimit": "信用枠（債務上限）",
+      "description": "利用可能残高は Novita が返す値を使用します。チャージ残高は入金した資金の残額、信用枠は支払いを繰り延べられる上限です。拡張機能では現在、Novita の残高を合計残高、残高履歴、収入推定に含めていません。",
+      "title": "残高の詳細"
+    },
+    "permanentAllowance": "永久枠",
     "prompt": "プロンプト",
-    "subscriptionInactive": "未有効または期限切れ",
+    "scopedAllowances": "グループやプランの利用枠には利用制限がある場合があります。ネイティブ利用枠は残高合計・残高履歴・収入推計に含まれません。",
     "subscriptionRemainingCount": "サブスクリプション残り回数",
+    "subscriptionRemainingTokens": "残りのトークン（プールとキーの合計）。ドル残高は無料分を含む公式価格での換算額です。",
+    "subscriptionState": {
+      "active": "サブスクリプション有効",
+      "expired": "サブスクリプション期限切れ",
+      "grace": "サブスクリプション猶予期間",
+      "inactive": "有効なサブスクリプションなし",
+      "unavailable": "サブスクリプション状態を取得できません"
+    },
     "subscriptionStatus": "サブスクリプション状態",
     "subscriptionTitle": "サブスクリプション",
+    "timedAllowance": "期限付き枠",
+    "timedDetailsUnavailable": "期限付き枠の詳細を取得できません。アカウントを更新してください。",
     "todayConsumption": "本日の消費",
     "todayIncome": "本日の収入",
+    "tokenCredit": "トークン",
     "totalBalance": "総残高",
     "trustedTodayIncome": "信頼済み収入",
+    "unlockedModels": "利用可能になったモデル：{{models}}",
     "usageRequests": "期間内リクエスト",
     "usageTokens": "期間内トークン"
   },

@@ -17,7 +17,7 @@
     },
     "actions": {
       "addAccount": "添加账号",
-      "addProfile": "添加凭据",
+      "addProfile": "添加 API 凭据",
       "editAccount": "编辑账号",
       "fixAccount": "修复账号",
       "handleCheckIn": "处理签到",
@@ -35,7 +35,7 @@
       "title": "还没有账号"
     },
     "addProfile": {
-      "description": "添加 API 凭据后，可在工具和导出流程中复用。",
+      "description": "凭据库存放 API Key、coding plan Key 等各类 Key，并集中监控余额与用量：coding plan 的 5 小时 / 7 天 / 每月额度还剩多少，一眼就能看到。",
       "title": "还没有 API 凭据"
     },
     "autoCheckinGloballyDisabled": {
@@ -71,6 +71,10 @@
     },
     "filterAll": "全部",
     "severityFilterLabel": "严重度",
+    "siteTypeMismatch": {
+      "description": "该站点本身对应「{{suggestedType}}」，而账号当前是「{{storedType}}」。请编辑账号并把站点类型改为「{{suggestedType}}」。",
+      "title": "{{name}} 的站点类型可能不正确"
+    },
     "siteTypeUnknown": {
       "description": "自动签到暂时无法确定该站点的协议。请编辑账号并选择正确的站点类型，或重新自动识别。",
       "title": "{{name}} 的站点类型未知"
@@ -121,6 +125,7 @@
     "summary": "自动签到运行概况"
   },
   "automation": {
+    "automaticEnabled": "自动执行已开启",
     "empty": {
       "autoCheckin": {
         "disabled": "想自动领取签到奖励时，先开启自动签到。之后这里会显示下次计划和执行结果。"
@@ -163,11 +168,28 @@
         "strategy": "同步策略"
       }
     },
+    "metrics": {
+      "failed": "失败",
+      "skipped": "跳过",
+      "success": "成功",
+      "unsupported": "不支持"
+    },
     "neverChecked": "尚未检查",
     "openItem": "打开 {{name}}",
     "status": {
-      "enabled": "已启用"
-    }
+      "disabled": "已停用",
+      "failed": "运行失败",
+      "limited": "部分不支持",
+      "notRun": "等待首次运行",
+      "partial": "部分失败",
+      "ready": "已就绪",
+      "running": "正在运行",
+      "skipped": "未执行",
+      "success": "运行成功",
+      "unknown": "状态未知",
+      "unsupported": "暂不支持"
+    },
+    "statusUnavailable": "暂时无法读取执行状态，请打开详情查看或刷新后重试。"
   },
   "configurationOverview": {
     "accountFoundation": {
@@ -198,11 +220,11 @@
       }
     },
     "credentialAssets": {
-      "description": "API 凭据与账号密钥是否已经准备好。",
+      "description": "各类 Key 的存放，以及余额、额度和用量监控。",
       "label": "凭据资产",
       "state": {
         "disabled": "当前还没有可复用的凭据，请先检查账号或 API 凭据配置。",
-        "needs_setup": "添加 API 凭据后，就能在工具和导出流程中直接复用。",
+        "needs_setup": "保存一个 API 凭据（Base URL + API Key），就能集中监控余额、额度和用量。",
         "not_applicable": "当前环境不需要单独维护 API 凭据。"
       }
     },

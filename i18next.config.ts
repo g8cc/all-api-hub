@@ -15,16 +15,28 @@ export default defineConfig({
     defaultNS: "common",
     keySeparator: ".",
     nsSeparator: ":",
-    functions: ["t", "*.t", "i18next.t"],
+    // i18nT is the bound instance translator used by language-independent callbacks.
+    functions: ["t", "*.t", "i18next.t", "i18nT"],
     transComponents: ["Trans"],
     useTranslationNames: ["useTranslation"],
     preservePatterns: [
+      // Skip-reason labels are resolved from the reason-code map, so the
+      // extractor never sees them in a t() call.
+      "autoCheckin:skipReasons.*",
       // Search breadcrumbs still use this label after removing the sidebar footer.
       "ui:navigation.settings",
       // Search-only title; the provider link uses a separate interpolated label.
       "settings:managedSite.deploymentDocs",
       "settings:refresh.shieldAutomaticFeature*",
       "modelList:displayFacts.*",
+      // Account credential presentation comes from the site definition registry.
+      "accountDialog:form.openrouterManagementKey*",
+      "accountDialog:form.requestyManageKey*",
+      "accountDialog:form.autoCreateAccessToken*",
+      "accountDialog:form.vercelAccessToken*",
+      "accountDialog:form.novitaApiKey*",
+      "accountDialog:form.aimlApiManagementKey*",
+      "accountDialog:form.nanoGptApiKey*",
       "productTour:search.keywords.*",
     ],
     primaryLanguage: DEFAULT_LANG,

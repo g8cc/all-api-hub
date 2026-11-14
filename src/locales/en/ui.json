@@ -8,6 +8,57 @@
     "tokenBased": "Token-based billing"
   },
   "dialog": {
+    "aiToolbox": {
+      "actions": {
+        "export": "Export"
+      },
+      "appOptions": {
+        "claude": "Claude Code",
+        "claudedesktop": "Claude Desktop",
+        "codex": "Codex",
+        "dsh": "DeepSeek Harness",
+        "gemini": "Gemini CLI",
+        "grok": "Grok CLI",
+        "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "omp": "Oh My Pi",
+        "openclaw": "OpenClaw",
+        "opencode": "OpenCode",
+        "pi": "Pi"
+      },
+      "description": "Send this provider configuration directly to AI Toolbox via deep link",
+      "descriptions": {
+        "apiFormat": "AI Toolbox rebuilds the provider for the target app. Choose a protocol only when this provider does not use the app's default.",
+        "model": "When available, models are loaded from /v1/models for selection. You can also type a custom model id."
+      },
+      "fields": {
+        "apiFormat": "API protocol",
+        "app": "Target app",
+        "baseUrl": "API base URL",
+        "homepage": "Homepage URL",
+        "model": "Default model (optional)",
+        "name": "Provider name",
+        "notes": "Notes (optional)"
+      },
+      "formatOptions": {
+        "anthropicMessages": "Anthropic Messages",
+        "automatic": "Automatic (app default)",
+        "geminiNative": "Gemini Native",
+        "openAIChat": "OpenAI Chat Completions",
+        "openAIResponses": "OpenAI Responses"
+      },
+      "modelOptions": {
+        "none": "No default model"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com",
+        "homepage": "https://example.com",
+        "model": "e.g. claude-3-opus",
+        "name": "e.g. Acme Relay",
+        "notes": "Add import notes"
+      },
+      "title": "Export to AI Toolbox"
+    },
     "bookmarkAccountImport": {
       "actions": {
         "allowAndScan": "Choose bookmarks and start batch import",
@@ -18,22 +69,26 @@
         "collapseFolder": "Collapse folder",
         "expandAll": "Expand all",
         "expandFolder": "Expand folder",
-        "importSelected_one": "Import selected ({{count}})",
-        "importSelected_other": "Import selected ({{count}})",
+        "importSelected_one": "Add selected ({{count}})",
+        "importSelected_other": "Add selected ({{count}})",
         "invertSelected": "Invert selected",
-        "openAddAccount": "Open Add Account",
+        "openAddAccount": "Finish manually",
+        "retryFailed": "Retry incomplete items",
         "scanSelected": "Scan selected range",
         "selectAll": "Select all"
       },
       "apiUnavailable": "This browser does not expose native bookmarks to the extension.",
+      "bestEffortHelp": "We’ll do our best to add them automatically. Some sites may need you to sign in, complete verification, or fill in a few details.",
       "bookmarkCount_one": "{{count}} bookmark",
       "bookmarkCount_other": "{{count}} bookmarks",
-      "description": "Batch scan browser bookmark URLs and review account-site candidates before importing.",
+      "description": "Add accounts from your bookmarked sites in one batch.",
       "empty": "No browser bookmarks were returned.",
       "failures": {
-        "detection": "Auto-detect could not read this site.",
-        "save": "The account could not be saved.",
-        "unknown": "The import failed."
+        "detection": "A few account details are still needed. Retry or finish manually.",
+        "login": "Sign in to this site, then retry adding it.",
+        "save": "Check and complete the account details before adding it.",
+        "unknown": "Adding is not complete yet. Retry or finish manually.",
+        "verification": "This site needs verification. Choose “Finish manually” to continue."
       },
       "folderCount_one": "{{count}} folder",
       "folderCount_other": "{{count}} folders",
@@ -42,16 +97,17 @@
       "includeExisting": "Include sites that already have saved accounts",
       "initialSteps": {
         "chooseScope": "Choose bookmark folders",
-        "review": "Review import candidates",
+        "review": "Review sites to add",
         "skipExisting": "Skip existing accounts by default"
       },
-      "initialValue": "Batch scan browser bookmarks and turn saved relay sites into account candidates. You choose the bookmark folders first, review the candidates before importing, and existing accounts are skipped by default.",
+      "initialValue": "Choose your bookmarked relay sites, review the list, and add them together. Existing accounts are skipped by default.",
       "noCandidates": "No importable web bookmark URLs were found.",
       "permissionDenied": "Bookmark permission was not granted. You can try again without closing this dialog.",
       "permissionNeeded": "Bookmark access is optional and is requested only for this batch import.",
       "readFailed": "The browser bookmark tree could not be read.",
+      "recoveryHelp": "For the remaining accounts, sign in and retry or choose “Finish manually” to continue.",
       "reloadFailed": "The import finished, but account data could not be reloaded. Refresh the account list and try again if the new accounts are not visible.",
-      "resultSummary": "Imported {{success}}, failed {{failed}}, skipped {{skipped}}.",
+      "resultSummary": "Added {{success}}, incomplete {{failed}}, skipped {{skipped}}.",
       "scanning": "Scanning browser bookmarks...",
       "scopeHelp": "Scanning only creates a preview. You can return here to adjust the selection before importing.",
       "searchEmpty": "No matching bookmark scopes",
@@ -63,7 +119,7 @@
         "duplicate_one": "Skipped by default. Existing saved-account match count: {{count}}",
         "duplicate_other": "Skipped by default. Existing saved-account match count: {{count}}",
         "imported": "Imported",
-        "ready": "Ready to import"
+        "ready": "To add"
       },
       "title": "Import accounts from bookmarks",
       "untitledFolder": "Untitled folder"
@@ -73,13 +129,20 @@
         "export": "Export"
       },
       "appOptions": {
+        "agy": "Antigravity",
         "claude": "Claude",
+        "claudeDesktop": "Claude Desktop",
         "codex": "Codex",
+        "dsh": "DeepSeek Harness",
         "gemini": "Gemini",
         "grokbuild": "Grok CLI",
         "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "mcode": "MiniMax Code",
+        "omp": "Oh My Pi",
         "openclaw": "OpenClaw",
-        "opencode": "OpenCode"
+        "opencode": "OpenCode",
+        "pi": "Pi"
       },
       "description": "Send this provider configuration directly to CC Switch via deep link",
       "descriptions": {
@@ -89,7 +152,7 @@
         "app": "Target app",
         "endpoint": "API endpoint",
         "homepage": "Homepage URL",
-        "model": "Default model (optional)",
+        "model": "Default model",
         "name": "Provider name",
         "notes": "Notes (optional)"
       },
@@ -97,7 +160,9 @@
         "none": "No default model"
       },
       "notices": {
+        "claudeDesktop": "Requires CC Switch v4.0.26 or later. Uses the Anthropic API format. Claude model names (claude-*) or no model import as a direct connection; other model names import as model mappings through CC Switch’s local router.",
         "hermes": "CC Switch imports Hermes using the Chat Completions protocol. During export, the provider name is converted to a valid identifier containing only lowercase letters, numbers, and hyphens. To use another format, such as Anthropic Messages or Codex Responses, adjust it in CC Switch after import.",
+        "modelRequired": "Requires CC Switch v4.0.26 or later. Select or enter a model before export. Uses the OpenAI Chat Completions API format.",
         "openclaw": "CC Switch currently does not support configuring OpenClaw AI service API formats through external import. Adjust it in CC Switch after import if needed.",
         "opencode": "CC Switch currently does not support configuring OpenCode AI service API formats through external import. Adjust it in CC Switch after import if needed."
       },
@@ -148,6 +213,7 @@
       "keyCopied": "Key copied to clipboard",
       "loadFailed": "Failed to load key list: {{error}}",
       "loading": "Loading key list...",
+      "managementConfigurationRequired": "Loading and managing the site’s key list requires a management token. Saved API keys can still be used independently.",
       "noKeyFoundAfterCreate": "No key was found after creating one. Please try again.",
       "noKeys": "No key data yet",
       "noKeysDescription": "Create a default key quickly, or create a custom key with advanced settings.",
@@ -286,11 +352,15 @@
     "expand": "Expand",
     "firefox": {
       "confirm": "Confirm",
+      "howOpenOptions": "Continue in full page",
       "howOpenSidebar": "How to Open Sidebar",
       "limitation": "Firefox Browser Feature Limitation",
+      "openFailed": "Unable to open the side panel or full page. Please try again.",
+      "openOptions": "Continue in full page",
       "openSidebar": "Open Sidebar",
-      "popupLimitation": "This feature cannot be used normally in the popup of Firefox browser. Please use the sidebar mode to add accounts",
-      "sidebarInstruction": "Click on the extension icon in the browser toolbar, then select the 'Sidebar' option to open the sidebar mode",
+      "optionsInstruction": "Use the button below to open the extension’s full account management page.",
+      "popupLimitation": "The Firefox popup may close when another page opens. Add accounts in the side panel or full page.",
+      "sidebarInstruction": "Use the button below to continue in the side panel. If it cannot open, the full page will open instead.",
       "warningTitle": "Feature Limitation Reminder"
     },
     "kelivo": {
@@ -420,27 +490,32 @@
       "titleWithCookieInterceptor": "Automatic refresh needs site verification"
     },
     "updateLog": {
-      "autoOpenSetting": "Update log auto-open",
-      "disableAutoOpen": "Don't show after updates",
-      "enableAutoOpen": "Re-enable after updates",
       "loading": "Loading changelog…",
-      "missingSection": "Couldn't load the changelog preview for v{{version}}. You can open the full changelog.",
-      "openFullChangelog": "Open full changelog",
-      "starPrompt": "Finding All API Hub useful? Star it on GitHub to follow along",
+      "missingSection": "The changelog for v{{version}} is taking longer to load. You can open the full changelog.",
+      "openFullChangelog": "View full changelog",
+      "starPrompt": "Star on GitHub to support continued improvements",
       "title": "What's New",
       "updatedTo": "Updated to v{{version}}"
     }
   },
   "feedback": {
     "bugReport": "Report a bug",
+    "clickAnywhereToClose": "Click anywhere to close",
     "community": "Community groups",
+    "communityUnavailable": "Community links could not be loaded. Open the community page for current invitations.",
     "discussion": "Start a discussion",
     "featureRequest": "Request a feature",
     "languageRequest": "Request a new language",
+    "openCommunityPage": "Open community page",
     "siteSupportRequest": "Request site support",
+    "sponsor": "Sponsor",
+    "sponsorTitle": "View sponsors and support",
     "starOnGithub": "Star on GitHub",
     "trigger": "Feedback",
-    "triggerTooltip": "Open feedback shortcuts"
+    "triggerTooltip": "Open feedback shortcuts",
+    "wechat": "WeChat group",
+    "wechatHelp": "Group invite expired or group full? Scan the personal QR code in the image to add the contact and ask for an invitation, or visit the community page.",
+    "wechatUnavailable": "The QR code could not be loaded."
   },
   "modelListInput": {
     "actions": {
@@ -492,6 +567,7 @@
     "basic": "Settings",
     "batchCheckin": "Batch Check-in",
     "bookmark": "Bookmark Management",
+    "browserApiLab": "Browser API Lab (Dev)",
     "categories": {
       "api": "API",
       "automation": "Automation",
@@ -547,10 +623,12 @@
   "popupInterruption": {
     "actions": {
       "keepPopup": "Keep popup",
-      "useSidepanel": "Use sidebar"
+      "useOptions": "Continue in full page",
+      "useSidepanel": "Continue in side panel"
     },
-    "description": "The popup closed while account auto-detect was running. Use the sidebar for a steadier add-account flow.",
-    "settingName": "Toolbar click behavior",
+    "description": "The popup closed during account auto-detection. Continue adding the account in the side panel, with a full-page fallback if it cannot open.",
+    "openFailed": "Unable to open the side panel or full page. Please try again.",
+    "optionsDescription": "The popup closed during account auto-detection. Continue adding the account in the full page.",
     "title": "Auto-detect may have been interrupted"
   },
   "repeatableInput": {
@@ -568,6 +646,13 @@
   },
   "searchableSelect": {
     "empty": "No results found",
+    "fetchDetails": "Error details",
+    "fetchEmpty": "The request succeeded but returned no models.",
+    "fetchEmptyLabel": "Empty list",
+    "fetchFailed": "Failed to fetch the list.",
+    "fetchSuccess_one": "Fetched {{count}} model.",
+    "fetchSuccess_other": "Fetched {{count}} models.",
+    "manualInputHint": "You can enter a model ID directly.",
     "noOptions": "No options available",
     "noOptionsAllowCustom": "No options available. Type to create one",
     "searchPlaceholder": "Search...",
@@ -575,6 +660,7 @@
   },
   "secretList": {
     "add": "Add key",
+    "clearedState": "The saved key will be cleared",
     "collapse": "Collapse API Key {{number}}",
     "configured": "Configured",
     "enableKey": "Enable this key",
@@ -582,6 +668,7 @@
     "hide": "Hide key",
     "keepPlaceholder": "Leave blank to keep the saved key",
     "loadFailed": "Could not load this key. Try again.",
+    "maskedOnly": "Only the masked value is available for this saved key.",
     "newPlaceholder": "Enter API key",
     "newState": "New, not saved",
     "previousDisableReason": "Previous disable reason: {{reason}}",
@@ -594,6 +681,12 @@
     "show": "Show key",
     "title": "API Keys"
   },
+  "sidebarFooter": {
+    "community": "Community",
+    "docs": "Docs",
+    "github": "GitHub",
+    "sponsor": "Sponsor"
+  },
   "starPromotion": {
     "actions": {
       "alreadyStarred": "I've already starred",
@@ -602,7 +695,7 @@
       "star": "Star on GitHub"
     },
     "cardDescription": "Fully open source, still adapting to more sites and polishing the experience. A star sustains its upkeep and helps more people who need it find it.",
-    "cardTitle": "Finding All API Hub useful?"
+    "cardTitle": "Support continued improvements"
   },
   "textEntries": {
     "add": "Add row",

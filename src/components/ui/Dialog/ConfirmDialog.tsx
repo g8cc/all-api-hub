@@ -1,11 +1,15 @@
 import { CircleHelp, TriangleAlert, type LucideIcon } from "lucide-react"
-import type { ReactNode } from "react"
+import { isValidElement, type ReactElement, type ReactNode } from "react"
 
 import { ActionGroup } from "~/components/ui/ActionGroup"
 import { Button } from "~/components/ui/button"
 import { Modal } from "~/components/ui/Dialog/Modal"
 
 interface ConfirmDialogProps {
+  /** Preserve focus across a confirmed operation and its successor dialog. */
+  focusWorkflowId?: string | number
+  terminalCloseKey?: string | number | null
+  panelTestId?: string
   /**
    * Keeps the header and confirm button consistent; defaults to a general confirmation.
    */
@@ -35,6 +39,8 @@ interface ConfirmDialogProps {
    * Label for the confirm button.
    */
   confirmLabel: string
+  /** Preparation can block confirmation while cancellation remains available. */
+  confirmDisabled?: boolean
   /**
    * Optional label shown while the action is in progress.
    */
@@ -68,15 +74,15 @@ interface ConfirmDialogProps {
    */
   cancelButtonTestId?: string
   /**
-   * Optional action-specific header icon; its color follows the action intent.
+   * Optional header icon. Lucide icons follow the intent color; custom elements retain their branding.
    */
-  icon?: LucideIcon
+  icon?: LucideIcon | ReactElement
 }
 
 const intentPresentation = {
   confirm: {
     icon: CircleHelp,
-    iconClassName: "text-primary",
+    iconClassName: "text-link",
     confirmVariant: "default",
   },
   warning: {
@@ -96,6 +102,9 @@ const intentPresentation = {
  * and consistent header and button presentation.
  */
 export function ConfirmDialog({
+  focusWorkflowId,
+  terminalCloseKey,
+  panelTestId,
   intent = "confirm",
   isOpen,
   onClose,
@@ -103,6 +112,7 @@ export function ConfirmDialog({
   description,
   warningTitle,
   confirmLabel,
+  confirmDisabled = false,
   workingLabel,
   cancelLabel,
   onConfirm,
@@ -114,10 +124,15 @@ export function ConfirmDialog({
   icon,
 }: ConfirmDialogProps) {
   const presentation = intentPresentation[intent]
-  const Icon = icon ?? presentation.icon
+  const Icon = isValidElement(icon)
+    ? presentation.icon
+    : icon ?? presentation.icon
 
   return (
     <Modal
+      focusWorkflowId={focusWorkflowId}
+      terminalCloseKey={terminalCloseKey}
+      panelTestId={panelTestId}
       isOpen={isOpen}
       onClose={onClose}
       title={title}
@@ -126,13 +141,21 @@ export function ConfirmDialog({
       showCloseButton={!isWorking}
       size={size}
       header={
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Icon
-              className={`h-5 w-5 ${presentation.iconClassName}`}
-              aria-hidden="true"
-            />
-            <h2 className="text-foreground text-lg font-semibold">{title}</h2>
+        <div className="flex min-w-0 items-center justify-between pr-8">
+          <div className="flex min-w-0 items-center space-x-3">
+            {isValidElement(icon) ? (
+              <span aria-hidden="true" className="shrink-0">
+                {icon}
+              </span>
+            ) : (
+              <Icon
+                className={`h-5 w-5 shrink-0 ${presentation.iconClassName}`}
+                aria-hidden="true"
+              />
+            )}
+            <h2 className="text-foreground min-w-0 text-lg font-semibold break-words">
+              {title}
+            </h2>
           </div>
         </div>
       }
@@ -156,6 +179,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             variant={presentation.confirmVariant}
             className="flex-1"
+            disabled={confirmDisabled}
             loading={isWorking}
             data-testid={confirmButtonTestId}
             data-variant={presentation.confirmVariant}

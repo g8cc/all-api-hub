@@ -2,11 +2,19 @@
 
 import { Storage } from "@plasmohq/storage"
 
-import { CHECK_IN_SELECTION_MODES } from "~/constants/checkIn"
+import {
+  AUTO_CHECKIN_METHOD_IDS,
+  CHECK_IN_SELECTION_MODES,
+} from "~/constants/checkIn"
 import { DEFAULT_USD_TO_CNY_RATE } from "~/constants/money"
 import type { AccountSiteType } from "~/constants/siteType"
 import { accountMutations } from "~/services/accounts/accountStorage/accountMutations"
 import { accountQueries } from "~/services/accounts/accountStorage/accountQueries"
+import {
+  DEV_CHECK_IN_FIXTURE_ORIGIN,
+  DEV_CHECK_IN_FIXTURE_SITE_TYPE,
+  DEV_CHECK_IN_SCENARIOS,
+} from "~/services/checkin/autoCheckin/discovery/devDiscoveryFixtureIdentity"
 import { STORAGE_KEYS, STORAGE_LOCKS } from "~/services/core/storageKeys"
 import { withExtensionStorageWriteLock } from "~/services/core/storageWriteLock"
 import {
@@ -124,7 +132,7 @@ class DevFixtureAccountRegistry {
       )
     } catch (error) {
       logger.warn("Failed to read dev fixture account registry", error)
-      return []
+      throw error
     }
   }
 
@@ -156,7 +164,7 @@ const fixtureAccountRegistry = new DevFixtureAccountRegistry()
 async function readLiveFixtureAccounts(): Promise<SiteAccount[]> {
   const [ids, accounts] = await Promise.all([
     fixtureAccountRegistry.read(),
-    accountQueries.getAllAccounts(),
+    accountQueries.getAllAccountsOrThrow(),
   ])
   const idSet = new Set(ids)
   return accounts.filter((account) => idSet.has(account.id))
@@ -168,6 +176,9 @@ const buildFixtureAccountData = (
 ): FixtureAccountData => {
   const serial = String(index + 1).padStart(2, "0")
   const variant = FIXTURE_VARIANTS[index % FIXTURE_VARIANTS.length]
+  if (!variant) {
+    throw new Error("FIXTURE_VARIANTS must define at least one variant")
+  }
 
   // Ages vary backwards from now so freshness and relative-time states are
   // realistic; a future timestamp would make every fixture look "just synced".
@@ -237,6 +248,34 @@ export async function addDevFixtureAccounts(count: number): Promise<number> {
 
   if (addedIds.length > 0) {
     await fixtureAccountRegistry.add(addedIds)
+  }
+  return addedIds.length
+}
+
+/** Adds scenarios that exercise real redetection entry points without a remote deployment. */
+export async function addDevCheckInFixtureAccounts(): Promise<number> {
+  if (!import.meta.env.DEV) return 0
+  const addedIds: string[] = []
+  try {
+    for (const scenario of DEV_CHECK_IN_SCENARIOS) {
+      const data = buildFixtureAccountData(0, Date.now())
+      data.site_name = `Dev Check-in: ${scenario.label}`
+      data.site_url = DEV_CHECK_IN_FIXTURE_ORIGIN
+      data.site_type = DEV_CHECK_IN_FIXTURE_SITE_TYPE
+      data.notes = `${DEV_FIXTURE_NOTES_LABEL}: check-in ${scenario.id}`
+      data.account_info.id = `dev-checkin-${scenario.id}`
+      data.account_info.access_token = `dev-checkin-${scenario.id}`
+      data.account_info.username = `dev_checkin_${scenario.id}`
+      // These fixtures test discovery only; unattended execution stays off.
+      if (scenario.id === "manual")
+        data.checkIn.selection = {
+          mode: CHECK_IN_SELECTION_MODES.Manual,
+          methodId: AUTO_CHECKIN_METHOD_IDS.GeniusProgrammerDailyCheckIn,
+        }
+      addedIds.push(await accountMutations.addAccount(data))
+    }
+  } finally {
+    if (addedIds.length) await fixtureAccountRegistry.add(addedIds)
   }
   return addedIds.length
 }

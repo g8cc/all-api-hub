@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   createAnthropic: vi.fn(),
-  createGoogleGenerativeAI: vi.fn(),
+  createGoogle: vi.fn(),
   createOpenAI: vi.fn(),
   createOpenAICompatible: vi.fn(),
 }))
@@ -12,7 +12,7 @@ vi.mock("@ai-sdk/anthropic", () => ({
 }))
 
 vi.mock("@ai-sdk/google", () => ({
-  createGoogleGenerativeAI: mocks.createGoogleGenerativeAI,
+  createGoogle: mocks.createGoogle,
 }))
 
 vi.mock("@ai-sdk/openai", () => ({
@@ -24,25 +24,77 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
 }))
 
 describe("aiApiVerification providers", () => {
+  it.each(["openai", "openai-compatible", "anthropic", "google"] as const)(
+    "applies header overrides to %s SDK requests",
+    async (apiType) => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response("ok"))
+      vi.stubGlobal("fetch", fetchMock)
+      const { createModel } = await import(
+        "~/services/verification/aiApiVerification/providers"
+      )
+      const model = createModel({
+        apiType,
+        baseUrl: "https://headers.example",
+        apiKey: "key",
+        modelId: "test",
+        requestHeaders: { "x-client": "credential" },
+      }) as unknown as { config: { fetch: typeof fetch } }
+      await model.config.fetch("https://headers.example/v1/test", {
+        method: "POST",
+        body: "{}",
+      })
+      const [input, init] = fetchMock.mock.calls[0] as unknown as [
+        RequestInfo,
+        RequestInit,
+      ]
+      const headers = new Headers(
+        init?.headers ?? (input instanceof Request ? input.headers : undefined),
+      )
+      expect(headers.get("x-client")).toBe("credential")
+      expect(init.redirect).toBe("error")
+    },
+  )
   beforeEach(() => {
     vi.unstubAllGlobals()
     vi.resetModules()
     vi.clearAllMocks()
 
     mocks.createOpenAICompatible.mockImplementation((config) => {
-      return (modelId: string) => ({
+      const fn: any = (modelId: string) => ({
         provider: "openai-compatible",
         config,
         modelId,
       })
+      fn.imageModel = (modelId: string) => ({
+        provider: "openai-compatible-image",
+        config,
+        modelId,
+      })
+      fn.textEmbeddingModel = (modelId: string) => ({
+        provider: "openai-compatible-embedding",
+        config,
+        modelId,
+      })
+      return fn
     })
 
     mocks.createOpenAI.mockImplementation((config) => {
-      return (modelId: string) => ({
+      const fn: any = (modelId: string) => ({
         provider: "openai",
         config,
         modelId,
       })
+      fn.imageModel = (modelId: string) => ({
+        provider: "openai-image",
+        config,
+        modelId,
+      })
+      fn.textEmbeddingModel = (modelId: string) => ({
+        provider: "openai-embedding",
+        config,
+        modelId,
+      })
+      return fn
     })
 
     mocks.createAnthropic.mockImplementation((config) => {
@@ -53,12 +105,18 @@ describe("aiApiVerification providers", () => {
       })
     })
 
-    mocks.createGoogleGenerativeAI.mockImplementation((config) => {
-      return (modelId: string) => ({
+    mocks.createGoogle.mockImplementation((config) => {
+      const fn: any = (modelId: string) => ({
         provider: "google",
         config,
         modelId,
       })
+      fn.textEmbeddingModel = (modelId: string) => ({
+        provider: "google-embedding",
+        config,
+        modelId,
+      })
+      return fn
     })
   })
 
@@ -70,7 +128,7 @@ describe("aiApiVerification providers", () => {
     expect(
       createModel({
         apiType: "openai-compatible",
-        baseUrl: "https://proxy.example.com/api/",
+        baseUrl: "https://proxy.example.com/api/v1/",
         apiKey: "sk-compatible",
         modelId: "gpt-4.1",
       }),
@@ -81,6 +139,7 @@ describe("aiApiVerification providers", () => {
         name: "all-api-hub",
         baseURL: "https://proxy.example.com/api/v1",
         apiKey: "sk-compatible",
+        fetch: expect.any(Function),
       },
     })
   })
@@ -122,6 +181,7 @@ describe("aiApiVerification providers", () => {
       config: {
         baseURL: "https://openai-proxy.example.com/v1",
         apiKey: "sk-openai",
+        fetch: expect.any(Function),
       },
     })
   })
@@ -134,7 +194,7 @@ describe("aiApiVerification providers", () => {
     expect(
       createModel({
         apiType: "anthropic",
-        baseUrl: "https://anthropic-proxy.example.com/custom",
+        baseUrl: "https://anthropic-proxy.example.com/custom/v1",
         apiKey: "sk-anthropic",
         modelId: "claude-3-7-sonnet",
       }),
@@ -208,7 +268,7 @@ describe("aiApiVerification providers", () => {
     expect(
       createModel({
         apiType: "anthropic",
-        baseUrl: "https://ark.cn-beijing.volces.com/api/compatible",
+        baseUrl: "https://ark.cn-beijing.volces.com/api/compatible/v1",
         apiKey: "sk-cli",
         modelId: "claude-test",
       }),
@@ -292,7 +352,7 @@ describe("aiApiVerification providers", () => {
     )
 
     const openAIProvider = createOpenAIProvider({
-      baseUrl: "https://proxy.example.com/custom/",
+      baseUrl: "https://proxy.example.com/custom/v1/",
       apiKey: "sk-openai",
     })
     const googleProvider = createGoogleProvider({
@@ -306,6 +366,7 @@ describe("aiApiVerification providers", () => {
       config: {
         baseURL: "https://proxy.example.com/custom/v1",
         apiKey: "sk-openai",
+        fetch: expect.any(Function),
       },
     })
     expect(googleProvider("gemini-2.0-flash")).toEqual({
@@ -317,5 +378,49 @@ describe("aiApiVerification providers", () => {
         fetch: expect.any(Function),
       },
     })
+  })
+
+  it("rejects unsupported image models for non-OpenAI-compatible APIs", async () => {
+    const { createImageModel } = await import(
+      "~/services/verification/aiApiVerification/providers"
+    )
+
+    expect(() =>
+      createImageModel({
+        apiType: "anthropic",
+        baseUrl: "https://anthropic.example",
+        apiKey: "sk-ant",
+        modelId: "claude-3-7-sonnet",
+      }),
+    ).toThrow("Image model is not supported for anthropic")
+  })
+
+  it("creates text embedding models for OpenAI and rejects unsupported APIs", async () => {
+    const { createEmbeddingModel } = await import(
+      "~/services/verification/aiApiVerification/providers"
+    )
+
+    const model = createEmbeddingModel({
+      apiType: "openai",
+      baseUrl: "https://openai.example",
+      apiKey: "sk-openai",
+      modelId: "text-embedding-3-small",
+    })
+    expect(model).toEqual({
+      provider: "openai-embedding",
+      modelId: "text-embedding-3-small",
+      config: expect.objectContaining({
+        apiKey: "sk-openai",
+      }),
+    })
+
+    expect(() =>
+      createEmbeddingModel({
+        apiType: "anthropic",
+        baseUrl: "https://anthropic.example",
+        apiKey: "sk-ant",
+        modelId: "voyage-3",
+      }),
+    ).toThrow("Embedding model is not supported for anthropic")
   })
 })

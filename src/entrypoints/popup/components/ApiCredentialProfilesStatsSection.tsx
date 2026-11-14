@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 
 import { BodySmall, Caption } from "~/components/ui"
 import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
-import { useApiCredentialProfiles } from "~/features/ApiCredentialProfiles/hooks/useApiCredentialProfiles"
+import { useApiCredentialProfiles } from "~/features/ApiCredentialProfiles/workspace/useApiCredentialProfiles"
 import { cn } from "~/lib/utils"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
@@ -13,7 +13,7 @@ import {
   PRODUCT_ANALYTICS_RESULTS,
   PRODUCT_ANALYTICS_SURFACE_IDS,
 } from "~/services/productAnalytics/contracts"
-import { trackProductAnalyticsEvent } from "~/services/productAnalytics/dispatch"
+import { trackProductAnalyticsEvent } from "~/services/productAnalytics/runtime/dispatch"
 import { SiteHealthStatus } from "~/types"
 import { API_CREDENTIAL_TELEMETRY_FACT_UNITS } from "~/types/apiCredentialProfiles"
 import { formatTelemetryMoney } from "~/utils/core/money"
@@ -149,6 +149,8 @@ export default function ApiCredentialProfilesStatsSection() {
     uniqueBaseUrlsCount,
     usedTagsCount,
   ])
+
+  if (profiles.length === 0) return null
 
   return (
     <div className="space-y-density-3">

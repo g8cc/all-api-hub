@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react"
 import React from "react"
 import { describe, expect, it, vi } from "vitest"
 
-import { ProbeStatusBadge } from "~/components/dialogs/VerifyApiDialog/ProbeStatusBadge"
-import { VerificationStatusBadge } from "~/components/dialogs/VerifyApiDialog/VerificationStatusBadge"
+import { ProbeStatusBadge } from "~/features/Verification/api/ProbeStatusBadge"
+import { VerificationStatusBadge } from "~/features/Verification/api/VerificationStatusBadge"
 
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>()
@@ -16,7 +16,8 @@ vi.mock("react-i18next", async (importOriginal) => {
   }
 })
 
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("lucide-react")>()),
   CircleCheck: (props: React.SVGProps<SVGSVGElement>) => (
     <svg data-testid="check-circle-icon" {...props} />
   ),
@@ -54,6 +55,24 @@ describe("VerificationStatusBadge", () => {
     expect(passBadge).toHaveAttribute("data-size", "sm")
   })
 
+  it("renders latency directly in the badge when provided", () => {
+    render(<VerificationStatusBadge status="pass" latencyMs={1200} />)
+
+    expect(screen.getByText("1.2s")).toBeInTheDocument()
+    expect(screen.getByText("verifyDialog.status.pass")).not.toHaveClass(
+      "sr-only",
+    )
+  })
+
+  it("formats sub-second latency in milliseconds", () => {
+    render(<VerificationStatusBadge status="pass" latencyMs={350} />)
+
+    expect(screen.getByText("350ms")).toBeInTheDocument()
+    expect(screen.getByText("verifyDialog.status.pass")).not.toHaveClass(
+      "sr-only",
+    )
+  })
+
   it.each([
     ["unsupported", "verifyDialog.status.unsupported"],
     ["unverified", "verifyDialog.status.unverified"],
@@ -86,6 +105,57 @@ describe("VerificationStatusBadge", () => {
 })
 
 describe("ProbeStatusBadge", () => {
+  it.each([
+    [
+      "verifyDialog.summaries.stopped",
+      "verifyDialog.status.stopped",
+      "unsupported",
+    ],
+    [
+      "verifyDialog.summaries.requestTimedOut",
+      "verifyDialog.status.timeout",
+      "fail",
+    ],
+  ] as const)(
+    "shows the specific result for %s",
+    (summaryKey, label, status) => {
+      render(
+        <ProbeStatusBadge
+          result={{
+            id: "text-generation",
+            status,
+            latencyMs: 0,
+            summary: "diagnostic",
+            summaryKey,
+          }}
+        />,
+      )
+      expect(screen.getByText(label)).toBeVisible()
+    },
+  )
+  it.each(["streaming", "non-streaming"] as const)(
+    "keeps the recorded %s mode inside the result badge",
+    (mode) => {
+      render(
+        <ProbeStatusBadge
+          result={{
+            id: "text-generation",
+            status: "pass",
+            latencyMs: 1200,
+            summary: "Completed",
+            mode,
+          }}
+        />,
+      )
+      const latencyBadge = screen.getByText("1.2s").closest("[data-variant]")
+      expect(latencyBadge).toHaveTextContent(
+        mode === "streaming"
+          ? "aiApiVerification:verifyDialog.modes.streaming"
+          : "aiApiVerification:verifyDialog.modes.nonStreaming",
+      )
+    },
+  )
+
   it("forwards the probe result status to the shared badge", () => {
     render(
       <ProbeStatusBadge

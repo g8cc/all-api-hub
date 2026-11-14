@@ -1,3 +1,4 @@
+import { type ACCOUNT_LOGIN_METHODS } from "~/constants/accountLogin"
 import type { AccountLoginProvider } from "~/constants/accountLogin"
 import type {
   AUTO_CHECKIN_METHOD_IDS,
@@ -10,18 +11,18 @@ import type {
   CHECK_IN_METHOD_STATUS_OUTCOMES,
   CHECK_IN_METHOD_TODAY_STATUSES,
   CHECK_IN_METHOD_UNKNOWN_REASONS,
+  CHECK_IN_ROUTE_OVERRIDE_SOURCES,
   CHECK_IN_SELECTION_MODES,
   CHECK_IN_SELECTION_STALE_REASONS,
   CHECK_IN_SELECTION_STATUSES,
+  CHECK_IN_STATUS_REFRESH_OUTCOMES,
 } from "~/constants/checkIn"
-import type { BrowserCheckInConfig } from "~/types/checkinAutomation"
 import type { TurnstilePreTrigger } from "~/types/turnstile"
 
 /** Independent user-owned custom check-in/bookmark configuration. */
 export interface CustomCheckInConfig {
   url?: string
   turnstilePreTrigger?: TurnstilePreTrigger
-  browserAutomation?: BrowserCheckInConfig
   redeemUrl?: string
   openRedeemWithCheckIn?: boolean
   isCheckedInToday?: boolean
@@ -63,9 +64,6 @@ export type CheckInMethodDetection =
         | {
             source: typeof CHECK_IN_METHOD_DETECTION_EVIDENCE_SOURCES.CompatibilityRegistration
           }
-        | {
-            source: typeof CHECK_IN_METHOD_DETECTION_EVIDENCE_SOURCES.UserConfiguration
-          }
       lastUnknownAttempt?: CheckInMethodUnknownAttempt
     }
   | {
@@ -87,6 +85,14 @@ export type CheckInMethodStatus =
       outcome: typeof CHECK_IN_METHOD_STATUS_OUTCOMES.Known
       availability?: (typeof CHECK_IN_METHOD_AVAILABILITIES)[keyof typeof CHECK_IN_METHOD_AVAILABILITIES]
       today?: (typeof CHECK_IN_METHOD_TODAY_STATUSES)[keyof typeof CHECK_IN_METHOD_TODAY_STATUSES]
+      /**
+       * Claiming the grant on this deployment requires the site's own human
+       * verification (for example a slider). Probe-sourced: it explains why
+       * automatic execution cannot finish unattended and feeds the account's
+       * page-assistance choice. Optional so older knowledge and other providers
+       * keep their meaning.
+       */
+      requiresManualVerification?: boolean
       evidence:
         | {
             source: typeof CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe
@@ -106,6 +112,11 @@ export type CheckInMethodStatus =
       outcome: typeof CHECK_IN_METHOD_STATUS_OUTCOMES.Unknown
       reason: CheckInMethodUnknownReason
       attemptedAt: number
+      /** Last confirmed result; never treated as the latest successful query. */
+      lastKnown?: Extract<
+        CheckInMethodStatus,
+        { outcome: typeof CHECK_IN_METHOD_STATUS_OUTCOMES.Known }
+      >
     }
 
 export interface CheckInMethodKnowledge {
@@ -123,12 +134,34 @@ export type CheckInMethodSelection =
       methodId: PersistedCheckInMethodId
     }
 
+/**
+ * A deployment's own request path for one method's operations.
+ *
+ * Only deployments that rename an otherwise identical route need this; the
+ * method's canonical path remains the default everywhere else.
+ */
+export interface CheckInRouteOverride {
+  /** Same-origin request path, without query or fragment. */
+  path: string
+  /** Whether the user entered the path or a redetection probe verified it. */
+  source: (typeof CHECK_IN_ROUTE_OVERRIDE_SOURCES)[keyof typeof CHECK_IN_ROUTE_OVERRIDE_SOURCES]
+  observedAt: number
+}
+
 export interface CheckInConfig {
-  /** Configuration for login-based check-in; never contains credentials. */
+  /** @deprecated Legacy read/migration only. New configuration belongs to SiteAccount.login. */
   loginCheckIn?: {
-    provider: AccountLoginProvider
+    provider: AccountLoginProvider | typeof ACCOUNT_LOGIN_METHODS.Password
   }
   automaticExecutionEnabled: boolean
+  /**
+   * Account-level override for continuing a check-in whose site requires human
+   * verification. Continuing opens the site's check-in page through page
+   * assistance and reports the account in the verification reminders. Absent
+   * (the default) follows the global `autoCheckin.continueWhenVerificationRequired`
+   * preference. Only providers with a page-assistance path consult it.
+   */
+  continueWhenVerificationRequired?: boolean
   methodKnowledge: {
     methods: Partial<Record<CheckInMethodId, CheckInMethodKnowledge>>
     lastFullDiscoveryAt?: number
@@ -137,6 +170,8 @@ export interface CheckInConfig {
   }
   selection: CheckInMethodSelection
   customCheckIn?: CustomCheckInConfig
+  /** Per-method route paths for deployments whose own console renamed them. */
+  routeOverrides?: Partial<Record<CheckInMethodId, CheckInRouteOverride>>
 }
 
 export type CheckInDiscoveryDecision =
@@ -210,3 +245,6 @@ export interface CheckInAccountState {
   executionEligibility: CheckInExecutionEligibility
   rediscoveryRecommended: boolean
 }
+
+export type CheckInStatusRefreshOutcome =
+  (typeof CHECK_IN_STATUS_REFRESH_OUTCOMES)[keyof typeof CHECK_IN_STATUS_REFRESH_OUTCOMES]

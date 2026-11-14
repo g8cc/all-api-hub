@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, renameSync } from "node:fs"
+import { writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { defineConfig, type ConfigEnv } from "wxt"
@@ -7,14 +9,32 @@ import {
   getE2eTestOutDirTemplate,
   readE2eBuildVariant,
 } from "./e2e/utils/e2eBuildVariants"
+import packageJson from "./package.json"
 import { reactDevToolsAuto } from "./plugins/react-devtools-auto"
+import { isUserDataDirInUse } from "./scripts/cdp/dev-browser-identity.mjs"
+import {
+  CRX_ENV_VARS,
+  SELF_UPDATE_CHANNELS,
+} from "./scripts/crx-self-update.mjs"
 import { APP_SHORT_NAME } from "./src/constants/branding"
 import { APP_LOCALE_ASSET_GLOB } from "./src/constants/i18n"
-import { OPENROUTER_WEB_ORIGIN } from "./src/services/accountSiteDefinitions/identifiers"
+import {
+  OPENROUTER_WEB_ORIGIN,
+  REQUESTY_WEB_ORIGIN,
+} from "./src/services/accountSiteDefinitions/identifiers"
+import {
+  CONTEXT_TOKEN_ENCODINGS,
+  CONTEXT_TOKEN_VOCABULARY_DIR,
+  CONTEXT_TOKEN_VOCABULARY_GLOB,
+} from "./src/services/verification/modelQuality/contextTokenConstants"
 import {
   formatDevManifestName,
   type BakedDevIdentity,
 } from "./src/utils/core/devIdentity"
+import {
+  DISTRIBUTION_CHANNEL,
+  resolveDistributionChannel,
+} from "./src/utils/core/distributionChannel"
 
 type BrowserTarget = "chrome" | "firefox" | "safari" | string
 type ManifestPermission = string
@@ -38,34 +58,134 @@ const CORE_EXTENSION_PERMISSIONS = [
   "unlimitedStorage",
   "alarms",
   "contextMenus",
+  // No extra install warning. Used to call the page's official Turnstile API.
+  "scripting",
 ] as const
-const CHROMIUM_ONLY_REQUIRED_PERMISSIONS = ["sidePanel"] as const
+const CHROMIUM_ONLY_REQUIRED_PERMISSIONS = [
+  "sidePanel",
+  // Chromium must initialize its rule engine when the extension loads.
+  // A first optional grant can leave native updates pending and rules inactive.
+  // Cookie reads remain optional; this uses the existing host permissions.
+  "declarativeNetRequestWithHostAccess",
+] as const
 const FIREFOX_COOKIE_OPTIONAL_PERMISSIONS = [
   "cookies",
   "webRequest",
   "webRequestBlocking",
 ] as const
-const CHROMIUM_COOKIE_DNR_OPTIONAL_PERMISSIONS = [
+const CHROMIUM_COOKIE_OPTIONAL_PERMISSIONS = ["cookies"] as const
+// Safari uses WebKit's WebExtensions implementation. Keep its permission
+// declarations independent from Chromium's required DNR and E2E overrides.
+const SAFARI_COOKIE_OPTIONAL_PERMISSIONS = [
   "cookies",
   "declarativeNetRequestWithHostAccess",
 ] as const
-const COMMON_OPTIONAL_PERMISSIONS = ["clipboardRead", "notifications"] as const
+const COMMON_OPTIONAL_PERMISSIONS = ["notifications", "clipboardRead"] as const
 const BOOKMARK_IMPORT_OPTIONAL_PERMISSIONS = ["bookmarks"] as const
 
 const requestedMode = readWxtCliMode()
 const isTestBuild = requestedMode === "test"
 const e2eBuildVariant = readE2eBuildVariant()
+const defaultCrxBuildTime = new Date().toISOString()
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   srcDir: "src",
+  outDir: process.env.AAH_DISTRIBUTION_OUT_DIR || undefined,
+  zip: { excludeSources: [".output/**"] },
   // Dependency caches are not source files; watching them is costly on Windows.
-  watchOptions: { ignored: ["**/.pnpm-store/**"] },
+  watchOptions: {
+    ignored: [
+      "**/.pnpm-store/**",
+      // Browser config edits otherwise make WXT launch Chrome automatically.
+      // In manual mode, `o + Enter` reloads this config before opening.
+      ...(process.env.WXT_OPEN_BROWSER === "0" ? ["**/web-ext.config.*"] : []),
+    ],
+  },
   publicDir: "src/public",
   // Locale changes restart dev so the local module can regenerate runtime assets.
   modulesDir: "src/locales",
+  // Node resolves "localhost" to ::1, so the dev server would bind IPv6
+  // loopback only while the browser resolves the same name to 127.0.0.1 and
+  // gets ERR_CONNECTION_REFUSED for every dev-server URL (blank extension
+  // pages). Pin both the bind address and the URLs baked into the build.
+  dev: {
+    server: {
+      host: "127.0.0.1",
+      origin: "http://127.0.0.1",
+    },
+  },
   outDirTemplate: getOutDirTemplate(),
   modules: ["@wxt-dev/auto-icons", "@wxt-dev/module-react"],
+  hooks: {
+    "build:publicAssets": async (_wxt, assets) => {
+      // IIFE background/content builds inline dynamic imports. Keep the large
+      // vocabularies as data so AMO can parse every JavaScript file (<5 MB).
+      const [{ default: cl100k }, { default: o200k }] = await Promise.all([
+        import("gpt-tokenizer/bpeRanks/cl100k_base"),
+        import("gpt-tokenizer/bpeRanks/o200k_base"),
+      ])
+      for (const [encoding, ranks] of [
+        [CONTEXT_TOKEN_ENCODINGS.Cl100k, cl100k],
+        [CONTEXT_TOKEN_ENCODINGS.O200k, o200k],
+      ] as const) {
+        assets.push({
+          relativeDest: `${CONTEXT_TOKEN_VOCABULARY_DIR}/${encoding}.json`,
+          contents: JSON.stringify(ranks),
+        })
+      }
+    },
+    "server:started": (wxt) => {
+      if (process.env.WXT_OPEN_BROWSER !== "0") return
+      // WXT opens the browser after each server start, including config reloads.
+      // Skip that call, then restore the runner for `o + Enter`.
+      const runner = wxt.runner
+      const openBrowser = runner.openBrowser
+      runner.openBrowser = async () => {
+        runner.openBrowser = openBrowser
+      }
+    },
+    "config:resolved": (wxt) => {
+      const webExt = wxt.config.webExt.config
+      // Resolve after local overrides: Firefox keeps web-ext's copy behavior.
+      webExt.keepProfileChanges ??= wxt.config.browser !== "firefox"
+      const profile = path.join(wxt.config.root, ".browser-data", "chrome")
+      const legacy = path.join(wxt.config.root, ".wxt", "chrome-data")
+      if (!existsSync(legacy)) return
+      // Also protect legacy data before `wxt clean` removes generated folders.
+      if (existsSync(profile) || isUserDataDirInUse(legacy)) {
+        throw new Error(
+          `Cannot migrate ${legacy} to ${profile}. Close its browser and ensure the destination does not already exist; preserve both profiles when resolving a conflict.`,
+        )
+      }
+      mkdirSync(path.dirname(profile), { recursive: true })
+      renameSync(legacy, profile)
+    },
+    "build:done": async (wxt) => {
+      const channel = resolveDistributionChannel(
+        process.env.AAH_DISTRIBUTION_CHANNEL,
+        wxt.config.browser,
+        wxt.config.command,
+      )
+      await writeFile(
+        path.join(wxt.config.outDir, "distribution.json"),
+        JSON.stringify({ channel, browser: wxt.config.browser }),
+      )
+    },
+    /** Keep the packaged detection probe out of non-test entrypoint discovery. */
+    "entrypoints:found": (_wxt, entrypoints) => {
+      if (isTestBuild) return
+      const probeIndex = entrypoints.findIndex(
+        (entry) => entry.name === "account-detection-test",
+      )
+      if (probeIndex >= 0) entrypoints.splice(probeIndex, 1)
+    },
+  },
+  webExt: {
+    // Config/module edits can restart Chrome. Reuse this worktree's data
+    // instead of web-ext's disposable profile; Windows requires an absolute path.
+    chromiumProfile: path.join(getProjectRootPath(), ".browser-data", "chrome"),
+  },
   manifest: (env) => {
     const projectPath = getProjectRootPath()
     const isDevServe = env.command === "serve"
@@ -74,14 +194,33 @@ export default defineConfig({
       : "__MSG_manifest_description__"
     const requiredPermissions = getManifestRequiredPermissions(env.browser)
     const optionalPermissions = getManifestOptionalPermissions(env.browser)
+    const selfUpdateUrl = getSelfUpdateUrl(env)
 
     return {
       // Local builds share a display name, so the dev name carries the project
       // path to keep them apart in the extension list, menus and window titles.
       name: isDevServe
-        ? formatDevManifestName(APP_SHORT_NAME, projectPath)
+        ? formatDevManifestName(
+            APP_SHORT_NAME,
+            // web-ext Android derives its ZIP filename from this name.
+            process.env.AAH_MOBILE_DEV === "1"
+              ? path.basename(projectPath)
+              : projectPath,
+          )
         : "__MSG_manifest_name__",
       description,
+      // Only the dedicated self-update CRX build carries `update_url`; baking it
+      // into the unpacked ZIP makes Chrome reject the package unless an
+      // administrator allowlists the extension.
+      update_url: selfUpdateUrl,
+      ...(selfUpdateUrl &&
+      process.env.AAH_DISTRIBUTION_CHANNEL ===
+        DISTRIBUTION_CHANNEL.GithubNightly
+        ? {
+            version: getNightlyCrxVersion(),
+            version_name: `${packageJson.version} nightly`,
+          }
+        : {}),
       default_locale: "en",
       permissions: requiredPermissions,
       optional_permissions: optionalPermissions,
@@ -95,37 +234,83 @@ export default defineConfig({
           matches: [`${OPENROUTER_WEB_ORIGIN}/*`],
         },
         {
-          resources: [APP_LOCALE_ASSET_GLOB],
+          resources: ["requesty-management-key.js"],
+          matches: [`${REQUESTY_WEB_ORIGIN}/*`],
+        },
+        {
+          resources: [APP_LOCALE_ASSET_GLOB, CONTEXT_TOKEN_VOCABULARY_GLOB],
           matches: ["<all_urls>"],
           use_dynamic_url: true,
         },
       ],
-      browser_specific_settings: {
-        gecko: {
-          id: "{bc73541a-133d-4b50-b261-36ea20df0d24}",
-          // Firefox 104 covers the current Vite baseline and p-queue 9 runtime APIs.
-          strict_min_version: "104.0",
-        },
-        gecko_android: {
-          strict_min_version: "120.0",
-        },
-      },
-      commands: {
-        _execute_sidebar_action: {
-          description: "__MSG_manifest_commands_sidebar_action__",
-        },
-        _execute_browser_action: {
-          description: "__MSG_manifest_commands_browser_action__",
-        },
+      browser_specific_settings: isFirefoxManifestTarget(env.browser)
+        ? {
+            gecko: {
+              id: "{bc73541a-133d-4b50-b261-36ea20df0d24}",
+              // Firefox 104 matches our build target and p-queue 9 runtime APIs.
+              strict_min_version: "104.0",
+            },
+            gecko_android: {
+              strict_min_version: "120.0",
+            },
+          }
+        : undefined,
+      // Reserved shortcut names differ per browser, and a name the platform does
+      // not know is dropped with a manifest warning while its shortcut stays
+      // unassignable. Chrome and Safari renamed the MV2 `_execute_browser_action`
+      // to `_execute_action`; `_execute_sidebar_action` only exists in Firefox.
+      commands: isFirefoxManifestTarget(env.browser)
+        ? {
+            _execute_sidebar_action: {
+              description: "__MSG_manifest_commands_sidebar_action__",
+            },
+            _execute_browser_action: {
+              description: "__MSG_manifest_commands_browser_action__",
+            },
+          }
+        : {
+            _execute_action: {
+              description: "__MSG_manifest_commands_browser_action__",
+            },
+          },
+      sandbox:
+        env.browser === "safari"
+          ? undefined
+          : {
+              pages: ["sandbox.html"],
+            },
+      content_security_policy: {
+        extension_pages:
+          "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
+        sandbox:
+          "sandbox allow-scripts; script-src 'self' 'unsafe-inline' 'unsafe-eval';",
       },
     }
   },
   vite: (env) => {
     console.log("当前构建模式:", env.mode)
     return {
+      // Vite's default HTML scan also finds nested diagnostic checkouts,
+      // which can introduce a second React runtime into the extension.
+      optimizeDeps: {
+        entries: ["src/entrypoints/**/*.html"],
+      },
       // Baked for every command so release bundles bake an explicit `null`
       // instead of leaking a local path or leaving the global undefined.
       define: {
+        __AAH_BUILD_REVISION__: JSON.stringify(
+          process.env.AAH_DISTRIBUTION_CHANNEL ===
+            DISTRIBUTION_CHANNEL.GithubNightly
+            ? process.env.AAH_BUILD_REVISION || null
+            : null,
+        ),
+        __AAH_DISTRIBUTION_CHANNEL__: JSON.stringify(
+          resolveDistributionChannel(
+            process.env.AAH_DISTRIBUTION_CHANNEL,
+            env.browser,
+            env.command,
+          ),
+        ),
         [DEV_IDENTITY_GLOBAL_KEY]: JSON.stringify(
           buildBakedDevIdentity(env, getProjectRootPath()),
         ),
@@ -137,6 +322,9 @@ export default defineConfig({
         },
       },
       build: {
+        // Keep the previous Vite 7 baseline, including Firefox 104 support.
+        // Vite 8's default baseline would raise the Firefox target to 114.
+        target: ["chrome107", "edge107", "firefox104", "safari16"],
         sourcemap: getBuildSourcemap(env.mode),
         minify: env.mode !== "development",
       },
@@ -158,14 +346,20 @@ function getManifestRequiredPermissions(browser: BrowserTarget) {
     permissions.push(...getE2eRequiredChromiumPermissions(e2eBuildVariant))
   }
 
-  return permissions
+  if (browser === "safari") permissions.push("nativeMessaging")
+  return [...new Set(permissions)]
 }
 
 function getManifestOptionalPermissions(browser: BrowserTarget) {
-  const browserOptionalPermissions = isFirefoxManifestTarget(browser)
-    ? FIREFOX_COOKIE_OPTIONAL_PERMISSIONS
-    : getChromiumOptionalPermissions()
+  const browserOptionalPermissions =
+    getBrowserCookieOptionalPermissions(browser)
   const requiredPermissions = getManifestRequiredPermissions(browser)
+
+  // Safari has no WebExtension bookmarks/notifications APIs or clipboardRead
+  // permission. Declaring them produces grant controls that cannot succeed.
+  if (browser === MANIFEST_BROWSER_TARGETS.Safari) {
+    return [...browserOptionalPermissions]
+  }
 
   return [
     ...browserOptionalPermissions,
@@ -174,16 +368,65 @@ function getManifestOptionalPermissions(browser: BrowserTarget) {
   ].filter((permission) => !requiredPermissions.includes(permission))
 }
 
-function getChromiumOptionalPermissions() {
-  const requiredPermissions = getE2eRequiredChromiumPermissions(e2eBuildVariant)
-
-  return CHROMIUM_COOKIE_DNR_OPTIONAL_PERMISSIONS.filter(
-    (permission) => !requiredPermissions.includes(permission),
-  )
+function getBrowserCookieOptionalPermissions(browser: BrowserTarget) {
+  switch (browser) {
+    case MANIFEST_BROWSER_TARGETS.Firefox:
+      return FIREFOX_COOKIE_OPTIONAL_PERMISSIONS
+    case MANIFEST_BROWSER_TARGETS.Safari:
+      return SAFARI_COOKIE_OPTIONAL_PERMISSIONS
+    default:
+      return CHROMIUM_COOKIE_OPTIONAL_PERMISSIONS
+  }
 }
 
 function isFirefoxManifestTarget(browser: BrowserTarget) {
   return browser === MANIFEST_BROWSER_TARGETS.Firefox
+}
+
+/**
+ * Resolve the self-hosted update manifest for this build.
+ *
+ * Chromium is the only target with a self-hosted update mechanism here, and a
+ * dev-serve build must never advertise one: the browser would try to replace
+ * the live dev install with a packaged release.
+ */
+function getSelfUpdateUrl(env: ConfigEnv): string | undefined {
+  if (env.command === "serve" || !isChromiumManifestTarget(env.browser)) {
+    return undefined
+  }
+
+  // Store submissions must keep the store's own update channel; a leaked
+  // self-update URL there would be rejected or route updates to the wrong
+  // source, so the build refuses it instead of trusting the caller.
+  const channel = resolveDistributionChannel(
+    process.env.AAH_DISTRIBUTION_CHANNEL,
+    env.browser,
+    env.command,
+  )
+  if (!SELF_UPDATE_CHANNELS.has(channel)) return undefined
+
+  return process.env[CRX_ENV_VARS.SelfUpdateUrl]?.trim() || undefined
+}
+
+/**
+ * Native updates compare numeric versions, not our baked Git revision.
+ * UTC YYYY.MMDD.HHMM.SSmmm is ordered to the millisecond; every component is
+ * below Chromium's 65536 limit and version_name keeps the package version.
+ */
+function getNightlyCrxVersion(): string {
+  const date = new Date(
+    process.env[CRX_ENV_VARS.BuildTime] || defaultCrxBuildTime,
+  )
+  const year = date.getUTCFullYear()
+  if (!Number.isFinite(date.getTime()) || year < 2000 || year > 65535) {
+    throw new Error(`Invalid ${CRX_ENV_VARS.BuildTime} for the nightly CRX`)
+  }
+  return [
+    year,
+    (date.getUTCMonth() + 1) * 100 + date.getUTCDate(),
+    date.getUTCHours() * 100 + date.getUTCMinutes(),
+    date.getUTCSeconds() * 1000 + date.getUTCMilliseconds(),
+  ].join(".")
 }
 
 function isChromiumManifestTarget(browser: BrowserTarget) {

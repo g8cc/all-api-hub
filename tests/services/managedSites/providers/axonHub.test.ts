@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AXON_HUB_CHANNEL_TYPE } from "~/constants/axonHub"
 import { SITE_TYPES } from "~/constants/siteType"
-import { buildManagedSiteChannelDraftSource } from "~/services/managedSites/channelDraftSource"
-import { getManagedSiteRuntimeConfigForType } from "~/services/managedSites/runtimeConfig"
+import { buildManagedSiteChannelDraftSource } from "~/services/managedSites/configuration/channelDraftSource"
+import { getManagedSiteRuntimeConfigForType } from "~/services/managedSites/configuration/runtimeConfig"
 import { buildNewApiRuntimeKey } from "~~/tests/test-utils/accountKeyFixtures"
 import {
   buildDisplaySiteData,
@@ -31,7 +31,9 @@ vi.mock("~/services/preferences/userPreferences", async (importOriginal) => {
   }
 })
 
-vi.mock("~/services/apiService/axonHub", () => ({ signIn: mockSignIn }))
+vi.mock("~/services/apiService/axonHub/authSession", () => ({
+  signIn: mockSignIn,
+}))
 
 vi.mock("~/services/managedSites/utils/fetchManagedSiteImportModels", () => ({
   fetchManagedSiteImportModels: mockFetchManagedSiteImportModels,

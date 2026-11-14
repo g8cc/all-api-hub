@@ -1,14 +1,17 @@
 import { OPTIONS_PAGE_PATH } from "~/constants/extensionPages"
 import { SITE_TYPES } from "~/constants/siteType"
-import { API_CREDENTIAL_PROFILES_TEST_IDS } from "~/features/ApiCredentialProfiles/testIds"
+import {
+  API_CREDENTIAL_PROFILES_TEST_IDS,
+  getApiCredentialProfileRowTestId,
+} from "~/features/ApiCredentialProfiles/testIds"
 import {
   getManagedSiteBatchExportRowSelectTestId,
   getRepairAccountResultTestId,
   KEY_MANAGEMENT_TEST_IDS,
 } from "~/features/KeyManagement/testIds"
 import { TOKEN_PROVISIONING_TEST_IDS } from "~/features/TokenProvisioning/testIds"
-import { ACCOUNT_KEY_RECONCILIATION_OUTCOMES } from "~/services/accounts/accountKeyInventoryReconciliation"
-import { buildAccountKeyResourceRuntimeKeyId } from "~/services/accounts/accountRuntimeKeys"
+import { ACCOUNT_KEY_RECONCILIATION_OUTCOMES } from "~/services/accounts/keys/accountKeyInventoryReconciliation"
+import { buildAccountKeyResourceRuntimeKeyId } from "~/services/accounts/keys/accountRuntimeKeys"
 import {
   ACCOUNT_KEY_REQUIREMENT_PROVISIONING_KINDS,
   type AccountKeyResourceRef,
@@ -61,6 +64,8 @@ import { waitForExtensionRoot } from "~~/e2e/utils/lazyLoading"
 import { seedMockAccountFixture } from "~~/e2e/utils/mockedSite/accountFixtures"
 import { parallelizeShardableSpec } from "~~/e2e/utils/parallelizeShardableSpec"
 import { isRealSiteTestTokenName } from "~~/e2e/utils/realSite/keyManagement"
+import { captureVisualViews } from "~~/e2e/utils/visualCapture"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 parallelizeShardableSpec()
 
@@ -605,7 +610,7 @@ test("opens the CC Switch model picker for an account API key", async ({
     modelName: "gpt-cc-switch-smoke",
     expectedCcSwitchDeepLink: {
       app: "claude",
-      name: "CC Switch Source",
+      name: "CC Switch Source - E2E CC Switch Key",
       homepage: "https://cc-switch-source.example.com",
       endpoint: "https://cc-switch-source.example.com",
       apiKey: "sk-created-1",
@@ -615,9 +620,10 @@ test("opens the CC Switch model picker for an account API key", async ({
 
 test("exports a SharedChat service credential to CC Switch", async ({
   context,
+  extensionDir,
   extensionId,
   page,
-}) => {
+}, testInfo) => {
   const serviceWorker = await getServiceWorker(context)
   await seedStoredAccounts(serviceWorker, [
     createStoredAccount({
@@ -648,6 +654,17 @@ test("exports a SharedChat service credential to CC Switch", async ({
   await expect(
     serviceCredentialCard.getByRole("heading", { name: "Codex" }),
   ).toBeVisible()
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  await captureVisualViews({
+    page,
+    ready: serviceCredentialCard,
+    id: "service-credential-single",
+    extensionDir,
+    views: [
+      { id: "desktop", width: 1280, height: 900, theme: "light" },
+      { id: "compact", width: 320, height: 900, theme: "dark" },
+    ],
+  })
 
   await serviceCredentialCard
     .getByTestId(KEY_MANAGEMENT_TEST_IDS.serviceCredentialExportMenuButton)
@@ -669,6 +686,54 @@ test("exports a SharedChat service credential to CC Switch", async ({
       apiKey: "sk-sharedchat-service-e2e",
     },
   })
+  await page.goto(
+    `chrome-extension://${extensionId}/${OPTIONS_PAGE_PATH}#keys?accountId=all`,
+  )
+  await waitForExtensionRoot(page)
+  await page.getByTestId(KEY_MANAGEMENT_TEST_IDS.expandAllButton).click()
+  await expect(serviceCredentialCard).toBeVisible()
+  await captureVisualViews({
+    page,
+    ready: serviceCredentialCard,
+    id: "service-credential-grouped",
+    extensionDir,
+    views: [
+      { id: "desktop", width: 1280, height: 900, theme: "light" },
+      { id: "compact", width: 320, height: 900, theme: "dark" },
+    ],
+  })
+
+  const savedProfile =
+    await saveTokenToApiCredentialProfilesFromKeyManagementPage({
+      serviceWorker,
+      page,
+      row: serviceCredentialCard,
+      expectedProfile: {
+        name: "SharedChat Service - Codex",
+        baseUrl: "https://new.sharedchat.cc/codex",
+        apiKey: "sk-sharedchat-service-e2e",
+      },
+    })
+  await page
+    .getByTestId(getApiCredentialProfileRowTestId(savedProfile.id))
+    .getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.associationButton)
+    .click()
+  await page.getByRole("menuitem", { name: "View corresponding key" }).click()
+  await expect(serviceCredentialCard).toHaveAttribute(
+    "data-navigation-target",
+    "true",
+  )
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--theme-color-500", "#e05630")
+    document.documentElement.style.setProperty("--theme-color-400", "#e05630")
+  })
+  await serviceCredentialCard.screenshot({
+    path: testInfo.outputPath("service-credential-navigation-ring.png"),
+  })
+  await expect(serviceCredentialCard).toHaveCSS(
+    "box-shadow",
+    /rgb\(224, 86, 48\) 0px 0px 0px (?:[1-9]\d*(?:\.\d+)?|0\.\d*[1-9]\d*)px/,
+  )
 })
 
 test("updates an existing token from key management and reloads the visible list", async ({
@@ -860,7 +925,10 @@ test("repairs missing account keys, deletes invalid resources, and records manag
     page.getByRole("heading", { name: "Legacy Group Key" }),
   ).toBeVisible()
 
-  await page.getByRole("button", { name: "Key check" }).click()
+  await page.getByRole("button", { name: "Key tools", exact: true }).click()
+  await page
+    .getByRole("menuitem", { name: "Check and repair", exact: true })
+    .click()
   await expect(
     page.getByRole("heading", { name: "Check account keys" }),
   ).toBeVisible()
@@ -1037,7 +1105,7 @@ test("repairs missing account keys, deletes invalid resources, and records manag
     deleteRejected: 0,
     deleteUncertain: 0,
   })
-  expect(progressAfterDelete?.results[0].invalidResources).toEqual([])
+  expect(atIndex(progressAfterDelete?.results, 0).invalidResources).toEqual([])
 
   await page
     .getByTestId(KEY_MANAGEMENT_TEST_IDS.repairCreatedManagedSiteImportButton)
@@ -1090,7 +1158,7 @@ test("repairs missing account keys, deletes invalid resources, and records manag
   ).toHaveCount(0)
   await expect.poll(() => createPayloads.length).toBe(1)
   await expect(
-    batchImportDialog.getByText("Created", { exact: true }),
+    batchImportDialog.getByText("Imported", { exact: true }),
   ).toBeVisible()
   await expect(
     batchImportDialog.getByText("Not selected", { exact: true }),
@@ -1211,10 +1279,12 @@ test("saves a key to API credential profiles and opens the profiles page", async
 test("links an existing API credential to an existing key and preserves the association", async ({
   context,
   extensionId,
+  extensionDir,
   page,
 }) => {
   const serviceWorker = await getServiceWorker(context)
   const baseUrl = "https://manual-association.example.invalid"
+  await page.emulateMedia({ reducedMotion: "reduce" })
   const profile = createStoredApiCredentialProfile({
     id: "manual-association-profile",
     name: "Manual Association Profile",
@@ -1275,6 +1345,20 @@ test("links an existing API credential to an existing key and preserves the asso
     name: /Manual Association Profile/,
   })
   await expect(profileOption).toBeVisible()
+  await expect(profileOption).toContainText(baseUrl)
+  await expect(profileOption).toContainText("sk-m••••••tion")
+  await expect(profileOption).toContainText("Visible fragments match")
+  await expect(
+    associationDialog.getByTestId(
+      KEY_MANAGEMENT_TEST_IDS.associateCredentialConfirmButton,
+    ),
+  ).toBeDisabled()
+  await captureVisualViews({
+    page,
+    ready: associationDialog,
+    extensionDir,
+    id: "credential-association-candidates",
+  })
   await profileOption.click({ force: true })
   await associationDialog
     .getByTestId(KEY_MANAGEMENT_TEST_IDS.associateCredentialConfirmButton)
@@ -1578,8 +1662,10 @@ test("cleans linked channels and retries persisted multi-key cleanup after reloa
   await expect(
     page.getByRole("button", { name: "Retry cleanup", exact: true }),
   ).toHaveCount(0)
-  await expect.poll(() => providers[0]["api-key-entries"]).toEqual([retained])
-  expect(providers[0].models).toEqual([{ name: "model-a" }])
+  await expect
+    .poll(() => atIndex(providers, 0)["api-key-entries"])
+    .toEqual([retained])
+  expect(atIndex(providers, 0).models).toEqual([{ name: "model-a" }])
 })
 
 for (const siteType of [SITE_TYPES.DONE_HUB, SITE_TYPES.VELOERA]) {

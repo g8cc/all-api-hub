@@ -8,7 +8,9 @@ import {
 import type {
   ApiVerificationApiType,
   ApiVerificationMode,
+  ApiVerificationProbePromptOverrides,
   ApiVerificationProbeResult,
+  ApiVerificationRequestProfile,
 } from "../types"
 import {
   buildSafeProbeFailureDiagnostics,
@@ -16,17 +18,20 @@ import {
   toSanitizedErrorSummary,
 } from "../utils"
 import { runProbeGeneration } from "./probeGeneration"
+import { resolveProbePrompt } from "./probePrompts"
 
 type RunTextGenerationProbeParams = {
   baseUrl: string
   apiKey: string
+  requestHeaders?: Record<string, string>
+  requestProfile?: ApiVerificationRequestProfile
+  requestProfileEnhanced?: boolean
   apiType: ApiVerificationApiType
   modelId: string
   mode?: ApiVerificationMode
+  probePromptOverrides?: ApiVerificationProbePromptOverrides
   abortSignal?: AbortSignal
 }
-
-const TEXT_GENERATION_PROMPT = "Reply with exactly: OK"
 
 /**
  * Baseline text generation probe for the selected API type.
@@ -36,14 +41,25 @@ export async function runTextGenerationProbe(
 ): Promise<ApiVerificationProbeResult> {
   const startedAt = nowMs()
   const mode = params.mode ?? API_VERIFICATION_MODES.Streaming
-  const secretsToRedact = [params.apiKey]
+  const secretsToRedact = [
+    params.apiKey,
+    ...Object.values(params.requestHeaders ?? {}),
+  ]
 
   try {
-    const prompt = TEXT_GENERATION_PROMPT
+    const prompt = resolveProbePrompt(
+      API_VERIFICATION_PROBE_IDS.TextGeneration,
+      params.probePromptOverrides,
+    )!
     const model = createModel({
       baseUrl: params.baseUrl,
       apiKey: params.apiKey,
+      ...(params.requestHeaders
+        ? { requestHeaders: params.requestHeaders }
+        : {}),
       apiType: params.apiType,
+      requestProfile: params.requestProfile,
+      requestProfileEnhanced: params.requestProfileEnhanced,
       modelId: params.modelId,
     })
 
@@ -103,7 +119,10 @@ export async function runTextGenerationProbe(
         apiType: params.apiType,
         baseUrl: params.baseUrl,
         modelId: params.modelId,
-        prompt: TEXT_GENERATION_PROMPT,
+        prompt: resolveProbePrompt(
+          API_VERIFICATION_PROBE_IDS.TextGeneration,
+          params.probePromptOverrides,
+        ),
       },
       output: diagnostics.output,
     }

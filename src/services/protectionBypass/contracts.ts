@@ -5,8 +5,12 @@ import {
   OPENROUTER_MANAGEMENT_KEY_LABEL_MAX_LENGTH,
   type TempWindowOpenRouterManagementKeyActionParams,
   type TempWindowOpenRouterManagementKeyActionResult,
-} from "~/services/apiAdapters/openrouter/managementKeyPageContract"
-import { isValidBrowserCheckInTaskContract } from "~/services/checkin/autoCheckin/browserAutomation"
+} from "~/services/apiAdapters/openrouter/keys/managementKeyPageContract"
+import { REQUESTY_MANAGEMENT_KEY_NAME_MAX_LENGTH } from "~/services/apiAdapters/requesty/keys/managementKeyPageContract"
+import type {
+  TempWindowRequestyManagementKeyActionParams,
+  TempWindowRequestyManagementKeyActionResult,
+} from "~/services/apiAdapters/requesty/keys/managementKeyPageContract"
 import type {
   CheckInFeedbackClues,
   CheckInFeedbackScanInput,
@@ -19,8 +23,6 @@ import {
   type TempWindowResponseType,
 } from "~/types/tempWindowFetch"
 import type {
-  TempWindowBrowserCheckIn,
-  TempWindowBrowserCheckInParams,
   TempWindowCheckinPageAction,
   TempWindowCheckinPageActionParams,
   TempWindowFetch,
@@ -149,7 +151,6 @@ export const PROTECTION_BYPASS_OPERATIONS = {
   Fetch: "fetch",
   TurnstileFetch: "turnstile_fetch",
   NativePageAction: "native_page_action",
-  BrowserCheckIn: "browser_check_in",
   RenderedTitle: "rendered_title",
   SessionRead: "session_read",
   OpenContext: "open_context",
@@ -364,11 +365,15 @@ export type ProtectionBypassExecutionResolutionFailure = {
 }
 
 export interface TempWindowSessionReadParams {
+  diagnosticId?: string
   url: string
   requestId: string
   useIncognito?: boolean
+  cookieStoreId?: string
   suppressMinimize?: boolean
   siteType: AccountSiteType
+  /** Explicit onboarding permission for registered unknown-site session probes. */
+  allowSessionProbe?: boolean
   tempWindowRequestSource?: TempWindowRequestSource
   protectionBypassExecution: ProtectionBypassExecution
 }
@@ -401,8 +406,9 @@ export const TEMP_CONTEXT_TASK_KINDS = {
   ProfileIsolatedFetch: "profile_isolated_fetch",
   TurnstileFetch: "turnstile_fetch",
   NativePageAction: "native_page_action",
-  BrowserCheckIn: "browser_check_in",
   OpenRouterManagementKeyAction: "openrouter_management_key_action",
+  RequestyManagementKeyAction: "requesty_management_key_action",
+  CredentialPageInspect: "credential_page_inspect",
   RenderedTitle: "rendered_title",
   CheckinFeedbackScan: "checkin_feedback_scan",
   SessionRead: "session_read",
@@ -458,12 +464,16 @@ export type TempContextTask =
       params: WithoutProtectionBypassIntent<TempWindowCheckinPageActionParams>
     }
   | {
-      kind: typeof TEMP_CONTEXT_TASK_KINDS.BrowserCheckIn
-      params: WithoutProtectionBypassIntent<TempWindowBrowserCheckInParams>
-    }
-  | {
       kind: typeof TEMP_CONTEXT_TASK_KINDS.OpenRouterManagementKeyAction
       params: WithoutProtectionBypassIntent<TempWindowOpenRouterManagementKeyActionParams>
+    }
+  | {
+      kind: typeof TEMP_CONTEXT_TASK_KINDS.RequestyManagementKeyAction
+      params: WithoutProtectionBypassIntent<TempWindowRequestyManagementKeyActionParams>
+    }
+  | {
+      kind: typeof TEMP_CONTEXT_TASK_KINDS.CredentialPageInspect
+      params: { originUrl: string; requestId?: string }
     }
   | {
       kind: typeof TEMP_CONTEXT_TASK_KINDS.RenderedTitle
@@ -503,8 +513,12 @@ type TempContextTaskResultMap = {
   [TEMP_CONTEXT_TASK_KINDS.ProfileIsolatedFetch]: TempWindowFetch
   [TEMP_CONTEXT_TASK_KINDS.TurnstileFetch]: TempWindowTurnstileFetch
   [TEMP_CONTEXT_TASK_KINDS.NativePageAction]: TempWindowCheckinPageAction
-  [TEMP_CONTEXT_TASK_KINDS.BrowserCheckIn]: TempWindowBrowserCheckIn
   [TEMP_CONTEXT_TASK_KINDS.OpenRouterManagementKeyAction]: TempWindowOpenRouterManagementKeyActionResult
+  [TEMP_CONTEXT_TASK_KINDS.RequestyManagementKeyAction]: TempWindowRequestyManagementKeyActionResult
+  [TEMP_CONTEXT_TASK_KINDS.CredentialPageInspect]: {
+    success: boolean
+    state?: "credential" | "not_found" | "unknown"
+  }
   [TEMP_CONTEXT_TASK_KINDS.RenderedTitle]: TempWindowRenderedTitleResponse
   [TEMP_CONTEXT_TASK_KINDS.SessionRead]: TempWindowFetch
   [TEMP_CONTEXT_TASK_KINDS.NewApiSessionRead]: TempWindowFetch
@@ -624,6 +638,20 @@ function isOpenRouterManagementKeyActionParams(
   )
 }
 
+/** Checks the Requesty task fields read before page-action dispatch. */
+function isRequestyManagementKeyActionParams(
+  value: Record<string, unknown>,
+): boolean {
+  if (!isPlainObject(value.operation)) return false
+  return (
+    isNonEmptyString(value.requestId) &&
+    value.operation.kind === "create" &&
+    isNonEmptyString(value.operation.name) &&
+    value.operation.name.length <= REQUESTY_MANAGEMENT_KEY_NAME_MAX_LENGTH &&
+    isOptionalBoolean(value.suppressMinimize)
+  )
+}
+
 /** Checks the fields read by the native page-action handler. */
 function isNativePageActionParams(value: Record<string, unknown>): boolean {
   return (
@@ -639,17 +667,6 @@ function isNativePageActionParams(value: Record<string, unknown>): boolean {
     isOptionalString(value.cookieAuthSessionCookie) &&
     isOptionalString(value.cookieStoreId) &&
     (value.trigger === undefined || isPlainObject(value.trigger))
-  )
-}
-
-/** Validates the narrow declarative browser check-in task envelope. */
-function isBrowserCheckInParams(value: Record<string, unknown>): boolean {
-  return (
-    isHttpUrl(value.pageUrl) &&
-    isOptionalRequestId(value.requestId) &&
-    isOptionalBoolean(value.suppressMinimize) &&
-    isOptionalBoolean(value.useIncognito) &&
-    isValidBrowserCheckInTaskContract(value)
   )
 }
 
@@ -799,17 +816,21 @@ export function isTempContextTask(value: unknown): value is TempContextTask {
         isHttpUrl(params.pageUrl) &&
         isOptionalPositiveNumber(params.turnstileTimeoutMs) &&
         isOptionalString(params.turnstileParamName) &&
+        (params.turnstileTokenPlacement === undefined ||
+          params.turnstileTokenPlacement === "query" ||
+          params.turnstileTokenPlacement === "json-body") &&
         (params.turnstilePreTrigger === undefined ||
           isPlainObject(params.turnstilePreTrigger))
       )
     case TEMP_CONTEXT_TASK_KINDS.NativePageAction:
       return isNativePageActionParams(params)
-    case TEMP_CONTEXT_TASK_KINDS.BrowserCheckIn:
-      return isBrowserCheckInParams(params)
     case TEMP_CONTEXT_TASK_KINDS.OpenRouterManagementKeyAction:
       return isOpenRouterManagementKeyActionParams(params)
+    case TEMP_CONTEXT_TASK_KINDS.RequestyManagementKeyAction:
+      return isRequestyManagementKeyActionParams(params)
     case TEMP_CONTEXT_TASK_KINDS.CheckinFeedbackScan:
       return isCheckinFeedbackScanParams(params)
+    case TEMP_CONTEXT_TASK_KINDS.CredentialPageInspect:
     case TEMP_CONTEXT_TASK_KINDS.RenderedTitle:
       return (
         isHttpUrl(params.originUrl) &&
@@ -821,7 +842,9 @@ export function isTempContextTask(value: unknown): value is TempContextTask {
         isHttpUrl(params.url) &&
         isNonEmptyString(params.requestId) &&
         isAccountSiteType(params.siteType) &&
+        isOptionalBoolean(params.allowSessionProbe) &&
         isOptionalBoolean(params.useIncognito) &&
+        isOptionalString(params.cookieStoreId) &&
         isOptionalBoolean(params.suppressMinimize)
       )
     case TEMP_CONTEXT_TASK_KINDS.NewApiSessionRead:
@@ -869,13 +892,17 @@ const TEMP_CONTEXT_TASK_METADATA = {
     operation: PROTECTION_BYPASS_OPERATIONS.NativePageAction,
     cause: PROTECTION_BYPASS_CAUSES.VerificationRequired,
   },
-  [TEMP_CONTEXT_TASK_KINDS.BrowserCheckIn]: {
-    operation: PROTECTION_BYPASS_OPERATIONS.BrowserCheckIn,
-    cause: PROTECTION_BYPASS_CAUSES.VerificationRequired,
-  },
   [TEMP_CONTEXT_TASK_KINDS.OpenRouterManagementKeyAction]: {
     operation: PROTECTION_BYPASS_OPERATIONS.NativePageAction,
     cause: PROTECTION_BYPASS_CAUSES.ExplicitContext,
+  },
+  [TEMP_CONTEXT_TASK_KINDS.RequestyManagementKeyAction]: {
+    operation: PROTECTION_BYPASS_OPERATIONS.NativePageAction,
+    cause: PROTECTION_BYPASS_CAUSES.ExplicitContext,
+  },
+  [TEMP_CONTEXT_TASK_KINDS.CredentialPageInspect]: {
+    operation: PROTECTION_BYPASS_OPERATIONS.RenderedTitle,
+    cause: PROTECTION_BYPASS_CAUSES.RenderedPageRequired,
   },
   [TEMP_CONTEXT_TASK_KINDS.RenderedTitle]: {
     operation: PROTECTION_BYPASS_OPERATIONS.RenderedTitle,
@@ -923,7 +950,6 @@ export const PROTECTION_BYPASS_FEATURE_TASK_KINDS = {
     TEMP_CONTEXT_TASK_KINDS.ExplicitPageFetch,
     TEMP_CONTEXT_TASK_KINDS.TurnstileFetch,
     TEMP_CONTEXT_TASK_KINDS.NativePageAction,
-    TEMP_CONTEXT_TASK_KINDS.BrowserCheckIn,
     TEMP_CONTEXT_TASK_KINDS.SessionRead,
   ],
   [PROTECTION_BYPASS_FEATURES.RedemptionAssist]: [
@@ -950,11 +976,13 @@ export const PROTECTION_BYPASS_FEATURE_TASK_KINDS = {
     TEMP_CONTEXT_TASK_KINDS.OctopusApiFetch,
   ],
   [PROTECTION_BYPASS_FEATURES.AccountOnboarding]: [
+    TEMP_CONTEXT_TASK_KINDS.CredentialPageInspect,
     TEMP_CONTEXT_TASK_KINDS.ApiFallbackFetch,
     TEMP_CONTEXT_TASK_KINDS.ExplicitPageFetch,
     TEMP_CONTEXT_TASK_KINDS.ProfileIsolatedFetch,
     TEMP_CONTEXT_TASK_KINDS.SessionRead,
     TEMP_CONTEXT_TASK_KINDS.OpenRouterManagementKeyAction,
+    TEMP_CONTEXT_TASK_KINDS.RequestyManagementKeyAction,
   ],
 } as const satisfies Record<
   ProtectionBypassFeature,
@@ -991,8 +1019,21 @@ function isCheckinFeedbackScanParams(params: Record<string, unknown>): boolean {
     return false
   if (
     Object.keys(input).some(
-      (key) => !["baseUrl", "siteType", "auth"].includes(key),
+      (key) => !["baseUrl", "siteType", "auth", "routePaths"].includes(key),
     )
+  )
+    return false
+  if (
+    input.routePaths !== undefined &&
+    (!Array.isArray(input.routePaths) ||
+      input.routePaths.length > 8 ||
+      input.routePaths.some(
+        (path) =>
+          typeof path !== "string" ||
+          !path.startsWith("/") ||
+          path.startsWith("//") ||
+          /[\\?#\s<>"`]/.test(path),
+      ))
   )
     return false
   if (input.auth === undefined) return true

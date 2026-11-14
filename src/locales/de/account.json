@@ -39,6 +39,7 @@
     "modelManagement": "Modellliste",
     "openAllExternalCheckIn": "Alle externen Check-ins öffnen",
     "openAllExternalCheckInHint": "Öffnen Sie ungeprüfte externe Check-ins. Ctrl/Cmd: alle öffnen. Shift: in neuem Fenster öffnen. Ctrl/Cmd+Shift: Alles in neuem Fenster öffnen.",
+    "openSite": "Website öffnen",
     "pin": "Konto anheften",
     "pinned": "Angepinnt",
     "quickCheckin": "Schneller Check-in",
@@ -58,7 +59,7 @@
   "addFirstAccount": "Fügen Sie Ihr erstes Konto hinzu",
   "bulk": {
     "clearAll": "Auswahl löschen",
-    "clearVisible": "Sichtbare Auswahl löschen",
+    "clearVisible": "Auswahl in dieser Liste aufheben",
     "copyInviteLinks": "Einladungslinks kopieren",
     "copyInviteLinksClipboardFailed": "Der Zugriff auf die Zwischenablage wurde blockiert. Kopieren Sie die generierten Einladungslinks manuell.",
     "copyInviteLinksClipboardFailedWithReasons": "Der Zugriff auf die Zwischenablage wurde blockiert. Kopieren Sie die generierten Einladungslinks manuell. Andere Konten: {{reasonSummary}}.",
@@ -68,6 +69,11 @@
     "copyInviteLinksSuccess_one": "{{count}} Einladungslink kopiert.",
     "copyInviteLinksSuccess_other": "{{count}} Einladungslinks kopiert.",
     "copyInviteLinksUnsupported": "Die aktuelle Auswahl unterstützt keine Einladungslinks.",
+    "copySiteUrls": "Website-URLs kopieren",
+    "copySiteUrlsClipboardFailed": "Der Browser konnte nicht in die Zwischenablage schreiben. Kopieren Sie die Website-URLs bitte manuell aus der Kontoliste.",
+    "copySiteUrlsNone": "Die ausgewählten Konten haben keine Website-URLs zum Kopieren.",
+    "copySiteUrlsSuccess_one": "{{count}} Website-URL kopiert.",
+    "copySiteUrlsSuccess_other": "{{count}} Website-URLs kopiert.",
     "deleteConfirmAction": "Ausgewählte löschen",
     "deleteConfirmDescription_one": "Sie sind dabei, {{count}} ausgewähltes Konto zu löschen. Überprüfen Sie die Auswahl sorgfältig, bevor Sie bestätigen.",
     "deleteConfirmDescription_other": "Sie sind dabei, {{count}} ausgewählte Konten zu löschen. Überprüfen Sie die Auswahl sorgfältig, bevor Sie sie bestätigen.",
@@ -96,12 +102,14 @@
     "selectedSummary_other": "{{selected}} ausgewählt",
     "selectionEmpty": "Keine Konten ausgewählt",
     "selectionScope": "Auswahl",
-    "selectVisible": "Sichtbare Ergebnisse auswählen"
+    "selectVisible": "Alle in dieser Liste auswählen"
   },
-  "currentLoginAdded": "⚠️Der aktuelle Login für {{siteName}} ist bereits in Ihrer Liste",
-  "currentSiteAdded": "⚠️{{siteName}} hat bereits ein gespeichertes Konto",
-  "currentSiteAddedCount_one": "⚠️Diese Website hat bereits {{count}} gespeichertes Konto",
-  "currentSiteAddedCount_other": "⚠️Diese Website verfügt bereits über {{count}} gespeicherte Konten",
+  "currentLoginAdded": "Der aktuelle Login für {{siteName}} ist bereits in Ihrer Liste",
+  "currentSiteAdded": "{{siteName}} hat bereits ein gespeichertes Konto",
+  "currentSiteAddedCount_one": "Diese Website hat bereits {{count}} gespeichertes Konto",
+  "currentSiteAddedCount_other": "Diese Website verfügt bereits über {{count}} gespeicherte Konten",
+  "currentSiteFilterAction": "Ansehen",
+  "currentSiteFilterHint": "Klicken, um Ihre Liste nach den Konten dieser Seite zu filtern",
   "description": "Website-Konten verwalten und Guthaben, Nutzung und Status prüfen.",
   "emptyState": "Noch keine Konten",
   "emptyStateDescription": "Fügen Sie ein Konto hinzu, um Kontostände, Gesundheitsstatus, API-Schlüssel und Nutzung an einem Ort zu verwalten.",
@@ -109,10 +117,14 @@
     "checkIn": {
       "all": "Alle Check-in-Status",
       "checked-in": "Eingecheckt",
+      "configuration": "Einrichtung / Methode nicht verfügbar",
+      "manual": "Nicht abfragbar",
       "not-checked-in": "Nicht eingecheckt",
-      "outdated": "Status veraltet",
+      "outdated": "Aktualisierung ausstehend",
+      "pending": "Noch nicht abgefragt",
       "placeholder": "Check-in-Status",
-      "status-unavailable": "Status nicht verfügbar",
+      "query-failed": "Abfrage fehlgeschlagen",
+      "site-disabled": "Von Website deaktiviert",
       "unsupported": "Nicht unterstützt"
     },
     "disabled": {
@@ -226,7 +238,21 @@
     "resetSort": "Standardsortierung wiederherstellen",
     "site": {
       "checkedInToday": "Heute eingecheckt, zum Ansehen klicken",
-      "checkInStatusOutdated": "Der Check-in-Status wurde heute nicht erkannt (letzte Überprüfungszeit: {{time}}). Zum Aktualisieren klicken",
+      "checkInAccountDisabled": "Konto deaktiviert; automatischer Check-in pausiert",
+      "checkInAutomationBlocked": "Automatischer Check-in ist blockiert: {{reason}}",
+      "checkInAutomationDisabled": "Automatischer Check-in für das Konto ist ausgeschaltet",
+      "checkInAutomationEnabled": "Automatischer Check-in für das Konto ist aktiviert",
+      "checkInAutomationGloballyDisabled": "Automatischer Check-in für das Konto ist aktiviert, aber global ausgeschaltet",
+      "checkInLastKnownChecked": "Zuletzt als eingecheckt bestätigt: {{time}}",
+      "checkInLastKnownNotChecked": "Zuletzt als nicht eingecheckt bestätigt: {{time}}",
+      "checkInNeedsConfiguration": "Automatischer Check-in muss eingerichtet werden: {{reason}}. Zum Bearbeiten des Kontos klicken",
+      "checkInNeedsRedetection": "Check-in-Methode muss neu erkannt werden: {{reason}}. Zum erneuten Erkennen klicken",
+      "checkInRefreshPartial": "Kontodaten für {{accountName}} wurden aktualisiert, der Check-in-Status jedoch nicht. Bitte erneut versuchen",
+      "checkInSiteDisabled": "Die Website hat Check-in deaktiviert. Zum Öffnen der Website klicken",
+      "checkInStatusFailed": "Check-in-Status konnte nicht aktualisiert werden (Versuch: {{time}}). Zum Wiederholen klicken",
+      "checkInStatusManual": "Diese Methode unterstützt keine Statusabfrage. Zum Prüfen auf der Website klicken",
+      "checkInStatusOutdated": "Check-in-Status muss aktualisiert werden (zuletzt bestätigt: {{time}}). Zum Aktualisieren klicken",
+      "checkInStatusPending": "Check-in-Status wurde noch nicht abgefragt. Zum Aktualisieren klicken",
       "currentSite": "Aktuelle Website",
       "currentSiteBoostHint": "Entspricht dem angemeldeten Konto der aktuellen Website und erscheint vor anderen Konten. Deaktivierte Konten bleiben am Ende.",
       "currentSiteExists": "Dieselbe Website wie im aktuellen Tab",
@@ -245,7 +271,12 @@
     "sortMenu": "Sortieren nach",
     "toggleSortOrder": "Sortierreihenfolge wechseln"
   },
+  "popupOnboarding": {
+    "signInHint": "Melde dich bei deiner API-Seite an und füge dann ein Konto per automatischer Erkennung oder manuell hinzu."
+  },
   "refresh": {
+    "checkInStatusFailed_one": "Der Check-in-Status für {{count}} Konto konnte nicht aktualisiert werden. Bitte erneut versuchen",
+    "checkInStatusFailed_other": "Der Check-in-Status für {{count}} Konten konnte nicht aktualisiert werden. Bitte erneut versuchen",
     "refreshComplete": "Aktualisierung abgeschlossen: {{success}} erfolgreich, {{failed}} fehlgeschlagen",
     "refreshDisabledComplete": "Prüfung deaktivierter Konten abgeschlossen: {{restored}} wiederhergestellt, {{stillDisabled}} weiterhin deaktiviert",
     "refreshDisabledCompleteWithFailures": "Prüfung deaktivierter Konten abgeschlossen: {{restored}} wiederhergestellt, {{stillDisabled}} weiterhin deaktiviert, {{failed}} fehlgeschlagen",
@@ -271,6 +302,15 @@
       "description": "Registrieren Sie sich auf der Website eines Anbieters und folgen Sie dann der Karte, um ein Konto hinzuzufügen, API-Anmeldeinformationen zu speichern oder die Website mit einem Lesezeichen zu versehen.",
       "title": "Entdecken Sie verfügbare Anbieter"
     },
+    "openWorkflowFailed": "Die Einrichtung konnte nicht geöffnet werden. Bitte versuchen Sie es erneut.",
+    "popupApiCredentialProfiles": {
+      "description": "Benötigen Sie Entwickler-APIs oder Coding-Plan-Guthaben? Unterstützt schnelles Ausfüllen von Basis-URLs und Abrufen von Schlüsseln:",
+      "title": "Empfohlene Anbieter & Abonnements"
+    },
+    "popupBookmarks": {
+      "description": "Mit einem Klick zu Lesezeichen hinzufügen für schnellen Zugriff jederzeit:",
+      "title": "Empfohlene Websites"
+    },
     "recommendedProviders": "Empfohlene Anbieter",
     "supportStatus": {
       "fallbackApiCredentialProfiles": "Als Anmeldeinformationen hinzufügen",
@@ -281,17 +321,44 @@
     }
   },
   "stats": {
+    "allowanceExpiry": "Läuft ab: {{time}}",
+    "allowanceReset": "Zurücksetzung: {{time}}",
+    "allowances": "Kontingentdetails",
+    "allowanceScope": "Kontingentgruppe: {{scope}}",
     "completion": "Ausgabe",
     "estimatedTodayIncome": "Geschätztes Einkommen",
+    "groupAllowance": "Gruppenkontingent",
+    "nativeCredits": "Guthabeneinheiten",
+    "nativeCreditsDetail": "Dauerhaft {{permanent, number}} · Heute {{daily, number}} (verfällt täglich)",
+    "novitaBalance": {
+      "available": "Verfügbares Guthaben",
+      "cash": "Aufladeguthaben",
+      "creditLimit": "Kreditlimit (maximale Schulden)",
+      "description": "Das verfügbare Guthaben wird von Novita gemeldet. Das Aufladeguthaben ist der Rest Ihrer Einzahlungen; das Kreditlimit ist der maximale Betrag, den Sie schulden dürfen. Die Erweiterung berücksichtigt Novita-Guthaben derzeit nicht im Gesamtguthaben, Guthabenverlauf und in Einnahmenschätzungen.",
+      "title": "Kontostanddetails"
+    },
+    "permanentAllowance": "Dauerhaft",
     "prompt": "Eingabe",
-    "subscriptionInactive": "Inaktiv oder abgelaufen",
+    "scopedAllowances": "Gruppen- und Abonnementkontingente können Nutzungsbeschränkungen haben. Native Kontingente werden nicht in Gesamtsaldo, Saldoverlauf und Einkommensschätzungen einbezogen.",
     "subscriptionRemainingCount": "Verbleibende Abonnementanfragen",
+    "subscriptionRemainingTokens": "Verbleibende Tokens (Pool und Schlüssel); der Dollarbetrag entspricht dem veröffentlichten Preis, einschließlich kostenloser Tokens.",
+    "subscriptionState": {
+      "active": "Abonnement aktiv",
+      "expired": "Abonnement abgelaufen",
+      "grace": "Abonnement in der Kulanzfrist",
+      "inactive": "Kein aktives Abonnement",
+      "unavailable": "Abonnementstatus nicht verfügbar"
+    },
     "subscriptionStatus": "Abonnementstatus",
     "subscriptionTitle": "Abonnement",
+    "timedAllowance": "Befristet",
+    "timedDetailsUnavailable": "Details zum befristeten Kontingent konnten nicht geladen werden. Aktualisiere das Konto.",
     "todayConsumption": "Heutiger Verbrauch",
     "todayIncome": "Heutiges Einkommen",
+    "tokenCredit": "Tokens",
     "totalBalance": "Gesamtsaldo",
     "trustedTodayIncome": "Bestätigtes heutiges Einkommen",
+    "unlockedModels": "Freigeschaltete Modelle: {{models}}",
     "usageRequests": "Anfragen im Zeitraum",
     "usageTokens": "Token im Zeitraum"
   },

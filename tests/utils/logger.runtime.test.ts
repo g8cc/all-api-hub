@@ -128,6 +128,30 @@ async function importFreshLogger(options?: {
 }
 
 describe("unified logger runtime/bootstrap behavior", () => {
+  it("reads Plasmo-serialized logging preferences on startup and storage changes", async () => {
+    const storage = createPromiseStorageApi(
+      JSON.stringify({ logging: { consoleEnabled: true, level: "info" } }),
+    )
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const { createLogger } = await importFreshLogger({
+      browserApi: storage.api,
+    })
+    const logger = createLogger("SerializedPreferences")
+    logger.warn("enabled from persisted JSON")
+    expect(warn).toHaveBeenCalledTimes(1)
+    storage.getListener()?.(
+      {
+        [USER_PREFERENCES_STORAGE_KEYS.USER_PREFERENCES]: {
+          newValue: JSON.stringify({
+            logging: { consoleEnabled: false, level: "debug" },
+          }),
+        },
+      },
+      "local",
+    )
+    logger.warn("disabled by serialized update")
+    expect(warn).toHaveBeenCalledTimes(1)
+  })
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.useRealTimers()
@@ -305,7 +329,11 @@ describe("unified logger runtime/bootstrap behavior", () => {
     )
   })
 
-  it("detects side panel context when only the chrome extension API is available", async () => {
+  it.each([
+    ["ms-browser-extension:", "/sidepanel/index.html", "SidePanel"],
+    ["safari-web-extension:", "/options.html", "Options"],
+    ["safari-web-extension:", "/popup.html", "Popup"],
+  ])("detects %s %s context", async (protocol, pathname, context) => {
     const storage = createPromiseStorageApi({
       logging: {
         consoleEnabled: true,
@@ -319,15 +347,15 @@ describe("unified logger runtime/bootstrap behavior", () => {
       chromeApi: storage.api,
       document: {},
       location: {
-        protocol: "ms-browser-extension:",
-        pathname: "/sidepanel/index.html",
+        protocol,
+        pathname,
       },
     })
 
     createLogger("Panel").debug("side panel boot")
 
     expect(debugSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[SidePanel][Panel] side panel boot"),
+      expect.stringContaining(`[${context}][Panel] side panel boot`),
     )
   })
 

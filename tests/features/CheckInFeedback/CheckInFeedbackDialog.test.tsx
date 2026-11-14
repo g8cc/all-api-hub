@@ -13,10 +13,10 @@ import {
 } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { AccountCheckInSection } from "~/features/AccountManagement/components/AccountDialog/AccountCheckInSection"
-import AccountSnapshotTableRow from "~/features/AutoCheckin/components/AccountSnapshotTableRow"
-import ResultsTableRow from "~/features/AutoCheckin/components/ResultsTableRow"
-import ResultsTableRowActions from "~/features/AutoCheckin/components/ResultsTableRowActions"
+import { AccountCheckInSection } from "~/features/AccountManagement/components/AccountDialog/checkin/AccountCheckInSection"
+import AccountSnapshotTableRow from "~/features/AutoCheckin/readiness/AccountSnapshotTableRow"
+import ResultsTableRow from "~/features/AutoCheckin/results/ResultsTableRow"
+import ResultsTableRowActions from "~/features/AutoCheckin/results/ResultsTableRowActions"
 import CheckInFeedbackDialog from "~/features/CheckInFeedback/CheckInFeedbackDialog"
 import accountDialogLocale from "~/locales/en/accountDialog.json"
 import autoCheckinLocale from "~/locales/en/autoCheckin.json"
@@ -24,13 +24,20 @@ import commonLocale from "~/locales/en/common.json"
 import { accountQueries } from "~/services/accounts/accountStorage/accountQueries"
 import { autoCheckinStorage } from "~/services/checkin/autoCheckin/storage"
 import { collectFeedbackCluesInBrowser } from "~/services/checkin/feedback/scanClient"
+import { AuthTypeEnum, SiteHealthStatus } from "~/types"
 import type { CheckinAccountResult } from "~/types/autoCheckin"
 import type { CheckInConfig } from "~/types/checkIn"
-import { createTab } from "~/utils/browser/browserApi"
+import { sendRuntimeActionMessage } from "~/utils/browser/runtimeMessages"
+import { createTab } from "~/utils/browser/tabs"
 import { openAccountManagerWithSearch } from "~/utils/navigation"
 import { buildSiteAccount } from "~~/tests/test-utils/factories"
 import { testI18n } from "~~/tests/test-utils/i18n"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
+vi.mock("~/utils/browser/runtimeMessages", async (original) => ({
+  ...(await original<typeof import("~/utils/browser/runtimeMessages")>()),
+  sendRuntimeActionMessage: vi.fn(),
+}))
 vi.mock("~/services/accounts/accountStorage/accountQueries", () => ({
   accountQueries: { getAccountById: vi.fn() },
 }))
@@ -44,8 +51,8 @@ vi.mock("~/services/checkin/feedback/scanClient", async (original) => ({
   >()),
   collectFeedbackCluesInBrowser: vi.fn(),
 }))
-vi.mock("~/utils/browser/browserApi", async (original) => ({
-  ...(await original<typeof import("~/utils/browser/browserApi")>()),
+vi.mock("~/utils/browser/tabs", async (original) => ({
+  ...(await original<typeof import("~/utils/browser/tabs")>()),
   createTab: vi.fn(),
 }))
 
@@ -80,12 +87,205 @@ beforeEach(() => {
     new Error("unavailable"),
   )
   vi.mocked(createTab).mockResolvedValue(undefined)
+  vi.mocked(sendRuntimeActionMessage).mockResolvedValue({ success: true })
 })
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
 describe("check-in feedback workflow", () => {
+  it("opens a snapshot with execution without waiting for execution storage", async () => {
+    vi.mocked(accountQueries.getAccountById).mockResolvedValue(
+      buildSiteAccount(),
+    )
+    vi.mocked(autoCheckinStorage.getStatus).mockImplementation(
+      () => new Promise(() => {}),
+    )
+    render(
+      wrap(
+        <CheckInFeedbackDialog
+          source={{
+            accountId: "account",
+            snapshot: {
+              ...snapshot,
+              execution: {
+                timestamp: 1,
+                status: "failed",
+              },
+            },
+          }}
+          onClose={vi.fn()}
+        />,
+      ),
+    )
+    expect(
+      await screen.findByLabelText("What happened? (optional)"),
+    ).toBeVisible()
+  })
+
+  it("retains draft feedback when the saved account read fails", async () => {
+    vi.mocked(accountQueries.getAccountById).mockRejectedValueOnce(
+      new Error("unavailable"),
+    )
+    render(
+      wrap(
+        <CheckInFeedbackDialog
+          source={{ accountId: "account", snapshot }}
+          onClose={vi.fn()}
+        />,
+      ),
+    )
+    expect(
+      await screen.findByLabelText("What happened? (optional)"),
+    ).toBeVisible()
+  })
+
+  it.each(["rawMessage", "message"] as const)(
+    "omits saved %s when account credentials cannot be loaded",
+    async (field) => {
+      const user = userEvent.setup()
+      vi.mocked(accountQueries.getAccountById).mockResolvedValueOnce(null)
+      render(
+        wrap(
+          <CheckInFeedbackDialog
+            source={{
+              accountId: "account",
+              snapshot: {
+                ...snapshot,
+                execution: {
+                  status: "failed",
+                  [field]: "unknown-saved-secret",
+                },
+              },
+            }}
+            onClose={vi.fn()}
+          />,
+        ),
+      )
+      await screen.findByLabelText("What happened? (optional)")
+      await user.click(screen.getByText("Review and edit submission"))
+      expect(
+        (
+          screen.getByLabelText(
+            "Full submission (select to copy)",
+          ) as HTMLTextAreaElement
+        ).value,
+      ).not.toContain("unknown-saved-secret")
+    },
+  )
+  it("ignores a saved account lookup completed after closing", async () => {
+    let resolve!: (account: ReturnType<typeof buildSiteAccount>) => void
+    vi.mocked(accountQueries.getAccountById).mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    )
+    const view = render(
+      wrap(
+        <CheckInFeedbackDialog
+          source={{ accountId: "account", snapshot }}
+          onClose={vi.fn()}
+        />,
+      ),
+    )
+    view.unmount()
+    await act(async () => {
+      resolve(buildSiteAccount())
+    })
+    expect(
+      screen.queryByLabelText("What happened? (optional)"),
+    ).not.toBeInTheDocument()
+  })
+  it.each(
+    ["editor", "saved"].flatMap((kind) =>
+      ["rawMessage", "message"].map((field) => ({ kind, field })),
+    ),
+  )(
+    "includes saved refresh diagnostics in $kind feedback with $field while preserving drafts",
+    async ({ kind, field }) => {
+      const user = userEvent.setup()
+      vi.mocked(accountQueries.getAccountById).mockResolvedValue(
+        buildSiteAccount({
+          health: {
+            status: SiteHealthStatus.Error,
+            reason:
+              "Failed saved-access-secret session=saved-access-secret; private_field=hidden-cookie-value saved-refresh-secret kimi-secret aiml-secret",
+          },
+          account_info: {
+            ...buildSiteAccount().account_info,
+            access_token: "saved-access-secret",
+          },
+          cookieAuth: {
+            sessionCookie:
+              "session=saved-access-secret; private_field=hidden-cookie-value",
+          },
+          sub2apiAuth: { refreshToken: "saved-refresh-secret" },
+          kimiOpenPlatformAuth: {
+            refreshToken: "kimi-secret",
+            organizationId: "org",
+          },
+          aimlApiAuth: { apiKey: "aiml-secret" },
+          last_sync_time: 1000,
+        }),
+      )
+      vi.mocked(autoCheckinStorage.getStatus).mockResolvedValue({
+        perAccount: {
+          account: {
+            accountId: "account",
+            accountName: "Account",
+            status: "failed",
+            timestamp: 1,
+            [field]:
+              "Failed session=saved-access-secret; private_field=hidden-cookie-value saved-refresh-secret kimi-secret aiml-secret",
+          },
+        },
+      } as Awaited<ReturnType<typeof autoCheckinStorage.getStatus>>)
+      render(
+        wrap(
+          <CheckInFeedbackDialog
+            source={
+              kind === "editor"
+                ? {
+                    accountId: "account",
+                    snapshot,
+                    auth: {
+                      authType: AuthTypeEnum.AccessToken,
+                      accessToken: "private-access-token",
+                    },
+                  }
+                : { accountId: "account" }
+            }
+            onClose={vi.fn()}
+          />,
+        ),
+      )
+      await screen.findByLabelText("What happened? (optional)")
+      await user.click(screen.getByText("Review and edit submission"))
+      await user.click(
+        screen.getByText(accountDialogLocale.checkInFeedback.editReport),
+      )
+      const details = screen.getByLabelText(
+        accountDialogLocale.checkInFeedback.details,
+      )
+      const diagnosticText = (details as HTMLTextAreaElement).value
+      expect(diagnosticText).toContain("accountRefreshHealth: error")
+      expect(diagnosticText).toContain(
+        "accountRefreshRecordedAt: 1970-01-01T00:00:01.000Z",
+      )
+      expect(diagnosticText).toContain("[REDACTED]")
+      expect(diagnosticText).not.toContain("saved-access-secret")
+      expect(diagnosticText).not.toContain("hidden-cookie-value")
+      expect(diagnosticText).not.toContain("saved-refresh-secret")
+      expect(diagnosticText).not.toContain("kimi-secret")
+      expect(diagnosticText).not.toContain("aiml-secret")
+      expect((details as HTMLTextAreaElement).value).not.toContain(
+        "private-access-token",
+      )
+      expect((details as HTMLTextAreaElement).value).not.toContain("/private")
+    },
+  )
+
   it("opens adaptation feedback as the primary action for an unsupported result", async () => {
     const user = userEvent.setup()
     vi.mocked(accountQueries.getAccountById).mockResolvedValue(
@@ -304,7 +504,7 @@ describe("check-in feedback workflow", () => {
       )
       const row = screen.getByRole("row")
       const cells = within(row).getAllByRole("cell")
-      const message = cells[2].textContent!
+      const message = atIndex(cells, 2).textContent!
       render(
         wrap(
           <CheckInFeedbackDialog
@@ -318,7 +518,9 @@ describe("check-in feedback workflow", () => {
         await within(dialog).findByText(message, { selector: "p" }),
       ).toBeVisible()
       expect(
-        within(dialog).getByText(cells[1].textContent!, { selector: "span" }),
+        within(dialog).getByText(atIndex(cells, 1).textContent!, {
+          selector: "span",
+        }),
       ).toBeVisible()
       await user.click(within(dialog).getByText("Review and edit submission"))
       expect(
@@ -334,7 +536,18 @@ describe("check-in feedback workflow", () => {
   it("carries the result row's upstream message into feedback with secrets redacted", async () => {
     const user = userEvent.setup()
     vi.mocked(accountQueries.getAccountById).mockResolvedValue(
-      buildSiteAccount({ id: "failed", checkIn }),
+      buildSiteAccount({
+        id: "failed",
+        checkIn,
+        account_info: {
+          ...buildSiteAccount().account_info,
+          access_token: "private-token",
+        },
+        cookieAuth: {
+          sessionCookie:
+            "session=private-token; private_field=execution-cookie-value",
+        },
+      }),
     )
     render(
       wrap(
@@ -344,7 +557,8 @@ describe("check-in feedback workflow", () => {
             accountName: "Private",
             status: "failed",
             timestamp: 1,
-            rawMessage: "Upstream denied: Authorization: Bearer private-token",
+            rawMessage:
+              "Upstream denied: session=private-token; private_field=execution-cookie-value",
           }}
         />,
       ),
@@ -356,7 +570,7 @@ describe("check-in feedback workflow", () => {
       }),
     )
     expect(
-      await screen.findByText("Upstream denied: Authorization: [REDACTED]", {
+      await screen.findByText("Upstream denied: [REDACTED]", {
         selector: "p",
       }),
     ).toBeVisible()
@@ -367,6 +581,7 @@ describe("check-in feedback workflow", () => {
       ) as HTMLTextAreaElement
     ).value
     expect(report).toContain("Upstream denied")
+    expect(report).not.toContain("execution-cookie-value")
     expect(report).not.toContain("private-token")
   })
 
@@ -401,7 +616,7 @@ describe("check-in feedback workflow", () => {
     expect(report).toContain("execution</th><td>failed</td>")
     expect(report).toContain("execution reason</th><td>permission_denied</td>")
     expect(report).toContain("automatic execution enabled</th><td>false</td>")
-    expect(accountQueries.getAccountById).not.toHaveBeenCalled()
+    expect(accountQueries.getAccountById).toHaveBeenCalledWith("edited")
   })
   it("opens the result row's account and includes its controlled execution reason", async () => {
     const user = userEvent.setup()
@@ -568,7 +783,9 @@ describe("check-in feedback workflow", () => {
         screen.getByRole("button", { name: "Continue to GitHub" }),
       )
       expect(
-        new URL(vi.mocked(createTab).mock.calls[0][0]).searchParams.get("body"),
+        new URL(
+          atIndex(vi.mocked(createTab).mock.calls, 0)[0],
+        ).searchParams.get("feedback"),
       ).toBe(preview.value)
       expect(screen.getByLabelText("What happened? (optional)")).toHaveValue(
         "Website works",
@@ -583,6 +800,115 @@ describe("check-in feedback workflow", () => {
       ).toHaveValue("")
     },
   )
+
+  it("copies the complete current report before opening GitHub in one action", async () => {
+    const user = userEvent.setup()
+    render(
+      wrap(<CheckInFeedbackDialog source={{ snapshot }} onClose={vi.fn()} />),
+    )
+    const notes = await screen.findByLabelText("What happened? (optional)")
+    await user.click(notes)
+    await user.paste("Long description ".repeat(800))
+    let finishCopy!: () => void
+    const originalWrite = navigator.clipboard.writeText.bind(
+      navigator.clipboard,
+    )
+    const write = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockImplementationOnce(async (text) => {
+        await new Promise<void>((resolve) => {
+          finishCopy = resolve
+        })
+        await originalWrite(text)
+      })
+    expect(
+      screen.queryByRole("button", { name: "Copy content" }),
+    ).not.toBeInTheDocument()
+    const button = screen.getByRole("button", {
+      name: "Copy report and open GitHub",
+    })
+    await user.click(button)
+    expect(sendRuntimeActionMessage).not.toHaveBeenCalled()
+    expect(button).toBeDisabled()
+    await act(async () => finishCopy())
+    expect(sendRuntimeActionMessage).toHaveBeenCalledOnce()
+    expect(await navigator.clipboard.readText()).toContain(
+      "Long description ".repeat(800),
+    )
+    const url = new URL(
+      atIndex(vi.mocked(sendRuntimeActionMessage).mock.calls, 0)[0]
+        .url as string,
+    )
+    expect(url.searchParams.get("site-url")).toBe("https://example.com")
+    expect(url.searchParams.get("template")).toBe("checkin_adaptation.yml")
+    expect(url.searchParams.has("feedback")).toBe(false)
+    expect(
+      screen.queryByRole("button", { name: "Copy content" }),
+    ).not.toBeInTheDocument()
+    await user.type(notes, " revised")
+    await user.click(
+      screen.getByRole("button", { name: "Copy report and open GitHub" }),
+    )
+    expect(sendRuntimeActionMessage).toHaveBeenCalledTimes(2)
+    expect(await navigator.clipboard.readText()).toContain("revised")
+    write.mockRestore()
+  })
+
+  it("keeps the report available after a failed background open and recopies on retry", async () => {
+    const user = userEvent.setup()
+    render(
+      wrap(<CheckInFeedbackDialog source={{ snapshot }} onClose={vi.fn()} />),
+    )
+    const notes = await screen.findByLabelText("What happened? (optional)")
+    await user.click(notes)
+    await user.paste("Long report ".repeat(800))
+    vi.mocked(sendRuntimeActionMessage).mockResolvedValueOnce({
+      success: false,
+    })
+    await user.click(
+      screen.getByRole("button", { name: "Copy report and open GitHub" }),
+    )
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not open GitHub")
+    await navigator.clipboard.writeText(
+      "Other content copied since the failure",
+    )
+    await user.click(
+      screen.getByRole("button", { name: "Copy report and open GitHub" }),
+    )
+    expect(await navigator.clipboard.readText()).toContain(
+      "Long report ".repeat(800),
+    )
+    expect(sendRuntimeActionMessage).toHaveBeenCalledTimes(2)
+  })
+
+  it("allows copying the latest draft after an older clipboard write finishes", async () => {
+    const user = userEvent.setup()
+    render(
+      wrap(<CheckInFeedbackDialog source={{ snapshot }} onClose={vi.fn()} />),
+    )
+    const notes = await screen.findByLabelText("What happened? (optional)")
+    await user.click(notes)
+    await user.paste("Long description ".repeat(800))
+    let finishCopy!: () => void
+    const write = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishCopy = resolve
+          }),
+      )
+    await user.click(
+      screen.getByRole("button", { name: "Copy report and open GitHub" }),
+    )
+    await user.type(notes, " revised")
+    await act(async () => finishCopy())
+    expect(sendRuntimeActionMessage).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole("button", { name: "Copy report and open GitHub" }),
+    ).toBeEnabled()
+    write.mockRestore()
+  })
 
   it("lets manual copying recover a long report when clipboard access stays denied", async () => {
     const user = userEvent.setup()
@@ -600,9 +926,9 @@ describe("check-in feedback workflow", () => {
       .spyOn(navigator.clipboard, "writeText")
       .mockRejectedValue(new Error("denied"))
     await user.click(
-      screen.getByRole("button", { name: "Copy and open GitHub" }),
+      screen.getByRole("button", { name: "Copy report and open GitHub" }),
     )
-    expect(createTab).not.toHaveBeenCalled()
+    expect(sendRuntimeActionMessage).not.toHaveBeenCalled()
     expect(
       screen.getByText(
         "Copy failed. Retry, or expand the submission and copy it manually.",
@@ -616,10 +942,70 @@ describe("check-in feedback workflow", () => {
     )
     expect(write).toHaveBeenCalledTimes(1)
     expect(
-      new URL(vi.mocked(createTab).mock.calls[0][0]).searchParams.has("body"),
+      new URL(
+        atIndex(vi.mocked(sendRuntimeActionMessage).mock.calls, 0)[0]
+          .url as string,
+      ).searchParams.has("feedback"),
     ).toBe(false)
     write.mockRestore()
   })
+
+  it("does not navigate when a rejected clipboard write belongs to a closed report", async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(
+      wrap(<CheckInFeedbackDialog source={{ snapshot }} onClose={vi.fn()} />),
+    )
+    const notes = await screen.findByLabelText("What happened? (optional)")
+    await user.click(notes)
+    await user.paste("Long report ".repeat(800))
+    let rejectCopy!: (error: Error) => void
+    const write = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectCopy = reject
+          }),
+      )
+    await user.click(
+      screen.getByRole("button", { name: "Copy report and open GitHub" }),
+    )
+    unmount()
+    await act(async () => rejectCopy(new Error("denied")))
+    expect(sendRuntimeActionMessage).not.toHaveBeenCalled()
+    write.mockRestore()
+  })
+
+  it.each([false, true])(
+    "keeps a new draft free of an old navigation result (failure: %s)",
+    async (fails) => {
+      const user = userEvent.setup()
+      render(
+        wrap(<CheckInFeedbackDialog source={{ snapshot }} onClose={vi.fn()} />),
+      )
+      const notes = await screen.findByLabelText("What happened? (optional)")
+      let finish!: () => void
+      vi.mocked(createTab).mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            finish = () =>
+              fails
+                ? reject(new Error("navigation failed"))
+                : resolve(undefined)
+          }),
+      )
+      await user.click(
+        screen.getByRole("button", { name: "Continue to GitHub" }),
+      )
+      await user.type(notes, "new draft")
+      await act(async () => finish())
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+      expect(
+        screen.getByRole("button", { name: "Continue to GitHub" }),
+      ).toBeEnabled()
+      expect(notes).toHaveValue("new draft")
+    },
+  )
 
   it("reveals selectable report text when the independent copy action fails", async () => {
     const user = userEvent.setup()
@@ -690,7 +1076,10 @@ describe("check-in feedback workflow", () => {
       wrap(<CheckInFeedbackDialog source={{ snapshot }} onClose={vi.fn()} />),
     )
     await screen.findByLabelText("What happened? (optional)")
-    const signal = vi.mocked(collectFeedbackCluesInBrowser).mock.calls[0][1]
+    const signal = atIndex(
+      vi.mocked(collectFeedbackCluesInBrowser).mock.calls,
+      0,
+    )[1]
     unmount()
     expect(signal.aborted).toBe(true)
   })

@@ -1,0 +1,85 @@
+name: Permission warnings
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "plugins/**"
+      - "e2e/**"
+      - "scripts/run-permission-warning-check.mjs"
+      - "scripts/e2e-*"
+      - "scripts/utils/run-pnpm.mjs"
+      - "wxt.config.ts"
+      - "playwright.config.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".nvmrc"
+      - ".env*"
+      - ".github/workflows/permission-warnings.yml"
+      - ".github/workflows/e2e-build.yml"
+      - ".github/actions/setup-unit-test-browser/**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: permission-warnings-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-changes:
+    # Skipping costs nothing when the diff is not a release: the job exits before
+    # installing anything. Release-please bumps package.json, which is an input here,
+    # so without this gate a version-only PR paid for a full extension build (measured:
+    # 20 runs, 54 runner-minutes, all of them publishing nothing).
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'release-please--branches--')
+    uses: ./.github/workflows/release-pr-check.yml
+
+  build:
+    needs: release-changes
+    # No skip-e2e label or optional-build escape: permission changes need a check.
+    if: ${{ !cancelled() && needs.release-changes.result != 'failure' && needs.release-changes.outputs.release-only != 'true' }}
+    uses: ./.github/workflows/e2e-build.yml
+
+  warnings:
+    name: Native permission warnings
+    # Skipped with the build when a release-only diff needs no manifest check.
+    needs: build
+    # A skipped release ancestor must not suppress a successful build's check.
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
+        with:
+          name: e2e-extension-default
+          path: .output/chrome-mv3-test
+      - uses: pnpm/action-setup@v5
+        with:
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .output/chrome-mv3-test/.node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Prepare E2E Chromium
+        uses: ./.github/actions/setup-unit-test-browser
+        with:
+          channel: chromium
+      - name: Compare warnings in the real browser
+        # The current run's producer validated the default build fingerprint.
+        env:
+          AAH_E2E_BUILD_VARIANT: default
+          AAH_SKIP_E2E_BUILD: "1"
+        run: pnpm exec playwright test e2e/extensionPermissionWarnings.spec.ts --project=chromium --no-deps --workers=1 --reporter=list,github,html
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: permission-warning-evidence
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

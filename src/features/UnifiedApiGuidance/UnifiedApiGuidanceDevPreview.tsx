@@ -18,16 +18,15 @@ import {
   buildApiCredentialGatewayGuidanceModel,
 } from "~/features/ApiCredentialProfiles/ApiCredentialProfiles"
 import type { OptionsOverviewUnifiedApiGuidanceDiagnostics } from "~/features/OptionsOverview/types"
-import { useOptionsOverviewData } from "~/features/OptionsOverview/useOptionsOverviewData"
+import { useOptionsOverviewData } from "~/features/OptionsOverview/workspace/useOptionsOverviewData"
 import {
   createEmptyFeatureGuidanceState,
   type FeatureGuidanceState,
 } from "~/services/featureGuidance/featureGuidanceState"
-import {
-  DEFAULT_PREFERENCES,
-  type UserPreferences,
-} from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { type UserPreferences } from "~/services/preferences/preferencesSchema"
 import { assertNever } from "~/utils/core/assert"
+import { revealNavigationTarget } from "~/utils/dom/navigationTarget"
 
 import {
   UNIFIED_API_GUIDANCE_SURFACES,
@@ -305,7 +304,7 @@ export default function UnifiedApiGuidanceDevPreview() {
   }
 
   return (
-    <div className="py-density-6 px-6">
+    <div className="py-density-4 sm:py-density-6 px-4 sm:px-6">
       <PageHeader
         icon={PAGE_ICON}
         title="Unified API guidance preview"
@@ -357,9 +356,10 @@ function CurrentStatePreview({
   const handleJumpToMatchedScenario = () => {
     if (!matchedScenario) return
 
-    document
-      .getElementById(buildScenarioElementId(matchedScenario.scenario.id))
-      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+    const target = document.getElementById(
+      buildScenarioElementId(matchedScenario.scenario.id),
+    )
+    if (target) revealNavigationTarget(target, { behavior: "smooth" })
   }
 
   return (

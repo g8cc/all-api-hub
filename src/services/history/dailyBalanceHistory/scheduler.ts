@@ -1,8 +1,9 @@
 import { RuntimeActionIds } from "~/constants/runtimeActions"
 import { accountQueries } from "~/services/accounts/accountStorage/accountQueries"
 import { accountRefresh } from "~/services/accounts/accountStorage/accountRefresh"
-import { isAccountTodayMetricComplete } from "~/services/accounts/accountTodayStats"
-import { resolveAccountTodayStatsAvailability } from "~/services/accounts/accountTodayStatsResolver"
+import { isAccountTodayMetricComplete } from "~/services/accounts/metrics/accountTodayStats"
+import { resolveAccountTodayStatsAvailability } from "~/services/accounts/metrics/accountTodayStatsResolver"
+import { supportsMonetaryBalance } from "~/services/accounts/metrics/monetaryBalancePolicy"
 import { notifyTaskResult } from "~/services/notifications/taskNotificationService"
 import { userPreferences } from "~/services/preferences/userPreferences"
 import { createAutomaticProtectionBypassExecution } from "~/services/protectionBypass/client"
@@ -34,7 +35,7 @@ import {
   getAlarm,
   hasAlarmsAPI,
   onAlarm,
-} from "~/utils/browser/browserApi"
+} from "~/utils/browser/alarms"
 import {
   getDayKeyFromUnixSeconds,
   subtractDaysFromDayKey,
@@ -292,6 +293,10 @@ class DailyBalanceHistoryScheduler {
 
     for (const account of accounts) {
       if (
+        !supportsMonetaryBalance(
+          account.account_info.nativeBalance,
+          account.account_info.balanceUnavailable,
+        ) ||
         account.excludeFromTodayIncome === true ||
         (typeof account.manualBalanceUsd === "string" &&
           account.manualBalanceUsd.trim() !== "")

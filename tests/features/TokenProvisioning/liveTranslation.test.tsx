@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
 import { useCopyKeyDialog } from "~/features/AccountManagement/components/CopyKeyDialog/hooks/useCopyKeyDialog"
-import { useModelKeyDialog } from "~/features/ModelList/components/ModelKeyDialog/hooks/useModelKeyDialog"
-import { useDefaultTokenQuickCreate } from "~/features/TokenProvisioning/hooks/useDefaultTokenQuickCreate"
+import { useModelKeyDialog } from "~/features/ModelList/keySelection/hooks/useModelKeyDialog"
+import { useDefaultTokenQuickCreate } from "~/features/TokenProvisioning/creation/useDefaultTokenQuickCreate"
 import enKeyManagement from "~/locales/en/keyManagement.json"
 import enMessages from "~/locales/en/messages.json"
 import enModelList from "~/locales/en/modelList.json"
@@ -39,7 +39,7 @@ vi.mock(
     fetchDisplayAccountRuntimeKeys: mocks.keys,
   }),
 )
-vi.mock("~/services/accounts/accountKeyResourceInventory", () => ({
+vi.mock("~/services/accounts/keys/accountKeyResourceInventory", () => ({
   fetchDisplayAccountKeyResourceInventory: async () => ({
     scope: { displayName: "Account" },
     items: (await mocks.keys()).map((key: any) => ({
@@ -53,12 +53,15 @@ vi.mock("~/services/accounts/accountKeyResourceInventory", () => ({
     })),
   }),
 }))
-vi.mock("~/services/accounts/accountKeyCreation", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("~/services/accounts/accountKeyCreation")
-  >()),
-  prepareDefaultAccountKeyCreation: mocks.resolution,
-}))
+vi.mock(
+  "~/services/accounts/keys/accountKeyCreation",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/accounts/keys/accountKeyCreation")
+    >()),
+    prepareDefaultAccountKeyCreation: mocks.resolution,
+  }),
+)
 
 const i18n = await createResourceTestI18n({
   en: {

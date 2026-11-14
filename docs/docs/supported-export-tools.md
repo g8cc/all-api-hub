@@ -16,6 +16,7 @@
 | CC Switch | 面向 Claude Code、Codex、Gemini CLI、Grok CLI、Hermes、OpenCode 与 OpenClaw 的跨平台桌面一体化助手。 | [GitHub](https://github.com/farion1231/cc-switch)                               |
 | Kilo Code | Kilo 是一体化的 Agentic Engineering 平台。                                                           | [官网](https://kilocode.ai/) / [GitHub](https://github.com/Kilo-Org/kilocode)   |
 | Roo Code  | Roo Code 让一整支 AI 开发团队直接驻留在你的代码编辑器里。                                            | [官网](https://roocode.com/) / [GitHub](https://github.com/RooCodeInc/Roo-Code) |
+| AI Toolbox  | 面向开发者与 AI 编码助手的桌面效率工具，支持 Claude Code、Codex、Grok、Kimi、Gemini 等多工具配置切换。 | [GitHub](https://github.com/coulsontl/ai-toolbox) |
 | Cursor++  | 通过自备 API 密钥在 Cursor 中使用 Anthropic、OpenAI 与 Gemini 等模型。                               | [官网](https://ccursor.cometix.dev/)                                            |
 
 ## 网关与路由工具
@@ -42,7 +43,7 @@ Kelivo 本身也支持 OpenAI Responses，但当前 `ai-provider:v1` 导入码�
 
 在账号密钥或 API 凭据的操作区选择“导出 Cursor++ 提供商配置”，All API Hub 会读取 OpenAI 兼容模型列表，并生成 Cursor++ 0.0.13 使用的 `provider` 对象。其中包含稳定的提供商 ID、名称、`baseUrl`、API 密钥认证信息，以及带有 `defaultOn: true` 的模型列表。
 
-导出前可以搜索、移除已发现的模型，也可以输入或粘贴多个模型 ID。默认使用账号现有的 OpenAI 兼容地址；如果所选原生协议使用不同路径，可以直接调整提供商 Base URL。
+导出前可以搜索、移除已发现的模型，也可以输入或粘贴多个模型 ID。Base URL 会按所选协议自动填成该协议需要的地址：OpenAI 两种协议使用带版本段的地址，Anthropic 与 Gemini 使用协议根地址，因为对应的 SDK 会自己补上版本段；需要时仍可以直接修改。
 
 Cursor++ 当前支持以下协议类型：
 
@@ -94,9 +95,12 @@ Kilo Code 当前的设置导入大小上限为 1 MiB。文件超出限制时，�
 
 | 产品            | 官方描述                                                                                                                        | 官方链接                                                                            |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [OmniRoute](./omniroute-integration.md) | 自建 AI 网关，内置大量 provider，支持作用域访问令牌与连接级上游地址覆盖。 | [GitHub](https://github.com/diegosouzapw/OmniRoute) |
 | [CLIProxyAPI](./cliproxyapi-integration.md) | 将 Gemini CLI、Antigravity、ChatGPT Codex、Claude Code、Qwen Code、iFlow 封装为兼容 OpenAI / Gemini / Claude / Codex 的 API 服务。 | [文档](https://help.router-for.me/) / [GitHub](https://github.com/router-for-me/CLIProxyAPI)                          |
 | New API         | 统一的 AI 模型聚合与分发中心。                                                                                                  | [官网](https://www.newapi.ai/) / [GitHub](https://github.com/QuantumNous/new-api)   |
 | Sub2API         | Sub2API-CRS2 一站式开源中转服务，让 Claude、OpenAI、Gemini、Antigravity 订阅统一接入。                                          | [GitHub](https://github.com/Wei-Shaw/sub2api)                                       |
+| Magpie          | 面向 AI 编程工具的模型网关，可从菜单栏为 Codex、Claude Code 等工具切换模型服务。 | [GitHub](https://github.com/yetone/magpie) |
+| [gpt-load](./gpt-load-integration.md) | 自建 AI 网关（Go 编写），分组即渠道驱动＋密钥池，架构轻量、内置驱动丰富。 | [GitHub](https://github.com/tbphp/gpt-load) |
 | AxonHub         | 开源 AI Gateway，可通过任意 SDK 调用 100+ LLM，内置故障切换、负载均衡、成本控制与全链路追踪。                                   | [官网](https://axonhub.onrender.com/) / [GitHub](https://github.com/looplj/axonhub) |
 | Claude Code Hub | 面向团队的多供应商 AI API 代理与运营平台，统一接入 Claude、OpenAI Compatible、Codex 与 Gemini，并支持弹性调度、监控与价格管理。 | [GitHub](https://github.com/ding113/claude-code-hub)                                |
 | Octopus         | 面向个人的 LLM API 聚合服务。                                                                                                   | [GitHub](https://github.com/bestruirui/octopus)                                     |

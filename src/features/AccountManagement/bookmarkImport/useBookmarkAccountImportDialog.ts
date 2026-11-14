@@ -11,13 +11,13 @@ import type {
   BookmarkAccountImportRowResult,
   BookmarkAccountImportRunResult,
   BookmarkAccountImportScanSummary,
-  NativeBookmarkTreeNode,
 } from "~/features/AccountManagement/bookmarkImport/types"
-import { useAccountDataContext } from "~/features/AccountManagement/hooks/AccountDataContext"
-import { useDialogStateContext } from "~/features/AccountManagement/hooks/DialogStateContext"
+import { useAccountDataContext } from "~/features/AccountManagement/data/AccountDataContext"
+import { useAccountDialogActions } from "~/features/AccountManagement/dialogs/useDialogStateContext"
 import { BOOKMARK_IMPORT_ADD_ACCOUNT_PREFILL_SOURCE } from "~/features/AccountManagement/sponsors/types"
 import {
   ensurePermissionsDetailed,
+  isPermissionDeclared,
   OPTIONAL_PERMISSION_IDS,
 } from "~/services/permissions/permissionManager"
 import { startProductAnalyticsAction } from "~/services/productAnalytics/actions"
@@ -36,8 +36,21 @@ import {
 } from "~/services/productAnalytics/contracts"
 import { withProtectionBypassUserCommand } from "~/services/protectionBypass/client"
 import { PROTECTION_BYPASS_USER_COMMANDS } from "~/services/protectionBypass/contracts"
-import { getBrowserBookmarkTree } from "~/utils/browser/browserApi"
+import type { SiteAccount } from "~/types"
+import { getBrowserBookmarkTree } from "~/utils/browser/bookmarks"
 import { getCurrentTempWindowRequestSource } from "~/utils/browser/tempWindowRequestSource"
+
+import { useBookmarkScopeSelection } from "./useBookmarkScopeSelection"
+
+/** Boundary used by local development fixtures without replacing browser globals. */
+export interface BookmarkAccountImportDialogRuntime {
+  accounts: SiteAccount[]
+  requestPermissions: typeof ensurePermissionsDetailed
+  readBookmarks: typeof getBrowserBookmarkTree
+  importAccounts: typeof runBookmarkAccountImport
+  loadAccountData: () => Promise<void>
+  startAnalytics: typeof startProductAnalyticsAction
+}
 
 type BookmarkAccountImportDialogStage =
   | "permission-needed"
@@ -105,133 +118,35 @@ function createInitialSelection(candidates: BookmarkAccountImportCandidate[]) {
   )
 }
 
-/** Collects every native bookmark node id from the provided subtrees. */
-function collectBookmarkNodeIds(nodes: NativeBookmarkTreeNode[]) {
-  const ids = new Set<string>()
-  const visit = (node: NativeBookmarkTreeNode) => {
-    ids.add(node.id)
-    for (const child of node.children ?? []) {
-      visit(child)
-    }
-  }
-
-  for (const node of nodes) {
-    visit(node)
-  }
-
-  return ids
-}
-
-/** Collects every node id under one native bookmark subtree. */
-function collectBookmarkSubtreeIds(node: NativeBookmarkTreeNode) {
-  return collectBookmarkNodeIds([node])
-}
-
-/** Returns whether a node or any descendant is currently selected. */
-function hasSelectedDescendant(
-  node: NativeBookmarkTreeNode,
-  selectedNodeIds: Set<string>,
-): boolean {
-  if (selectedNodeIds.has(node.id)) {
-    return true
-  }
-
-  return (node.children ?? []).some((child) =>
-    hasSelectedDescendant(child, selectedNodeIds),
-  )
-}
-
-/** Counts selected URL bookmarks after applying folder and bookmark selections. */
-function countSelectedBookmarkUrls(
-  nodes: NativeBookmarkTreeNode[],
-  selectedNodeIds: Set<string>,
-) {
-  let count = 0
-  const visit = (node: NativeBookmarkTreeNode, ancestorSelected: boolean) => {
-    const isSelected = ancestorSelected || selectedNodeIds.has(node.id)
-    if (isSelected && typeof node.url === "string" && node.url.trim()) {
-      count += 1
-    }
-
-    for (const child of node.children ?? []) {
-      visit(child, isSelected)
-    }
-  }
-
-  for (const node of nodes) {
-    visit(node, false)
-  }
-
-  return count
-}
-
-/** Preserves only selected bookmark nodes and their required ancestor folders. */
-function filterBookmarkTreeBySelection(
-  nodes: NativeBookmarkTreeNode[],
-  selectedNodeIds: Set<string>,
-): NativeBookmarkTreeNode[] {
-  const result: NativeBookmarkTreeNode[] = []
-
-  for (const node of nodes) {
-    if (selectedNodeIds.has(node.id)) {
-      result.push(node)
-      continue
-    }
-
-    const selectedChildren = filterBookmarkTreeBySelection(
-      node.children ?? [],
-      selectedNodeIds,
-    )
-    if (selectedChildren.length === 0) continue
-
-    result.push({
-      ...node,
-      children: selectedChildren,
-    })
-  }
-
-  return result
-}
-
-/** Finds the root-to-node path for a native bookmark node id. */
-function findBookmarkNodePath(
-  nodes: NativeBookmarkTreeNode[],
-  nodeId: string,
-  path: NativeBookmarkTreeNode[] = [],
-): NativeBookmarkTreeNode[] {
-  for (const node of nodes) {
-    const nextPath = [...path, node]
-    if (node.id === nodeId) {
-      return nextPath
-    }
-
-    const childPath = findBookmarkNodePath(
-      node.children ?? [],
-      nodeId,
-      nextPath,
-    )
-    if (childPath.length > 0) {
-      return childPath
-    }
-  }
-
-  return []
-}
-
 /** Controls the bookmark account import dialog workflow. */
-export function useBookmarkAccountImportDialog() {
-  const { accounts, loadAccountData } = useAccountDataContext()
-  const { openAddAccount } = useDialogStateContext()
+export function useBookmarkAccountImportDialog(
+  runtime?: BookmarkAccountImportDialogRuntime,
+) {
+  const accountData = useAccountDataContext()
+  const accounts = runtime?.accounts ?? accountData.accounts
+  const loadAccountData =
+    runtime?.loadAccountData ?? accountData.loadAccountData
+  const requestPermissions =
+    runtime?.requestPermissions ?? ensurePermissionsDetailed
+  const readBookmarks = runtime?.readBookmarks ?? getBrowserBookmarkTree
+  const startAnalytics = runtime?.startAnalytics ?? startProductAnalyticsAction
+  const { openAddAccount } = useAccountDialogActions()
   const [stage, setStage] =
     useState<BookmarkAccountImportDialogStage>("permission-needed")
   const [error, setError] = useState<BookmarkAccountImportDialogError>(null)
   const [candidates, setCandidates] = useState<
     BookmarkAccountImportCandidate[]
   >([])
-  const [bookmarkTree, setBookmarkTree] = useState<NativeBookmarkTreeNode[]>([])
-  const [selectedBookmarkNodeIds, setSelectedBookmarkNodeIds] = useState<
-    Set<string>
-  >(() => new Set())
+  const {
+    bookmarkTree,
+    selectedBookmarkNodeIds,
+    selectedBookmarkUrlCount,
+    canScanSelectedBookmarks,
+    replaceBookmarkTree,
+    getSelectedBookmarkTree,
+    toggleBookmarkNode,
+    setBookmarkNodeSelection,
+  } = useBookmarkScopeSelection()
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(
     () => new Set(),
   )
@@ -252,13 +167,7 @@ export function useBookmarkAccountImportDialog() {
       candidates.filter((candidate) => selectedCandidateIds.has(candidate.id)),
     [candidates, selectedCandidateIds],
   )
-  const selectedBookmarkUrlCount = useMemo(
-    () => countSelectedBookmarkUrls(bookmarkTree, selectedBookmarkNodeIds),
-    [bookmarkTree, selectedBookmarkNodeIds],
-  )
-
   const isBusy = stage === "scanning" || stage === "importing"
-  const canScanSelectedBookmarks = selectedBookmarkNodeIds.size > 0
 
   const completeFailure = useCallback(
     ({
@@ -270,7 +179,7 @@ export function useBookmarkAccountImportDialog() {
       readyCount = scanSummary.readyCount,
       blockedCount = scanSummary.duplicateCount,
     }: CompleteFailureOptions) => {
-      startProductAnalyticsAction(BOOKMARK_IMPORT_ANALYTICS_CONTEXT).complete(
+      startAnalytics(BOOKMARK_IMPORT_ANALYTICS_CONTEXT).complete(
         PRODUCT_ANALYTICS_RESULTS.Failure,
         {
           errorCategory,
@@ -290,6 +199,7 @@ export function useBookmarkAccountImportDialog() {
       scanSummary.duplicateCount,
       scanSummary.readyCount,
       selectedCandidateIds.size,
+      startAnalytics,
     ],
   )
 
@@ -304,7 +214,28 @@ export function useBookmarkAccountImportDialog() {
     })
 
     try {
-      const permissionResult = await ensurePermissionsDetailed([
+      // Check the native capability before prompting: Safari cannot grant a
+      // bookmarks permission, and that is not a user denial. Dev fixtures
+      // provide their own reader without using the native browser API.
+      if (
+        !runtime &&
+        !isPermissionDeclared(OPTIONAL_PERMISSION_IDS.Bookmarks)
+      ) {
+        setError("api-unavailable")
+        setStage("permission-needed")
+        completeFailure({
+          errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unsupported,
+          failureReason:
+            PRODUCT_ANALYTICS_FAILURE_REASONS.PermissionUnavailable,
+          failureStage: PRODUCT_ANALYTICS_FAILURE_STAGES.Permission,
+          itemCount: 0,
+          selectedCount: 0,
+          readyCount: 0,
+          blockedCount: 0,
+        })
+        return
+      }
+      const permissionResult = await requestPermissions([
         OPTIONAL_PERMISSION_IDS.Bookmarks,
       ])
 
@@ -323,7 +254,7 @@ export function useBookmarkAccountImportDialog() {
         return
       }
 
-      const bookmarkRead = await getBrowserBookmarkTree()
+      const bookmarkRead = await readBookmarks()
       if (!bookmarkRead.success) {
         setError(
           bookmarkRead.reason === "unavailable"
@@ -367,8 +298,7 @@ export function useBookmarkAccountImportDialog() {
         return
       }
 
-      setBookmarkTree(bookmarkRead.tree)
-      setSelectedBookmarkNodeIds(new Set())
+      replaceBookmarkTree(bookmarkRead.tree)
       setCandidates([])
       setSelectedCandidateIds(new Set())
       setIncludeExisting(false)
@@ -387,82 +317,20 @@ export function useBookmarkAccountImportDialog() {
         blockedCount: 0,
       })
     }
-  }, [completeFailure])
-
-  const toggleBookmarkNode = useCallback(
-    (nodeId: string) => {
-      const path = findBookmarkNodePath(bookmarkTree, nodeId)
-      const node = path.at(-1)
-      if (!node) return
-
-      const subtreeIds = collectBookmarkSubtreeIds(node)
-      setSelectedBookmarkNodeIds((current) => {
-        const next = new Set(current)
-        const shouldSelect = !hasSelectedDescendant(node, current)
-
-        for (const id of subtreeIds) {
-          if (shouldSelect) {
-            next.add(id)
-          } else {
-            next.delete(id)
-          }
-        }
-
-        if (!shouldSelect) {
-          for (const ancestor of path.slice(0, -1)) {
-            next.delete(ancestor.id)
-          }
-        }
-
-        return next
-      })
-    },
-    [bookmarkTree],
-  )
-
-  const setBookmarkNodeSelection = useCallback(
-    (nodeIds: string[], mode: "select" | "deselect" | "invert") => {
-      setSelectedBookmarkNodeIds((current) => {
-        const next = new Set(current)
-        const expandedIds = new Set<string>()
-
-        for (const id of nodeIds) {
-          const path = findBookmarkNodePath(bookmarkTree, id)
-          const node = path.at(-1)
-          if (!node) continue
-
-          for (const subtreeId of collectBookmarkSubtreeIds(node)) {
-            expandedIds.add(subtreeId)
-          }
-        }
-
-        for (const id of expandedIds) {
-          if (mode === "select") {
-            next.add(id)
-          } else if (mode === "deselect") {
-            next.delete(id)
-          } else if (next.has(id)) {
-            next.delete(id)
-          } else {
-            next.add(id)
-          }
-        }
-
-        return next
-      })
-    },
-    [bookmarkTree],
-  )
+  }, [
+    completeFailure,
+    requestPermissions,
+    readBookmarks,
+    replaceBookmarkTree,
+    runtime,
+  ])
 
   const scanSelectedBookmarks = useCallback(() => {
     if (!canScanSelectedBookmarks) return
 
     setStage("scanning")
     setError(null)
-    const selectedBookmarkTree = filterBookmarkTreeBySelection(
-      bookmarkTree,
-      selectedBookmarkNodeIds,
-    )
+    const selectedBookmarkTree = getSelectedBookmarkTree()
     const scan = buildBookmarkAccountImportCandidates({
       bookmarkTree: selectedBookmarkTree,
       existingAccounts: accounts,
@@ -493,10 +361,9 @@ export function useBookmarkAccountImportDialog() {
     setStage("review")
   }, [
     accounts,
-    bookmarkTree,
     canScanSelectedBookmarks,
     completeFailure,
-    selectedBookmarkNodeIds,
+    getSelectedBookmarkTree,
   ])
 
   const toggleCandidate = useCallback(
@@ -538,107 +405,148 @@ export function useBookmarkAccountImportDialog() {
     [candidates],
   )
 
-  const startImport = useCallback(async () => {
-    if (selectedCandidates.length === 0) return
-
-    setStage("importing")
-    setError(null)
-    setProgress({
-      completedCount: 0,
-      totalCount: selectedCandidates.length,
-      currentCandidateId: "",
-    })
-
-    const tracker = startProductAnalyticsAction(
-      BOOKMARK_IMPORT_ANALYTICS_CONTEXT,
-    )
-    let importResult: BookmarkAccountImportRunResult
-    try {
-      importResult = await withProtectionBypassUserCommand(
-        PROTECTION_BYPASS_USER_COMMANDS.AddAccount,
-        getCurrentTempWindowRequestSource(),
-        (protectionBypassExecution) =>
-          runBookmarkAccountImport({
-            candidates: selectedCandidates,
-            onProgress: setProgress,
-            protectionBypassExecution,
-          }),
+  const startImport = useCallback(
+    async (retryFailed = false) => {
+      if (stage !== (retryFailed ? "results" : "review")) return
+      const failedIds = new Set(
+        result.rows
+          .filter((row) => row.status === "failed")
+          .map((row) => row.candidateId),
       )
-    } catch {
-      setError("import-failed")
-      tracker.complete(PRODUCT_ANALYTICS_RESULTS.Failure, {
-        errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown,
-        insights: {
-          failureReason: PRODUCT_ANALYTICS_FAILURE_REASONS.Unknown,
-          failureStage: PRODUCT_ANALYTICS_FAILURE_STAGES.Execute,
-          itemCount: candidates.length,
-          selectedCount: selectedCandidates.length,
-          readyCount: scanSummary.readyCount,
-          blockedCount: scanSummary.duplicateCount,
-        },
-      })
-      setStage("review")
-      return
-    }
-    setResult(importResult)
+      const importCandidates = retryFailed
+        ? candidates.filter((candidate) => failedIds.has(candidate.id))
+        : selectedCandidates
+      if (importCandidates.length === 0) return
 
-    try {
-      await loadAccountData()
-    } catch {
-      setError("reload-failed")
-      tracker.complete(PRODUCT_ANALYTICS_RESULTS.Failure, {
-        errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown,
-        insights: {
-          failureReason: PRODUCT_ANALYTICS_FAILURE_REASONS.StorageReadFailed,
-          failureStage: PRODUCT_ANALYTICS_FAILURE_STAGES.Persist,
-          itemCount: candidates.length,
-          selectedCount: selectedCandidates.length,
-          successCount: importResult.successCount,
-          failureCount: importResult.failureCount,
-          skippedCount: importResult.skippedCount,
-          readyCount: scanSummary.readyCount,
-          blockedCount: scanSummary.duplicateCount,
-        },
+      setStage("importing")
+      setError(null)
+      setProgress({
+        completedCount: 0,
+        totalCount: importCandidates.length,
+        currentCandidateId: "",
       })
-      setStage("results")
-      return
-    }
 
-    tracker.complete(
-      importResult.failureCount > 0
-        ? PRODUCT_ANALYTICS_RESULTS.Failure
-        : PRODUCT_ANALYTICS_RESULTS.Success,
-      {
-        ...(importResult.failureCount > 0
-          ? {
-              errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown,
-            }
-          : {}),
-        insights: {
-          ...(importResult.failureCount > 0
+      const tracker = startAnalytics(BOOKMARK_IMPORT_ANALYTICS_CONTEXT)
+      let importResult: BookmarkAccountImportRunResult
+      try {
+        importResult = runtime
+          ? await runtime.importAccounts({
+              candidates: importCandidates,
+              onProgress: setProgress,
+            })
+          : await withProtectionBypassUserCommand(
+              PROTECTION_BYPASS_USER_COMMANDS.AddAccount,
+              getCurrentTempWindowRequestSource(),
+              (protectionBypassExecution) =>
+                runBookmarkAccountImport({
+                  candidates: importCandidates,
+                  onProgress: setProgress,
+                  protectionBypassExecution,
+                }),
+            )
+      } catch {
+        setError("import-failed")
+        tracker.complete(PRODUCT_ANALYTICS_RESULTS.Failure, {
+          errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown,
+          insights: {
+            failureReason: PRODUCT_ANALYTICS_FAILURE_REASONS.Unknown,
+            failureStage: PRODUCT_ANALYTICS_FAILURE_STAGES.Execute,
+            itemCount: candidates.length,
+            selectedCount: importCandidates.length,
+            readyCount: scanSummary.readyCount,
+            blockedCount: scanSummary.duplicateCount,
+          },
+        })
+        setStage(retryFailed ? "results" : "review")
+        return
+      }
+      let displayedResult = {
+        ...importResult,
+        skippedCount:
+          importResult.skippedCount +
+          candidates.length -
+          importCandidates.length,
+      }
+      if (retryFailed) {
+        const retriedRows = new Map(
+          importResult.rows.map((row) => [row.candidateId, row]),
+        )
+        const rows = result.rows.map(
+          (row) => retriedRows.get(row.candidateId) ?? row,
+        )
+        displayedResult = {
+          rows,
+          successCount: rows.filter((row) => row.status === "success").length,
+          failureCount: rows.filter((row) => row.status === "failed").length,
+          skippedCount: result.skippedCount,
+        }
+      }
+      setResult(displayedResult)
+
+      try {
+        await loadAccountData()
+      } catch {
+        setError("reload-failed")
+        tracker.complete(PRODUCT_ANALYTICS_RESULTS.Failure, {
+          errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown,
+          insights: {
+            failureReason: PRODUCT_ANALYTICS_FAILURE_REASONS.StorageReadFailed,
+            failureStage: PRODUCT_ANALYTICS_FAILURE_STAGES.Persist,
+            itemCount: candidates.length,
+            selectedCount: selectedCandidates.length,
+            successCount: displayedResult.successCount,
+            failureCount: displayedResult.failureCount,
+            skippedCount: displayedResult.skippedCount,
+            readyCount: scanSummary.readyCount,
+            blockedCount: scanSummary.duplicateCount,
+          },
+        })
+        setStage("results")
+        return
+      }
+
+      tracker.complete(
+        displayedResult.failureCount > 0
+          ? PRODUCT_ANALYTICS_RESULTS.Failure
+          : PRODUCT_ANALYTICS_RESULTS.Success,
+        {
+          ...(displayedResult.failureCount > 0
             ? {
-                failureReason: PRODUCT_ANALYTICS_FAILURE_REASONS.PartialSuccess,
-                failureStage: PRODUCT_ANALYTICS_FAILURE_STAGES.Execute,
+                errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown,
               }
             : {}),
-          itemCount: candidates.length,
-          selectedCount: selectedCandidates.length,
-          successCount: importResult.successCount,
-          failureCount: importResult.failureCount,
-          skippedCount: importResult.skippedCount,
-          readyCount: scanSummary.readyCount,
-          blockedCount: scanSummary.duplicateCount,
+          insights: {
+            ...(displayedResult.failureCount > 0
+              ? {
+                  failureReason:
+                    PRODUCT_ANALYTICS_FAILURE_REASONS.PartialSuccess,
+                  failureStage: PRODUCT_ANALYTICS_FAILURE_STAGES.Execute,
+                }
+              : {}),
+            itemCount: candidates.length,
+            selectedCount: selectedCandidates.length,
+            successCount: displayedResult.successCount,
+            failureCount: displayedResult.failureCount,
+            skippedCount: displayedResult.skippedCount,
+            readyCount: scanSummary.readyCount,
+            blockedCount: scanSummary.duplicateCount,
+          },
         },
-      },
-    )
-    setStage("results")
-  }, [
-    candidates.length,
-    loadAccountData,
-    scanSummary.duplicateCount,
-    scanSummary.readyCount,
-    selectedCandidates,
-  ])
+      )
+      setStage("results")
+    },
+    [
+      candidates,
+      stage,
+      result,
+      loadAccountData,
+      scanSummary.duplicateCount,
+      scanSummary.readyCount,
+      selectedCandidates,
+      runtime,
+      startAnalytics,
+    ],
+  )
 
   const backToBookmarkScopeSelection = useCallback(() => {
     if (stage !== "review") return
@@ -652,6 +560,8 @@ export function useBookmarkAccountImportDialog() {
       openAddAccount({
         source: BOOKMARK_IMPORT_ADD_ACCOUNT_PREFILL_SOURCE,
         siteUrl: row.url,
+        ...(row.siteType ? { siteType: row.siteType } : {}),
+        ...(row.authType ? { authType: row.authType } : {}),
       })
     },
     [openAddAccount],

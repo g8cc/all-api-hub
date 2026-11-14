@@ -1,52 +1,74 @@
-import { isAccountSiteType } from "~/constants/siteType"
+import {
+  CHECK_IN_METHOD_DETECTION_OUTCOMES,
+  CHECK_IN_SELECTION_MODES,
+} from "~/constants/checkIn"
 import {
   AccountUpdateUserTimestampMode,
   applySiteAccountUpdates,
-  type AccountUpdateOptions,
-} from "~/services/accounts/accountDefaults"
-import { normalizeAccountIdentity } from "~/services/accounts/accountIdentity"
-import { shouldAutomaticallyDiscoverAccountCheckIn } from "~/services/checkin/autoCheckin/inspection"
+} from "~/services/accounts/editing/accountDefaults"
+import {
+  hasSameAccountRequestIdentity,
+  hasSameCheckInRequestCredentials,
+} from "~/services/accounts/identity/accountIdentity"
+import { shouldAutomaticallyDiscoverAccountCheckIn } from "~/services/checkin/autoCheckin/discovery/inspection"
+import { setCheckInSelection } from "~/services/checkin/autoCheckin/domain"
 import {
   getAutoCheckinCandidateMethodIds,
   isCheckInMethodId,
 } from "~/services/checkin/autoCheckin/providers/registry"
 import {
   markCheckInMethodExecuted,
+  mergeCheckInRouteOverrides,
   mergeDiscoveredCheckInDraft,
   mergeRefreshedCheckInStatus,
-  mergeUserOwnedCheckInDraft,
 } from "~/services/checkin/autoCheckin/state"
-import {
-  AccountWriteRejectedError,
-  type AccountWriteGuard,
-} from "~/services/core/accountWriteGuard"
 import type { SiteAccount } from "~/types"
-import type { CheckInMethodSelection } from "~/types/checkIn"
-import type { DeepPartial } from "~/types/utils"
+import type { CheckInMethodId } from "~/types/checkIn"
 import { formatLocalDayKey } from "~/utils/core/dayKey"
 import { createLogger } from "~/utils/core/logger"
-import { t } from "~/utils/i18n/core"
 
 import { accountConfigStore } from "./accountConfigStore"
 
 const logger = createLogger("AccountCheckInState")
 
-const hasSameCheckInIdentity = (account: SiteAccount, snapshot: SiteAccount) =>
-  account.id === snapshot.id &&
-  account.site_type === snapshot.site_type &&
-  account.site_url === snapshot.site_url &&
-  normalizeAccountIdentity(account.account_info.id) ===
-    normalizeAccountIdentity(snapshot.account_info.id)
+/** A route edit invalidates observations collected against the previous request path. */
+const hasSameCheckInRoutes = (account: SiteAccount, snapshot: SiteAccount) => {
+  const current = account.checkIn.routeOverrides
+  const previous = snapshot.checkIn.routeOverrides
+  const methodIds = Object.keys({
+    ...current,
+    ...previous,
+  }) as CheckInMethodId[]
+  return methodIds.every(
+    (methodId) =>
+      current?.[methodId]?.path === previous?.[methodId]?.path &&
+      current?.[methodId]?.source === previous?.[methodId]?.source &&
+      current?.[methodId]?.observedAt === previous?.[methodId]?.observedAt,
+  )
+}
+
+/** A foreground probe or choice must still refer to the same request and discovery. */
+const isUserCheckInDiscoveryCurrent = (
+  account: SiteAccount,
+  snapshot: SiteAccount,
+) =>
+  hasSameCheckInRequestCredentials(account, snapshot) &&
+  hasSameCheckInRoutes(account, snapshot) &&
+  !account.disabled &&
+  account.checkIn.selection.mode === snapshot.checkIn.selection.mode &&
+  account.checkIn.selection.methodId === snapshot.checkIn.selection.methodId &&
+  account.checkIn.methodKnowledge.lastFullDiscoveryAt ===
+    snapshot.checkIn.methodKnowledge.lastFullDiscoveryAt &&
+  account.checkIn.methodKnowledge.lastAutomaticDiscoveryAttemptAt ===
+    snapshot.checkIn.methodKnowledge.lastAutomaticDiscoveryAttemptAt
 
 /** Rejects discovery from an obsolete request, selection, or cooldown claim. */
 export const isAutomaticCheckInDiscoveryCurrent = (
   account: SiteAccount,
   snapshot: SiteAccount,
 ): boolean =>
-  hasSameCheckInIdentity(account, snapshot) &&
-  account.authType === snapshot.authType &&
-  account.account_info.access_token === snapshot.account_info.access_token &&
-  account.cookieAuth?.sessionCookie === snapshot.cookieAuth?.sessionCookie &&
+  hasSameCheckInRequestCredentials(account, snapshot) &&
+  hasSameCheckInRoutes(account, snapshot) &&
   !account.disabled &&
   account.checkIn.automaticExecutionEnabled &&
   account.checkIn.selection.mode === snapshot.checkIn.selection.mode &&
@@ -55,6 +77,55 @@ export const isAutomaticCheckInDiscoveryCurrent = (
     snapshot.checkIn.methodKnowledge.lastAutomaticDiscoveryAttemptAt
 
 class AccountCheckInState {
+  /** Commits a detected choice only while the dialog's identity, facts and selection remain current. */
+  async selectDetectedCheckInMethod(
+    snapshot: SiteAccount,
+    methodId: CheckInMethodId,
+  ): Promise<{ account: SiteAccount; applied: boolean } | null> {
+    return accountConfigStore.mutate<{
+      account: SiteAccount
+      applied: boolean
+    } | null>((config) => {
+      const index = config.accounts.findIndex(
+        (account) => account.id === snapshot.id,
+      )
+      const account = config.accounts[index]
+      if (!account) return { result: null, changed: false }
+      const candidates = getAutoCheckinCandidateMethodIds(
+        account.site_type,
+        account.site_url,
+      )
+      const isCurrent =
+        isUserCheckInDiscoveryCurrent(account, snapshot) &&
+        candidates.includes(methodId) &&
+        account.checkIn.methodKnowledge.methods[methodId]?.detection
+          ?.outcome === CHECK_IN_METHOD_DETECTION_OUTCOMES.Matched &&
+        !account.checkIn.methodKnowledge.methods[methodId]?.detection
+          .lastUnknownAttempt
+      if (!isCurrent)
+        return {
+          result: { account, applied: false },
+          changed: false,
+        }
+      const checkIn = setCheckInSelection({
+        config: account.checkIn,
+        candidateMethodIds: candidates,
+        selection: { mode: CHECK_IN_SELECTION_MODES.Manual, methodId },
+      })
+      const nextAccount = applySiteAccountUpdates({
+        account,
+        updates: { checkIn },
+        now: Date.now(),
+        userTimestampMode: AccountUpdateUserTimestampMode.Touch,
+      })
+      config.accounts[index] = nextAccount
+      return {
+        result: { account: nextAccount, applied: true },
+        changed: true,
+      }
+    })
+  }
+
   /** Claims one bounded automatic discovery under the existing account write lock. */
   async claimAutomaticCheckInDiscovery(id: string): Promise<{
     account: SiteAccount
@@ -108,12 +179,37 @@ class AccountCheckInState {
     snapshot: SiteAccount,
     discovered: SiteAccount["checkIn"],
   ): Promise<{ account: SiteAccount; applied: boolean } | null> {
+    return this.completeCheckInDiscovery(
+      snapshot,
+      discovered,
+      isAutomaticCheckInDiscoveryCurrent,
+    )
+  }
+
+  /** Applies foreground discovery without requiring automatic execution. */
+  async completeUserCheckInDiscovery(
+    snapshot: SiteAccount,
+    discovered: SiteAccount["checkIn"],
+  ): Promise<{ account: SiteAccount; applied: boolean } | null> {
+    return this.completeCheckInDiscovery(
+      snapshot,
+      discovered,
+      isUserCheckInDiscoveryCurrent,
+    )
+  }
+
+  /** Merges discovery facts inside the account write lock after a source guard. */
+  private async completeCheckInDiscovery(
+    snapshot: SiteAccount,
+    discovered: SiteAccount["checkIn"],
+    isCurrent: (account: SiteAccount, snapshot: SiteAccount) => boolean,
+  ): Promise<{ account: SiteAccount; applied: boolean } | null> {
     try {
       return await accountConfigStore.mutateAccount<{
         account: SiteAccount
         applied: boolean
       }>(snapshot.id, (account) => {
-        if (!isAutomaticCheckInDiscoveryCurrent(account, snapshot)) {
+        if (!isCurrent(account, snapshot)) {
           return {
             nextAccount: account,
             result: { account, applied: false },
@@ -127,21 +223,26 @@ class AccountCheckInState {
           candidateMethodIds: getAutoCheckinCandidateMethodIds(
             account.site_type,
             account.site_url,
-            // The merge only carries over knowledge for candidate methods, so this
-            // must use the same configuration the discovery round used. Otherwise a
-            // discovered browser-automation method is silently dropped here.
-            discovered,
           ),
           discoveryBaseSelection: snapshot.checkIn.selection,
         })
         const applied =
           (merged.methodKnowledge.lastFullDiscoveryAt ?? 0) >
           (account.checkIn.methodKnowledge.lastFullDiscoveryAt ?? 0)
-        // Discovery owns facts and automatic selection, never the form's fields.
+        // Discovery owns facts, automatic selection and verified route paths,
+        // never the form's fields.
         const checkIn = {
           ...account.checkIn,
           methodKnowledge: merged.methodKnowledge,
           selection: merged.selection,
+          ...(merged.routeOverrides || account.checkIn.routeOverrides
+            ? {
+                routeOverrides: mergeCheckInRouteOverrides(
+                  merged.routeOverrides,
+                  account.checkIn.routeOverrides,
+                ),
+              }
+            : {}),
         }
         const nextAccount = applySiteAccountUpdates({
           account,
@@ -156,142 +257,11 @@ class AccountCheckInState {
         }
       })
     } catch (error) {
-      logger.warn("Failed to save automatic check-in discovery", {
+      logger.warn("Failed to save check-in discovery", {
         accountId: snapshot.id,
         error,
       })
       return null
-    }
-  }
-
-  async updateAccountWithCheckInDraft(
-    id: string,
-    updates: Omit<DeepPartial<SiteAccount>, "checkIn">,
-    draft: SiteAccount["checkIn"],
-    options: AccountUpdateOptions & {
-      selectionChanged?: boolean
-      discoveryBaseSelection?: CheckInMethodSelection
-      refreshed?: SiteAccount["checkIn"]
-      /** Runs inside the account storage lock; throwing aborts the update. */
-      guard?: AccountWriteGuard
-    },
-  ): Promise<boolean> {
-    const { guard, ...mutationOptions } = options
-    try {
-      return await accountConfigStore.mutateAccount(
-        id,
-        (account) => {
-          const effectiveSiteType = isAccountSiteType(updates.site_type)
-            ? updates.site_type
-            : account.site_type
-          const mergedUserDraft = mutationOptions.discoveryBaseSelection
-            ? mergeDiscoveredCheckInDraft({
-                latest: account.checkIn,
-                draft,
-                candidateMethodIds: getAutoCheckinCandidateMethodIds(
-                  effectiveSiteType,
-                  updates.site_url ?? account.site_url,
-                  draft,
-                ),
-                discoveryBaseSelection: mutationOptions.discoveryBaseSelection,
-                selectionChanged: mutationOptions.selectionChanged,
-              })
-            : mergeUserOwnedCheckInDraft({
-                latest: account.checkIn,
-                draft,
-                selectionChanged: mutationOptions.selectionChanged,
-              })
-          const checkIn = mutationOptions.refreshed
-            ? mergeRefreshedCheckInStatus({
-                latest: mergedUserDraft,
-                refreshed: mutationOptions.refreshed,
-              })
-            : mergedUserDraft
-
-          return {
-            nextAccount: applySiteAccountUpdates({
-              account,
-              updates: { ...updates, checkIn },
-              now: Date.now(),
-              userTimestampMode: mutationOptions.userTimestampMode,
-            }),
-            result: true,
-            changed: true,
-          }
-        },
-        { guard },
-      )
-    } catch (error) {
-      // A rejected guard is a decided outcome, not a storage failure: the caller
-      // reports why the update was refused instead of a generic save error.
-      if (error instanceof AccountWriteRejectedError) throw error
-      logger.error(t("messages:storage.updateFailed", { error: "" }), error)
-      return false
-    }
-  }
-
-  async updateAccountCheckInDraft(
-    id: string,
-    draft: SiteAccount["checkIn"],
-    options: {
-      selectionChanged?: boolean
-      discoveryBaseSelection?: CheckInMethodSelection
-      refreshed?: SiteAccount["checkIn"]
-    } = {},
-  ): Promise<boolean> {
-    return this.updateAccountWithCheckInDraft(id, {}, draft, {
-      ...options,
-      userTimestampMode: AccountUpdateUserTimestampMode.Touch,
-    })
-  }
-
-  /** Applies remote refresh data without replacing newer user-owned fields. */
-  async updateAccountFromRefresh(
-    id: string,
-    updates: DeepPartial<SiteAccount>,
-    refreshedCheckIn?: SiteAccount["checkIn"],
-  ): Promise<boolean> {
-    try {
-      return await accountConfigStore.mutateAccount(id, (account) => {
-        let checkIn = account.checkIn
-        if (refreshedCheckIn) {
-          checkIn = mergeRefreshedCheckInStatus({
-            latest: checkIn,
-            refreshed: refreshedCheckIn,
-          })
-        }
-
-        const today = formatLocalDayKey()
-        if (
-          refreshedCheckIn &&
-          checkIn.customCheckIn?.url &&
-          checkIn.customCheckIn.lastCheckInDate &&
-          checkIn.customCheckIn.lastCheckInDate !== today
-        ) {
-          checkIn = {
-            ...checkIn,
-            customCheckIn: {
-              ...checkIn.customCheckIn,
-              isCheckedInToday: false,
-              lastCheckInDate: undefined,
-            },
-          }
-        }
-
-        return {
-          nextAccount: applySiteAccountUpdates({
-            account,
-            updates: { ...updates, checkIn },
-            now: Date.now(),
-            userTimestampMode: AccountUpdateUserTimestampMode.Preserve,
-          }),
-          result: true,
-          changed: true,
-        }
-      })
-    } catch (error) {
-      logger.error(t("messages:storage.updateFailed", { error: "" }), error)
-      return false
     }
   }
 
@@ -306,7 +276,7 @@ class AccountCheckInState {
         (account) => {
           if (
             requestSnapshot &&
-            !hasSameCheckInIdentity(account, requestSnapshot)
+            !hasSameAccountRequestIdentity(account, requestSnapshot)
           ) {
             return { nextAccount: account, result: null, changed: false }
           }
@@ -338,7 +308,11 @@ class AccountCheckInState {
     }
   }
 
-  async markAccountAsSiteCheckedIn(id: string): Promise<boolean> {
+  /** Preserves completion evidence for reused attempts without replacing newer observations. */
+  async markAccountAsSiteCheckedIn(
+    id: string,
+    observedAt?: number,
+  ): Promise<boolean> {
     try {
       return await accountConfigStore.mutateAccount(id, (account) => {
         if (account.disabled) {
@@ -349,16 +323,26 @@ class AccountCheckInState {
           ? markCheckInMethodExecuted({
               config: account.checkIn,
               methodId: selectedMethodId,
-              observedAt: Date.now(),
+              observedAt: observedAt ?? Date.now(),
             })
           : account.checkIn
         if (nextCheckIn === account.checkIn) {
           return { nextAccount: account, result: false, changed: false }
         }
+        const acceptedCheckIn =
+          observedAt === undefined
+            ? nextCheckIn
+            : mergeRefreshedCheckInStatus({
+                latest: account.checkIn,
+                refreshed: nextCheckIn,
+              })
+        if (acceptedCheckIn === account.checkIn) {
+          return { nextAccount: account, result: true, changed: false }
+        }
         return {
           nextAccount: applySiteAccountUpdates({
             account,
-            updates: { checkIn: nextCheckIn },
+            updates: { checkIn: acceptedCheckIn },
             now: Date.now(),
             userTimestampMode: AccountUpdateUserTimestampMode.Preserve,
           }),

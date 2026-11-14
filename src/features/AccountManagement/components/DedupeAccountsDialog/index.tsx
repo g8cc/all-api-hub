@@ -4,13 +4,14 @@ import { useTranslation } from "react-i18next"
 
 import { Badge, Button, ConfirmDialog, Modal } from "~/components/ui"
 import { ActionGroup } from "~/components/ui/ActionGroup"
+import { useAccountDataContext } from "~/features/AccountManagement/data/AccountDataContext"
 import { ACCOUNT_MANAGEMENT_TEST_IDS } from "~/features/AccountManagement/testIds"
 import toast from "~/lib/notify"
+import { accountMutations } from "~/services/accounts/accountStorage/accountMutations"
 import {
   scanDuplicateAccounts,
   type AccountDedupeKeepStrategy,
-} from "~/services/accounts/accountDedupe"
-import { accountMutations } from "~/services/accounts/accountStorage/accountMutations"
+} from "~/services/accounts/identity/accountDedupe"
 import { startProductAnalyticsAction } from "~/services/productAnalytics/actions"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
@@ -24,7 +25,6 @@ import type { SiteAccount } from "~/types"
 import { getErrorMessage } from "~/utils/core/error"
 import { createLogger } from "~/utils/core/logger"
 
-import { useAccountDataContext } from "../../hooks/AccountDataContext"
 import { DedupeAccountsConfirmDetails } from "./DedupeAccountsConfirmDetails"
 import { DedupeAccountsDialogBody } from "./DedupeAccountsDialogBody"
 import { SuspectedDuplicatesList } from "./SuspectedDuplicatesList"
@@ -211,6 +211,11 @@ export default function DedupeAccountsDialog({
         },
       )
 
+      setIsConfirmOpen(false)
+      if (deletedCount > 0) {
+        onClose()
+      }
+
       await loadAccountData()
 
       tracker.complete(PRODUCT_ANALYTICS_RESULTS.Success, {
@@ -219,10 +224,6 @@ export default function DedupeAccountsDialog({
           successCount: deletedCount,
         },
       })
-      setIsConfirmOpen(false)
-      if (deletedCount > 0) {
-        onClose()
-      }
     } catch (error) {
       tracker.complete(PRODUCT_ANALYTICS_RESULTS.Failure, {
         errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown,

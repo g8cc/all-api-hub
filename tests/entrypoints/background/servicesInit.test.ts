@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest"
 
-type InitMock = ReturnType<typeof vi.fn>
+type InitMock = Mock
 
 const {
   usageInitMock,
@@ -32,11 +32,14 @@ const {
   initBackgroundI18nMock: vi.fn(),
 }))
 
-vi.mock("~/services/managedSites/legacyChannelConfigMigration", () => ({
-  legacyChannelConfigMigration: {
-    initialize: legacyChannelConfigMigrationInitMock,
-  },
-}))
+vi.mock(
+  "~/services/managedSites/configuration/legacyChannelConfigMigration",
+  () => ({
+    legacyChannelConfigMigration: {
+      initialize: legacyChannelConfigMigrationInitMock,
+    },
+  }),
+)
 
 vi.mock("~/services/managedSites/newApiOwnedSession/background", () => ({
   newApiOwnedSessionLifecycle: { initialize: newApiOwnedSessionInitMock },
@@ -46,7 +49,7 @@ vi.mock("~/services/history/usageHistory/scheduler", () => ({
   usageHistoryScheduler: { initialize: usageInitMock },
 }))
 
-vi.mock("~/services/webdav/webdavAutoSyncService", () => ({
+vi.mock("~/services/webdav/autoSync/webdavAutoSyncService", () => ({
   webdavAutoSyncService: { initialize: webdavInitMock },
 }))
 
@@ -54,7 +57,7 @@ vi.mock("~/services/models/modelSync", () => ({
   modelSyncScheduler: { initialize: modelSyncInitMock },
 }))
 
-vi.mock("~/services/checkin/autoCheckin/scheduler", () => ({
+vi.mock("~/services/checkin/autoCheckin/scheduling/schedulerCore", () => ({
   autoCheckinScheduler: { initialize: autoCheckinInitMock },
 }))
 
@@ -66,7 +69,7 @@ vi.mock("~/services/models/modelMetadata", () => ({
   modelMetadataService: { initialize: modelMetadataInitMock },
 }))
 
-vi.mock("~/services/accounts/autoRefreshService", () => ({
+vi.mock("~/services/accounts/refresh/autoRefreshService", () => ({
   autoRefreshService: { initialize: autoRefreshInitMock },
 }))
 
@@ -106,6 +109,7 @@ describe("initializeServices alarm bootstrap ordering", () => {
       releaseUpdate: false,
       productAnnouncement: false,
       newApiOwnedSession: false,
+      autoRefresh: false,
     }
 
     let i18nObservedAllAlarmInits = false
@@ -140,7 +144,9 @@ describe("initializeServices alarm bootstrap ordering", () => {
     })
 
     const modelMetadataInit: InitMock = vi.fn(async () => {})
-    const autoRefreshInit: InitMock = vi.fn(async () => {})
+    const autoRefreshInit: InitMock = vi.fn(async () => {
+      alarmInitCalled.autoRefresh = true
+    })
     const redemptionAssistInit: InitMock = vi.fn(async () => {})
     legacyChannelConfigMigrationInitMock.mockResolvedValue({
       status: "not-needed",
@@ -167,7 +173,8 @@ describe("initializeServices alarm bootstrap ordering", () => {
         alarmInitCalled.dailyBalance &&
         alarmInitCalled.releaseUpdate &&
         alarmInitCalled.productAnnouncement &&
-        alarmInitCalled.newApiOwnedSession
+        alarmInitCalled.newApiOwnedSession &&
+        alarmInitCalled.autoRefresh
       return i18nPromise
     })
 
@@ -181,6 +188,7 @@ describe("initializeServices alarm bootstrap ordering", () => {
     expect(releaseUpdateInit).toHaveBeenCalledTimes(1)
     expect(productAnnouncementInit).toHaveBeenCalledTimes(1)
     expect(newApiOwnedSessionInit).toHaveBeenCalledTimes(1)
+    expect(autoRefreshInit).toHaveBeenCalledTimes(1)
     expect(i18nObservedAllAlarmInits).toBe(true)
 
     resolveI18n?.()

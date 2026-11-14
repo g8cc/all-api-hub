@@ -1,5 +1,3 @@
-import type { FetchFunction } from "@ai-sdk/provider-utils"
-
 import {
   API_AUTH_MODES,
   createAuthModeMemory,
@@ -17,7 +15,7 @@ export const ANTHROPIC_VERSION = "2023-06-01"
 
 type AnthropicSdkAuthConfig = {
   apiKey: string
-  fetch: FetchFunction
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 }
 
 /**
@@ -76,6 +74,7 @@ function replaceAnthropicCredential(
 export function createAnthropicSdkAuth(
   baseUrl: string,
   apiKey: string,
+  requestHeaders?: Record<string, string>,
 ): AnthropicSdkAuthConfig {
   const initialMode = getAnthropicAuthMode(baseUrl)
 
@@ -84,6 +83,7 @@ export function createAnthropicSdkAuth(
     // can initialize without reading unavailable environment variables.
     apiKey,
     fetch: createUnauthorizedFallbackFetch({
+      requestHeaders,
       initialMode,
       fallbackMode: ANTHROPIC_AUTH_MODES.Bearer,
       replaceCredential: (request, mode) =>

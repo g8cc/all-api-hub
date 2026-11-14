@@ -6,6 +6,7 @@ import {
   runApiVerificationProbe,
 } from "~/services/verification/aiApiVerification"
 import { runApiVerificationTestSuite } from "~~/tests/test-utils/apiVerificationSuite"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const mockFetchOpenAICompatibleModelIds = vi.fn()
 const mockFetchAnthropicModelIds = vi.fn()
@@ -54,7 +55,7 @@ vi.mock("@ai-sdk/anthropic", () => ({
 }))
 
 vi.mock("@ai-sdk/google", () => ({
-  createGoogleGenerativeAI: () => {
+  createGoogle: () => {
     const provider = (modelId: string) => ({ modelId })
     provider.tools = {
       googleSearch: () => ({ tool: "googleSearch" }),
@@ -132,7 +133,7 @@ describe("apiVerificationService", () => {
 
     expect(report.modelId).toBe("override-model")
     expect(mockGenerateText).toHaveBeenCalledTimes(3)
-    expect(mockGenerateText.mock.calls[0][0].model.modelId).toBe(
+    expect(atIndex(mockGenerateText.mock.calls, 0)[0].model.modelId).toBe(
       "override-model",
     )
   })
@@ -180,7 +181,9 @@ describe("apiVerificationService", () => {
         fallbackModelId,
       })
       expect(report.modelId).toBe(expected)
-      expect(mockGenerateText.mock.calls[0][0].model.modelId).toBe(expected)
+      expect(atIndex(mockGenerateText.mock.calls, 0)[0].model.modelId).toBe(
+        expected,
+      )
     },
   )
 
@@ -196,7 +199,9 @@ describe("apiVerificationService", () => {
       fallbackModelId: " fallback ",
     })
     expect(result.status).toBe("pass")
-    expect(mockGenerateText.mock.calls[0][0].model.modelId).toBe("fallback")
+    expect(atIndex(mockGenerateText.mock.calls, 0)[0].model.modelId).toBe(
+      "fallback",
+    )
   })
 
   it("redacts apiKey from error summaries", async () => {
@@ -295,7 +300,7 @@ describe("apiVerificationService", () => {
     })
 
     expect(report.modelId).toBe("gemini-1.5-pro")
-    expect(mockGenerateText.mock.calls[0][0].model.modelId).toBe(
+    expect(atIndex(mockGenerateText.mock.calls, 0)[0].model.modelId).toBe(
       "gemini-1.5-pro",
     )
   })
@@ -322,6 +327,22 @@ describe("apiVerificationService", () => {
     expect(result.output).toMatchObject({ text: "OK" })
   })
 
+  it("reports an invalid model endpoint without attempting a provider request", async () => {
+    const result = await runApiVerificationProbe({
+      baseUrl: "  not a url  ",
+      apiKey: "secret",
+      apiType: API_TYPES.OPENAI_COMPATIBLE,
+      probeId: "models",
+    })
+    expect(result.status).toBe("fail")
+    expect(result.summary).toBe("Invalid protocol API base URL")
+    expect(result.input).toMatchObject({
+      baseUrl: "not a url",
+      endpoint: "models",
+    })
+    expect(mockFetchOpenAICompatibleModelIds).not.toHaveBeenCalled()
+  })
+
   it("runs models probe for openai apiType", async () => {
     mockFetchOpenAICompatibleModelIds.mockResolvedValueOnce(["gpt-test"])
 
@@ -335,13 +356,14 @@ describe("apiVerificationService", () => {
 
     expect(result.status).toBe("pass")
     expect(mockFetchOpenAICompatibleModelIds).toHaveBeenCalledWith({
-      baseUrl: "https://example.com",
+      baseUrl: "https://example.com/v1",
       apiKey: "secret",
+      abortSignal: undefined,
     })
     expect(result.input).toMatchObject({
       apiType: API_TYPES.OPENAI,
-      endpoint: "/v1/models",
-      baseUrl: "https://example.com",
+      endpoint: "models",
+      baseUrl: "https://example.com/v1",
     })
     expect(result.output as any).toMatchObject({
       suggestedModelId: "gpt-test",
@@ -363,13 +385,14 @@ describe("apiVerificationService", () => {
 
     expect(result.status).toBe("pass")
     expect(mockFetchAnthropicModelIds).toHaveBeenCalledWith({
-      baseUrl: "https://api.anthropic.com",
+      baseUrl: "https://api.anthropic.com/v1",
       apiKey: "secret",
+      abortSignal: undefined,
     })
     expect(result.input).toMatchObject({
       apiType: API_TYPES.ANTHROPIC,
-      endpoint: "/v1/models",
-      baseUrl: "https://api.anthropic.com",
+      endpoint: "models",
+      baseUrl: "https://api.anthropic.com/v1",
     })
     expect(result.output as any).toMatchObject({
       suggestedModelId: "claude-3-5-haiku-latest",
@@ -392,13 +415,14 @@ describe("apiVerificationService", () => {
 
     expect(result.status).toBe("pass")
     expect(mockFetchGoogleModelIds).toHaveBeenCalledWith({
-      baseUrl: "https://proxy.example.com/api",
+      baseUrl: "https://proxy.example.com/api/v1beta",
       apiKey: "secret",
+      abortSignal: undefined,
     })
     expect(result.input).toMatchObject({
       apiType: API_TYPES.GOOGLE,
-      endpoint: "/v1beta/models",
-      baseUrl: "https://proxy.example.com/api",
+      endpoint: "models",
+      baseUrl: "https://proxy.example.com/api/v1beta",
     })
     expect(result.output as any).toMatchObject({
       suggestedModelId: "gemini-1.5-pro",

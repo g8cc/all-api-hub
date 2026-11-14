@@ -349,28 +349,6 @@ describe("turnstileGuard", () => {
       expect(result.detection.hasTurnstile).toBe(false)
     })
 
-    it("waits briefly for a widget injected after the protected action", async () => {
-      setTimeout(() => {
-        const container = document.createElement("div")
-        container.className = "cf-turnstile"
-        document.body.appendChild(container)
-
-        const input = document.createElement("input")
-        input.name = "cf-turnstile-response"
-        input.value = "token-after-late-widget"
-        document.body.appendChild(input)
-      }, 25)
-
-      const result = await waitForTurnstileToken({
-        requestId: "req-late-widget",
-        timeoutMs: 1_000,
-        waitForLateAppearanceMs: 150,
-      })
-
-      expect(result.status).toBe("token_obtained")
-      expect(result.token).toBe("token-after-late-widget")
-    })
-
     it("returns timeout when Turnstile is present but token never appears", async () => {
       document.body.innerHTML = '<div class="cf-turnstile"></div>'
 
@@ -382,56 +360,6 @@ describe("turnstileGuard", () => {
       expect(result.status).toBe("timeout")
       expect(result.token).toBeNull()
       expect(result.detection.hasTurnstile).toBe(true)
-    })
-
-    it("clamps an invisible wait to the default ceiling", async () => {
-      vi.useFakeTimers()
-      try {
-        document.body.innerHTML = '<div class="cf-turnstile"></div>'
-
-        const pending = waitForTurnstileToken({
-          requestId: "req-ceiling-default",
-          timeoutMs: 60_000,
-        })
-        let settled = false
-        void pending.then(() => {
-          settled = true
-        })
-
-        await vi.advanceTimersByTimeAsync(31_000)
-
-        expect(settled).toBe(true)
-        await expect(pending).resolves.toMatchObject({ status: "timeout" })
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
-    it("honours a longer wait when the caller opted into an interactive one", async () => {
-      vi.useFakeTimers()
-      try {
-        document.body.innerHTML = '<div class="cf-turnstile"></div>'
-
-        const pending = waitForTurnstileToken({
-          requestId: "req-ceiling-extended",
-          timeoutMs: 60_000,
-          allowExtendedWait: true,
-        })
-        let settled = false
-        void pending.then(() => {
-          settled = true
-        })
-
-        // Past the default ceiling the invisible wait would already have given
-        // up, so a still-pending promise proves the opt-in took effect.
-        await vi.advanceTimersByTimeAsync(31_000)
-        expect(settled).toBe(false)
-
-        await vi.advanceTimersByTimeAsync(30_000)
-        await expect(pending).resolves.toMatchObject({ status: "timeout" })
-      } finally {
-        vi.useRealTimers()
-      }
     })
 
     it("auto-starts an existing turnstile widget and resolves once the token field appears", async () => {

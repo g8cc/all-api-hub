@@ -1,8 +1,11 @@
 import { executeWithUnauthorizedFallback } from "~/services/aiApi/authFallback"
+import { sanitizeHeaderOverrideError } from "~/services/apiTransport/headerOverrides"
 import { fetchApi } from "~/services/apiTransport/request"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 import { createLogger } from "~/utils/core/logger"
 
+import { toVersionedProtocolMount } from "../protocolAddress"
 import {
   ANTHROPIC_AUTH_MODES,
   createAnthropicAuthHeaders,
@@ -16,6 +19,7 @@ import { decodeAnthropicResponseError } from "./responseError"
 type AnthropicAuthParams = {
   baseUrl: string
   apiKey: string
+  requestHeaders?: Record<string, string>
   abortSignal?: AbortSignal
 }
 
@@ -41,8 +45,12 @@ const MAX_MODELS = 2000
 export async function fetchAnthropicModelIds(
   params: AnthropicAuthParams,
 ): Promise<string[]> {
+  const baseUrl = toVersionedProtocolMount("anthropic", params.baseUrl)
+  if (!baseUrl) throw new Error("Invalid Anthropic API base URL")
   const request = {
-    baseUrl: params.baseUrl,
+    directRequestReason: API_DIRECT_REQUEST_REASONS.CredentialIsolation,
+    requestHeaders: params.requestHeaders,
+    baseUrl,
     auth: { authType: AuthTypeEnum.None },
   }
 
@@ -56,7 +64,7 @@ export async function fetchAnthropicModelIds(
     searchParams.set("limit", String(PAGE_LIMIT))
     if (afterId) searchParams.set("after_id", afterId)
 
-    const endpoint = `/v1/models?${searchParams.toString()}`
+    const endpoint = `models?${searchParams.toString()}`
 
     const fetchPage = (mode: AnthropicAuthMode) =>
       fetchApi<AnthropicModelsListResponse>(
@@ -99,7 +107,10 @@ export async function fetchAnthropicModelIds(
       if (!hasMore || !lastId || lastId === afterId) break
       afterId = lastId
     } catch (error) {
-      logger.error("Failed to fetch anthropic model list", { endpoint, error })
+      logger.error("Failed to fetch anthropic model list", {
+        endpoint,
+        error: sanitizeHeaderOverrideError(error, params.requestHeaders),
+      })
       throw error
     }
   }

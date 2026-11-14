@@ -1,30 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  DEPLOYMENT_API_ROLES,
+  resolveDeploymentApiOrigin,
+} from "~/constants/deploymentApiOrigins"
 import { SITE_TYPES } from "~/constants/siteType"
 import { ACCOUNT_BROWSER_SESSION_SOURCES } from "~/services/accountBrowserSession/types"
 import type { ApiServiceAccountRequest } from "~/services/accounts/accountDataModel"
-import { sub2ApiAccountBootstrap } from "~/services/apiAdapters/sub2api/accountBootstrap"
+import { sub2ApiAccountBootstrap } from "~/services/apiAdapters/sub2api/account/accountBootstrap"
 import {
-  deleteApiToken,
   fetchAccountData,
   fetchCurrentUser,
-  fetchInviteLink,
-  fetchSub2ApiAnnouncements,
-  fetchSub2ApiPricingCatalogs,
-  fetchSub2ApiRuntimeModels,
   fetchSupportCheckIn,
   fetchTodayUsage,
   fetchUserInfo,
   getOrCreateAccessToken,
-  markSub2ApiAnnouncementRead,
   refreshAccountData,
-} from "~/services/apiService/sub2api"
-import type { Sub2ApiAuthSessionRequest } from "~/services/apiService/sub2api/authSession"
+} from "~/services/apiService/sub2api/account/accountData"
+import {
+  fetchSub2ApiAnnouncements,
+  markSub2ApiAnnouncementRead,
+} from "~/services/apiService/sub2api/account/announcements"
+import { fetchInviteLink } from "~/services/apiService/sub2api/account/inviteLink"
+import type { Sub2ApiAuthSessionRequest } from "~/services/apiService/sub2api/auth/authSession"
 import {
   recoverSub2ApiBrowserAuth as resyncSub2ApiAuthToken,
   SUB2API_SESSION_BINDING_MISMATCH_CODE,
   Sub2ApiAuthIdentityMismatchError,
-} from "~/services/apiService/sub2api/browserAuth"
+} from "~/services/apiService/sub2api/auth/browserAuth"
+import { deleteApiToken } from "~/services/apiService/sub2api/keys"
+import { fetchSub2ApiPricingCatalogs } from "~/services/apiService/sub2api/models/pricingCatalog"
+import { fetchSub2ApiRuntimeModels } from "~/services/apiService/sub2api/models/runtimeModels"
 import {
   convertUsdBalanceToQuota,
   extractSub2ApiKeyItems,
@@ -39,6 +45,7 @@ import { createDeferredAbortDeadline } from "~/services/apiTransport/abortableTa
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
 import { fetchApi } from "~/services/apiTransport/request"
 import {
+  API_DIRECT_REQUEST_REASONS,
   API_TRANSPORT_CURRENT_TAB_FALLBACK_MODES,
   API_TRANSPORT_FETCH_CONTEXT_KINDS,
 } from "~/services/apiTransport/type"
@@ -83,16 +90,28 @@ vi.mock("~/services/apiTransport/request", async (importOriginal) => {
   }
 })
 
-vi.mock("~/services/apiService/sub2api/browserAuth", async (importOriginal) => {
+vi.mock("~/constants/deploymentApiOrigins", async (importOriginal) => {
   const actual =
-    await importOriginal<
-      typeof import("~/services/apiService/sub2api/browserAuth")
-    >()
+    await importOriginal<typeof import("~/constants/deploymentApiOrigins")>()
   return {
     ...actual,
-    recoverSub2ApiBrowserAuth: vi.fn().mockResolvedValue(null),
+    resolveDeploymentApiOrigin: vi.fn(actual.resolveDeploymentApiOrigin),
   }
 })
+
+vi.mock(
+  "~/services/apiService/sub2api/auth/browserAuth",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/apiService/sub2api/auth/browserAuth")
+      >()
+    return {
+      ...actual,
+      recoverSub2ApiBrowserAuth: vi.fn().mockResolvedValue(null),
+    }
+  },
+)
 
 describe("apiService sub2api parsing", () => {
   it("convertUsdBalanceToQuota rounds using conversion factor", () => {
@@ -256,6 +275,7 @@ describe("apiService sub2api parsing", () => {
     await expect(
       fetchSub2ApiAnnouncements(
         {
+          directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
           baseUrl: "https://example.com",
           accountId: "account-1",
           auth: {
@@ -292,6 +312,7 @@ describe("apiService sub2api parsing", () => {
     await expect(
       markSub2ApiAnnouncementRead(
         {
+          directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
           baseUrl: "https://example.com",
           accountId: "account-1",
           auth: {
@@ -304,8 +325,64 @@ describe("apiService sub2api parsing", () => {
     ).resolves.toBe(false)
   })
 
+  it.each([
+    {
+      data: { items: [{ id: 7, title: "Notice", content: "Body" }] },
+      expected: [{ id: 7, title: "Notice", content: "Body" }],
+    },
+    { data: { items: null }, expected: [] },
+  ])(
+    "reads all announcement list response shapes: %j",
+    async ({ data, expected }) => {
+      const request = {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
+        baseUrl: "https://example.com",
+        auth: { authType: AuthTypeEnum.AccessToken, accessToken: "token" },
+      }
+      vi.mocked(fetchApi).mockResolvedValueOnce({
+        code: 0,
+        message: "ok",
+        data,
+      } as any)
+      await expect(fetchSub2ApiAnnouncements(request)).resolves.toEqual(
+        expected,
+      )
+      expect(fetchApi).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ endpoint: "/api/v1/announcements" }),
+      )
+    },
+  )
+
+  it("propagates announcement fetch failures and acknowledges encoded read ids", async () => {
+    const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
+      baseUrl: "https://example.com",
+      auth: { authType: AuthTypeEnum.AccessToken, accessToken: "token" },
+    }
+    const failure = new Error("announcement transport failed")
+    vi.mocked(fetchApi).mockRejectedValueOnce(failure)
+    await expect(fetchSub2ApiAnnouncements(request)).rejects.toBe(failure)
+    vi.mocked(fetchApi).mockResolvedValueOnce({
+      code: 0,
+      message: "ok",
+      data: null,
+    } as any)
+    await expect(
+      markSub2ApiAnnouncementRead(request, "notice/7"),
+    ).resolves.toBe(true)
+    expect(fetchApi).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        endpoint: "/api/v1/announcements/notice%2F7/read",
+        options: expect.objectContaining({ method: "POST" }),
+      }),
+    )
+  })
+
   it("returns the fixed unsupported check-in and parses today usage", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       accountId: "account-1",
       auth: {
@@ -341,6 +418,7 @@ describe("apiService sub2api parsing", () => {
 
   it("returns independent income availability snapshots", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://sub2api.example.invalid",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -387,6 +465,7 @@ describe("apiService sub2api parsing", () => {
 
     await expect(
       fetchTodayUsage({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.invalid",
         auth: { authType: AuthTypeEnum.AccessToken, accessToken: "token" },
       } as any),
@@ -423,6 +502,7 @@ describe("apiService sub2api parsing", () => {
 
     await expect(
       fetchTodayUsage({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.invalid",
         auth: { authType: AuthTypeEnum.AccessToken, accessToken: "token" },
       } as any),
@@ -472,6 +552,7 @@ describe("apiService sub2api refreshAccountData", () => {
     > = {},
   ): Sub2ApiAuthSessionRequest<ApiServiceAccountRequest> =>
     ({
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://sub2.example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -485,6 +566,16 @@ describe("apiService sub2api refreshAccountData", () => {
       },
       ...overrides,
     }) as Sub2ApiAuthSessionRequest<ApiServiceAccountRequest>
+
+  it("returns failed refresh health for a non-authentication request failure", async () => {
+    vi.mocked(fetchApi).mockRejectedValueOnce(new Error("upstream unavailable"))
+    const result = await refreshAccountData(createRequest())
+    expect(result.success).toBe(false)
+    expect(result.healthStatus).toBeDefined()
+    expect(fetchApi).toHaveBeenCalledTimes(1)
+    expect(resyncSub2ApiAuthToken).not.toHaveBeenCalled()
+    expect(mockPersistAuthUpdate).not.toHaveBeenCalled()
+  })
 
   it("returns success with today usage when /api/v1/auth/me and /api/v1/usage/stats succeed", async () => {
     vi.mocked(fetchApi)
@@ -674,6 +765,7 @@ describe("apiService sub2api refreshAccountData", () => {
   it("skips the public today-usage request when cashflow collection is disabled", async () => {
     await expect(
       fetchTodayUsage({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.invalid",
         includeTodayCashflow: false,
         auth: {
@@ -925,6 +1017,7 @@ describe("apiService sub2api refreshAccountData", () => {
     expect(result.healthStatus).toEqual({
       status: SiteHealthStatus.Warning,
       message: "messages:sub2api.refreshTokenInvalid",
+      code: "authentication_required",
     })
   })
 
@@ -1649,84 +1742,106 @@ describe("apiService sub2api refreshAccountData", () => {
     )
   })
 
-  it("hydrates auth from stored account state and persists refreshed credentials", async () => {
-    const now = 1_700_000_000_000
-    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(now)
+  it.each([
+    { accessToken: "stored-jwt", refreshToken: "stored-refresh" },
+    { accessToken: "", refreshToken: "stored-refresh" },
+    { accessToken: "stored-jwt", refreshToken: "" },
+  ])(
+    "uses the complete stored credential snapshot instead of stale caller credentials %j",
+    async (storedPair) => {
+      const now = 1_700_000_000_000
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(now)
 
-    mockGetLatestAuth.mockResolvedValueOnce({
-      accessToken: "stored-jwt",
-      userId: "9",
-      sub2apiAuth: {
-        refreshToken: "stored-refresh",
-        tokenExpiresAt: now + 60_000,
-      },
-    })
+      mockGetLatestAuth.mockResolvedValue({
+        accessToken: storedPair.accessToken,
+        userId: "9",
+        sub2apiAuth: {
+          refreshToken: storedPair.refreshToken,
+          tokenExpiresAt: now + 60_000,
+        },
+      })
 
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: 0,
+            message: "ok",
+            data: {
+              access_token: "new-jwt",
+              refresh_token: "new-refresh",
+              expires_in: 3600,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      vi.stubGlobal("fetch", fetchMock as any)
+
+      vi.mocked(fetchApi)
+        .mockResolvedValueOnce({
           code: 0,
           message: "ok",
-          data: {
-            access_token: "new-jwt",
-            refresh_token: "new-refresh",
-            expires_in: 3600,
+          data: { id: 9, username: "stored-user", balance: 3 },
+        } as any)
+        .mockResolvedValueOnce({
+          code: 0,
+          message: "ok",
+          data: { id: 9, username: "stored-user", balance: 3 },
+        } as any)
+
+      const result = await refreshAccountData(
+        createRequest({
+          accountId: "account-1",
+          sub2apiAuthSession: {
+            getLatestAuth: (...args: any[]) => mockGetLatestAuth(...args),
+            persistAuthUpdate: (...args: any[]) =>
+              mockPersistAuthUpdate(...args),
+          },
+          auth: {
+            authType: AuthTypeEnum.AccessToken,
+            accessToken: "stale-request-jwt",
+            refreshToken: "request-refresh",
           },
         }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    )
-    vi.stubGlobal("fetch", fetchMock as any)
+      )
 
-    vi.mocked(fetchApi)
-      .mockResolvedValueOnce({
-        code: 0,
-        message: "ok",
-        data: { id: 9, username: "stored-user", balance: 3 },
-      } as any)
-      .mockResolvedValueOnce({
-        code: 0,
-        message: "ok",
-        data: { id: 9, username: "stored-user", balance: 3 },
-      } as any)
+      expect(mockGetLatestAuth).toHaveBeenCalledWith("account-1")
+      const dispatchedAuth = vi.mocked(fetchApi).mock.calls[0]?.[0].auth
+      if (storedPair.refreshToken) {
+        expect(dispatchedAuth).toMatchObject({
+          accessToken: "new-jwt",
+          refreshToken: "new-refresh",
+          tokenExpiresAt: now + 3600 * 1000,
+          userId: "9",
+        })
+        expect(mockPersistAuthUpdate).toHaveBeenCalledWith("account-1", {
+          accessToken: "new-jwt",
+          expectedAuth: {
+            accessToken: storedPair.accessToken,
+            refreshToken: storedPair.refreshToken,
+          },
+          refreshToken: "new-refresh",
+          tokenExpiresAt: now + 3600 * 1000,
+          expectedOrigin: "https://sub2.example.com",
+          expectedUserId: "9",
+          userId: "9",
+        })
+      } else {
+        expect(dispatchedAuth).toMatchObject({
+          accessToken: "stored-jwt",
+          userId: "9",
+        })
+        expect(dispatchedAuth).not.toHaveProperty("refreshToken")
+        expect(fetchMock).not.toHaveBeenCalled()
+        expect(mockPersistAuthUpdate).not.toHaveBeenCalled()
+      }
+      expect(result.success).toBe(true)
+      expect(result.authUpdate?.userId).toBe("9")
+      expect(result.authUpdate?.username).toBe("stored-user")
 
-    const result = await refreshAccountData(
-      createRequest({
-        accountId: "account-1",
-        sub2apiAuthSession: {
-          getLatestAuth: (...args: any[]) => mockGetLatestAuth(...args),
-          persistAuthUpdate: (...args: any[]) => mockPersistAuthUpdate(...args),
-        },
-        auth: {
-          authType: AuthTypeEnum.AccessToken,
-          accessToken: "stale-request-jwt",
-        },
-      }),
-    )
-
-    expect(mockGetLatestAuth).toHaveBeenCalledWith("account-1")
-    expect((vi.mocked(fetchApi).mock.calls[0]?.[0] as any)?.auth).toMatchObject(
-      {
-        accessToken: "new-jwt",
-        refreshToken: "new-refresh",
-        tokenExpiresAt: now + 3600 * 1000,
-        userId: "9",
-      },
-    )
-    expect(mockPersistAuthUpdate).toHaveBeenCalledWith("account-1", {
-      accessToken: "new-jwt",
-      refreshToken: "new-refresh",
-      tokenExpiresAt: now + 3600 * 1000,
-      expectedOrigin: "https://sub2.example.com",
-      expectedUserId: "9",
-      userId: "9",
-    })
-    expect(result.success).toBe(true)
-    expect(result.authUpdate?.userId).toBe("9")
-    expect(result.authUpdate?.username).toBe("stored-user")
-
-    nowSpy.mockRestore()
-  })
+      nowSpy.mockRestore()
+    },
+  )
 })
 
 describe("apiService sub2api exported operations", () => {
@@ -1743,6 +1858,7 @@ describe("apiService sub2api exported operations", () => {
   })
 
   const baseRequest = {
+    directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
     baseUrl: "https://sub2.example.com",
     auth: {
       authType: AuthTypeEnum.AccessToken,
@@ -2092,6 +2208,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       fetchUserInfo({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2143,6 +2260,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       getOrCreateAccessToken({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2191,6 +2309,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       getOrCreateAccessToken({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2229,6 +2348,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       getOrCreateAccessToken({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.invalid",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2270,6 +2390,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       getOrCreateAccessToken({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2334,6 +2455,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       getOrCreateAccessToken({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2381,6 +2503,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       getOrCreateAccessToken({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2424,6 +2547,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       getOrCreateAccessToken({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2447,6 +2571,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       getOrCreateAccessToken({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2476,6 +2601,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       getOrCreateAccessToken({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2497,6 +2623,7 @@ describe("apiService sub2api exported operations", () => {
 
     await expect(
       getOrCreateAccessToken({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2612,6 +2739,7 @@ describe("apiService sub2api exported operations", () => {
       overrides: Partial<ApiServiceAccountRequest> = {},
     ): ApiServiceAccountRequest =>
       ({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://sub2.example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -2661,6 +2789,66 @@ describe("apiService sub2api exported operations", () => {
       expect(resyncSub2ApiAuthToken).not.toHaveBeenCalled()
     })
 
+    // The gateway is reached with an API key, so it resolves the inference role
+    // rather than the account API the transport defaults to.
+    it("resolves the gateway model list through the inference role", async () => {
+      vi.mocked(resolveDeploymentApiOrigin).mockClear()
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ) as any,
+      )
+
+      await fetchSub2ApiRuntimeModels(createRuntimeRequest())
+
+      expect(resolveDeploymentApiOrigin).toHaveBeenCalledWith(
+        "https://sub2.example.com",
+        DEPLOYMENT_API_ROLES.Inference,
+      )
+    })
+
+    // ai-router.dev answers /v1/models on its API origin, not on the dashboard
+    // origin the account is addressed by.
+    // See .scratch/ai-router-adaptation/research.md.
+    it("fetches runtime models from the API origin of a split-origin deployment", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            object: "list",
+            data: [
+              {
+                id: "example-runtime-model",
+                object: "model",
+                created: 1_700_000_000,
+                owned_by: "example",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      vi.stubGlobal("fetch", fetchMock as any)
+
+      await expect(
+        fetchSub2ApiRuntimeModels(
+          createRuntimeRequest({ baseUrl: "https://ai-router.dev" }),
+        ),
+      ).resolves.toEqual(["example-runtime-model"])
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://api.ai-router.dev/v1/models",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer runtime-api-key",
+          }),
+        }),
+      )
+    })
+
     it("fetches Sub2API-style runtime models and normalizes IDs", async () => {
       const fetchMock = vi.fn().mockResolvedValue(
         new Response(
@@ -2702,22 +2890,65 @@ describe("apiService sub2api exported operations", () => {
       ).resolves.toEqual([])
     })
 
-    it("rejects malformed runtime model payloads with a validation error", async () => {
-      const fetchMock = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ data: [{ id: "" }] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-      vi.stubGlobal("fetch", fetchMock as any)
+    it.each(
+      [
+        null,
+        [],
+        {},
+        { data: null },
+        { data: [null] },
+        { data: [[]] },
+        { data: [{ id: "" }] },
+        { data: [{ id: 42 }] },
+      ].map((payload) => ({ payload })),
+    )(
+      "rejects malformed runtime model payloads with a validation error: %j",
+      async ({ payload }) => {
+        const fetchMock = vi.fn().mockResolvedValue(
+          new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        )
+        vi.stubGlobal("fetch", fetchMock as any)
 
-      await expect(
-        fetchSub2ApiRuntimeModels(createRuntimeRequest()),
-      ).rejects.toMatchObject({
-        message: "messages:errors.api.invalidResponseFormat",
-        code: API_ERROR_CODES.BUSINESS_ERROR,
-      })
-    })
+        await expect(
+          fetchSub2ApiRuntimeModels(createRuntimeRequest()),
+        ).rejects.toMatchObject({
+          message: "messages:errors.api.invalidResponseFormat",
+          code: API_ERROR_CODES.BUSINESS_ERROR,
+        })
+      },
+    )
+
+    it.each(
+      [
+        null,
+        [],
+        { code: 0, message: "ignored" },
+        { code: 1 },
+        { code: "blocked", message: " " },
+      ].map((payload) => ({ payload })),
+    )(
+      "retains HTTP auth failure when no valid business error is present: %j",
+      async ({ payload }) => {
+        vi.stubGlobal(
+          "fetch",
+          vi
+            .fn()
+            .mockResolvedValue(
+              new Response(JSON.stringify(payload), { status: 401 }),
+            ),
+        )
+        await expect(
+          fetchSub2ApiRuntimeModels(createRuntimeRequest()),
+        ).rejects.toMatchObject({
+          statusCode: 401,
+          code: API_ERROR_CODES.HTTP_401,
+          endpoint: "/v1/models",
+        })
+      },
+    )
 
     it("rejects invalid JSON runtime model responses with a validation error", async () => {
       const fetchMock = vi.fn().mockResolvedValue(

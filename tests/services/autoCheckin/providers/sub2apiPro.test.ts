@@ -6,44 +6,81 @@ import {
   CHECK_IN_METHOD_STATUS_OUTCOMES,
   CHECK_IN_METHOD_TODAY_STATUSES,
 } from "~/constants/checkIn"
+import { QUOTA_PER_USD } from "~/constants/money"
 import { SITE_TYPES } from "~/constants/siteType"
+import { SUB2API_AUTH_PERSISTENCE_STATUSES } from "~/services/apiService/sub2api/auth/authSession"
+import { fetchBaiApiCheckInStatus } from "~/services/apiService/sub2api/checkin/baiApiCheckIn"
+import { fetchClawhudDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/clawhudCheckIn"
+import { fetchDaiguaDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/daiguaCheckIn"
+import { fetchDenxioDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/denxioCheckIn"
+import { fetchFreeApiDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/freeApiCheckIn"
+import { fetchGeniusProgrammerDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/geniusProgrammerCheckIn"
 import {
   fetchSub2ApiProDailyCheckInStatus,
   performSub2ApiProDailyCheckIn,
-} from "~/services/apiService/sub2api"
-import { SUB2API_AUTH_PERSISTENCE_STATUSES } from "~/services/apiService/sub2api/authSession"
-import { fetchDenxioDailyCheckInStatus } from "~/services/apiService/sub2api/denxioCheckIn"
-import { fetchGeniusProgrammerDailyCheckInStatus } from "~/services/apiService/sub2api/geniusProgrammerCheckIn"
+} from "~/services/apiService/sub2api/checkin/proCheckInExecution"
+import { fetchToolcodeDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/toolcodeCheckIn"
+import {
+  probeXiaobaiCodeCheckInStatus,
+  XIAOBAI_CODE_STATUS_OUTCOMES,
+} from "~/services/apiService/sub2api/checkin/xiaobaiCodeCheckIn"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
-import { discoverCheckInMethods } from "~/services/checkin/autoCheckin/discovery"
+import { discoverCheckInMethods } from "~/services/checkin/autoCheckin/discovery/discovery"
 import { executeSelectedCheckIn } from "~/services/checkin/autoCheckin/methods"
 import { autoCheckinMethodRegistry } from "~/services/checkin/autoCheckin/providers"
 import { sub2apiProProvider } from "~/services/checkin/autoCheckin/providers/sub2apiPro"
 import { mergeRefreshedCheckInStatus } from "~/services/checkin/autoCheckin/state"
 import { PROTECTION_BYPASS_USER_COMMANDS } from "~/services/protectionBypass/contracts"
 import { AuthTypeEnum } from "~/types"
-import { CHECKIN_RESULT_STATUS } from "~/types/autoCheckin"
+import {
+  AUTO_CHECKIN_SKIP_REASON,
+  CHECKIN_RESULT_STATUS,
+} from "~/types/autoCheckin"
 import { TEMP_WINDOW_REQUEST_SOURCES } from "~/types/tempWindowFetch"
 import { userCommandExecution } from "~~/tests/services/protectionBypass/fixtures"
 import { createAutoCheckinMutationLifecycle } from "~~/tests/test-utils/autoCheckin"
 import { buildSiteAccount } from "~~/tests/test-utils/factories"
 
-vi.mock("~/services/apiService/sub2api", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/services/apiService/sub2api")>()
-  return {
-    ...actual,
-    fetchSub2ApiProDailyCheckInStatus: vi.fn(),
-    performSub2ApiProDailyCheckIn: vi.fn(),
-  }
-})
+vi.mock(
+  "~/services/apiService/sub2api/checkin/baiApiCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/baiApiCheckIn")
+    >()),
+    fetchBaiApiCheckInStatus: vi.fn(),
+  }),
+)
 
 vi.mock(
-  "~/services/apiService/sub2api/denxioCheckIn",
+  "~/services/apiService/sub2api/checkin/proCheckInExecution",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/services/apiService/sub2api/denxioCheckIn")
+        typeof import("~/services/apiService/sub2api/checkin/proCheckInExecution")
+      >()
+    return {
+      ...actual,
+      fetchSub2ApiProDailyCheckInStatus: vi.fn(),
+      performSub2ApiProDailyCheckIn: vi.fn(),
+    }
+  },
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/xiaobaiCodeCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/xiaobaiCodeCheckIn")
+    >()),
+    probeXiaobaiCodeCheckInStatus: vi.fn(),
+  }),
+)
+vi.mock(
+  "~/services/apiService/sub2api/checkin/denxioCheckIn",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/apiService/sub2api/checkin/denxioCheckIn")
       >()
     return {
       ...actual,
@@ -53,16 +90,92 @@ vi.mock(
 )
 
 vi.mock(
-  "~/services/apiService/sub2api/geniusProgrammerCheckIn",
+  "~/services/apiService/sub2api/checkin/geniusProgrammerCheckIn",
   async (importOriginal) => ({
     ...(await importOriginal<
-      typeof import("~/services/apiService/sub2api/geniusProgrammerCheckIn")
+      typeof import("~/services/apiService/sub2api/checkin/geniusProgrammerCheckIn")
     >()),
     fetchGeniusProgrammerDailyCheckInStatus: vi.fn(),
   }),
 )
 
 const METHOD_ID = AUTO_CHECKIN_METHOD_IDS.Sub2ApiProDailyCheckIn
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/toolcodeCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/toolcodeCheckIn")
+    >()),
+    fetchToolcodeDailyCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/hiyoCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/hiyoCheckIn")
+    >()),
+    fetchHiyoDailyCheckInStatus: vi
+      .fn()
+      .mockRejectedValue(new ApiError("unsupported Hiyo protocol", 404)),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/clawhudCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/clawhudCheckIn")
+    >()),
+    fetchClawhudDailyCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/sidruneCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/sidruneCheckIn")
+    >()),
+    fetchSidruneDailyCheckInStatus: vi
+      .fn()
+      .mockRejectedValue(new ApiError("unsupported Sidrune protocol", 404)),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/daiguaCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/daiguaCheckIn")
+    >()),
+    fetchDaiguaDailyCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/freeApiCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/freeApiCheckIn")
+    >()),
+    fetchFreeApiDailyCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/nexavlinksCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/nexavlinksCheckIn")
+    >()),
+    fetchNexaVlinksDailyCheckInStatus: vi
+      .fn()
+      .mockRejectedValue(new ApiError("unsupported NexaVlinks protocol", 404)),
+  }),
+)
 
 const createAccount = (automaticExecutionEnabled = true) =>
   buildSiteAccount({
@@ -114,10 +227,30 @@ const notCheckedStatus = {
 describe("Sub2API Pro daily check-in method Adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // This fixture's host does not serve the daily rewards module.
+    vi.mocked(fetchBaiApiCheckInStatus).mockRejectedValue(
+      new ApiError("unsupported", 404),
+    )
+    vi.mocked(fetchToolcodeDailyCheckInStatus).mockRejectedValue(
+      new ApiError("unsupported", 404),
+    )
+    // A host that does not serve the app answers its SPA shell, not the app.
+    vi.mocked(probeXiaobaiCodeCheckInStatus).mockResolvedValue({
+      outcome: XIAOBAI_CODE_STATUS_OUTCOMES.Absent,
+    })
     vi.mocked(fetchGeniusProgrammerDailyCheckInStatus).mockRejectedValue(
       new ApiError("unsupported", 404),
     )
     vi.mocked(fetchDenxioDailyCheckInStatus).mockRejectedValue(
+      new ApiError("unsupported", 404),
+    )
+    vi.mocked(fetchClawhudDailyCheckInStatus).mockRejectedValue(
+      new ApiError("unsupported", 404),
+    )
+    vi.mocked(fetchDaiguaDailyCheckInStatus).mockRejectedValue(
+      new ApiError("unsupported", 404),
+    )
+    vi.mocked(fetchFreeApiDailyCheckInStatus).mockRejectedValue(
       new ApiError("unsupported", 404),
     )
     vi.mocked(fetchSub2ApiProDailyCheckInStatus).mockResolvedValue({
@@ -387,7 +520,6 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
     })
     expect(result).toMatchObject({
       kind: "executed",
-      retryable: false,
       result: { reasonCode: "method_unsupported" },
     })
     expect(account.checkIn.selection).toEqual({
@@ -402,6 +534,7 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
       executeSelectedCheckIn({
         account,
         globalAutomaticExecutionEnabled: true,
+        isAutomaticExecutionEnabled: async () => true,
         context: executionContext(),
       }),
     ).resolves.toMatchObject({ kind: "skipped", reason: "method_unsupported" })
@@ -424,7 +557,6 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
       ).resolves.toMatchObject({
         kind: "blocked",
         reason: "network_error",
-        retryable: true,
       })
       expect(performSub2ApiProDailyCheckIn).not.toHaveBeenCalled()
     },
@@ -509,7 +641,6 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
       ).resolves.toMatchObject({
         kind: "blocked",
         reason: "account_unavailable",
-        retryable: false,
       })
     },
   )
@@ -533,8 +664,8 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
         globalAutomaticExecutionEnabled: true,
         context: executionContext(),
       }),
-    ).resolves.toMatchObject({ kind: "executed", retryable: false })
-    expect(getStatus).toHaveBeenCalledOnce()
+    ).resolves.toMatchObject({ kind: "executed" })
+    expect(getStatus).toHaveBeenCalledTimes(2)
     expect(checkIn).toHaveBeenCalledOnce()
   })
 
@@ -708,7 +839,7 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
       globalAutomaticExecutionEnabled: true,
       context: executionContext(),
     })
-    expect(result).toMatchObject({ kind: "executed", retryable: false })
+    expect(result).toMatchObject({ kind: "executed" })
     expect(performSub2ApiProDailyCheckIn).toHaveBeenCalledOnce()
   })
 
@@ -723,7 +854,10 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
       })
     const checkIn = vi
       .spyOn(registration.provider, "checkIn")
-      .mockResolvedValue({ status: CHECKIN_RESULT_STATUS.UNCERTAIN })
+      .mockResolvedValue({
+        status: CHECKIN_RESULT_STATUS.UNCERTAIN,
+        reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_UNCONFIRMED,
+      })
 
     await expect(
       executeSelectedCheckIn({
@@ -735,10 +869,8 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
       kind: "executed",
       result: {
         status: CHECKIN_RESULT_STATUS.FAILED,
-        retryable: true,
         reconciliation: "not_checked",
       },
-      retryable: true,
     })
     expect(checkIn).toHaveBeenCalledOnce()
   })
@@ -756,7 +888,10 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
     vi.spyOn(registration.provider, "checkIn")
       .mockImplementationOnce(async () => {
         order.push("POST")
-        return { status: CHECKIN_RESULT_STATUS.UNCERTAIN }
+        return {
+          status: CHECKIN_RESULT_STATUS.UNCERTAIN,
+          reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_UNCONFIRMED,
+        }
       })
       .mockImplementationOnce(async () => {
         order.push("POST")
@@ -772,7 +907,6 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
       kind: "executed",
       result: {
         status: CHECKIN_RESULT_STATUS.FAILED,
-        retryable: true,
       },
     })
     expect(order).toEqual(["GET", "POST", "GET"])
@@ -781,7 +915,7 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
       kind: "executed",
       result: { status: CHECKIN_RESULT_STATUS.SUCCESS },
     })
-    expect(order).toEqual(["GET", "POST", "GET", "GET", "POST"])
+    expect(order).toEqual(["GET", "POST", "GET", "GET", "POST", "GET"])
   })
 
   it.each([
@@ -810,12 +944,53 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
     ).resolves.toMatchObject({ status: expectedStatus })
   })
 
+  it("omits an overflowing reward without failing the check-in", async () => {
+    vi.mocked(performSub2ApiProDailyCheckIn).mockResolvedValue({
+      kind: "applied",
+      data: {
+        rewardAmount: Number.MAX_VALUE,
+        newBalance: 10,
+        checkedInAt: "2026-09-28T00:00:00Z",
+      },
+    })
+    const result = await sub2apiProProvider.checkIn(createAccount(), {
+      ...executionContext(),
+      statusProof: notCheckedStatus,
+    })
+    expect(result.status).toBe(CHECKIN_RESULT_STATUS.SUCCESS)
+    expect(result.reward).toBeUndefined()
+  })
+
+  it("reports the awarded USD amount as a quota reward", async () => {
+    vi.mocked(performSub2ApiProDailyCheckIn).mockResolvedValue({
+      kind: "applied",
+      data: {
+        rewardAmount: 1.5,
+        newBalance: 10,
+        checkedInAt: "2026-09-28T00:00:00Z",
+      },
+    })
+
+    await expect(
+      sub2apiProProvider.checkIn(createAccount(), {
+        ...executionContext(),
+        statusProof: notCheckedStatus,
+      }),
+    ).resolves.toMatchObject({
+      status: CHECKIN_RESULT_STATUS.SUCCESS,
+      reward: { quota: 1.5 * QUOTA_PER_USD },
+    })
+  })
+
   it.each([
     [
       SUB2API_AUTH_PERSISTENCE_STATUSES.IDENTITY_MISMATCH,
       "authentication_required",
     ],
-    [SUB2API_AUTH_PERSISTENCE_STATUSES.WRITE_FAILED, "status_unavailable"],
+    [
+      SUB2API_AUTH_PERSISTENCE_STATUSES.WRITE_FAILED,
+      "account_state_write_failed",
+    ],
     [SUB2API_AUTH_PERSISTENCE_STATUSES.ACCOUNT_MISSING, "account_unavailable"],
   ] as const)(
     "stops a recovered mutation on auth-session result %s",
@@ -834,6 +1009,11 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
       ).resolves.toMatchObject({
         status: CHECKIN_RESULT_STATUS.FAILED,
         reasonCode,
+        ...(status === SUB2API_AUTH_PERSISTENCE_STATUSES.WRITE_FAILED
+          ? {
+              messageKey: "autoCheckin:skipReasons.account_state_write_failed",
+            }
+          : {}),
       })
     },
   )
@@ -853,7 +1033,12 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
         statusProof: notCheckedStatus,
         mutationLifecycle,
       }),
-    ).resolves.toMatchObject({ status: CHECKIN_RESULT_STATUS.UNCERTAIN })
+    ).resolves.toMatchObject({
+      status: CHECKIN_RESULT_STATUS.UNCERTAIN,
+      // A dispatched mutation whose response was lost cannot read its own status
+      // back, which is the reason this provider reports for that state.
+      reasonCode: AUTO_CHECKIN_SKIP_REASON.STATUS_UNAVAILABLE,
+    })
   })
 
   it("resets lifecycle evidence before classifying a recovered pre-dispatch failure", async () => {
@@ -929,9 +1114,7 @@ describe("Sub2API Pro daily check-in method Adapter", () => {
       result: {
         status: CHECKIN_RESULT_STATUS.FAILED,
         reasonCode: "network_error",
-        retryable: true,
       },
-      retryable: true,
     })
   })
 })

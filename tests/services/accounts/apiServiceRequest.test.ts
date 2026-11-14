@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { buildAccountKeyResourceRuntimeKey } from "~/services/accounts/accountRuntimeKeys"
-import { accountSub2ApiAuthSession } from "~/services/accounts/sub2apiAuthSession"
+import { accountSub2ApiAuthSession } from "~/services/accounts/accountSiteProfile/sub2apiAuthSession"
+import { buildAccountKeyResourceRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
 import {
   ACCOUNT_RUNTIME_KEY_SECRET_SOURCES,
   canFetchDisplayAccountInviteLink,
@@ -14,24 +14,30 @@ import {
   resolveDisplayAccountRuntimeKeySecret,
   StoredAccountApiContextError,
 } from "~/services/accounts/utils/apiServiceRequest"
-import { ACCOUNT_KEY_RUNTIME_KEY_RESOLUTION_KINDS } from "~/services/apiAdapters/contracts/accountKeyResource"
+import {
+  ACCOUNT_KEY_RUNTIME_KEY_RESOLUTION_KINDS,
+  AccountKeyResourceError,
+} from "~/services/apiAdapters/contracts/accountKeyResource"
 import { INVENTORY_SECRET_AVAILABILITIES } from "~/services/apiAdapters/contracts/inventorySecret"
 import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
-import { resolveAssociatedProfileSecret } from "~/services/apiCredentialProfiles/accountRuntimeKeyRecovery"
+import { resolveAssociatedProfileSecret } from "~/services/apiCredentialProfiles/accountImport/accountRuntimeKeyRecovery"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
 import { INVITE_LINK_FAILURE_REASONS } from "~/services/inviteLinks/errors"
+import { PROTECTION_BYPASS_USER_COMMANDS } from "~/services/protectionBypass/contracts"
 import { AuthTypeEnum } from "~/types"
+import { userCommandExecution } from "~~/tests/services/protectionBypass/fixtures"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 vi.mock("~/services/apiAdapters/registry", () => ({
   getSiteTypeCapabilities: vi.fn(),
 }))
 
 vi.mock(
-  "~/services/apiCredentialProfiles/accountRuntimeKeyRecovery",
+  "~/services/apiCredentialProfiles/accountImport/accountRuntimeKeyRecovery",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/services/apiCredentialProfiles/accountRuntimeKeyRecovery")
+        typeof import("~/services/apiCredentialProfiles/accountImport/accountRuntimeKeyRecovery")
       >()
 
     return {
@@ -41,7 +47,7 @@ vi.mock(
   },
 )
 
-vi.mock("~/services/accounts/sub2apiAuthSession", () => ({
+vi.mock("~/services/accounts/accountSiteProfile/sub2apiAuthSession", () => ({
   accountSub2ApiAuthSession: {
     getLatestAuth: vi.fn(),
     persistAuthUpdate: vi.fn(),
@@ -59,6 +65,31 @@ const ACCOUNT = {
   cookieAuthSessionCookie: "",
   tagIds: [],
 } as const
+
+it("carries the saved supplemental AIMLAPI key into display and stored-account requests", () => {
+  const account = {
+    ...ACCOUNT,
+    siteType: SITE_TYPES.AIMLAPI,
+    aimlApiKey: " regular ",
+  }
+  expect(
+    createDisplayAccountRequestContext(account as never).request.aimlApiKey,
+  ).toBe("regular")
+  expect(
+    createAccountApiRequestFromStoredAccount({
+      id: account.id,
+      site_url: account.baseUrl,
+      site_type: SITE_TYPES.AIMLAPI,
+      authType: account.authType,
+      account_info: {
+        id: "123",
+        username: "person",
+        access_token: "management",
+      },
+      aimlApiAuth: { apiKey: " regular " },
+    } as never).request.aimlApiKey,
+  ).toBe("regular")
+})
 
 const REQUEST = {
   baseUrl: "https://example.com",
@@ -119,6 +150,25 @@ describe("display account API context and native runtime keys", () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllEnvs()
+  })
+
+  it("routes saved Safari Cookie accounts through private transport in ordinary Safari builds", () => {
+    vi.stubEnv("BROWSER", "safari")
+    const source = buildStoredAccount({
+      authType: AuthTypeEnum.Cookie,
+      cookieAuth: { sessionCookie: "session=fixture-A" },
+    })
+    expect(
+      createAccountApiRequestFromStoredAccount(source).request.cookieSession,
+    ).toEqual({
+      origin: "https://example.com",
+      cookieHeader: "session=fixture-A",
+    })
+    vi.stubEnv("BROWSER", "chrome")
+    expect(
+      createAccountApiRequestFromStoredAccount(source).request.cookieSession,
+    ).toBeUndefined()
   })
 
   it("loads native runtime policy without querying the secret resolution", async () => {
@@ -498,6 +548,18 @@ describe("display account API context and native runtime keys", () => {
     })
   })
 
+  it("keeps the browser address while naming the split management API address", () => {
+    const account = buildStoredAccount({
+      site_type: SITE_TYPES.SUB2API,
+      site_url: "https://ai-router.dev",
+    })
+    const context = createAccountApiRequestFromStoredAccount(account)
+    expect(context.request).toMatchObject({
+      baseUrl: "https://ai-router.dev",
+      managementApiBaseUrl: "https://api.ai-router.dev",
+    })
+  })
+
   it("preserves stored cookie-auth session in request auth", () => {
     const account = buildStoredAccount({
       authType: AuthTypeEnum.Cookie,
@@ -666,53 +728,69 @@ describe("display account API context and native runtime keys", () => {
     })
   })
 
-  it("resolves service credential runtime key secrets through serviceCredential fetch", async () => {
-    const serviceCredentialAccount = {
-      ...ACCOUNT,
-      siteType: SITE_TYPES.SHAREDCHAT,
-      baseUrl: "https://runtime.example.invalid",
-    }
-    capabilities = {
-      siteType: SITE_TYPES.SHAREDCHAT,
-      account: {
-        serviceCredential: {
-          fetch: fetchServiceCredential,
+  it.each([false, true])(
+    "resolves service credential secrets with caller recovery options (%s)",
+    async (withRecovery) => {
+      const requestScheduling = { priority: "foreground" as const }
+      const protectionBypassExecution = withRecovery
+        ? userCommandExecution(PROTECTION_BYPASS_USER_COMMANDS.AddAccount)
+        : undefined
+      const serviceCredentialAccount = {
+        ...ACCOUNT,
+        siteType: SITE_TYPES.SHAREDCHAT,
+        baseUrl: "https://runtime.example.invalid",
+      }
+      capabilities = {
+        siteType: SITE_TYPES.SHAREDCHAT,
+        account: {
+          serviceCredential: {
+            fetch: fetchServiceCredential,
+          },
         },
-      },
-    }
-    vi.mocked(getSiteTypeCapabilities).mockReturnValue(capabilities as any)
-    fetchServiceCredential.mockResolvedValueOnce({
-      kind: "singleton_service_key",
-      service: "codex",
-      label: "Codex",
-      key: "service-credential-secret",
-      isAuthenticated: true,
-    })
-    const [runtimeKey] = await fetchDisplayAccountRuntimeKeys(
-      serviceCredentialAccount as any,
-    )
+      }
+      vi.mocked(getSiteTypeCapabilities).mockReturnValue(capabilities as any)
+      fetchServiceCredential.mockResolvedValueOnce({
+        kind: "singleton_service_key",
+        service: "codex",
+        label: "Codex",
+        key: "service-credential-secret",
+        isAuthenticated: true,
+      })
+      const runtimeKey = atIndex(
+        await fetchDisplayAccountRuntimeKeys(serviceCredentialAccount as any),
+        0,
+      )
 
-    fetchServiceCredential.mockResolvedValueOnce({
-      kind: "singleton_service_key",
-      service: "codex",
-      label: "Codex",
-      key: "fresh-service-secret",
-      isAuthenticated: true,
-    })
-
-    await expect(
-      resolveDisplayAccountRuntimeKeySecret(
-        serviceCredentialAccount as any,
-        runtimeKey,
-      ),
-    ).resolves.toMatchObject({
-      ...runtimeKey,
-      credential: expect.objectContaining({
+      fetchServiceCredential.mockResolvedValueOnce({
+        kind: "singleton_service_key",
+        service: "codex",
+        label: "Codex",
         key: "fresh-service-secret",
-      }),
-      secret: "fresh-service-secret",
-    })
-  })
+        isAuthenticated: true,
+      })
+
+      await expect(
+        resolveDisplayAccountRuntimeKeySecret(
+          serviceCredentialAccount as any,
+          runtimeKey,
+          { requestScheduling, protectionBypassExecution },
+        ),
+      ).resolves.toMatchObject({
+        ...runtimeKey,
+        credential: expect.objectContaining({
+          key: "fresh-service-secret",
+        }),
+        secret: "fresh-service-secret",
+      })
+      expect(fetchServiceCredential).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          requestScheduling,
+          protectionBypassExecution,
+          directRequestReason: withRecovery ? undefined : "caller_managed",
+        }),
+      )
+    },
+  )
 
   it("resolves inactive service credential runtime keys with refreshed base URL", async () => {
     const serviceCredentialAccount = {
@@ -737,8 +815,9 @@ describe("display account API context and native runtime keys", () => {
       isAuthenticated: true,
       baseUrl: "https://initial-runtime.example.invalid",
     })
-    const [runtimeKey] = await fetchDisplayAccountRuntimeKeys(
-      serviceCredentialAccount as any,
+    const runtimeKey = atIndex(
+      await fetchDisplayAccountRuntimeKeys(serviceCredentialAccount as any),
+      0,
     )
 
     fetchServiceCredential.mockResolvedValueOnce({
@@ -1098,9 +1177,8 @@ describe("display account API context and native runtime keys", () => {
   })
 
   it("throws when adapter invite-link loading is not implemented", async () => {
-    const { requireDisplayAccountInviteLink } = await import(
-      "~/services/accounts/utils/apiServiceRequest"
-    )
+    const { requireDisplayAccountInviteLink } =
+      await import("~/services/accounts/utils/apiServiceRequest")
 
     expect(() =>
       requireDisplayAccountInviteLink(
@@ -1140,3 +1218,168 @@ describe("display account API context and native runtime keys", () => {
     ).toBe(false)
   })
 })
+
+describe("account credential secret resolution", () => {
+  it("resolves the account's own credential from the stored token", async () => {
+    const open = vi.fn()
+    vi.mocked(getSiteTypeCapabilities).mockReturnValue({
+      siteType: SITE_TYPES.REQUESTY,
+      account: {
+        keyResourceManagement: {
+          inventorySecretAvailability:
+            INVENTORY_SECRET_AVAILABILITIES.CreateResponseOnly,
+          open,
+        },
+      },
+    } as any)
+    vi.mocked(resolveAssociatedProfileSecret).mockResolvedValue({
+      status: "unavailable",
+    } as any)
+    const account = {
+      ...ACCOUNT,
+      siteType: SITE_TYPES.REQUESTY,
+      token: "rqsty-account-credential",
+    }
+    const runtimeKey = buildAccountKeyResourceRuntimeKey(account as any, {
+      ref: {
+        accountId: account.id,
+        siteType: SITE_TYPES.REQUESTY,
+        scopeKey: "default",
+        resourceId: "self",
+      },
+      label: "account credential",
+      secret: "",
+      accountCredential: true,
+    })
+
+    await expect(
+      resolveDisplayAccountRuntimeKeySecret(account as any, runtimeKey),
+    ).resolves.toMatchObject({
+      secret: "rqsty-account-credential",
+      status: "active",
+    })
+    // The stored token is the same credential; no provider or profile read is needed.
+    expect(open).not.toHaveBeenCalled()
+    expect(resolveAssociatedProfileSecret).not.toHaveBeenCalled()
+  })
+
+  it("keeps other create-response-only keys on the associated-profile path", async () => {
+    const open = vi.fn()
+    vi.mocked(getSiteTypeCapabilities).mockReturnValue({
+      siteType: SITE_TYPES.REQUESTY,
+      account: {
+        keyResourceManagement: {
+          inventorySecretAvailability:
+            INVENTORY_SECRET_AVAILABILITIES.CreateResponseOnly,
+          open,
+        },
+      },
+    } as any)
+    const account = {
+      ...ACCOUNT,
+      siteType: SITE_TYPES.REQUESTY,
+      token: "rqsty-account-credential",
+    }
+    const runtimeKey = buildAccountKeyResourceRuntimeKey(account as any, {
+      ref: {
+        accountId: account.id,
+        siteType: SITE_TYPES.REQUESTY,
+        scopeKey: "default",
+        resourceId: "other-key",
+      },
+      label: "other key",
+      secret: "",
+    })
+
+    await expect(
+      resolveDisplayAccountRuntimeKeySecret(account as any, runtimeKey),
+    ).rejects.toThrow()
+    expect(resolveAssociatedProfileSecret).toHaveBeenCalled()
+  })
+})
+
+it("keeps an independent service key usable when native inventory needs an absent management credential", async () => {
+  vi.mocked(getSiteTypeCapabilities).mockReturnValue({
+    siteType: SITE_TYPES.NANOGPT,
+    account: {
+      keyResourceManagement: {
+        open: vi
+          .fn()
+          .mockRejectedValue(
+            new AccountKeyResourceError({ code: "configuration_required" }),
+          ),
+      },
+      serviceCredential: {
+        fetch: vi.fn().mockResolvedValue({
+          kind: "singleton_service_key",
+          service: "nanogpt-inference",
+          label: "NanoGPT",
+          key: "sk-nano-runtime",
+          isAuthenticated: true,
+        }),
+      },
+    },
+  } as never)
+  const keys = await fetchDisplayAccountRuntimeKeys({
+    ...ACCOUNT,
+    tagIds: [],
+    siteType: SITE_TYPES.NANOGPT,
+  })
+  expect(keys).toHaveLength(1)
+  expect(keys[0]?.secret).toBe("sk-nano-runtime")
+  expect(keys[0]?.source).toBe("service_credential")
+})
+
+it.each([false, true])(
+  "preserves the saved-key error unless native inventory provides runtime keys (%s)",
+  async (hasNativeKey) => {
+    const ref = {
+      accountId: ACCOUNT.id,
+      siteType: SITE_TYPES.NANOGPT,
+      scopeKey: "account",
+      resourceId: "native-key",
+    }
+    const list = vi.fn().mockResolvedValue({
+      items: hasNativeKey
+        ? [
+            {
+              ref,
+              displayName: "Native key",
+              status: "enabled",
+              fields: [],
+              actions: { canUpdate: true, canDelete: true },
+              runtimeKey: { modelAccess: { allowedModelIds: ["model-a"] } },
+            },
+          ]
+        : [],
+      total: hasNativeKey ? 1 : 0,
+    })
+    vi.mocked(getSiteTypeCapabilities).mockReturnValue({
+      siteType: SITE_TYPES.NANOGPT,
+      account: {
+        keyResourceManagement: {
+          open: vi.fn().mockResolvedValue({
+            resolveDefaultScope: async () => ({ scopeKey: "account" }),
+            openCollection: async () => ({ list }),
+          }),
+        },
+        serviceCredential: {
+          fetch: vi.fn().mockRejectedValue(new Error("inference unavailable")),
+        },
+      },
+    } as never)
+    const keys = fetchDisplayAccountRuntimeKeys({
+      ...ACCOUNT,
+      tagIds: [],
+      siteType: SITE_TYPES.NANOGPT,
+    })
+    if (hasNativeKey) {
+      await expect(keys).resolves.toMatchObject([
+        { source: "account_key_resource", resourceRef: ref },
+      ])
+    } else {
+      await expect(keys).rejects.toThrow("inference unavailable")
+    }
+    expect(list).toHaveBeenCalledTimes(1)
+  },
+)

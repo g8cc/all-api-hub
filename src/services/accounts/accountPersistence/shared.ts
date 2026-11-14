@@ -1,20 +1,24 @@
 import type { AccountSiteType } from "~/constants/siteType"
+import { normalizeAccountLogin } from "~/services/accountLogin/configCodec"
+import { normalizeAccountSiteSupplementalAuth } from "~/services/accounts/accountSiteProfile/supplementalAuth"
+import { normalizeAccountSiteProfileUrlForStorage } from "~/services/accounts/accountSiteProfile/urls"
 import {
   parseManualQuotaFromUsd,
   resolveExchangeRate,
-} from "~/services/accounts/accountFormValidation"
-import { normalizeAccountIdentity } from "~/services/accounts/accountIdentity"
-import { normalizeAccountSiteSupplementalAuth } from "~/services/accounts/accountSiteProfile"
-import { normalizeAccountSiteProfileUrlForStorage } from "~/services/accounts/accountSiteProfile/urls"
+} from "~/services/accounts/editing/accountFormValidation"
+import { normalizeAccountIdentity } from "~/services/accounts/identity/accountIdentity"
 import type { AccountDataCapability } from "~/services/apiAdapters/contracts/accountData"
 import type { AccountPersistenceIdentityInput } from "~/services/apiAdapters/contracts/accountPersistence"
 import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
 import {
   AuthTypeEnum,
+  type AimlApiAuthConfig,
   type CheckInConfig,
+  type KimiOpenPlatformAuthConfig,
   type SiteAccount,
   type Sub2ApiAuthConfig,
 } from "~/types"
+import type { AccountLoginConfiguration } from "~/types/accountLogin"
 import { getErrorMessage } from "~/utils/core/error"
 import { createLogger } from "~/utils/core/logger"
 
@@ -31,6 +35,8 @@ interface AccountPersistenceInput {
   exchangeRate: string
   notes: string
   tagIds: TagIdsInput
+  /** Undefined preserves the current configuration; null explicitly clears it. */
+  loginChange?: AccountLoginConfiguration | null
   checkInConfig: CheckInConfig
   siteType: AccountSiteType
   authType: AuthTypeEnum
@@ -39,6 +45,9 @@ interface AccountPersistenceInput {
   excludeFromTotalBalance: boolean
   excludeFromTodayIncome: boolean
   sub2apiAuth?: Sub2ApiAuthConfig
+  /** Second static credential for sites whose console splits capabilities. */
+  aimlApiAuth?: AimlApiAuthConfig
+  kimiOpenPlatformAuth?: KimiOpenPlatformAuthConfig
 }
 
 export const requireAccountDataCapability = (
@@ -119,12 +128,24 @@ function normalizeTagIdsInput(tagIds: TagIdsInput): string[] {
 }
 
 /** Normalizes supplemental authentication data for the selected account site. */
-function normalizeSub2ApiAuthInput(
+function normalizeSupplementalAuthInput(
   siteType: AccountSiteType,
   sub2apiAuth: Sub2ApiAuthConfig | undefined,
-): Sub2ApiAuthConfig | undefined {
-  return normalizeAccountSiteSupplementalAuth({ siteType, sub2apiAuth })
-    .sub2apiAuth
+  aimlApiAuth: AimlApiAuthConfig | undefined,
+): {
+  sub2apiAuth?: Sub2ApiAuthConfig
+  aimlApiAuth?: AimlApiAuthConfig
+} {
+  const normalized = normalizeAccountSiteSupplementalAuth({
+    siteType,
+    sub2apiAuth,
+    aimlApiAuth,
+  })
+  return {
+    ...(normalized.sub2apiAuth ? { sub2apiAuth: normalized.sub2apiAuth } : {}),
+    // Full account edits must explicitly clear a removed supplemental key.
+    aimlApiAuth: normalized.aimlApiAuth,
+  }
 }
 
 /** Builds normalized account fields and request inputs shared by create and update. */
@@ -142,6 +163,9 @@ export function buildAccountPersistenceContext(
     requestBaseUrl: input.url.trim(),
     requestAccountIdentity: normalizeAccountIdentity(input.userId) ?? "",
     fields: {
+      ...(input.loginChange !== undefined
+        ? { login: normalizeAccountLogin(input.loginChange) }
+        : {}),
       site_name: input.siteName.trim(),
       site_url: normalizeAccountSiteProfileUrlForStorage({
         siteType: input.siteType,
@@ -155,7 +179,14 @@ export function buildAccountPersistenceContext(
         input.authType === AuthTypeEnum.Cookie
           ? { sessionCookie: input.sessionCookieHeader.trim() }
           : undefined,
-      sub2apiAuth: normalizeSub2ApiAuthInput(input.siteType, input.sub2apiAuth),
+      ...normalizeSupplementalAuthInput(
+        input.siteType,
+        input.sub2apiAuth,
+        input.aimlApiAuth,
+      ),
+      ...(input.kimiOpenPlatformAuth
+        ? { kimiOpenPlatformAuth: input.kimiOpenPlatformAuth }
+        : {}),
       exchange_rate: resolveExchangeRate(input.exchangeRate),
       notes: input.notes,
       manualBalanceUsd:

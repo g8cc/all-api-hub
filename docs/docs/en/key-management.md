@@ -11,12 +11,14 @@
 
 ## Features at a Glance
 
+![API Key List & Management](../static/image/en/api-key-list.png)
+
 - **Centralized list**: Group keys by account or view keys from all accounts. Keys are masked by default.
 - **Name search**: Search matches key names only, never the key value itself.
 - **Create, edit, and delete**: Ordinary Tokens can configure a name, quota, expiration, group, model restrictions, and IP/subnet restrictions. Available fields depend on site capabilities.
 - **Reveal and copy**: A full value is available only when the server returns it or the item matches a locally saved API credential exactly. Save one-time keys immediately because they may be unrecoverable later.
 - **Key check (repair)**: Checks saved accounts for a usable key, creates one when supported and missing, and lists remaining problems.
-- **Verification and export**: When a full key is available and the account supports the action, verify API and CLI compatibility, save it to the API Credential Library, export it to an AI tool, or submit it to a self-hosted site.
+- **Testing and export**: When a full key is available and the account supports the action, verify API and CLI compatibility, save it to the API Credential Library, export it to an AI tool, or submit it to a self-hosted site.
 
 ## How to Access
 
@@ -58,6 +60,8 @@ Enter a key name in the search box. Search matches **names only** and does not i
 - Masking protects only the display and does not mean the key is stored encrypted. Copy, verification, export, backup, and remote submission are available only when a full value exists, and those actions use that full value.
 - For keys shown only once at creation, such as some AIHubMix and OpenRouter keys, save them immediately. Historical OpenRouter entries that do not exactly match a local API credential contain only a mask or hash and cannot reveal, copy, verify, or export the full key.
 
+Some keys display whether they are used for account authentication. “Possibly used for account authentication” indicates matching evidence such as a mask, which cannot recover the full key; “Used by this account” indicates confirmed evidence. Linking a local API credential can provide full-key comparison evidence, but does not change the key's permissions on the site.
+
 ### 4. Create a Key
 
 1. Click **`Add API Key`** in the upper-right corner.
@@ -71,6 +75,12 @@ Enter a key name in the search box. Search matches **names only** and does not i
 3. Click **`Create Key`**.
 
 > When a site shows the key only once, an **`Save the Full Key Now`** dialog appears after creation. Copy or save the key before closing it.
+
+Native key fields and defaults depend on the site. Check the form guidance before creating a key:
+
+- **Routing groups**: When multiple groups have routing priority, drag them or use the up/down buttons to reorder. Descriptions and multipliers help you choose.
+- **Spending limits**: Configure total and time-window caps separately. Follow each field's guidance for units and unlimited values.
+- **Advanced settings**: Supported options may include IP allowlists/blocklists, custom keys or request modes. Collapsing a section preserves its draft values. Custom keys are generally available only at creation; follow the form's format requirements.
 
 ### 5. Edit a Key
 
@@ -94,12 +104,12 @@ Click **`Key Check`** at the top:
 
 > Key Check fills gaps only when the source, permissions, and recoverability allow it. It cannot recover every key. Actions that may create a remote key explicitly warn that a new key may be created on the corresponding site.
 
-### 8. Verify API and CLI Compatibility
+### 8. Test API and CLI Compatibility
 
-The key action area provides **`Verify API`** and **`Verify CLI Compatibility`**:
+The key action area provides **`Test API`** and **`CLI compatibility test`**:
 
 - Verification is a single probe that checks whether the current key and endpoint work and whether the response matches expectations.
-- CLI compatibility verification evaluates suitability for CLI tools. It **does not launch or fully run an external CLI**.
+- CLI compatibility testing evaluates suitability for CLI tools. It **does not launch or fully run an external CLI**.
 - A result reflects that probe only. It does not guarantee long-term availability or permanent failure.
 
 ### 9. Bulk Operations

@@ -6,13 +6,16 @@ import {
   CHECK_IN_METHOD_STATUS_OUTCOMES,
   CHECK_IN_METHOD_TODAY_STATUSES,
 } from "~/constants/checkIn"
+import { QUOTA_PER_USD } from "~/constants/money"
 import { SITE_TYPES } from "~/constants/siteType"
+import { ForeignCheckInContractError } from "~/services/apiService/sub2api/checkin/foreignCheckInContract"
 import {
   fetchGeniusProgrammerDailyCheckInStatus,
   GENIUS_PROGRAMMER_DAILY_CHECK_IN_RESULT_KINDS,
   performGeniusProgrammerDailyCheckIn,
-} from "~/services/apiService/sub2api/geniusProgrammerCheckIn"
+} from "~/services/apiService/sub2api/checkin/geniusProgrammerCheckIn"
 import { ApiError } from "~/services/apiTransport/errors"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { executeSelectedCheckIn } from "~/services/checkin/autoCheckin/methods"
 import { autoCheckinMethodRegistry } from "~/services/checkin/autoCheckin/providers"
 import { geniusProgrammerProvider } from "~/services/checkin/autoCheckin/providers/geniusProgrammer"
@@ -25,11 +28,11 @@ import { createAutoCheckinMutationLifecycle } from "~~/tests/test-utils/autoChec
 import { buildSiteAccount } from "~~/tests/test-utils/factories"
 
 vi.mock(
-  "~/services/apiService/sub2api/geniusProgrammerCheckIn",
+  "~/services/apiService/sub2api/checkin/geniusProgrammerCheckIn",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/services/apiService/sub2api/geniusProgrammerCheckIn")
+        typeof import("~/services/apiService/sub2api/checkin/geniusProgrammerCheckIn")
       >()
     return {
       ...actual,
@@ -137,6 +140,7 @@ describe("Genius Programmer check-in integration", () => {
     const originalSignal = new AbortController().signal
     const signal = new AbortController().signal
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://provided.example",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -181,6 +185,23 @@ describe("Genius Programmer check-in integration", () => {
         observedAt: 200,
       }),
     ).resolves.toMatchObject({ outcome })
+  })
+  it("classifies a sibling contract on the shared path as unsupported", async () => {
+    // clawhud answers the same status path with a checked_in_today DTO; an
+    // unknown sibling here would keep the whole decision unresolved even
+    // though this method matched.
+    vi.mocked(fetchGeniusProgrammerDailyCheckInStatus).mockRejectedValue(
+      new ForeignCheckInContractError("/api/v1/user/checkin/status", {
+        enabled: true,
+        checked_in_today: false,
+      }),
+    )
+    await expect(
+      geniusProgrammerProvider.detect?.({
+        account: createAccount(),
+        observedAt: 200,
+      }),
+    ).resolves.toMatchObject({ outcome: "unsupported" })
   })
   it("blocks direct submission without authoritative status proof", async () => {
     await expect(
@@ -237,6 +258,21 @@ describe("Genius Programmer check-in integration", () => {
           : CHECKIN_RESULT_STATUS.ALREADY_CHECKED,
     })
   })
+  it("reports the awarded USD amount as a quota reward", async () => {
+    vi.mocked(performGeniusProgrammerDailyCheckIn).mockResolvedValue({
+      kind: GENIUS_PROGRAMMER_DAILY_CHECK_IN_RESULT_KINDS.Applied,
+      data: { rewardAmount: 0.05 },
+    })
+    await expect(
+      geniusProgrammerProvider.checkIn(createAccount(), {
+        ...executionContext(),
+        statusProof: notCheckedStatus,
+      }),
+    ).resolves.toMatchObject({
+      status: CHECKIN_RESULT_STATUS.SUCCESS,
+      reward: { quota: 0.05 * QUOTA_PER_USD },
+    })
+  })
   it("marks a dispatched malformed or lost response uncertain", async () => {
     const mutationLifecycle = createAutoCheckinMutationLifecycle()
     mutationLifecycle.onDispatch()
@@ -250,9 +286,6 @@ describe("Genius Programmer check-in integration", () => {
         mutationLifecycle,
       }),
     ).resolves.toMatchObject({ status: CHECKIN_RESULT_STATUS.UNCERTAIN })
-    expect(geniusProgrammerProvider.retryAfterUncertainNotChecked).not.toBe(
-      true,
-    )
   })
   it.each([true, false])(
     "reconciles a lost response without replay (checked=%s)",
@@ -271,7 +304,10 @@ describe("Genius Programmer check-in integration", () => {
         globalAutomaticExecutionEnabled: true,
         context: executionContext(),
       })
-      expect(result).toMatchObject({ kind: "executed", retryable: false })
+      expect(result).toMatchObject({
+        kind: "executed",
+        retryable: !checkedInToday,
+      })
       expect(performGeniusProgrammerDailyCheckIn).toHaveBeenCalledOnce()
       expect(
         vi.mocked(fetchGeniusProgrammerDailyCheckInStatus).mock.calls.length,

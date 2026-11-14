@@ -74,13 +74,22 @@ In the extension popup, click **"Continue in side panel"** to carry your current
 
    **5.2 Finding the Access Token**
 
-   If you have already saved a valid, complete Access Token, you can enter it directly. Otherwise, open **Security → Access Token** on newer New API sites (usually `/security`), generate a token, and complete the site's security verification. The full token is shown only once. Copy it immediately and paste it into the extension's **Access Token** field.
+   If you have already saved a valid, complete Access Token, you can enter it directly.
 
-   Generating a new Access Token invalidates the old one. Update any other tools that use the old token. This token manages your account; API keys from Token Management are used for model calls.
+   Check the token page and buttons on your deployment before choosing a workflow below. The release version is only a guide: forks and backports may use a different workflow.
 
-   Older versions usually place Access Token in the Security section near the bottom of the profile page, as shown below.
+   Newer New API sites (from `v1.0.0-rc.41`) keep every token on the **Security → Access Tokens** page (usually `/security`): choose **Create access token**, pick the permissions and expiry the site asks for, and complete its security verification. The full token is shown only once. Copy it immediately and paste it into the extension's **Access Token** field. Grant all the permissions the dialog lists — a token with too few returns 403 later, when reading usage, balance or managing API keys. Each token is a separate entry that can be revoked on its own, and creating one does **not** invalidate the others.
+
+   <details>
+   <summary>Sites with only Generate / Regenerate buttons (usually rc.40 and earlier)</summary>
+
+   Older versions keep a single token in the Security section near the bottom of the profile page: choose **Generate**, or **Regenerate** when a token already exists. **Regenerating invalidates the old Access Token**, so update any other tools that use it.
 
    ![Access Token in the Security section](../static/image/manual/new-api/access-token.png)
+
+   </details>
+
+   This token manages your account; API keys from Token Management are used for model calls.
 
 6. Enter a **Recharge Amount Ratio** (`CNY/USD`, greater than 0), then save the account. Check the actual site for its recharge ratio and enter the value used by that site.
 
@@ -225,6 +234,20 @@ OpenRouter always uses a **Management Key (Access Token)**. You do not need to e
 Management Keys are sensitive information. Do not share their full contents or expose them in public screenshots or issue reports.
 :::
 
+<a id="manual-vercel-ai-gateway"></a>
+### 2.4 Vercel AI Gateway
+
+1. Sign in to the [Vercel console](https://vercel.com/) and open the team that uses AI Gateway.
+2. Choose **Add account → Manual addition** in the extension, enter `https://vercel.com`, and select the `vercel-ai-gateway` site type.
+3. Create an access token with access to the target team on [Vercel Tokens](https://vercel.com/account/settings/tokens), complete any email verification, and immediately paste the complete token into the extension's **Access Token** field. This is a Vercel account access token, distinct from an AI Gateway inference API key.
+4. Wait for the team list and select the team that owns the credits and keys. Saving verifies token membership again. Different teams can be saved as separate accounts.
+5. Enter a website name and a positive `CNY/USD` conversion rate, then save. Balances are read in USD; the rate only affects display conversion. If the token expires, create a replacement in the console and update the saved credential.
+
+::: warning Protect access tokens
+Keep complete tokens out of public screenshots and feedback. Console cookies cannot replace this access token, and the extension cannot create or renew Vercel tokens in the background.
+:::
+
+
 ## 3. Cookie Mode
 
 For some sites with strict API protection or extensive customization, try **"Cookie Mode"** if Access Token mode does not work. In this mode, the extension uses your current signed-in session (Cookie) to request data.
@@ -242,8 +265,10 @@ If you keep AI relay sites in browser bookmarks, use "Import from Bookmarks" to 
   > Grant permission → Read bookmark tree → Select scope → Scan and create candidates → Preview → Import → Results summary
 
 - Existing accounts are skipped by default and are not imported again.
-- After import, successful, failed, and skipped entries are summarized separately. Existing accounts count as skipped by default.
-- Failed entries can continue through "Open Add Account".
+- The extension will do its best to add accounts automatically. Some sites may need you to sign in, complete verification, or fill in a few details.
+- Results summarize added, incomplete, and skipped entries. Unselected candidate sites, including existing sites skipped by default, count as skipped.
+- Added accounts are kept. After signing in or completing site verification, use "Retry incomplete items". Entries successfully added in this batch are not added again by retries.
+- Use "Finish manually" to open the regular Add Account dialog with the URL and any detected site type and authentication method, then complete the site-specific setup.
 
 ## 5. Improving the Account Addition Experience
 

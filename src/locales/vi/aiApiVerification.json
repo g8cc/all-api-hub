@@ -1,10 +1,12 @@
 {
   "verifyDialog": {
+    "about": "Thông tin kiểm tra",
     "actions": {
       "close": "Đóng",
       "manageModelKey": "Mở thiết lập khóa cho mô hình",
       "retry": "Thử lại",
-      "run": "Bắt đầu xác minh",
+      "runAll": "Chạy kiểm tra thông thường",
+      "runAllHint": "Chỉ chạy các kiểm tra thông thường. Khởi chạy riêng các kiểm tra theo yêu cầu.",
       "running": "Đang chạy...",
       "runOne": "Chạy",
       "stop": "Dừng",
@@ -16,55 +18,127 @@
       "openai": "OpenAI",
       "openaiCompatible": "Tương thích OpenAI"
     },
+    "associatedCredentialHint": "Trang web này không cho phép đọc lại khóa đầy đủ. Các bài kiểm tra dùng khóa đầy đủ được lưu trong Thư viện thông tin xác thực API và liên kết với khóa đã chọn. Nếu chưa liên kết, hãy lưu hoặc liên kết khóa trong phần quản lý khóa trước.",
     "details": {
       "input": "Đầu vào",
-      "output": "Đầu ra"
+      "output": "Đầu ra",
+      "result": "Kết quả thực thi"
     },
     "errors": {
       "unexpected": "Đã xảy ra lỗi không xác định"
     },
+    "generatedImagePreview": "Xem trước ảnh đã tạo",
+    "generatedVideoPreview": "Xem trước video đã tạo",
     "history": {
       "clear": "Xóa lịch sử",
-      "lastVerified": "Lần xác minh gần nhất"
+      "lastVerified": "Lần kiểm tra gần nhất",
+      "previousResult": "Lần trước: {{result}}",
+      "storage": {
+        "context": "Lịch sử giữ kết quả đo, không giữ chi tiết từng yêu cầu.",
+        "drawing": "Lịch sử không giữ bản vẽ hoặc chi tiết thực thi.",
+        "needle": "Lịch sử giữ kết quả đo. Có thể dùng cùng mã mẫu và cài đặt để tạo lại văn bản kiểm tra.",
+        "probe": "Lịch sử chỉ giữ bản tóm tắt kiểm tra, không giữ nội dung yêu cầu và phản hồi."
+      }
     },
-    "idleHint": "Vui lòng chọn khóa để bắt đầu xác minh; thăm dò liên quan đến mô hình cần điền ID mô hình.",
+    "intro": {
+      "probes": {
+        "decision": "Gửi trạng thái mẫu đến endpoint quyết định và kiểm tra xem có trả về giá trị quyết định hoặc xác suất hay không.",
+        "embedding": "Gửi văn bản mẫu và kiểm tra vectơ trả về cùng số chiều của nó.",
+        "image-generation": "Gửi lời nhắc tạo ảnh, kiểm tra phản hồi và xem trước ảnh được tạo.",
+        "models": "Lấy tên và số lượng mô hình từ endpoint để chọn mô hình cho các bài kiểm tra tiếp theo.",
+        "rerank": "Gửi truy vấn và các tài liệu ứng viên, rồi kiểm tra thứ tự mức độ liên quan.",
+        "structured-output": "Yêu cầu mô hình trả về JSON chứa ok: true, rồi kiểm tra giá trị trường và cấu trúc.",
+        "text-generation": "Kiểm tra mô hình có phản hồi theo lời nhắc hay không. Bài kiểm tra đạt nếu phản hồi chứa OK, không phân biệt chữ hoa và chữ thường.",
+        "tool-calling": "Yêu cầu mô hình gọi công cụ dấu thời gian tích hợp. Bài kiểm tra đạt khi phát hiện lệnh gọi công cụ đó.",
+        "video-generation": "Gửi tác vụ tạo video, đợi trạng thái và xem video được tạo.",
+        "web-search": "Kiểm tra xem API có thể tìm kiếm trên web hay không, rồi xem kết quả và trích dẫn."
+      },
+      "startHint": "Chọn <run>Chạy</run> để bắt đầu kiểm tra này."
+    },
     "loadingRuntimeKeysHint": "Đang tải khóa...",
+    "mediaPreviewUnavailable": "Không thể tải bản xem trước.",
     "meta": {
       "apiType": "Loại API",
       "apiTypePlaceholder": "Chọn loại API",
+      "configuration": "Cấu hình yêu cầu",
       "mode": "Chế độ kiểm tra",
       "model": "Mô hình",
       "modelPlaceholder": "Nhập ID mô hình",
+      "requestProfile": "Mô phỏng ứng dụng khách",
       "runtimeKey": "Khóa",
       "runtimeKeyIncompatible": "Không dùng được cho mô hình này",
       "runtimeKeyPlaceholder": "Chọn khóa"
+    },
+    "modalityNotice": {
+      "image": "Đây là mô hình tạo hình ảnh; lệnh gọi thử nghiệm sẽ tiêu tốn hạn mức theo từng lượt.",
+      "quotaCost": "Tính theo lượt",
+      "video": "Tạo video và đợi tối đa hai phút để phát. Dừng chỉ kết thúc việc chờ tại máy; tác vụ trên máy chủ có thể tiếp tục và phát sinh phí."
     },
     "modes": {
       "nonStreaming": "Không truyền luồng",
       "streaming": "Truyền luồng"
     },
     "noCompatibleRuntimeKeyHint": "Không có khóa nào dùng được cho nhóm của mô hình này. Hãy tạo hoặc chọn khóa thuộc nhóm khả dụng trong Quản lý khóa.",
-    "notRunYet": "Chưa chạy",
+    "openGeneratedMedia": "Mở nội dung đã tạo",
     "probes": {
+      "decision": "Mô hình quyết định",
+      "embedding": "Nhúng",
+      "image-generation": "Tạo hình ảnh",
       "models": "Danh sách mô hình",
-      "structured-output": "Đầu ra có cấu trúc (JSON Schema)",
+      "rerank": "Xếp hạng lại",
+      "structured-output": "Đầu ra có cấu trúc",
       "text-generation": "Tạo văn bản",
       "tool-calling": "Gọi công cụ/hàm",
-      "web-search": "Tìm kiếm web / Grounding"
+      "video-generation": "Tác vụ video",
+      "web-search": "Tìm kiếm web"
+    },
+    "requestProfiles": {
+      "claude": "Claude Code",
+      "codex": "Codex CLI",
+      "default": "API thông thường",
+      "enhancedBadge": "Nâng cao",
+      "enhancedCostHint": "Có thể tăng lượng đầu vào sử dụng",
+      "enhancedHint": "Thêm lời nhắc nhận dạng, tiêu đề SDK, bộ nhớ đệm và đặc điểm phiên đã biết. Có thể tăng mức sử dụng đầu vào; việc chấp nhận tùy thuộc trang web.",
+      "enhancedLabel": "Mô phỏng CLI nâng cao",
+      "gemini": "Gemini CLI",
+      "hint": "Khi chọn ứng dụng khách, giao thức mặc định của ứng dụng đó sẽ được thiết lập. Bạn vẫn có thể thay đổi giao thức thủ công. Các bài kiểm tra mô phỏng yêu cầu API của ứng dụng khách mà không khởi chạy CLI trên thiết bị của bạn.",
+      "protocolMismatch": "Khác với giao thức mặc định của ứng dụng ({{apiType}}); có thể không tương thích.",
+      "shortcutHint": "Đã chọn {{client}}. Bạn có thể chạy kiểm tra hoặc chọn ứng dụng khách khác.",
+      "shortcutTooltip": "Kiểm tra khả năng hỗ trợ ứng dụng khách CLI của API này"
     },
     "requiresModelId": "Vui lòng nhập ID mô hình trước khi chạy bài kiểm tra này.",
+    "sections": {
+      "onDemand": "Kiểm tra theo yêu cầu",
+      "routine": "Kiểm tra thông thường"
+    },
     "selectedRuntimeKeyIncompatibleHint": "Khóa đang chọn không dùng được cho nhóm của mô hình này. Hãy chọn khóa tương thích trước khi xác minh.",
+    "source": {
+      "account": "Tài khoản: {{name}}",
+      "profile": "Thông tin xác thực: {{name}}"
+    },
     "status": {
+      "emptyResponse": "Không có nội dung trả lời",
       "fail": "Thất bại",
+      "inconclusive": "Chưa xác định",
       "pass": "Thành công",
+      "paused": "Đã tạm dừng",
       "pending": "Đang chờ chạy",
+      "stopped": "Đã dừng",
+      "timeout": "Yêu cầu hết thời gian",
       "unsupported": "Không hỗ trợ",
-      "unverified": "Chưa xác minh"
+      "unverified": "Chưa kiểm tra"
     },
     "summaries": {
+      "decisionSucceeded": "Kiểm tra mô hình quyết định thành công.",
+      "decisionUnexpectedResponse": "Phản hồi không mong muốn từ giao diện quyết định.",
+      "embeddingSucceeded": "Đã tạo nhúng thành công (chiều: {{dimension}}).",
+      "embeddingUnexpectedResponse": "Phản hồi nhúng không như mong đợi.",
+      "embeddingUnsupportedAnthropic": "Anthropic không hỗ trợ mô hình nhúng gốc.",
       "endpointNotFound": "Endpoint không tồn tại (404): API này có thể không được hỗ trợ",
       "forbidden": "Cấm truy cập (403): Truy cập bị từ chối",
       "httpError": "Lỗi HTTP ({{status}})",
+      "imageGenerationNoData": "Không có dữ liệu hình ảnh được trả về.",
+      "imageGenerationSucceeded": "Tạo hình ảnh thành công.",
       "modelsFetched": "Lấy thành công {{count}} mô hình.",
       "modelsFetched_other": "Lấy thành công {{count}} mô hình.",
       "modelsProbeUnsupportedForApiType": "Loại API hiện tại không hỗ trợ thăm dò danh sách mô hình.",
@@ -74,6 +148,11 @@
       "noModelIdProvidedToRunProbes": "Chưa cung cấp ID mô hình, không thể chạy thăm dò.",
       "noModelsReturned": "Không trả về mô hình nào.",
       "noToolCallDetected": "Không phát hiện thấy lệnh gọi công cụ (mô hình có thể không hỗ trợ công cụ).",
+      "probeRequiresOpenAiProtocol": "Phép kiểm tra này yêu cầu điểm cuối API tương thích OpenAI. Chỉ chọn giao thức đó nếu dịch vụ có hỗ trợ.",
+      "requestProfileIncompatible": "Mô phỏng ứng dụng này không hỗ trợ giao thức API hoặc bài kiểm tra đã chọn.",
+      "requestTimedOut": "Yêu cầu hết thời gian mà chưa có kết quả rõ ràng. Hãy thử lại sau; hết thời gian không có nghĩa là mô hình không hỗ trợ tính năng này.",
+      "rerankSucceeded": "Xếp hạng lại thành công.",
+      "rerankUnexpectedResponse": "Phản hồi xếp hạng lại không như mong đợi.",
       "stopped": "Đã dừng bởi người dùng.",
       "structuredOutputInvalid": "Nội dung đầu ra không hợp lệ.",
       "structuredOutputSucceeded": "Đầu ra có cấu trúc thành công.",
@@ -81,6 +160,12 @@
       "textGenerationUnexpectedResponse": "Nội dung trả về không như mong đợi.",
       "toolCallSucceeded": "Gọi công cụ thành công.",
       "unauthorized": "Không có quyền (401): Khóa không hợp lệ hoặc thiếu xác thực",
+      "videoGenerationSucceeded": "Đã tạo video thành công.",
+      "videoGenerationTimedOut": "Video chưa hoàn tất trong hai phút. Tác vụ trên máy chủ có thể vẫn đang chạy.",
+      "videoNoPlayableResult": "Tác vụ video đã hoàn tất nhưng không có URL phát được.",
+      "videoNoTaskReturned": "Không có ID tác vụ video được trả về.",
+      "videoTaskAccepted": "Tác vụ video đã được chấp nhận.",
+      "videoUnexpectedResponse": "Tác vụ video thất bại hoặc trả về phản hồi không hợp lệ.",
       "webSearchGroundingNoResults": "Không nhận được kết quả Tìm kiếm web / Grounding.",
       "webSearchGroundingSucceeded": "Tìm kiếm web / Grounding thành công.",
       "webSearchNoResults": "Không nhận được kết quả tìm kiếm web.",
@@ -89,8 +174,227 @@
       "webSearchUnsupportedAnthropic": "API Anthropic không hỗ trợ thăm dò tìm kiếm web.",
       "webSearchUnsupportedForApiType": "Loại API hiện tại không hỗ trợ thăm dò tìm kiếm web."
     },
-    "title": "Xác minh API",
+    "title": "Kiểm tra API",
+    "tools": {
+      "agent": {
+        "calls": "Lịch sử gọi công cụ",
+        "completed": "Đã tạo tệp SVG. Bạn tự đánh giá chất lượng hình vẽ.",
+        "files": "Tệp trong không gian làm việc",
+        "hint": "Mô hình tự kiểm tra và cải thiện hình vẽ. Quá trình này có thể làm tăng mức sử dụng.",
+        "label": "Chế độ kiểm thử Agent",
+        "noArtifact": "Mô hình chưa ghi SVG hoàn chỉnh vào pelican.svg. Câu trả lời cuối không được dùng làm tệp kết quả.",
+        "summary": "Số lượt: {{steps}} · Lần gọi công cụ: {{calls}} · {{seconds}} giây"
+      },
+      "context": {
+        "about": "Giới thiệu kiểm tra ngữ cảnh",
+        "acceptedTitle": "Ngữ cảnh mô hình: đã xác minh khoảng {{tokens}} tokens",
+        "comparison": "siêu dữ liệu công bố {{expected}} token",
+        "continue": "Tiếp tục kiểm tra",
+        "counter": "Bộ tách token: {{encoding}}.",
+        "coverage": "Ngữ cảnh ≈{{percent}}%",
+        "description": "Dùng ngữ cảnh khai báo làm giới hạn kiểm tra, hoặc tối đa 1M tokens khi chưa rõ. Mỗi đợt có ngân sách đầu vào tích lũy khoảng 8M tokens và có thể tiếp tục sau khi tạm dừng.",
+        "details": "Chi tiết kiểm tra",
+        "discard": "Bỏ các kiểm tra bị gián đoạn",
+        "discardWarning": "Đã lưu quá nhiều kiểm tra bị gián đoạn. Bỏ các bản ghi không còn chạy để tiếp tục. Trạng thái tính phí chưa rõ; các kiểm tra đang chạy được giữ lại.",
+        "emptyResponse": "Phản hồi kết thúc bình thường nhưng không có nội dung; chưa xác nhận được việc nhận đầu vào.",
+        "errorTitle": "Không thể hoàn tất kiểm tra",
+        "estimated": "Mã hóa mô hình là ước tính.",
+        "hint": "Kiểm tra độ dài ngữ cảnh đầu vào mà mô hình chấp nhận. Kết quả phụ thuộc vào API và cấu hình yêu cầu, không xác nhận toàn bộ cửa sổ ngữ cảnh.",
+        "historyError": "Lịch sử hiện không khả dụng. Kết quả hiện tại vẫn được hiển thị.",
+        "incompleteResponse": "Chưa nhận được phản hồi đủ để kết luận. Lý do kết thúc: {{reason}}.",
+        "interrupted": "Yêu cầu đã bị gián đoạn; trạng thái tính phí chưa rõ. Yêu cầu không được tự động thử lại. Bắt đầu kiểm tra mới có thể phát sinh thêm mức sử dụng.",
+        "lower": "Đầu vào lớn nhất được chấp nhận: {{tokens}} token văn bản cục bộ",
+        "maskedHistoryHint": "Kết quả đo đã lưu cho khóa bị che này. Thông tin xác thực hiện tại chưa được kiểm tra lại.",
+        "matched": "Đã khớp mã hóa mô hình; số token của toàn bộ yêu cầu có thể khác.",
+        "measuredBadge": "Đã nhận ≈{{tokens}} token",
+        "measurementDetails": "Cơ sở đo lường",
+        "outputLimited": "Đầu vào đã được chấp nhận; đầu ra bị cắt do giới hạn độ dài. Điều này không làm mất kết quả chấp nhận đầu vào.",
+        "pausedTitle": "Đã tạm dừng kiểm tra",
+        "progress": "Yêu cầu: {{requests}} · Ngân sách đầu vào cộng dồn: khoảng {{tokens}} token (gồm yêu cầu thất bại)",
+        "reasons": {
+          "bracketed": "Đã tìm thấy giới hạn đầu vào gần đúng của kết nối này.",
+          "budget": "Đợt này đã đạt ngân sách yêu cầu hoặc đầu vào cộng dồn. Tiếp tục từ đây sẽ cho phép dùng thêm hạn mức.",
+          "inconclusive": "Chưa xác nhận được giới hạn dung lượng. Thử lại hoặc mở chi tiết để xem nguyên nhân.",
+          "test-limit": "Đầu vào có độ dài này đã được nhận. Dung lượng thực tế có thể lớn hơn.",
+          "timeout": "Yêu cầu hết thời gian trước khi xác nhận đầu vào đã được chấp nhận. Điều này không chứng minh đầu vào vượt quá dung lượng của mô hình. Hãy thử lại sau; việc thử lại sẽ gửi lại văn bản dài và có thể tiêu tốn hạn mức."
+        },
+        "reportedUsage": "Mức dùng được báo cáo: đầu vào {{input}} + đầu ra {{output}} = tổng {{total}} token",
+        "requestDetails": "Yêu cầu và mức sử dụng",
+        "resultLabel": "Kết quả dung lượng ngữ cảnh",
+        "run": "Thăm dò ngữ cảnh",
+        "startHint": "Gửi văn bản dài và tiêu thụ hạn mức API. Tạm dừng khi đạt ngân sách.",
+        "stoppedTitle": "Đã dừng kiểm tra",
+        "title": "Kiểm tra ngữ cảnh mô hình",
+        "unableTitle": "Chưa xác nhận được dung lượng đầu vào",
+        "upper": "Bị từ chối do dung lượng tại: {{tokens}} token văn bản cục bộ"
+      },
+      "errors": {
+        "unexpected": "Yêu cầu thất bại: {{message}}"
+      },
+      "needle": {
+        "automatic": "Tự động",
+        "automaticLimit": "Tự động ({{limit}})",
+        "budget": "Khoảng {{tokens}} token đầu vào, chưa tính đầu ra. Kiểm tra sẽ dùng hạn mức API của bạn.",
+        "cancelledCell": "Đã hủy",
+        "cancelledUnknown": "Không thu được kết quả có thể đánh giá.",
+        "capacityRunning": "Đang kiểm tra ngữ cảnh khả dụng. Độ dài kiểm tra sẽ cập nhật khi hoàn tất.",
+        "capped": "Mỗi yêu cầu kiểm tra tối đa 1M token đầu vào.",
+        "cell": "Đầu vào cục bộ: {{tokens}} token · Vị trí thực: {{depth}}% · {{latency}} ms",
+        "cellDetails": "Chi tiết ô",
+        "cumulativeScore": "Kết quả tích lũy: {{hits}}/{{graded}} câu trả lời có thể đánh giá khớp",
+        "custom": "Tùy chỉnh",
+        "customLimit": "Độ dài tùy chỉnh (tokens)",
+        "description": "Kiểm tra mô hình có tìm được thông tin cụ thể ở các vị trí khác nhau trong văn bản dài hay không.",
+        "errors": {
+          "busy": "Một trang khác đang chạy kiểm tra kết nối này.",
+          "failed": "Không thể hoàn tất kiểm tra mò kim: {{detail}}",
+          "metadata": "Không thể tải thông tin ngữ cảnh. Vui lòng thử lại.",
+          "request": "Chọn mô hình và thông tin xác thực hợp lệ trước khi chạy."
+        },
+        "exactLengths": "Độ dài chính xác: {{lengths}} token",
+        "exactTotal": "Tổng đầu vào ước tính: {{tokens}} token",
+        "expected": "Câu trả lời mong đợi: {{value}}",
+        "invalid": "Độ dài phải là số nguyên từ 1.024 đến 1.048.576; mã mẫu phải là số nguyên từ 0 đến 4.294.967.295.",
+        "length": "Token",
+        "lengthRule": "Độ dài tăng gấp đôi từ 8K, với mức cuối bằng giới hạn đầu vào {{limit}}.",
+        "limit": "Độ dài văn bản tối đa (token)",
+        "limitation": "Kết quả khớp chỉ xác minh mẫu này. Không khớp không chứng minh đầu vào bị cắt, cửa sổ ngữ cảnh nhỏ hơn hay mô hình khác.",
+        "matrix": "Kết quả theo độ dài và vị trí đầu vào",
+        "matrixHint": "Nhấp vào trạng thái để xem chi tiết và chạy hoặc kiểm tra lại ô đó. Nút hàng và cột chạy tất cả các ô trong phạm vi, kể cả ô đã có kết quả. Nút dừng chỉ tác động đến ô, hàng hoặc cột tương ứng.",
+        "notRun": "Chưa chạy",
+        "notScheduled": "Không chạy lần này",
+        "outcomes": {
+          "contextLimit": "Quá dài",
+          "error": "Lỗi",
+          "hit": "Khớp",
+          "incomplete": "Chưa đầy đủ",
+          "interrupted": "Chưa rõ",
+          "miss": "Không khớp"
+        },
+        "planDetails": "Độ dài được chọn như thế nào?",
+        "planned": "Đã lên kế hoạch",
+        "plannedLengths": "Độ dài văn bản (token)",
+        "positionRule": "Mỗi độ dài được kiểm tra tại {{positions}}, tương ứng đầu, giữa và cuối văn bản.",
+        "preparing": "Đang chuẩn bị kế hoạch kiểm tra…",
+        "preparingCellState": "Đang chuẩn bị…",
+        "previewPositions": "Mỗi độ dài được kiểm tra tại các vị trí {{positions}}.",
+        "previewTitle": "Xem trước lượt kiểm tra",
+        "previousResult": "Kết quả trước (trước lần chạy này)",
+        "probeFirst": "Kiểm tra ngữ cảnh khả dụng",
+        "progress": "Lần chạy gần nhất: Đã xử lý {{completed}}/{{total}} yêu cầu",
+        "quick": "Chỉ kiểm tra văn bản dài nhất",
+        "quickHint": "Chỉ kiểm tra ba vị trí ở độ dài lớn nhất trong kế hoạch. Các độ dài khác không chạy lần này và có thể được kiểm tra riêng theo hàng hoặc cột.",
+        "randomSample": "Mẫu ngẫu nhiên mới",
+        "reasons": {
+          "budget": "Đã đạt ngân sách",
+          "complete": "Hoàn tất",
+          "error": "Yêu cầu thất bại",
+          "interrupted": "Bị gián đoạn; chưa rõ kết quả"
+        },
+        "reference": {
+          "context": "Thông tin mô hình: ngữ cảnh {{tokens}} (chưa xác minh)",
+          "input": "Thông tin mô hình: giới hạn đầu vào {{tokens}} (chưa xác minh)",
+          "measured": "Đầu vào từng được chấp nhận: {{tokens}} (chưa rõ mức tối đa)",
+          "unknown": "Chưa có giới hạn ngữ cảnh. Chế độ tự động tạm dùng {{tokens}} tokens; giá trị sẽ cập nhật sau khi kiểm tra ngữ cảnh."
+        },
+        "reproduce": "Mẫu {{seed}} · Bộ tách token: {{encoding}}.",
+        "requestCount_other": "{{count}} yêu cầu",
+        "requestDetails": "Chi tiết yêu cầu và câu trả lời",
+        "resultDetails": "Tham số kiểm tra và thông tin tái tạo",
+        "retestCell": "Kiểm tra lại ô này",
+        "retestColumn": "Kiểm tra lại cột {{depth}}% ({{requests}})",
+        "retestRow": "Kiểm tra lại hàng {{length}} ({{requests}})",
+        "retry": "Thử lại",
+        "run": "Bắt đầu kiểm tra tìm kiếm",
+        "runCell": "Chạy ô này",
+        "runColumn": "Chạy cột {{depth}}% ({{requests}})",
+        "runRow": "Chạy hàng {{length}} ({{requests}})",
+        "savedResult": "Kết quả đã lưu",
+        "scopeProgress": "Đã xử lý {{completed}}/{{total}}",
+        "score": "{{hits}}/{{total}} khớp",
+        "seedHint": "Để trống để tạo mẫu mới mỗi lần. Dùng cùng mã và cài đặt để kiểm tra lại cùng văn bản.",
+        "seedInput": "Mã mẫu kiểm tra (không bắt buộc)",
+        "singleLengthRule": "Kế hoạch này chỉ kiểm tra một độ dài: {{limit}}.",
+        "sources": {
+          "custom": "Bạn đặt đầu vào tối đa là {{limit}}. Kế hoạch dùng giới hạn đó.",
+          "declaredContext": "Thông tin mô hình ghi tổng ngữ cảnh là {{context}}. Dành {{reserve}} cho câu trả lời, còn {{input}} cho đầu vào. Giá trị này chưa được xác minh trên API hiện tại.",
+          "declaredInput": "Thông tin mô hình ghi giới hạn đầu vào riêng là {{input}}, được dùng để chọn độ dài. Giá trị này chưa được xác minh trên API hiện tại.",
+          "fallback": "Chưa có giới hạn mô hình hoặc bản ghi đầu vào được chấp nhận. Kế hoạch dùng giới hạn mặc định {{limit}}. Bạn có thể chỉnh trong cài đặt hoặc kiểm tra ngữ cảnh khả dụng trước.",
+          "measured": "Dựa trên đầu vào mà kết nối này từng chấp nhận, kế hoạch kiểm tra đến {{limit}}. Điều này không xác định dung lượng tối đa của mô hình."
+        },
+        "stopCapacity": "Dừng đo ngữ cảnh",
+        "stopCell": "Dừng {{length}} · {{depth}}%",
+        "stopColumn": "Dừng cột {{depth}}%",
+        "stopFailed": "Không thể dừng. Hãy thử lại.",
+        "stoppingCell": "Đang dừng…",
+        "stopRow": "Dừng hàng {{length}}",
+        "title": "Mò kim đáy bể",
+        "tokenUnits": "Trong kiểm tra này, 1K = 1.024 token và 1M = 1.048.576 token."
+      },
+      "pelican": {
+        "analysis": "{{shapes}} hình · {{wheels}} hình tròn/elip · viewBox {{viewBox}}",
+        "description": "Yêu cầu mô hình vẽ SVG một con bồ nông đi xe đạp để bạn so sánh trực tiếp. Việc đánh giá vẫn do người xem.",
+        "noSvg": "Mô hình không trả về SVG.",
+        "outcomes": {
+          "error": "Thực thi thất bại",
+          "generated": "Đã tạo bản vẽ",
+          "no-artifact": "Chưa tạo bản vẽ"
+        },
+        "previewAlt": "Hình được tạo",
+        "previewFailed": "Không thể hiển thị SVG. Nội dung có thể chứa XML không hợp lệ, chẳng hạn thuộc tính trùng lặp. Mở phản hồi gốc hoặc tệp trong không gian làm việc để kiểm tra.",
+        "raw": "Phản hồi gốc",
+        "run": "Chạy thử vẽ",
+        "title": "Thử vẽ hình",
+        "unsafe": "Phản hồi chứa script hoặc tham chiếu bên ngoài nên không được hiển thị."
+      },
+      "prompts": {
+        "editorLabel": "Lời nhắc cho {{probe}}",
+        "label": "Lời nhắc",
+        "resetOne": "Khôi phục mục này",
+        "saveFailed": "Không lưu được lời nhắc: {{message}}",
+        "sharedHint": "Lời nhắc đã lưu dùng chung cho mọi lối vào kiểm tra."
+      },
+      "questionAnswer": {
+        "comparison": "So sánh đáp án",
+        "comparisonHint": "Chỉ so sánh văn bản của đáp án cuối cùng. Hãy xem toàn bộ câu trả lời để đánh giá lập luận.",
+        "description": "Dùng câu hỏi của bạn để xem câu trả lời và lập luận của mô hình. Thêm đáp án tham chiếu để đối chiếu đáp án cuối cùng.",
+        "draftChanged": "Câu hỏi hoặc đáp án tham chiếu đã thay đổi. Đây là kết quả lần chạy trước; hãy chạy lại để so sánh nội dung mới.",
+        "finalAnswer": "Đáp án cuối cùng được trích xuất",
+        "loadFailed": "Không thể tải cài đặt hỏi đáp. Hãy thử lại để tải bản nháp đã lưu.",
+        "notIdentified": "Không xác định được",
+        "outcomes": {
+          "empty": "Không có phản hồi",
+          "incomplete": "Phản hồi chưa hoàn chỉnh",
+          "manual": "Đã nhận câu trả lời",
+          "matched": "Khớp đáp án tham khảo",
+          "mismatched": "Không khớp đáp án tham khảo",
+          "ungraded": "Đáp án cuối chưa rõ"
+        },
+        "question": "Câu hỏi",
+        "questionRequired": "Nhập câu hỏi để chạy bài kiểm tra.",
+        "reference": "Đáp án tham khảo (tùy chọn)",
+        "requestFailed": "Yêu cầu thất bại",
+        "reset": "Đặt lại câu hỏi và đáp án tham khảo",
+        "response": "Phản hồi của mô hình",
+        "rules": {
+          "extraction": "Khi có đáp án tham chiếu, mô hình được yêu cầu viết đáp án cuối cùng ở dòng cuối, bắt đầu bằng FINAL_ANSWER:. Nội dung sau dấu hai chấm sẽ được trích xuất. Nếu không có đáp án tham chiếu, chỉ hiển thị câu trả lời mà không chấm đúng sai.",
+          "matching": "Loại bỏ khoảng trắng ở hai đầu và chuẩn hóa ký tự tương thích, như ký tự toàn chiều rộng, rồi so khớp văn bản chính xác. Ví dụ: ２１ khớp với 21, nhưng 21 cái không khớp với 21. Chữ hoa, chữ thường, dấu câu và khoảng trắng ở giữa vẫn được phân biệt.",
+          "privacy": "Đáp án tham chiếu chỉ được dùng trên máy và không gửi đến mô hình.",
+          "title": "Quy tắc so sánh",
+          "unavailable": "Nếu không có đáp án cuối cùng đúng định dạng, chỉ công nhận khớp khi toàn bộ câu trả lời khớp với đáp án tham chiếu. Nếu không, kết quả cho biết đáp án cuối cùng chưa rõ. Câu trả lời trống hoặc chưa hoàn chỉnh được báo riêng."
+        },
+        "run": "Chạy kiểm tra hỏi đáp",
+        "runQuestion": "Câu hỏi dùng trong lần chạy này",
+        "runReference": "Đáp án tham chiếu của lần chạy này",
+        "saveFailed": "Không thể lưu cài đặt. Bạn vẫn có thể dùng bản nháp hiện tại.",
+        "saving": "Đang lưu…",
+        "title": "Kiểm tra hỏi đáp"
+      },
+      "settingsTitle": "Cài đặt kiểm tra",
+      "stop": "Dừng",
+      "stopped": "Đã dừng trước khi hoàn tất; không lưu kết quả."
+    },
     "unsupportedProbeForApiType": "Loại API hiện tại không hỗ trợ thăm dò {{probe}}.",
-    "warning": "Khi phát hiện có hỗ trợ, xác suất cao là hỗ trợ thực sự; khi không phát hiện thấy hỗ trợ, cũng có thể thực tế được hỗ trợ. Kết quả chỉ mang tính tham khảo, vui lòng dựa vào tình hình sử dụng thực tế của công cụ."
+    "warning": "Kết quả chỉ áp dụng cho API, mô hình và cấu hình yêu cầu được sử dụng trong lần kiểm tra này."
   }
 }

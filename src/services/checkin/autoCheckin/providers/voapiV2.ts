@@ -5,15 +5,17 @@ import {
   CHECK_IN_PROVIDER_READINESS_REASONS,
 } from "~/constants/checkIn"
 import { SITE_TYPES } from "~/constants/siteType"
-import { AccountUpdateUserTimestampMode } from "~/services/accounts/accountDefaults"
 import { accountMutations } from "~/services/accounts/accountStorage/accountMutations"
+import { AccountUpdateUserTimestampMode } from "~/services/accounts/editing/accountDefaults"
 import {
   fetchVoApiV2CheckInStats,
   submitVoApiV2CheckIn,
-} from "~/services/apiService/voapiV2"
+} from "~/services/apiService/voapiV2/checkIn"
 import { isVoApiV2AuthExpiredError } from "~/services/apiService/voapiV2/parsing"
 import { resyncVoApiV2AuthToken } from "~/services/apiService/voapiV2/tokenResync"
 import { composeAbortSignals } from "~/services/apiTransport/abortableTask"
+import { bindApiTransportRequest } from "~/services/apiTransport/recovery"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ApiServiceRequest } from "~/services/apiTransport/type"
 import type {
   AutoCheckinProvider,
@@ -25,7 +27,7 @@ import {
   createUpstreamFailureResult,
   resolveProviderErrorResult,
 } from "~/services/checkin/autoCheckin/providers/shared"
-import type { AutoCheckinProviderResult } from "~/services/checkin/autoCheckin/providers/types"
+import type { AutoCheckinProviderOutcome } from "~/services/checkin/autoCheckin/providers/types"
 import { AuthTypeEnum, type SiteAccount } from "~/types"
 import { CHECKIN_RESULT_STATUS } from "~/types/autoCheckin"
 import type { TempWindowRequestSource } from "~/types/tempWindowFetch"
@@ -36,18 +38,22 @@ const createRequest = (
   tempWindowRequestSource?: TempWindowRequestSource,
   protectionBypassExecution?: AutoCheckinProviderContext["protectionBypassExecution"],
   mutationLifecycle?: AutoCheckinProviderContext["mutationLifecycle"],
-): ApiServiceRequest => ({
-  baseUrl: account.site_url,
-  accountId: account.id,
-  auth: {
-    authType: AuthTypeEnum.AccessToken,
-    accessToken: account.account_info.access_token,
-    userId: account.account_info.id,
-  },
-  ...(tempWindowRequestSource ? { tempWindowRequestSource } : {}),
-  ...(protectionBypassExecution ? { protectionBypassExecution } : {}),
-  ...(mutationLifecycle ? { observer: mutationLifecycle } : {}),
-})
+): ApiServiceRequest =>
+  bindApiTransportRequest(
+    {
+      baseUrl: account.site_url,
+      accountId: account.id,
+      auth: {
+        authType: AuthTypeEnum.AccessToken,
+        accessToken: account.account_info.access_token,
+        userId: account.account_info.id,
+      },
+      ...(tempWindowRequestSource ? { tempWindowRequestSource } : {}),
+      ...(protectionBypassExecution ? { protectionBypassExecution } : {}),
+      ...(mutationLifecycle ? { observer: mutationLifecycle } : {}),
+    },
+    API_DIRECT_REQUEST_REASONS.CallerManaged,
+  )
 
 const isVoApiV2Account = (account: SiteAccount): boolean =>
   account.site_type === SITE_TYPES.VO_API_V2
@@ -81,7 +87,7 @@ const updateAccountAuthFromResync = async (
 
 const runCheckIn = async (
   request: ApiServiceRequest,
-): Promise<AutoCheckinProviderResult> => {
+): Promise<AutoCheckinProviderOutcome> => {
   const submitResult = await submitVoApiV2CheckIn(request)
   const stats = await fetchVoApiV2CheckInStats(request)
   const signed = stats.todaySigned === true
@@ -162,7 +168,7 @@ export const voApiV2Provider: AutoCheckinProvider = {
   async checkIn(
     account,
     context: AutoCheckinProviderContext,
-  ): Promise<AutoCheckinProviderResult> {
+  ): Promise<AutoCheckinProviderOutcome> {
     const tempWindowRequestSource = normalizeTempWindowRequestSource(
       context.tempWindowRequestSource,
     )

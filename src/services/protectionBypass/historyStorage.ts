@@ -6,11 +6,11 @@ import {
   TEMP_CONTEXT_MODES,
   TEMP_CONTEXT_PREFERENCE_MODES,
 } from "~/constants/tempContextMode"
-import { OPENROUTER_MANAGEMENT_KEYS_ORIGIN } from "~/services/apiAdapters/openrouter/managementKeyPageContract"
+import { OPENROUTER_MANAGEMENT_KEYS_ORIGIN } from "~/services/apiAdapters/openrouter/keys/managementKeyPageContract"
 import { API_ERROR_CODES } from "~/services/apiTransport/errors"
 import { STORAGE_KEYS, STORAGE_LOCKS } from "~/services/core/storageKeys"
 import { withExtensionStorageWriteLock } from "~/services/core/storageWriteLock"
-import { onStorageChanged } from "~/utils/browser/browserApi"
+import { onStorageChanged } from "~/utils/browser/storage"
 import { safeRandomUUID } from "~/utils/core/identifier"
 
 import {
@@ -229,8 +229,8 @@ class ProtectionBypassHistoryStorage {
         const index = entries.findIndex(
           (entry) => entry.id === id && entry.status === "started",
         )
-        if (index < 0) return
         const entry = entries[index]
+        if (!entry) return
         entries[index] = historyEntrySchema.parse({
           ...entry,
           status: getCompletionStatus(completion),

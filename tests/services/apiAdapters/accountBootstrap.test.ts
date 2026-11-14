@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
 import { resolveStaticAccountRoutePath } from "~/services/apiAdapters/accountRoutes"
-import { aihubmixAccountBootstrap } from "~/services/apiAdapters/aihubmix/accountBootstrap"
+import { aihubmixAccountBootstrap } from "~/services/apiAdapters/aihubmix/account/accountBootstrap"
 import {
   ACCOUNT_BOOTSTRAP_ROUTE_KINDS,
   type AccessTokenInfo,
@@ -12,9 +12,10 @@ import {
   type AccountBootstrapRouteTarget,
   type UserInfo,
 } from "~/services/apiAdapters/contracts/accountBootstrap"
-import { createNewApiAccountBootstrap } from "~/services/apiAdapters/newApi/accountBootstrap"
-import { sub2ApiAccountBootstrap } from "~/services/apiAdapters/sub2api/accountBootstrap"
+import { createNewApiAccountBootstrap } from "~/services/apiAdapters/newApi/account/accountBootstrap"
+import { sub2ApiAccountBootstrap } from "~/services/apiAdapters/sub2api/account/accountBootstrap"
 import { voApiV2AccountBootstrap } from "~/services/apiAdapters/voapiV2/accountBootstrap"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ApiServiceRequest } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 
@@ -65,13 +66,22 @@ vi.mock(
   }),
 )
 
-vi.mock("~/services/apiService/sub2api", async (importOriginal) => ({
-  ...(await importOriginal()),
-  fetchSub2ApiPublicSettings: mockSub2ApiFetchPublicSettings,
-  fetchSupportCheckIn: mockSub2ApiFetchSupportCheckIn,
-  fetchUserInfo: mockSub2ApiFetchUserInfo,
-  getOrCreateAccessToken: mockSub2ApiGetOrCreateAccessToken,
-}))
+vi.mock(
+  "~/services/apiService/sub2api/account/publicSettings",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    fetchSub2ApiPublicSettings: mockSub2ApiFetchPublicSettings,
+  }),
+)
+vi.mock(
+  "~/services/apiService/sub2api/account/accountData",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    fetchSupportCheckIn: mockSub2ApiFetchSupportCheckIn,
+    fetchUserInfo: mockSub2ApiFetchUserInfo,
+    getOrCreateAccessToken: mockSub2ApiGetOrCreateAccessToken,
+  }),
+)
 
 vi.mock("~/services/apiService/aihubmix", () => ({
   fetchSupportCheckIn: mockAihubmixFetchSupportCheckIn,
@@ -79,12 +89,13 @@ vi.mock("~/services/apiService/aihubmix", () => ({
   getOrCreateAccessToken: mockAihubmixGetOrCreateAccessToken,
 }))
 
-vi.mock("~/services/apiService/voapiV2", () => ({
+vi.mock("~/services/apiService/voapiV2/accountData", () => ({
   fetchSupportCheckIn: mockVoApiV2FetchSupportCheckIn,
   fetchVoApiV2UserInfo: mockVoApiV2FetchUserInfo,
 }))
 
 const request = {
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://example.invalid",
   auth: { authType: AuthTypeEnum.Cookie },
 }
@@ -99,6 +110,7 @@ describe("account bootstrap adapters", () => {
 
   it("keeps the bootstrap capability as provider-neutral bootstrap contract", () => {
     expectTypeOf<AccountBootstrapCapability>().toEqualTypeOf<{
+      dynamicRoutes?: readonly AccountBootstrapRouteKind[]
       fetchUserInfo(request: ApiServiceRequest): Promise<UserInfo>
       getOrCreateAccessToken(
         request: ApiServiceRequest,
@@ -168,6 +180,91 @@ describe("account bootstrap adapters", () => {
         route,
       ),
     ).resolves.toBe(path)
+  })
+
+  it.each([
+    [ACCOUNT_BOOTSTRAP_ROUTE_KINDS.Login, "/sign-in"],
+    [ACCOUNT_BOOTSTRAP_ROUTE_KINDS.Usage, "/logs"],
+    [ACCOUNT_BOOTSTRAP_ROUTE_KINDS.CheckIn, "/profile"],
+    [ACCOUNT_BOOTSTRAP_ROUTE_KINDS.AdminCredentials, "/profile"],
+    [ACCOUNT_BOOTSTRAP_ROUTE_KINDS.Redeem, "/billing"],
+  ])(
+    "resolves the Rix API 6.x console %s to its own account page",
+    async (route, path) => {
+      const bootstrap = createNewApiAccountBootstrap(SITE_TYPES.RIX_API)
+      mockFetchSiteStatus.mockResolvedValue({ rix_version_message: "6.5.17" })
+
+      await expect(
+        bootstrap.resolveRoutePath(
+          {
+            baseUrl: "https://rix6.example.invalid",
+            siteType: SITE_TYPES.RIX_API,
+          },
+          route,
+        ),
+      ).resolves.toBe(path)
+    },
+  )
+
+  it("keeps the legacy Rix console layout when no core version is reported", async () => {
+    const bootstrap = createNewApiAccountBootstrap(SITE_TYPES.RIX_API)
+    mockFetchSiteStatus.mockResolvedValue({ system_name: "Rix API" })
+
+    await expect(
+      bootstrap.resolveRoutePath(
+        {
+          baseUrl: "https://legacy-rix.example.invalid",
+          siteType: SITE_TYPES.RIX_API,
+        },
+        ACCOUNT_BOOTSTRAP_ROUTE_KINDS.Redeem,
+      ),
+    ).resolves.toBe("/topup")
+  })
+
+  it("records the Rix API core version into dialect memory during bootstrap", async () => {
+    const bootstrap = createNewApiAccountBootstrap(SITE_TYPES.RIX_API)
+    mockFetchSiteStatus.mockResolvedValue({
+      system_name: "ePhone AI",
+      rix_version_message: "6.5.17",
+    })
+    mockExtractDefaultExchangeRate.mockReturnValue(null)
+
+    await expect(bootstrap.loadBootstrapFacts(request)).resolves.toEqual({
+      displayName: "ePhone AI",
+    })
+  })
+
+  it("uses an already observed Rix generation without another route probe", async () => {
+    const bootstrap = createNewApiAccountBootstrap(SITE_TYPES.RIX_API)
+    const baseUrl = "https://observed-rix.example.invalid"
+    mockFetchSiteStatus.mockResolvedValue({ rix_version_message: "6.5.17" })
+    await bootstrap.loadBootstrapFacts({ ...request, baseUrl })
+    mockFetchSiteStatus.mockClear()
+
+    await expect(
+      bootstrap.resolveRoutePath(
+        { baseUrl, siteType: SITE_TYPES.RIX_API },
+        ACCOUNT_BOOTSTRAP_ROUTE_KINDS.Usage,
+      ),
+    ).resolves.toBe("/logs")
+    expect(mockFetchSiteStatus).not.toHaveBeenCalled()
+  })
+
+  it("keeps Rix's static route when a generation probe fails", async () => {
+    const bootstrap = createNewApiAccountBootstrap(SITE_TYPES.RIX_API)
+    mockFetchSiteStatus.mockRejectedValue(new Error("offline"))
+    const target = {
+      baseUrl: "https://offline-rix.example.invalid",
+      siteType: SITE_TYPES.RIX_API,
+    }
+
+    await expect(
+      bootstrap.resolveRoutePath(target, ACCOUNT_BOOTSTRAP_ROUTE_KINDS.Usage),
+    ).resolves.toBe("/log")
+    await expect(
+      bootstrap.resolveRoutePath(target, ACCOUNT_BOOTSTRAP_ROUTE_KINDS.Redeem),
+    ).resolves.toBe("/topup")
+    expect(mockFetchSiteStatus).toHaveBeenCalledOnce()
   })
 
   it("resolves static account route paths from shared route kinds", () => {

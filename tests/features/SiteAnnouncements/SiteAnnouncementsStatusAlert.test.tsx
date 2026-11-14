@@ -11,7 +11,7 @@ const baseStatus = {
   siteType: SITE_TYPES.NEW_API,
   baseUrl: "https://example.com",
   accountId: "account-1",
-  providerId: "common" as const,
+  sourceScope: "site" as const,
   records: [],
 }
 
@@ -31,6 +31,19 @@ describe("SiteAnnouncementsStatusAlert", () => {
     )
 
     expect(container).toBeEmptyDOMElement()
+  })
+  it("does not report a failed check for a source that has never been checked", async () => {
+    render(
+      <>
+        <span>Announcement view ready</span>
+        <SiteAnnouncementsStatusAlert
+          status={{ ...baseStatus, status: "never" }}
+        />
+      </>,
+    )
+    await screen.findByText("Announcement view ready")
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
   })
 
   it("renders the unsupported message when no announcement endpoint is available", async () => {

@@ -11,13 +11,39 @@ import {
   handleOpenRouterManagementKeyAction,
   handlePerformTempWindowFetch,
   handlePrepareAgentRouterOAuth,
-  handleRunBrowserCheckIn,
+  handleReadTurnstileSitekey,
+  handleRequestyManagementKeyAction,
   handleShowShieldBypassUi,
   handleTriggerCheckinPageAction,
   handleWaitAndGetUserInfo,
   handleWaitForTurnstileToken,
 } from "~/entrypoints/content/messageHandlers/handlers"
-import { onRuntimeMessage } from "~/utils/browser/browserApi"
+import { synchronizeDahlWebsiteKeyNames } from "~/services/apiService/dahl/keyNamePage"
+import {
+  handleClearNewApiOAuthEvidence,
+  handleCompleteNewApiOAuth,
+  handlePrepareNewApiOAuth,
+} from "~/services/apiService/newApiFamily/oauth/newApiContent"
+import {
+  handleClearNewApiPasswordLogin,
+  handleNewApiPasswordLogin,
+} from "~/services/apiService/newApiFamily/passwordLogin"
+import { handleNewApiPasswordUi } from "~/services/apiService/newApiFamily/passwordUi"
+import {
+  handleClearSub2ApiPasswordLogin,
+  handleSub2ApiPasswordLogin,
+} from "~/services/apiService/sub2api/auth/passwordLogin"
+import { handleSub2ApiPasswordUi } from "~/services/apiService/sub2api/auth/passwordUi"
+import {
+  handleClearSub2ApiOAuthEvidence,
+  handleCompleteSub2ApiOAuth,
+  handlePrepareSub2ApiOAuth,
+} from "~/services/apiService/sub2api/oauth/content"
+import { showGitHubFeedbackHint } from "~/services/checkin/feedback/githubHint"
+import { onRuntimeMessage } from "~/utils/browser/runtimeMessages"
+
+import { handleCheckAliyunGuard } from "./handlers/aliyunGuard"
+import { handleInspectCredentialPage } from "./handlers/credentialPage"
 
 /**
  * Registers content-script message handlers for fetching storage data,
@@ -26,6 +52,71 @@ import { onRuntimeMessage } from "~/utils/browser/browserApi"
  */
 export function setupContentMessageHandlers() {
   return onRuntimeMessage((request, _sender, sendResponse) => {
+    if (request.action === RuntimeActionIds.ContentNewApiPasswordUi)
+      return handleNewApiPasswordUi(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentSub2ApiPasswordUi)
+      return handleSub2ApiPasswordUi(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentNewApiPasswordLogin)
+      return handleNewApiPasswordLogin(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentClearNewApiPasswordLogin)
+      return handleClearNewApiPasswordLogin(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentSub2ApiPasswordLogin)
+      return handleSub2ApiPasswordLogin(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentClearSub2ApiPasswordLogin)
+      return handleClearSub2ApiPasswordLogin(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentCheckInFeedbackHint) {
+      void Promise.all([
+        import("~/entrypoints/content/shared/uiRoot"),
+        import("~/lib/notify/content"),
+      ])
+        .then(async ([ui, { default: notify }]) => {
+          if (!request.hint?.withdraw) await ui.ensureRedemptionToastUi()
+          sendResponse({
+            presented: showGitHubFeedbackHint(request.hint, notify),
+          })
+        })
+        .catch(() => sendResponse({ presented: false }))
+      return true
+    }
+    if (request.action === RuntimeActionIds.TurnstileAssistPageNotice) {
+      void Promise.all([
+        import("~/entrypoints/content/shared/uiRoot"),
+        import("~/lib/notify/content"),
+        import("~/services/checkin/turnstile/assistPageNotice"),
+      ])
+        .then(
+          async ([
+            ui,
+            { default: notify },
+            { showTurnstileAssistPageNotice },
+          ]) => {
+            await ui.ensureRedemptionToastUi()
+            sendResponse({
+              presented: showTurnstileAssistPageNotice(request, notify),
+            })
+          },
+        )
+        .catch(() => sendResponse({ presented: false }))
+      return true
+    }
+    if (request.action === RuntimeActionIds.ContentSyncDahlKeyNames) {
+      void synchronizeDahlWebsiteKeyNames(request)
+        .then(sendResponse)
+        .catch(() => sendResponse({ success: false }))
+      return true
+    }
+    if (request.action === RuntimeActionIds.ContentPrepareSub2ApiOAuth)
+      return handlePrepareSub2ApiOAuth(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentCompleteSub2ApiOAuth)
+      return handleCompleteSub2ApiOAuth(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentClearSub2ApiOAuthEvidence)
+      return handleClearSub2ApiOAuthEvidence(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentPrepareNewApiOAuth)
+      return handlePrepareNewApiOAuth(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentCompleteNewApiOAuth)
+      return handleCompleteNewApiOAuth(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentClearNewApiOAuthEvidence)
+      return handleClearNewApiOAuthEvidence(request, sendResponse)
     if (request.action === RuntimeActionIds.ContentPrepareAgentRouterOAuth) {
       return handlePrepareAgentRouterOAuth(request, sendResponse)
     }
@@ -70,9 +161,16 @@ export function setupContentMessageHandlers() {
     if (request.action === RuntimeActionIds.ContentCheckCloudflareGuard) {
       return handleCheckCloudflareGuard(request, sendResponse)
     }
+    if (request.action === RuntimeActionIds.ContentCheckAliyunGuard) {
+      return handleCheckAliyunGuard(sendResponse)
+    }
 
     if (request.action === RuntimeActionIds.ContentWaitForTurnstileToken) {
       return handleWaitForTurnstileToken(request, sendResponse)
+    }
+
+    if (request.action === RuntimeActionIds.ContentReadTurnstileSitekey) {
+      return handleReadTurnstileSitekey(request, sendResponse)
     }
 
     if (request.action === RuntimeActionIds.ContentTriggerCheckinPageAction) {
@@ -87,10 +185,10 @@ export function setupContentMessageHandlers() {
       return handlePerformTempWindowFetch(request, sendResponse)
     }
 
-    if (request.action === RuntimeActionIds.ContentRunBrowserCheckIn) {
-      return handleRunBrowserCheckIn(request, sendResponse)
+    if (request.action === RuntimeActionIds.ContentInspectCredentialPage) {
+      void handleInspectCredentialPage(request, sendResponse)
+      return true
     }
-
     if (request.action === RuntimeActionIds.ContentGetRenderedTitle) {
       return handleGetRenderedTitle(request, sendResponse)
     }
@@ -103,6 +201,12 @@ export function setupContentMessageHandlers() {
       request.action === RuntimeActionIds.ContentOpenRouterManagementKeyAction
     ) {
       return handleOpenRouterManagementKeyAction(request, sendResponse)
+    }
+
+    if (
+      request.action === RuntimeActionIds.ContentRequestyManagementKeyAction
+    ) {
+      return handleRequestyManagementKeyAction(request, sendResponse)
     }
   })
 }

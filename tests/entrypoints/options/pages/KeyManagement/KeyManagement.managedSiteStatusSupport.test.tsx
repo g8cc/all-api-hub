@@ -7,12 +7,12 @@ import {
   KEY_MANAGEMENT_GUIDED_IMPORT_TARGETS,
   KEY_MANAGEMENT_ROUTE_PARAMS,
 } from "~/features/KeyManagement/constants"
-import { buildAccountKeyResourceRuntimeKey } from "~/services/accounts/accountRuntimeKeys"
-import { MANAGED_SITE_CHANNEL_MODELS_MATCH_REASONS } from "~/services/managedSites/channelMatch"
+import { buildAccountKeyResourceRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
+import { MANAGED_SITE_CHANNEL_MODELS_MATCH_REASONS } from "~/services/managedSites/matching/channelMatch"
 import {
   MANAGED_SITE_TOKEN_CHANNEL_STATUS_UNKNOWN_REASONS,
   MANAGED_SITE_TOKEN_CHANNEL_STATUSES,
-} from "~/services/managedSites/tokenChannelStatus"
+} from "~/services/managedSites/matching/tokenChannelStatus"
 import { matchingResourceRef } from "~~/tests/test-utils/managedResourceMatching"
 import { render, screen, waitFor } from "~~/tests/test-utils/render"
 import { createAccount } from "~~/tests/utils/keyManagementFactories"
@@ -43,32 +43,32 @@ const {
   ),
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
-  return {
-    ...actual,
-    sendRuntimeActionMessage: sendRuntimeActionMessageMock,
-  }
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
+  return { ...actual, sendRuntimeActionMessage: sendRuntimeActionMessageMock }
 })
 
-vi.mock("~/features/KeyManagement/hooks/useKeyManagement", () => ({
+vi.mock("~/features/KeyManagement/inventory/useKeyManagement", () => ({
   useKeyManagement: (...args: unknown[]) => useKeyManagementMock(...args),
 }))
 
-vi.mock("~/features/KeyManagement/hooks/useManagedSiteKeyStatuses", () => ({
-  useManagedSiteKeyStatuses: () => {
-    const fixture = useKeyManagementMock.mock.results.at(-1)?.value
-    return {
-      states: fixture.managedSiteTokenStatuses ?? {},
-      supported: fixture.isManagedSiteChannelStatusSupported ?? true,
-      refreshing: fixture.isManagedSiteStatusRefreshing ?? false,
-      refresh: fixture.refreshManagedSiteTokenStatuses,
-      refreshKey: fixture.refreshManagedSiteTokenStatusForToken,
-      confirm: fixture.confirmManagedSiteTokenStatusWithChannelKey,
-    }
-  },
-}))
+vi.mock(
+  "~/features/KeyManagement/managedSite/useManagedSiteKeyStatuses",
+  () => ({
+    useManagedSiteKeyStatuses: () => {
+      const fixture = useKeyManagementMock.mock.results.at(-1)?.value
+      return {
+        states: fixture.managedSiteTokenStatuses ?? {},
+        supported: fixture.isManagedSiteChannelStatusSupported ?? true,
+        refreshing: fixture.isManagedSiteStatusRefreshing ?? false,
+        refresh: fixture.refreshManagedSiteTokenStatuses,
+        refreshKey: fixture.refreshManagedSiteTokenStatusForToken,
+        confirm: fixture.confirmManagedSiteTokenStatusWithChannelKey,
+      }
+    },
+  }),
+)
 
 vi.mock(
   "~/features/ManagedSiteVerification/useNewApiManagedVerification",
@@ -125,26 +125,26 @@ vi.mock("~/contexts/UserPreferencesContext", async (importOriginal) => {
   }
 })
 
-vi.mock("~/features/KeyManagement/components/AccountSelectorPanel", () => ({
+vi.mock("~/features/KeyManagement/inventory/AccountSelectorPanel", () => ({
   AccountSelectorPanel: () => <div data-testid="controls" />,
 }))
 
-vi.mock("~/features/KeyManagement/components/TokenList", () => ({
+vi.mock("~/features/KeyManagement/inventory/TokenList", () => ({
   TokenList: (props: any) => {
     tokenListPropsSpy(props)
     return <div data-testid="token-list" />
   },
 }))
 
-vi.mock("~/features/KeyManagement/components/Footer", () => ({
+vi.mock("~/features/KeyManagement/workspace/Footer", () => ({
   Footer: () => <div data-testid="footer" />,
 }))
 
-vi.mock("~/features/TokenProvisioning/components/AddTokenDialog", () => ({
+vi.mock("~/features/TokenProvisioning/creation/AddTokenDialog", () => ({
   default: () => null,
 }))
 
-vi.mock("~/features/KeyManagement/components/RepairMissingKeysDialog", () => ({
+vi.mock("~/features/KeyManagement/repair", () => ({
   RepairMissingKeysDialog: () => null,
 }))
 

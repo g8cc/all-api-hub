@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next"
 import { OPTIONS_MENU_ITEM_ICONS } from "~/components/icons/optionsPageIcons"
 import { Button, Notice } from "~/components/ui"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
-import { SITE_TYPES } from "~/constants/siteType"
 import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
+import ManagedSiteModelSyncSettings from "~/features/BasicSettings/components/tabs/ManagedSite/modelSync/managedSiteModelSyncSettings"
+import ModelRedirectSettings from "~/features/BasicSettings/components/tabs/ManagedSite/modelSync/ModelRedirectSettings"
 import {
   KEY_MANAGEMENT_GUIDED_IMPORT_TARGETS,
   KEY_MANAGEMENT_ROUTE_PARAMS,
@@ -14,25 +15,16 @@ import { GatewayGuidanceDescription } from "~/features/UnifiedApiGuidance/Gatewa
 import { runGatewayGuidanceAction } from "~/features/UnifiedApiGuidance/runGatewayGuidanceAction"
 import { accountPresentation } from "~/services/accounts/accountStorage/accountPresentation"
 import { accountQueries } from "~/services/accounts/accountStorage/accountQueries"
-import { canResolveAccountRuntimeKeySecret } from "~/services/accounts/keyProductCapabilities"
-import { hasValidManagedSiteConfig } from "~/services/managedSites/runtimeConfig"
+import { canResolveAccountRuntimeKeySecret } from "~/services/accounts/keys/keyProductCapabilities"
+import { hasValidManagedSiteConfig } from "~/services/managedSites/configuration/runtimeConfig"
 import {
   getManagedSiteUnsupportedModelSyncMessage,
   supportsManagedSiteModelSync,
 } from "~/services/managedSites/utils/managedSite"
-import { pushWithinOptionsPage } from "~/utils/navigation"
+import { pushWithinOptionsPage } from "~/utils/navigation/optionsPage"
 
-import AxonHubSettings from "./AxonHubSettings"
-import ClaudeCodeHubSettings from "./ClaudeCodeHubSettings"
-import CliProxyApiSettings from "./CliProxyApiSettings"
-import DoneHubSettings from "./DoneHubSettings"
-import ManagedSiteModelSyncSettings from "./managedSiteModelSyncSettings"
 import ManagedSiteSelector from "./ManagedSiteSelector"
-import ModelRedirectSettings from "./ModelRedirectSettings"
-import NewApiSettings from "./NewApiSettings"
-import OctopusSettings from "./OctopusSettings"
-import Sub2ApiSettings from "./Sub2ApiSettings"
-import VeloeraSettings from "./VeloeraSettings"
+import { ManagedSiteSettingsPanel } from "./ManagedSiteSettingsPanel"
 
 const gatewayActionClassName = "max-w-full"
 const AccountKeysIcon = OPTIONS_MENU_ITEM_ICONS[MENU_ITEM_IDS.KEYS]
@@ -89,33 +81,11 @@ export default function ManagedSiteTab() {
     ? t("managedSite.gatewayGuidance.configComplete.description")
     : t("managedSite.gatewayGuidance.unconfigured.description")
 
-  const renderSiteSettings = () => {
-    switch (managedSiteType) {
-      case SITE_TYPES.CLI_PROXY_API:
-        return <CliProxyApiSettings />
-      case SITE_TYPES.OCTOPUS:
-        return <OctopusSettings />
-      case SITE_TYPES.DONE_HUB:
-        return <DoneHubSettings />
-      case SITE_TYPES.VELOERA:
-        return <VeloeraSettings />
-      case SITE_TYPES.AXON_HUB:
-        return <AxonHubSettings />
-      case SITE_TYPES.CLAUDE_CODE_HUB:
-        return <ClaudeCodeHubSettings />
-      case SITE_TYPES.SUB2API:
-        return <Sub2ApiSettings />
-      case SITE_TYPES.NEW_API:
-      default:
-        return <NewApiSettings />
-    }
-  }
-
   return (
     <div className="space-y-density-6">
       <ManagedSiteSelector />
 
-      {renderSiteSettings()}
+      <ManagedSiteSettingsPanel siteType={managedSiteType} />
 
       <Notice
         actions={

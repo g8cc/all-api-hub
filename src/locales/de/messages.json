@@ -19,14 +19,30 @@
     "oneTimeKeyPromptCancelled": "Konto gespeichert. Sie können einen AIHubMix API-Schlüssel später manuell in der Schlüsselverwaltung erstellen.",
     "oneTimeKeyUnavailableAfterCreate": "Konto gespeichert, aber der vollständige AIHubMix-API-Schlüssel konnte nicht abgerufen werden. AIHubMix-Schlüssel werden nach der Erstellung nur einmal angezeigt; erstellen Sie in der Schlüsselverwaltung einen neuen Schlüssel und speichern Sie ihn sofort vollständig."
   },
+  "aimlapi": {
+    "credentialInvalid": "Der AI/ML API-Schlüssel ist ungültig oder abgelaufen.",
+    "credentialScopeDenied": "Diese AI/ML API-Anmeldeinformation kann die Aktion nicht ausführen. Die Schlüsselverwaltung braucht einen Verwaltungsschlüssel, Guthaben und Abrechnung einen regulären API-Schlüssel.",
+    "malformedResponse": "AI/ML API hat eine für diese App unlesbare Antwort zurückgegeben.",
+    "managementKeyRequired": "AI/ML API benötigt einen Verwaltungsschlüssel. Erstellen Sie ihn unter \"Management keys\" und fügen Sie ihn hier ein.",
+    "networkFallback": "AI/ML API ist nicht erreichbar. Prüfen Sie das Netzwerk und versuchen Sie es erneut."
+  },
+  "aiToolbox": {
+    "attemptingRedirect": "Versuch einer Weiterleitung zu AI Toolbox",
+    "invalidApp": "Nicht unterstützte AI-Toolbox-Ziel-App",
+    "invalidBaseUrl": "Ungültige oder fehlende API-Basis-URL",
+    "invalidHomepage": "Ungültige oder fehlende Homepage-URL",
+    "missingCredentials": "Erforderliche Konto- oder Schlüsselinformationen fehlen",
+    "unableToOpen": "AI Toolbox kann nicht geöffnet werden. Bitte stellen Sie sicher, dass es installiert ist"
+  },
   "autodetect": {
-    "currentTabNeedsReload": "Diese Seite wurde möglicherweise geöffnet, bevor die Erweiterung installiert oder aktualisiert wurde, sodass die Erweiterung noch keine Daten von dieser Registerkarte lesen kann. Laden Sie die aktuelle Seite neu und versuchen Sie es dann erneut mit der automatischen Erkennung.",
+    "currentTabNeedsReload": "Die Erweiterung kann das Erkennungsskript dieser Seite nicht erreichen. Laden Sie die Seite neu und versuchen Sie die automatische Erkennung erneut. Prüfen Sie bei weiteren Fehlern, ob die Erweiterung auf diese Website zugreifen darf.",
     "failed": "Automatische Erkennung fehlgeschlagen: {{error}}",
     "forbidden": "Zugriff verweigert. Bitte bestätigen Sie, ob die Website-Firewall die Anfrage blockiert",
     "loginThisSite": "Melden Sie sich auf dieser Website an",
     "networkError": "Netzwerkverbindung fehlgeschlagen, bitte überprüfen Sie Ihre Netzwerkverbindung und versuchen Sie es erneut",
     "notFound": "Diese Website konnte nicht automatisch erkannt werden. Überprüfen Sie, ob die Adresse korrekt ist, oder melden Sie sich bei der Zielsite an und versuchen Sie es erneut.",
     "notLoggedIn": "Sie sind nicht auf der aktuellen Website angemeldet oder die Anmeldeinformationen sind abgelaufen. Automatisches Hinzufügen nicht möglich. Bitte überprüfen Sie die Hilfedokumentation oder klicken Sie, um sich zuerst anzumelden",
+    "rateLimited": "Zu viele Anfragen. Bitte versuche es später erneut.",
     "serverError": "Serverfehler. Bitte versuchen Sie es später noch einmal",
     "timeout": "Zeitüberschreitung bei der automatischen Erkennung, bitte versuchen Sie es manuell hinzuzufügen",
     "unexpectedData": "Automatische Erkennung fehlgeschlagen, die Website hat unerwartete Daten zurückgegeben. Bitte geben Sie die Informationen manuell ein oder stellen Sie sicher, dass Sie auf der Zielseite angemeldet sind"
@@ -69,7 +85,6 @@
     "updateSuccess": "Claude-Code-Router-Anbieter {{name}} erfolgreich aktualisiert"
   },
   "cliProxyApi": {
-    "managementApiConnectionSuccess": "Verbindung erfolgreich",
     "managementApiForbidden": "CLIProxyAPI hat die Anfrage abgelehnt. Überprüfen Sie, ob der Verwaltungsschlüssel zu oft falsch eingegeben wurde oder ob der Zugriff auf den Server eingeschränkt ist.",
     "managementApiHttpError": "Die CLIProxyAPI-Verwaltungs-API hat einen unerwarteten Statuscode zurückgegeben (HTTP {{status}})",
     "managementApiInvalidKey": "Der Verwaltungsschlüssel CLIProxyAPI ist ungültig. Bitte überprüfen Sie den Schlüssel in den Einstellungen.",
@@ -80,6 +95,12 @@
     "userInfoNotFound": "Benutzerinformationen nicht gefunden, bitte stellen Sie sicher, dass Sie angemeldet sind",
     "waitUserInfoTimeout": "Zeitüberschreitung beim Warten auf Benutzerinformationen. Bitte stellen Sie sicher, dass Sie angemeldet sind"
   },
+  "cookieTransport": {
+    "permissionRequired": "Dieser Browser kann keine Anfrage mit dem Cookie dieses Kontos senden. Prüfen Sie die Erweiterungsberechtigungen oder aktualisieren Sie den Browser und versuchen Sie es erneut.",
+    "requestUnavailable": "Die Anfrage konnte nicht vorbereitet werden. Versuche es erneut. Lade die Erweiterung neu, falls der Fehler weiterhin auftritt.",
+    "scopeUnavailable": "Die Anfrage kann den ausgewählten Cookie-Bereich nicht verwenden. Importiere das Cookie des gewünschten Kontos oder nutze dessen reguläre Browsersitzung.",
+    "sessionUnavailable": "Die Anmeldesitzung ist nicht verfügbar. Melde dich erneut beim selben Konto an. Importiere ein zuvor importiertes Cookie erneut."
+  },
   "donehub": {
     "configMissing": "Bitte konfigurieren Sie zuerst die Done Hub-Adresse, das Admin-Token und die Benutzer-ID in den Grundeinstellungen",
     "noChannelsToSync": "Keine Kanäle zum Synchronisieren"
@@ -87,14 +108,20 @@
   "errors": {
     "api": {
       "invalidResponseFormat": "Ungültiges Antwortformat",
+      "missingRecoveryPolicy": "Die Erweiterung konnte diese Anfrage nicht vorbereiten. Aktualisieren Sie die Erweiterung oder melden Sie das Problem.",
+      "nonJsonContent": "{{contentType}} statt JSON zurückgegeben (HTTP {{status}})",
       "onlyJsonSupported": "Nur JSON-Antworten werden unterstützt",
-      "requestFailed": "Anfrage fehlgeschlagen: {{status}}"
+      "requestFailed": "Anfrage fehlgeschlagen: {{status}}",
+      "verificationRequired": "Die Website hat eine Verifizierungsseite zurückgegeben. Schließen Sie die Verifizierung auf der Website ab und versuchen Sie es erneut."
     },
+    "dayaRedemptionUnconfirmed": "Prüfen Sie das Ergebnis in der offiziellen Konsole. Kontrollieren Sie die Bereitstellung oder schließen Sie die Anwendung des Rabattcodes ab, bevor Sie es erneut versuchen.",
     "operation": {
       "accountDataFetchTimeout": "Zeitüberschreitung beim Abrufen der Kontodaten ({{seconds}}s)",
       "failed": "Vorgang fehlgeschlagen: {{error}}",
       "saveFailed": "Speichern fehlgeschlagen: {{error}}"
     },
+    "relayForRedemptionUnconfirmed": "Das Einlöseergebnis ist unbestätigt. Prüfe vor einem erneuten Versuch die offizielle Konsole.",
+    "relayForVerificationRequired": "Dieser Vorgang erfordert einen Bestätigungscode. Schließe ihn in der offiziellen Konsole ab und aktualisiere hier.",
     "unknown": "Unbekannter Fehler",
     "validation": {
       "bookmarkNameRequired": "Lesezeichenname darf nicht leer sein",
@@ -106,6 +133,14 @@
       "userIdNumeric": "Die Benutzer-ID muss eine Zahl sein"
     }
   },
+  "gptLoad": {
+    "configMissing": "Configure the gpt-load deployment address and management key in settings first",
+    "noChannelsToSync": "No channels to sync"
+  },
+  "grsai": {
+    "openApiTokenRejected": "Dies ist das Token von der Grsai-Benutzerinfoseite. Es ist für die offenen APIs der Plattform gedacht, und die Konsole akzeptiert es nicht. Verwende die automatische Erkennung, um die angemeldete Konsolensitzung zu lesen, oder füge stattdessen das Sitzungstoken der Konsole ein.",
+    "sessionExpired": "Die gespeicherte Grsai-Konsolensitzung ist abgelaufen (eine Sitzung dauert etwa 30 Tage). Melde dich erneut in der Grsai-Konsole an und füge das Konto dann über die automatische Erkennung hinzu."
+  },
   "kelivo": {
     "copied": "Importcode für Kelivo Mobile kopiert. Füge ihn beim Anbieterimport in Kelivo Mobile ein.",
     "copyFailed": "Der Kelivo-Importcode konnte nicht kopiert werden. Prüfe die Zwischenablageberechtigung und versuche es erneut.",
@@ -114,6 +149,10 @@
     "missingCredentials": "Ein Anbietername und ein vollständiger API-Schlüssel sind erforderlich.",
     "unsupportedApiType": "Dieses API-Protokoll kann nicht nach Kelivo exportiert werden."
   },
+  "magpie": {
+    "configMissing": "Konfigurieren Sie zuerst die Magpie-Web-Adresse und den Web-Verwaltungsschlüssel.",
+    "noChannelsToSync": "Keine Kanäle zum Synchronisieren"
+  },
   "managedSite": {
     "unsupportedModelSync": "{{siteName}} unterstützt in dieser Version keine Modellsynchronisierung für verwaltete Websites"
   },
@@ -121,9 +160,22 @@
     "configMissing": "Bitte konfigurieren Sie zuerst New API Adresse, Admin-Token und Benutzer-ID in den Grundeinstellungen",
     "noChannelsToSync": "Keine Kanäle zum Synchronisieren"
   },
+  "novita": {
+    "apiKeyRequired": "Gib einen vollständigen Novita-API-Schlüssel ein oder melde dich beim selben Konto an, um Konsolenzugangsdaten abzurufen. Beide können zusammen gespeichert werden.",
+    "consoleAcquisitionFailed": "Konsolentoken konnte nicht abgerufen werden. Melde dich bei diesem Novita-Konto an, lade die Website neu und versuche es erneut oder füge den Token direkt ein. Dein API-Schlüssel bleibt erhalten.",
+    "consoleCredentialRequired": "Diese Aktion erfordert Konsolenautorisierung. Bearbeite das Konto und hole Konsolenzugangsdaten für dasselbe Novita-Konto ab.",
+    "credentialInvalid": "Diese Novita-Zugangsdaten sind ungültig oder abgelaufen. Für die Konsole erneut anmelden und erkennen; andernfalls den API-Schlüssel ersetzen.",
+    "keyChanged": "Der Schlüssel wurde bei Novita geändert. Den Editor erneut öffnen.",
+    "malformedResponse": "Novita hat eine unerwartete Antwort zurückgegeben. Bitte später erneut versuchen.",
+    "networkFallback": "Novita ist nicht erreichbar. Netzwerkverbindung prüfen und erneut versuchen."
+  },
   "octopus": {
     "configMissing": "Bitte konfigurieren Sie zuerst Octopus Adresse, Benutzernamen und Passwort in den Grundeinstellungen",
     "corsError": "Dies kann durch die CORS-Konfiguration verursacht werden. Bitte überprüfen Sie die CORS-Whitelist-Einstellung in den Octopus-Einstellungen.",
+    "noChannelsToSync": "Keine Kanäle zum Synchronisieren"
+  },
+  "omniroute": {
+    "configMissing": "Bitte konfigurieren Sie zuerst die OmniRoute-Adresse und das Zugriffstoken in den Grundeinstellungen",
     "noChannelsToSync": "Keine Kanäle zum Synchronisieren"
   },
   "openrouter": {
@@ -146,12 +198,13 @@
   },
   "operations": {
     "detection": {
+      "cookieSessionRejected": "Die Website hat die Cookie-Sitzung abgelehnt. Melden Sie sich erneut an.",
       "failed": "Automatische Erkennung fehlgeschlagen, bitte geben Sie die Informationen manuell ein oder stellen Sie sicher, dass Sie auf der Zielseite angemeldet sind",
       "getAccessTokenFailedDetailed": "Das Konto wurde erkannt, aber es konnte kein Zugriffstoken abgerufen werden. Bestätigen Sie, dass das Konto API-Token erstellen oder anzeigen kann, oder geben Sie das Token manuell ein.",
       "getInfoFailed": "Benutzername oder Zugriffstoken konnten nicht abgerufen werden",
       "getSiteStatusFailedDetailed": "Das Konto wurde erkannt, aber der Website-Status konnte nicht gelesen werden. Versuchen Sie es später noch einmal. Wenn dies immer noch fehlschlägt, speichern Sie das Konto zunächst manuell.",
       "getUserIdFailed": "Benutzer-ID konnte nicht abgerufen werden",
-      "getUserIdFailedDetailed": "Die Verbindung zur Website war erfolgreich, aber die Benutzer-ID konnte nicht gelesen werden. Stellen Sie sicher, dass Sie auf der Zielseite angemeldet sind, und versuchen Sie es erneut.",
+      "getUserIdFailedDetailed": "Das angemeldete Konto konnte nicht bestätigt werden. Öffnen Sie die Zielseite in diesem Browser, stellen Sie sicher, dass Sie angemeldet sind, und versuchen Sie es erneut. Falls es weiterhin fehlschlägt, ergänzen Sie die Kontodaten manuell.",
       "getUsernameFailedDetailed": "Das Konto wurde erkannt, aber die Website hat keinen Benutzernamen zurückgegeben. Stellen Sie sicher, dass Sie angemeldet sind, oder geben Sie das Konto manuell ein."
     }
   },
@@ -225,6 +278,9 @@
     "configMissing": "Bitte konfigurieren Sie zuerst die Veloera-Adresse, das Admin-Token und die Benutzer-ID in den Grundeinstellungen",
     "noChannelsToSync": "Keine Kanäle zum Synchronisieren"
   },
+  "vercelAiGateway": {
+    "accessTokenRequired": "Vercel AI Gateway benötigt ein Vercel-Zugriffstoken für das Team, dem das Gateway gehört."
+  },
   "warnings": {
     "accountSavedWithoutDataRefresh": "Konto gespeichert, aber der aktuelle Kontostand, das Kontingent und die heutige Nutzung konnten nicht abgerufen werden. Die aktuellen Werte können Platzhalter sein. Aktualisieren Sie dieses Konto später über die Kontoliste.",
     "accountUpdatedWithoutDataRefresh": "Kontoeinstellungen wurden gespeichert, aber der aktuelle Kontostand, das Kontingent und die heutige Nutzung konnten nicht aktualisiert werden. Die aktuellen Werte sind möglicherweise noch veraltet. Aktualisieren Sie dieses Konto später über die Kontoliste."
@@ -239,10 +295,10 @@
     "encryptFailedNoPassword": "Die Verschlüsselung ist aktiviert, aber es ist kein Passwort festgelegt",
     "fileNotFound": "Remote-Backup-Datei existiert nicht",
     "invalidBackupJson": "Die Cloud-Sicherungsdatei ist unvollständig und kann nicht für die Synchronisierung verwendet werden. Die Synchronisierung wurde gestoppt, um eine Zusammenführung beschädigter Daten zu vermeiden. Wenn dieses Gerät über vollständige lokale Daten verfügt, verwenden Sie „Auf WebDAV hochladen“, um das Cloud-Backup neu zu erstellen. Wenn nicht, laden Sie die Daten von einem anderen Gerät hoch, das über vollständige Daten verfügt, oder importieren Sie zunächst eine vollständige Sicherungsdatei.",
-    "safeCommitFailed": "Dieser WebDAV-Dienst konnte das Backup nicht sicher speichern. Ihr vorhandenes Cloud-Backup wurde beibehalten. Versuchen Sie es später erneut oder verwenden Sie einen WebDAV-Dienst, der das Verschieben oder Umbenennen von Dateien unterstützt.",
+    "safeCommitFailed": "Es konnte nicht bestätigt werden, dass das Cloud-Backup gespeichert wurde. Prüfen Sie die Verbindung und Ihre Lese- und Schreibberechtigungen und versuchen Sie es erneut.",
     "syncDataSelectionRequired": "Wählen Sie mindestens eine Datendomäne zur Synchronisierung aus",
     "uploadFailed": "Upload fehlgeschlagen, Statuscode: {{status}}",
-    "uploadStillProcessing": "Der Cloud-Dienst verarbeitet das hochgeladene Backup noch, daher konnte die Überprüfung noch nicht abgeschlossen werden. Ihr vorhandenes Cloud-Backup wurde nicht ersetzt. Versuchen Sie es später erneut.",
-    "uploadVerificationFailed": "Die Überprüfung der Sicherung ist nach dem Hochladen fehlgeschlagen. Der Cloud-Dienst hat die Datei möglicherweise nicht vollständig gespeichert. Ihr vorhandenes Cloud-Backup wurde beibehalten."
+    "uploadStillProcessing": "Der Cloud-Dienst verarbeitet das hochgeladene Backup noch, daher konnte die Überprüfung noch nicht abgeschlossen werden. Versuchen Sie es später erneut.",
+    "uploadVerificationFailed": "Die Überprüfung des Backups nach dem Hochladen ist fehlgeschlagen. Die Datei in der Cloud ist möglicherweise unvollständig. Wiederholen Sie die Synchronisierung oder stellen Sie bei Bedarf ein lokales Backup wieder her."
   }
 }

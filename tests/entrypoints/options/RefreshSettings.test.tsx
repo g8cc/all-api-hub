@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -11,6 +12,7 @@ import {
 } from "~/types/accountAutoRefresh"
 import { showUpdateToast } from "~/utils/feedback/preferenceFeedback"
 import { testI18n } from "~~/tests/test-utils/i18n"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 vi.mock("~/contexts/UserPreferencesContext", () => ({
   useUserPreferencesContext: vi.fn(),
@@ -23,6 +25,42 @@ vi.mock("~/utils/feedback/preferenceFeedback", () => ({
 vi.mock("~/lib/notify", () => ({
   default: { error: vi.fn() },
 }))
+
+type RefreshSettingsContext = Pick<
+  ReturnType<typeof useUserPreferencesContext>,
+  | "autoRefresh"
+  | "refreshOnOpen"
+  | "refreshInterval"
+  | "minRefreshInterval"
+  | "updateAutoRefresh"
+  | "updateRefreshOnOpen"
+  | "updateRefreshInterval"
+  | "updateMinRefreshInterval"
+  | "resetAutoRefreshConfig"
+>
+
+/** Only the preference fields read by this section belong in its test fixture. */
+function mockRefreshPreferences(
+  overrides: Partial<RefreshSettingsContext> & {
+    preferences?: Pick<
+      ReturnType<typeof useUserPreferencesContext>["preferences"],
+      "lastUpdated"
+    >
+  } = {},
+) {
+  vi.mocked(useUserPreferencesContext).mockReturnValue({
+    autoRefresh: true,
+    refreshOnOpen: true,
+    refreshInterval: 360,
+    minRefreshInterval: 60,
+    updateAutoRefresh: vi.fn(),
+    updateRefreshOnOpen: vi.fn(),
+    updateRefreshInterval: vi.fn(),
+    updateMinRefreshInterval: vi.fn(),
+    resetAutoRefreshConfig: vi.fn(),
+    ...overrides,
+  } as ReturnType<typeof useUserPreferencesContext>)
+}
 
 describe("RefreshSettings (min refresh interval)", () => {
   beforeEach(() => {
@@ -39,17 +77,13 @@ describe("RefreshSettings (min refresh interval)", () => {
   it("accepts values greater than 300 seconds (no max cap)", async () => {
     const updateMinRefreshInterval = vi.fn().mockResolvedValue(true)
     const updateRefreshInterval = vi.fn().mockResolvedValue(true)
-    vi.mocked(useUserPreferencesContext).mockReturnValue({
-      autoRefresh: true,
-      refreshOnOpen: true,
-      refreshInterval: 360,
-      minRefreshInterval: 60,
+    mockRefreshPreferences({
       updateAutoRefresh: vi.fn().mockResolvedValue(true),
       updateRefreshOnOpen: vi.fn().mockResolvedValue(true),
       updateRefreshInterval,
       updateMinRefreshInterval,
       resetAutoRefreshConfig: vi.fn().mockResolvedValue(true),
-    } as any)
+    })
 
     renderSubject()
 
@@ -68,17 +102,13 @@ describe("RefreshSettings (min refresh interval)", () => {
   it("rejects values below the minimum", async () => {
     const updateMinRefreshInterval = vi.fn().mockResolvedValue(true)
     const updateRefreshInterval = vi.fn().mockResolvedValue(true)
-    vi.mocked(useUserPreferencesContext).mockReturnValue({
-      autoRefresh: true,
-      refreshOnOpen: true,
-      refreshInterval: 360,
-      minRefreshInterval: 60,
+    mockRefreshPreferences({
       updateAutoRefresh: vi.fn().mockResolvedValue(true),
       updateRefreshOnOpen: vi.fn().mockResolvedValue(true),
       updateRefreshInterval,
       updateMinRefreshInterval,
       resetAutoRefreshConfig: vi.fn().mockResolvedValue(true),
-    } as any)
+    })
 
     renderSubject()
 
@@ -100,17 +130,13 @@ describe("RefreshSettings (min refresh interval)", () => {
   it("accepts the minimum value", async () => {
     const updateMinRefreshInterval = vi.fn().mockResolvedValue(true)
     const updateRefreshInterval = vi.fn().mockResolvedValue(true)
-    vi.mocked(useUserPreferencesContext).mockReturnValue({
-      autoRefresh: true,
-      refreshOnOpen: true,
-      refreshInterval: 360,
-      minRefreshInterval: 60,
+    mockRefreshPreferences({
       updateAutoRefresh: vi.fn().mockResolvedValue(true),
       updateRefreshOnOpen: vi.fn().mockResolvedValue(true),
       updateRefreshInterval,
       updateMinRefreshInterval,
       resetAutoRefreshConfig: vi.fn().mockResolvedValue(true),
-    } as any)
+    })
 
     renderSubject()
 
@@ -133,17 +159,13 @@ describe("RefreshSettings (min refresh interval)", () => {
   it("rejects refresh interval values below the minimum", async () => {
     const updateMinRefreshInterval = vi.fn().mockResolvedValue(true)
     const updateRefreshInterval = vi.fn().mockResolvedValue(true)
-    vi.mocked(useUserPreferencesContext).mockReturnValue({
-      autoRefresh: true,
-      refreshOnOpen: true,
-      refreshInterval: 360,
-      minRefreshInterval: 60,
+    mockRefreshPreferences({
       updateAutoRefresh: vi.fn().mockResolvedValue(true),
       updateRefreshOnOpen: vi.fn().mockResolvedValue(true),
       updateRefreshInterval,
       updateMinRefreshInterval,
       resetAutoRefreshConfig: vi.fn().mockResolvedValue(true),
-    } as any)
+    })
 
     renderSubject()
 
@@ -168,17 +190,13 @@ describe("RefreshSettings (min refresh interval)", () => {
   it("accepts refresh interval values at the minimum", async () => {
     const updateMinRefreshInterval = vi.fn().mockResolvedValue(true)
     const updateRefreshInterval = vi.fn().mockResolvedValue(true)
-    vi.mocked(useUserPreferencesContext).mockReturnValue({
-      autoRefresh: true,
-      refreshOnOpen: true,
-      refreshInterval: 360,
-      minRefreshInterval: 60,
+    mockRefreshPreferences({
       updateAutoRefresh: vi.fn().mockResolvedValue(true),
       updateRefreshOnOpen: vi.fn().mockResolvedValue(true),
       updateRefreshInterval,
       updateMinRefreshInterval,
       resetAutoRefreshConfig: vi.fn().mockResolvedValue(true),
-    } as any)
+    })
 
     renderSubject()
 
@@ -202,21 +220,20 @@ describe("RefreshSettings (min refresh interval)", () => {
   it("shows result-aware feedback after toggling refresh on open", async () => {
     const writeResult = { ok: true as const }
     const updateRefreshOnOpen = vi.fn().mockResolvedValue(writeResult)
-    vi.mocked(useUserPreferencesContext).mockReturnValue({
-      autoRefresh: true,
+    mockRefreshPreferences({
       refreshOnOpen: false,
-      refreshInterval: 360,
-      minRefreshInterval: 60,
       updateAutoRefresh: vi.fn().mockResolvedValue({ ok: true }),
       updateRefreshOnOpen,
       updateRefreshInterval: vi.fn().mockResolvedValue({ ok: true }),
       updateMinRefreshInterval: vi.fn().mockResolvedValue({ ok: true }),
       resetAutoRefreshConfig: vi.fn().mockResolvedValue({ ok: true }),
-    } as any)
+    })
 
     renderSubject()
 
-    fireEvent.click(screen.getAllByRole("switch", { name: "Toggle" })[1])
+    fireEvent.click(
+      atIndex(screen.getAllByRole("switch", { name: "Toggle" }), 1),
+    )
 
     await waitFor(() => {
       expect(updateRefreshOnOpen).toHaveBeenCalledWith(true)
@@ -230,18 +247,14 @@ describe("RefreshSettings (min refresh interval)", () => {
   it("normalizes unchanged interval drafts without saving", async () => {
     const updateRefreshInterval = vi.fn().mockResolvedValue({ ok: true })
     const updateMinRefreshInterval = vi.fn().mockResolvedValue({ ok: true })
-    vi.mocked(useUserPreferencesContext).mockReturnValue({
+    mockRefreshPreferences({
       preferences: { lastUpdated: 1 },
-      autoRefresh: true,
-      refreshOnOpen: true,
-      refreshInterval: 360,
-      minRefreshInterval: 60,
       updateAutoRefresh: vi.fn().mockResolvedValue({ ok: true }),
       updateRefreshOnOpen: vi.fn().mockResolvedValue({ ok: true }),
       updateRefreshInterval,
       updateMinRefreshInterval,
       resetAutoRefreshConfig: vi.fn().mockResolvedValue({ ok: true }),
-    } as any)
+    })
 
     renderSubject()
 
@@ -273,18 +286,14 @@ describe("RefreshSettings (min refresh interval)", () => {
       },
     }
     const updateRefreshInterval = vi.fn().mockResolvedValue(failedWrite)
-    vi.mocked(useUserPreferencesContext).mockReturnValue({
+    mockRefreshPreferences({
       preferences: { lastUpdated: 1 },
-      autoRefresh: true,
-      refreshOnOpen: true,
-      refreshInterval: 360,
-      minRefreshInterval: 60,
       updateAutoRefresh: vi.fn().mockResolvedValue({ ok: true }),
       updateRefreshOnOpen: vi.fn().mockResolvedValue({ ok: true }),
       updateRefreshInterval,
       updateMinRefreshInterval: vi.fn().mockResolvedValue({ ok: true }),
       resetAutoRefreshConfig: vi.fn().mockResolvedValue({ ok: true }),
-    } as any)
+    })
 
     renderSubject()
 
@@ -299,5 +308,77 @@ describe("RefreshSettings (min refresh interval)", () => {
       failedWrite,
       "settings:refresh.refreshInterval",
     )
+  })
+
+  it.each([60, 300, 599])(
+    "associates a non-alert hint with a valid frequent refresh interval of %i seconds",
+    (interval) => {
+      mockRefreshPreferences({
+        refreshOnOpen: false,
+        refreshInterval: interval,
+      })
+
+      renderSubject()
+
+      expect(
+        screen.getByRole("spinbutton", {
+          name: "settings:refresh.refreshInterval",
+        }),
+      ).toHaveAccessibleDescription("settings:refresh.refreshIntervalHint")
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    },
+  )
+
+  it.each(["", "0", "59", "60.5", "600"])(
+    "hides frequency guidance for draft %j",
+    async (draft) => {
+      const user = userEvent.setup()
+      const updateRefreshInterval = vi.fn()
+      mockRefreshPreferences({
+        refreshOnOpen: false,
+        refreshInterval: 300,
+        updateRefreshInterval,
+      })
+      renderSubject()
+      const input = screen.getByRole("spinbutton", {
+        name: "settings:refresh.refreshInterval",
+      })
+
+      await user.clear(input)
+      if (draft) await user.type(input, draft)
+
+      expect(
+        screen.queryByText("settings:refresh.refreshIntervalHint"),
+      ).not.toBeInTheDocument()
+      expect(input).not.toHaveAccessibleDescription()
+      expect(updateRefreshInterval).not.toHaveBeenCalled()
+    },
+  )
+
+  it("does not display low refresh interval warning when interval is >= 600s", () => {
+    mockRefreshPreferences({
+      refreshOnOpen: false,
+      refreshInterval: 900,
+    })
+
+    renderSubject()
+
+    expect(
+      screen.queryByText("settings:refresh.refreshIntervalHint"),
+    ).not.toBeInTheDocument()
+  })
+
+  it("does not display low refresh interval warning when auto refresh is disabled", () => {
+    mockRefreshPreferences({
+      autoRefresh: false,
+      refreshOnOpen: false,
+      refreshInterval: 300,
+    })
+
+    renderSubject()
+
+    expect(
+      screen.queryByText("settings:refresh.refreshIntervalHint"),
+    ).not.toBeInTheDocument()
   })
 })

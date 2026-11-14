@@ -1,16 +1,12 @@
-import { QUOTA_PER_USD } from "~/constants/money"
-import { normalizeSiteAccount } from "~/services/accounts/accountDefaults"
-import { resolveAccountTodayStatsAvailability } from "~/services/accounts/accountTodayStatsResolver"
+import { normalizeSiteAccount } from "~/services/accounts/editing/accountDefaults"
+import { resolveAccountTodayStatsAvailability } from "~/services/accounts/metrics/accountTodayStatsResolver"
+import { supportsMonetaryBalance } from "~/services/accounts/metrics/monetaryBalancePolicy"
 import {
   collectDuplicateAccountNameKeys,
   resolveAccountDisplayName,
 } from "~/services/accounts/utils/accountDisplayName"
 import type { DisplaySiteData, SiteAccount } from "~/types"
-
-const convertQuotaToCurrency = (quota: number, exchangeRate: number) => {
-  const USD = quota / QUOTA_PER_USD
-  return { USD, CNY: USD * exchangeRate }
-}
+import { convertQuotaToCurrencyAmounts } from "~/utils/core/money"
 
 class AccountPresentation {
   convertToDisplayData(
@@ -25,9 +21,12 @@ class AccountPresentation {
     input: SiteAccount | SiteAccount[],
     displayNameAccountsContext?: readonly SiteAccount[],
   ): DisplaySiteData | DisplaySiteData[] {
-    const normalizedAccounts = Array.isArray(input)
+    const normalizedInput = Array.isArray(input)
       ? input.map(normalizeSiteAccount)
-      : [normalizeSiteAccount(input)]
+      : normalizeSiteAccount(input)
+    const normalizedAccounts = Array.isArray(normalizedInput)
+      ? normalizedInput
+      : [normalizedInput]
     const normalizedContext = displayNameAccountsContext
       ? displayNameAccountsContext.map(normalizeSiteAccount)
       : normalizedAccounts
@@ -44,17 +43,21 @@ class AccountPresentation {
       baseName: account.site_name,
       username: account.account_info.username,
       disabled: account.disabled,
-      excludeFromTotalBalance: account.excludeFromTotalBalance,
+      excludeFromTotalBalance:
+        !supportsMonetaryBalance(
+          account.account_info.nativeBalance,
+          account.account_info.balanceUnavailable,
+        ) || account.excludeFromTotalBalance,
       excludeFromTodayIncome: account.excludeFromTodayIncome,
-      balance: convertQuotaToCurrency(
+      balance: convertQuotaToCurrencyAmounts(
         account.account_info.quota,
         account.exchange_rate,
       ),
-      todayConsumption: convertQuotaToCurrency(
+      todayConsumption: convertQuotaToCurrencyAmounts(
         account.account_info.today_quota_consumption,
         account.exchange_rate,
       ),
-      todayIncome: convertQuotaToCurrency(
+      todayIncome: convertQuotaToCurrencyAmounts(
         account.account_info.today_income,
         account.exchange_rate,
       ),
@@ -65,6 +68,8 @@ class AccountPresentation {
       todayStatsAvailability: resolveAccountTodayStatsAvailability(account),
       usage: account.account_info.usage,
       subscription: account.account_info.subscription,
+      nativeBalance: account.account_info.nativeBalance,
+      balanceUnavailable: account.account_info.balanceUnavailable,
       recentUsageRecords: account.account_info.recentUsageRecords,
       health: account.health,
       last_sync_time: account.last_sync_time,
@@ -79,11 +84,14 @@ class AccountPresentation {
       checkIn: account.checkIn,
       authType: account.authType,
       cookieAuthSessionCookie: account.cookieAuth?.sessionCookie,
+      ...(account.aimlApiAuth?.apiKey
+        ? { aimlApiKey: account.aimlApiAuth.apiKey }
+        : {}),
     })
 
-    return Array.isArray(input)
+    return Array.isArray(normalizedInput)
       ? normalizedAccounts.map(transform)
-      : transform(normalizedAccounts[0])
+      : transform(normalizedInput)
   }
 
   resolveDisplayData(

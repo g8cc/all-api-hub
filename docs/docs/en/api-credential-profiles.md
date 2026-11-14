@@ -1,6 +1,6 @@
 # API Credential Library
 
-> Suitable for scenarios where you only have `Base URL + API Key` without a site account. Save common API keys in one place for quick copying, API verification, model lookup, and balance/usage checks without first creating a full site account.
+> Suitable for scenarios where you only have `Base URL + API Key` without a site account. Save common API keys in one place for quick copying, API testing, model lookup, and balance/usage checks without first creating a full site account.
 
 ## Suitable Scenarios
 
@@ -19,13 +19,13 @@ The complete API key is stored in the extension's local storage. Masking in the 
 ## Feature Overview
 
 - **Credential Library Management**: Store name, `Base URL`, API key, tags, and notes without relying on a site account.
-- **Search and Filter**: Supports filtering by name, `Base URL`, tags, notes, and API type.
-- **Health and Usage Overview**: View balance, today's usage, today's requests, available models, last refresh time, and health status when the endpoint provides that data.
-- **Interface Verification**: Supports verifying API availability and separately testing CLI compatibility.
+- **Search and Filter**: Supports filtering by name, `Base URL`, tags, notes, source page, and API type.
+- **Allowance and Usage Overview**: View balance, remaining quota windows, reset countdowns, today's usage, today's requests, available models, last refresh time, and health status when the endpoint provides that data.
+- **API Testing**: Supports verifying API availability and separately testing CLI compatibility.
 - **Model Integration**: Directly open the current credentials in the model list to view the model catalog and verification results.
 - **Quick Export**: Prioritizes a direct action for the currently configured self-hosted site. Other targets are grouped as chat clients, coding agents, and gateways and routing tools: Cherry Studio, Kelivo, CC Switch, Kilo Code / Roo Code, Cursor++, and Claude Code Router.
 
-![API Credential Library list](../static/image/api-credential-profile-list.png)
+![API Credential Library list](../static/image/en/api-credential-profile-list.png)
 
 ## Access Method
 
@@ -40,12 +40,11 @@ If you need stable and CLI-friendly API interfaces to fill your credential libra
 
 - [Qiniu Cloud AI](https://s.qiniu.com/qE3eai): An enterprise MaaS platform with one-stop access to 150+ mainstream global models. Enterprise users can claim 12 million free tokens.
 - [FennoAI](https://api.fenno.ai/s/DCGC): A stable and efficient Codex relay provider compatible with OpenAI and Anthropic protocols. It supports popular coding tools and enterprise workloads of up to 100 billion tokens per day. All API Hub users can get $50 in Coding Plan credits for $1.99, and referral purchases earn up to 20% commission. [Setup guide](./service-guides/fenno.md)
-- [PackyCode](https://www.packyapi.com/register?aff=all-api-hub): Enter the `all-api-hub` promo code during recharge to get 10% off. [Setup guide](./sponsor-guides/packycode.md)
+- [PackyCode](https://www.packyapi.ai/register?aff=all-api-hub): Enter the `all-api-hub` promo code during recharge to get 10% off. [Setup guide](./sponsor-guides/packycode.md)
 - [Xingchen AI](https://ai.centos.hk): 1:1 top-up ratio, invoicing support, and Claude pricing as low as 40% of the standard price. [Setup guide](./sponsor-guides/xingchen.md)
-- [XuanShu API](https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB): A next-generation AI model routing gateway for enterprises, technical teams, and individual developers, providing enterprise-grade one-stop API access to leading global models including Claude, GPT, and Grok. Model pricing ranges from 10% to 60% of standard rates. Register through this link to receive extra top-up bonuses, with more for your first top-up. Business customers can pay by corporate bank transfer and request invoices. [Setup guide](./service-guides/xuanshuapi.md)
-- [AICodeMirror](https://www.aicodemirror.ai/register?invitecode=7IQNR8): Official high-stability relay services for Claude Code / Codex / Gemini CLI. Register through this link to get 20% off your first top-up, and enterprise customers can get up to 25% off.
 - [Suixiang AI Relay](https://sui-xiang.com/): API relay services for Claude, Codex, Gemini, and more, with pay-as-you-go billing, daily check-in test credits, redundant routes, and automatic failover. [Setup guide](./service-guides/suixiang.md)
-- [APIMart](https://go.apimart.ai/gh-all-api-hub): A low-cost API platform for AI image & video generation — GPT-Image-2 from $0.006/image, 160+ images per dollar. One async API covers both image and video: submit a task, get an ID, fetch results via polling or callback. Batch tens of thousands of images without timeouts, switch models without changing code. Pay-as-you-go with no monthly fee.
+- [88API Token Aggregation Platform](https://88api.ai/register?aff=XcTj): A one-stop multi-model API platform operated by a Hong Kong company, with a unified API for text, image, speech, and video models. Supports adding and switching providers in CC Switch, major international payment methods, and invoicing. Register through the dedicated link for bonus credits.
+- [ccccccapi](https://dzhsmartai.com/): Supports ChatGPT, Claude, Gemini, Deepseek, and more at the lowest prices online. Use AI without burning a hole in your wallet—come grab a bargain!
 - [Dola Seed on BytePlus ModelArk](https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=all-api-hub&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=all-api-hub): Register through BytePlus ModelArk to get 500,000 free inference tokens per model.
 :::
 
@@ -59,7 +58,8 @@ If you need stable and CLI-friendly API interfaces to fill your credential libra
 | Base URL | The base address of the interface; it will be automatically normalized upon saving. |
 | Key | The corresponding API Key. The input is masked by default and can be revealed temporarily. |
 | Tags | Optional; shares the global tag system with accounts and bookmarks. |
-| Notes | Can record information such as source, purpose, model limitations, etc. |
+| Notes | Can record information such as purpose, model limitations, etc. |
+| Source page | Optional. Record the web page where you obtained these credentials. After saving, reopen it directly from the list to check whether the person who shared the key has updated it. |
 | Expiration date | Optional. This is only a reminder date you enter; it does not mean the provider has confirmed that the key expires then. |
 
 ### API Type
@@ -75,7 +75,33 @@ Currently supports classification and verification by API type. Common types inc
 
 If you are unsure which type to choose, follow the provider's documentation. When it gives no specific guidance, try `OpenAI Compatible` first. If you temporarily use another API type for verification, the interface will clearly indicate that this is only a temporary override and will not change the saved credential type.
 
+### Request header overrides
+
+If a channel requires a specific `User-Agent` or another custom header, expand **`Request header overrides`** at the bottom of the add/edit credential form, enter the header name and value, and save. For example, enter `User-Agent` and the UA required by the channel. Use × at the end of a row to remove it.
+
+- Headers apply to this credential's model discovery, API/CLI verification, and same-origin balance/usage queries inside the extension. Cross-origin custom query URLs do not inherit them.
+- Custom values replace defaults with the same header name. Browser-controlled headers such as `Host`, `Cookie`, `Origin`, and `Sec-*` cannot be overridden.
+- Chrome/Edge require network request modification permission for `User-Agent` overrides. Saving requests permission; if denied, enable it in permission management and retry.
+- Requests with custom headers do not follow redirects. Enter the final API address.
+- Header values are masked by default and are stored in local credentials and backups. Configure headers separately in external clients after exporting.
+
 ## Balance and Usage Queries
+
+### Allowance Overview
+
+The credential library treats "how much is left" as a first-class concern: coding-plan quota windows and per-endpoint balances are both presented as **allowance**, so you do not have to tell them apart.
+
+- **Overview at the top of the list**: Shows how many credentials returned allowance data and how many of those are low or critical. Clicking the most urgent one locates and highlights that credential; if a filter is active, the filter is cleared first.
+- **Allowance badge on card titles**: The most urgent item is visible without expanding the panel (for example, `5-hour window: 15% left`), colored by urgency.
+- **Quota windows**: Remaining percentage is shown as a progress bar, together with remaining / limit and a reset countdown (for example, "resets in 2 hours 14 minutes"). Hover the countdown to see the exact reset time.
+- **Balances**: Besides the amount itself, if the provider also reports today's spend, the library estimates how many days the balance lasts at today's usage.
+
+Allowance levels are a local presentation aid to help you prioritize; they **do not mean the provider will actually disable or throttle your key**:
+
+- Quota windows: below 20% remaining is critical, below 50% is low.
+- Balances: fewer than 3 days at today's spend is critical, fewer than 7 days is low; without today's spend no estimate is shown, only the balance.
+
+### Displayable Metrics
 
 Each credential card can display a balance and usage overview, with common metrics including:
 
@@ -124,9 +150,9 @@ This limit primarily applies to refresh and verification actions in the extensio
 
 ## Common Operations
 
-### 1. Verify Interface
+### 1. Test API
 
-Click **`Verify Interface`** on the card to confirm:
+Click **`Test API`** on the card to confirm:
 
 - If the current key can still be used.
 - If the model list can be fetched.
@@ -138,9 +164,9 @@ Under **`Test mode`**, choose **`Streaming`** (the default) or **`Non-streaming`
 
 A verification result describes only that probe. It does not mean the key is permanently valid or invalid; verify again after changing networks or keys, or whenever you notice a problem.
 
-### 2. Verify CLI Compatibility
+### 2. CLI compatibility test
 
-Click **`Verify CLI Compatibility`** to separately test:
+Click **`CLI compatibility test`** to open the same **`API Testing`** dialog with a client simulation preset selected. Use it to check:
 
 - If the current interface is suitable for CLI tools.
 - If the model ID can be used in CLI scenarios.
@@ -148,7 +174,7 @@ Click **`Verify CLI Compatibility`** to separately test:
 
 This check does not launch Claude Code, Codex, Gemini CLI, or another program. It simulates the protocols and tool-calling patterns commonly used by those CLIs to help you assess compatibility in advance.
 
-Under **`Test mode`**, choose **`Streaming`** (the default) or **`Non-streaming`**. Each CLI keeps its corresponding API type for the tool-calling probe. Results show the selected mode, and failures do not trigger an automatic mode switch.
+Selecting a client sets its default API type; you can then change the protocol manually and choose a test. Under **`Test mode`**, choose **`Streaming`** (the default) or **`Non-streaming`**. Results show the selected mode, and failures do not trigger an automatic mode switch. Opening the shortcut does not start a test.
 
 ### 3. Open in Model List
 
@@ -197,7 +223,7 @@ Copying an API key places the complete secret on the system clipboard. When expo
 |------|------|
 | I only saved the credential, why is there no balance data? | The current query method may not be compatible with the site, or the site does not provide a corresponding read-only interface. Missing balance data does not necessarily mean the key is invalid; try switching the query method or using a custom read-only query. |
 | Why does the model-related verification require a model ID? | Some CLI compatibility checks and model call verifications require a specific model. The interface will try to automatically suggest a model, or you can manually enter one. |
-| Can it replace account management? | Not entirely. The `API Credential Library` is better for saving and using standalone API keys for API verification, model lookup, and export; account management is still responsible for site identification, balance refresh, check-ins, usage synchronization, and other account-level capabilities. |
+| Can it replace account management? | Not entirely. The `API Credential Library` is better for saving and using standalone API keys for API testing, model lookup, and export; account management is still responsible for site identification, balance refresh, check-ins, usage synchronization, and other account-level capabilities. |
 | Will the API Credential Library be included in backups? | Yes. It is part of the shared data and can be migrated along with data import/export and selective synchronization via WebDAV. Importing profile data may show Merge, Replace, or Skip options. |
 | Does successful verification guarantee that every tool will work? | No. Verification represents one API probe. A target tool may use a different protocol, model, or configuration, so test again in that tool. |
 | Does deleting a profile revoke the remote API key? | No. Deletion only removes the local record; revoke the remote key separately in the provider console. |

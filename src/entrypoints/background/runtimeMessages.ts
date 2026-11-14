@@ -1,73 +1,85 @@
+import { BROWSER_LOGIN_STATUS } from "~/constants/browserLogin"
 import { COOKIE_IMPORT_FAILURE_REASONS } from "~/constants/cookieImport"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { RuntimeActionIds } from "~/constants/runtimeActions"
+import { SETTINGS_ANCHORS } from "~/constants/settingsAnchors"
 import { WEB_AI_API_CHECK_TARGET_IDS } from "~/features/BasicSettings/components/tabs/WebAiApiCheck/searchTargets"
 import { setupAccountBrowserIdentityRateLimitMessaging } from "~/services/accountBrowserSession/identityRateLimit"
 import { setupAccountKeyRepairMessagingListeners } from "~/services/accounts/accountKeyAutoProvisioning"
-import { setupAutoRefreshMessagingListeners } from "~/services/accounts/autoRefreshService"
+import { setupAutoRefreshMessagingListeners } from "~/services/accounts/refresh/autoRefreshService"
 import { API_ERROR_CODES } from "~/services/apiTransport/errors"
 import { getInternalTabIds } from "~/services/browsingContext/internalTabsBackground"
 import { PAGE_CONTEXT } from "~/services/browsingContext/pageContext"
-import { setupAutoCheckinMessagingListeners } from "~/services/checkin/autoCheckin/scheduler"
+import { cancelTempCheckinFeedbackScan } from "~/services/browsingContext/tempPage/checkinFeedbackScan"
+import {
+  cancelTempWindowOpenRouterManagementKeyAction,
+  markTempWindowOpenRouterManagementKeyDispatched,
+} from "~/services/browsingContext/tempPage/openrouterManagementKeyAction"
+import { handleCloseTempWindow } from "~/services/browsingContext/tempPage/runtime"
+import { setupAutoCheckinMessagingListeners } from "~/services/checkin/autoCheckin/scheduling/schedulerMessaging"
 import { setupExternalCheckInMessagingListeners } from "~/services/checkin/externalCheckInService"
+import {
+  dismissCheckInFeedbackTabHint,
+  openCheckInFeedbackIssueTab,
+} from "~/services/checkin/feedback/githubTab"
 import {
   handleDailyBalanceHistoryMessage,
   setupDailyBalanceHistoryMessagingListeners,
 } from "~/services/history/dailyBalanceHistory/scheduler"
 import { setupUsageHistoryMessagingListeners } from "~/services/history/usageHistory/scheduler"
 import { setupLdohSiteLookupMessagingListeners } from "~/services/integrations/ldohSiteLookup/background"
-import { setupChannelConfigMessagingListeners } from "~/services/managedSites/channelConfigStorage"
+import {
+  appendLogHistory,
+  clearLogHistory,
+} from "~/services/logging/logHistory"
+import { setupChannelConfigMessagingListeners } from "~/services/managedSites/configuration/channelConfigHandlers"
 import { parseNewApiOwnedSessionRequest } from "~/services/managedSites/newApiOwnedSession/contracts"
 import { setupManagedSiteModelSyncMessagingListeners } from "~/services/models/modelSync"
 import { setupTaskNotificationMessagingListeners } from "~/services/notifications/taskNotificationService"
-import { setupPreferencesMessagingListeners } from "~/services/preferences/runtimePreferencesService"
+import { setupPreferencesMessagingListeners } from "~/services/preferences/runtime/runtimePreferencesService"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
   PRODUCT_ANALYTICS_SURFACE_IDS,
 } from "~/services/productAnalytics/contracts"
-import { setupProductAnalyticsMessagingListeners } from "~/services/productAnalytics/runtime"
-import { trackStarPromotionAction } from "~/services/productAnalytics/starPromotion"
+import { trackStarPromotionAction } from "~/services/productAnalytics/facts/starPromotion"
+import { setupProductAnalyticsMessagingListeners } from "~/services/productAnalytics/runtime/runtime"
 import { setupProductAnnouncementMessagingListeners } from "~/services/productAnnouncements/service"
 import {
   isProtectionBypassExecution,
   isTempContextTask,
 } from "~/services/protectionBypass/contracts"
 import { setupRedemptionAssistMessagingListeners } from "~/services/redemption/redemptionAssist"
-import { setupSiteAnnouncementsMessagingListeners } from "~/services/siteAnnouncements/scheduler"
+import { setupSiteAnnouncementsMessagingListeners } from "~/services/siteAnnouncements/runtimeMessages"
+import { openStarPromotionRepository } from "~/services/starPromotion/openRepository"
 import { classifyAllApiHubRepoPageUrl } from "~/services/starPromotion/repoPage"
 import { starPromotionState } from "~/services/starPromotion/state"
 import { setupReleaseUpdateMessagingListeners } from "~/services/updates/releaseUpdateService"
 import { setupWebAiApiCheckMessagingListeners } from "~/services/verification/webAiApiCheck/background"
-import { setupWebdavAutoSyncMessagingListeners } from "~/services/webdav/webdavAutoSyncService"
-import {
-  containsPermissions,
-  getAllCookieStores,
-  hasCookieStoresAPI,
-  onRuntimeMessage,
-} from "~/utils/browser/browserApi"
+import { setupWebdavAutoSyncMessagingListeners } from "~/services/webdav/autoSync/webdavAutoSyncMessageHandlers"
 import {
   getCookieHeaderForUrlResult,
   hasCookieReadPermissionForUrl,
 } from "~/utils/browser/cookieHelper"
+import { getAllCookieStores, hasCookieStoresAPI } from "~/utils/browser/cookies"
 import { extractSessionCookieHeader } from "~/utils/browser/cookieString"
+import { getRawExtensionApi } from "~/utils/browser/devApiExplorer"
+import { containsPermissions } from "~/utils/browser/permissions"
+import { getExtensionURL } from "~/utils/browser/runtime"
+import { onRuntimeMessage } from "~/utils/browser/runtimeMessages"
 import { getErrorMessage } from "~/utils/core/error"
 import { createLogger } from "~/utils/core/logger"
 import { t } from "~/utils/i18n/core"
-import {
-  openBugReportPage,
-  openOrFocusOptionsMenuItem,
-  openProtectionBypassHistory,
-} from "~/utils/navigation"
+import { openProtectionBypassHistory } from "~/utils/navigation"
+import { openBugReportPage } from "~/utils/navigation/feedbackPages"
+import { openOrFocusOptionsMenuItem } from "~/utils/navigation/optionsPage"
 
-import { cancelTempCheckinFeedbackScan } from "./checkinFeedbackScan"
 import { trackCookieInterceptorUrl } from "./cookieInterceptor"
-import {
-  cancelTempWindowOpenRouterManagementKeyAction,
-  markTempWindowOpenRouterManagementKeyDispatched,
-} from "./openrouter/managementKeyAction"
 import { protectionBypassCoordinator } from "./protectionBypassCoordinator"
-import { handleCloseTempWindow } from "./tempWindowPool"
+import {
+  handleTempContextDebugMessage,
+  isTempContextDebugAction,
+} from "./tempContextDebug"
 
 /**
  * Unified logger scoped to background runtime message routing.
@@ -165,34 +177,63 @@ export function setupRuntimeMessageListeners() {
         return true
       }
 
+      if (request.action === RuntimeActionIds.StarPromotionOpenRepository) {
+        void openStarPromotionRepository().then((success) =>
+          sendResponse({ success }),
+        )
+        return true
+      }
+
       if (request.action === RuntimeActionIds.ContentStarPromotionReport) {
         // Only trust reports that originate from the All API Hub repository page.
         const fromRepoPage = classifyAllApiHubRepoPageUrl(sender.url) !== null
-        if (!fromRepoPage || request.starred !== true) {
+        if (!fromRepoPage || typeof request.starred !== "boolean") {
           sendResponse({ success: false })
           return true
         }
 
         void starPromotionState
-          .markCompleted()
+          .recordGitHubStarState(request.starred, {
+            starRemoved: request.starRemoved === true,
+          })
           .then(() => {
-            trackStarPromotionAction(
-              PRODUCT_ANALYTICS_ACTION_IDS.SuppressStarPromotionDetected,
-              {
-                surfaceId:
-                  PRODUCT_ANALYTICS_SURFACE_IDS.ContentRepositoryStarDetection,
-                entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Content,
-              },
-            )
+            if (request.starred)
+              trackStarPromotionAction(
+                PRODUCT_ANALYTICS_ACTION_IDS.SuppressStarPromotionDetected,
+                {
+                  surfaceId:
+                    PRODUCT_ANALYTICS_SURFACE_IDS.ContentRepositoryStarDetection,
+                  entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Content,
+                },
+              )
             sendResponse({ success: true })
           })
           .catch(() => sendResponse({ success: false }))
         return true
       }
 
+      if (request.action === RuntimeActionIds.LogHistoryClear) {
+        void clearLogHistory()
+          .then(() => sendResponse({ success: true }))
+          .catch(() => sendResponse({ success: false }))
+        return true
+      }
+
       if (request.action === RuntimeActionIds.CloudflareGuardLog) {
+        if (request.logEntry) {
+          void appendLogHistory(request.logEntry)
+            .then(() => sendResponse({ success: true }))
+            .catch(() => sendResponse({ success: false }))
+          return true
+        }
         try {
-          logger.debug("CFGuardRelay", {
+          const isAccountDiagnostic =
+            request.details?.diagnosticScope === "account_detection"
+          const log =
+            isAccountDiagnostic && request.event === "detection_finished"
+              ? logger.info
+              : logger.debug
+          log(isAccountDiagnostic ? "AccountDetectionRelay" : "CFGuardRelay", {
             event: request.event ?? null,
             requestId: request?.details?.requestId ?? null,
             details: request.details ?? null,
@@ -356,7 +397,11 @@ export function setupRuntimeMessageListeners() {
             })
             const sessionOnly = extractSessionCookieHeader(result.header)
             if (sessionOnly) {
-              sendResponse({ success: true, data: sessionOnly })
+              sendResponse({
+                success: true,
+                data: sessionOnly,
+                ...(cookieStoreId ? { cookieStoreId } : {}),
+              })
             } else {
               sendResponse({
                 success: false,
@@ -370,6 +415,29 @@ export function setupRuntimeMessageListeners() {
             sendResponse({ success: false, error: getErrorMessage(error) })
           }
         })()
+        return true
+      }
+
+      if (
+        request.action === RuntimeActionIds.AccountDialogCancelCookieRecovery
+      ) {
+        void import("~/services/accountCredentialRecovery/manual")
+          .then(({ cancelAccountCookieRecovery }) =>
+            sendResponse(cancelAccountCookieRecovery(request.requestId)),
+          )
+          .catch(() => sendResponse(false))
+        return true
+      }
+
+      if (
+        request.action === RuntimeActionIds.AccountDialogRecoverCookieSession
+      ) {
+        void import("~/services/accountCredentialRecovery/manual")
+          .then(({ recoverAccountCookieForDialog }) =>
+            recoverAccountCookieForDialog(request),
+          )
+          .then(sendResponse)
+          .catch(() => sendResponse({ status: BROWSER_LOGIN_STATUS.Failed }))
         return true
       }
 
@@ -388,6 +456,18 @@ export function setupRuntimeMessageListeners() {
           anchor: "shield-settings",
         })
         sendResponse({ success: true })
+        return true
+      }
+
+      if (request.action === RuntimeActionIds.OpenSettingsTurnstileAssist) {
+        void openOrFocusOptionsMenuItem(MENU_ITEM_IDS.BASIC, {
+          tab: "refresh",
+          anchor: SETTINGS_ANCHORS.SHIELD_TURNSTILE_ASSIST,
+        })
+          .then(() => sendResponse({ success: true }))
+          .catch((error) =>
+            sendResponse({ success: false, error: getErrorMessage(error) }),
+          )
         return true
       }
 
@@ -417,6 +497,28 @@ export function setupRuntimeMessageListeners() {
         return true
       }
 
+      if (request.action === RuntimeActionIds.OpenCheckInFeedbackIssue) {
+        if (!sender.url?.startsWith(getExtensionURL(""))) {
+          sendResponse({ success: false })
+          return true
+        }
+        void openCheckInFeedbackIssueTab(request.url, request.hint)
+          .then(() => sendResponse({ success: true }))
+          .catch(() => sendResponse({ success: false }))
+        return true
+      }
+
+      if (request.action === RuntimeActionIds.DismissCheckInFeedbackHint) {
+        if (typeof sender.tab?.id !== "number") {
+          sendResponse({ success: false })
+          return true
+        }
+        void dismissCheckInFeedbackTabHint(sender.tab.id)
+          .then(() => sendResponse({ success: true }))
+          .catch(() => sendResponse({ success: false }))
+        return true
+      }
+
       if (request.action === RuntimeActionIds.OpenFeedbackBugReport) {
         void openBugReportPage()
           .then(() => {
@@ -433,6 +535,47 @@ export function setupRuntimeMessageListeners() {
         RuntimeActionIds.BalanceHistoryDebugSeedEstimateSnapshots
       ) {
         handleDailyBalanceHistoryMessage(request, sendResponse)
+        return true
+      }
+
+      if (request.action === RuntimeActionIds.DevExecuteBrowserApi) {
+        const payload = (request.payload || {}) as {
+          path?: string
+          args?: unknown[]
+        }
+        void (async () => {
+          try {
+            const root = getRawExtensionApi() || globalThis
+            const segments = (payload.path || "").split(".").filter(Boolean)
+            let parent: unknown = null
+            let target: unknown = root
+            for (const seg of segments) {
+              if (target == null) {
+                throw new Error(
+                  `Cannot read property '${seg}' of ${String(target)}`,
+                )
+              }
+              parent = target
+              target = (target as Record<string, unknown>)[seg]
+            }
+
+            let result: unknown
+            if (typeof target === "function") {
+              result = await target.apply(parent, payload.args || [])
+            } else {
+              result = target
+            }
+
+            sendResponse({ success: true, data: result })
+          } catch (error) {
+            sendResponse({ success: false, error: getErrorMessage(error) })
+          }
+        })()
+        return true
+      }
+
+      if (isTempContextDebugAction(request.action)) {
+        void handleTempContextDebugMessage(request, sendResponse)
         return true
       }
 

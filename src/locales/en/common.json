@@ -1,5 +1,6 @@
 {
   "actions": {
+    "add": "Add",
     "cancel": "Cancel",
     "clear": "Clear",
     "close": "Close",
@@ -11,9 +12,12 @@
     "import": "Import",
     "loadField": "Load {{field}}",
     "more": "More",
+    "moveDownItem": "Move {{name}} down",
+    "moveUpItem": "Move {{name}} up",
     "openSidePanel": "Open in SidePanel",
     "refresh": "Refresh",
     "refreshField": "Refresh {{field}}",
+    "remove": "Remove",
     "reset": "Reset",
     "retry": "Retry",
     "save": "Save"
@@ -68,7 +72,6 @@
     "disabled": "Disabled",
     "disabling": "Disabling...",
     "enabled": "Enabled",
-    "enabling": "Enabling...",
     "error": "Error",
     "exporting": "Exporting...",
     "failed": "Failed",

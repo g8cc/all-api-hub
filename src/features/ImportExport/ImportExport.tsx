@@ -1,21 +1,14 @@
 import { ArrowLeftRight, HardDrive } from "lucide-react"
-import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
 
 import { PageHeader } from "~/components/PageHeader"
 import { Heading3 } from "~/components/ui"
-import {
-  clearHighlightSearchParam,
-  highlightSearchTarget,
-  OPTIONS_SEARCH_ANCHOR_PARAM,
-  OPTIONS_SEARCH_HIGHLIGHT_PARAM,
-} from "~/features/OptionsSearch/navigation"
-import { navigateToAnchor } from "~/utils/core/url"
-
-import CloudSyncSettings from "./components/CloudSyncSettings"
-import ExportSection from "./components/ExportSection"
-import ImportSection from "./components/ImportSection"
-import { useImportExport } from "./hooks/useImportExport"
+import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
+import ExportSection from "~/features/ImportExport/backup/ExportSection"
+import ImportSection from "~/features/ImportExport/backup/ImportSection"
+import { useImportExport } from "~/features/ImportExport/backup/useImportExport"
+import CloudSyncSettings from "~/features/ImportExport/cloudSync/CloudSyncSettings"
+import { useOptionsTargetNavigation } from "~/features/OptionsMenu/useOptionsTargetNavigation"
 
 /**
  * Import/Export page combining local migration and cloud sync.
@@ -35,51 +28,10 @@ export default function ImportExport() {
     validation,
   } = useImportExport()
 
-  useEffect(() => {
-    let anchorTimer: number | undefined
-    let highlightTimer: number | undefined
-    const applyUrlState = () => {
-      window.clearTimeout(anchorTimer)
-      window.clearTimeout(highlightTimer)
-      const searchParams = new URLSearchParams(window.location.search)
-      const pendingAnchor = searchParams.get(OPTIONS_SEARCH_ANCHOR_PARAM)
-      const pendingHighlight = searchParams.get(OPTIONS_SEARCH_HIGHLIGHT_PARAM)
-
-      if (pendingAnchor) {
-        anchorTimer = window.setTimeout(() => {
-          navigateToAnchor(pendingAnchor)
-        }, 120)
-      }
-
-      if (pendingHighlight) {
-        highlightTimer = window.setTimeout(() => {
-          if (!highlightSearchTarget(pendingHighlight)) {
-            clearHighlightSearchParam()
-            return
-          }
-
-          clearHighlightSearchParam()
-        }, 220)
-      }
-    }
-    applyUrlState()
-    window.addEventListener("popstate", applyUrlState)
-    window.addEventListener("hashchange", applyUrlState)
-
-    return () => {
-      window.removeEventListener("popstate", applyUrlState)
-      window.removeEventListener("hashchange", applyUrlState)
-      if (anchorTimer !== undefined) {
-        window.clearTimeout(anchorTimer)
-      }
-      if (highlightTimer !== undefined) {
-        window.clearTimeout(highlightTimer)
-      }
-    }
-  }, [])
+  useOptionsTargetNavigation({ pageId: MENU_ITEM_IDS.IMPORT_EXPORT })
 
   return (
-    <div className="space-y-density-6 py-density-6 px-6">
+    <div className="space-y-density-6 py-density-4 sm:py-density-6 px-4 sm:px-6">
       <PageHeader
         icon={ArrowLeftRight}
         title={t("title")}

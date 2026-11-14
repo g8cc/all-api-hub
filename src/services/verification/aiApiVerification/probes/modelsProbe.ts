@@ -1,7 +1,9 @@
 import { fetchAnthropicModelIds } from "~/services/aiApi/anthropic"
 import { fetchGoogleModelIds } from "~/services/aiApi/google"
 import { fetchOpenAICompatibleModelIds } from "~/services/aiApi/openaiCompatible"
+import { toVersionedProtocolMount } from "~/services/aiApi/protocolAddress"
 
+import { pickDefaultVerificationModelId } from "../modelModality"
 import { nowMs, okLatency } from "../probeTiming"
 import type {
   ApiVerificationApiType,
@@ -21,69 +23,9 @@ import {
 type RunModelsProbeParams = {
   baseUrl: string
   apiKey: string
+  requestHeaders?: Record<string, string>
   apiType: ApiVerificationApiType
   abortSignal?: AbortSignal
-}
-
-/**
- * Best-effort model id suggestion derived from returned model ids.
- */
-function pickSuggestedModelId(
-  apiType: ApiVerificationApiType,
-  modelIds: string[],
-): string | undefined {
-  const normalized = modelIds
-    .filter((id) => typeof id === "string" && id.trim())
-    .map((id) => id.trim())
-
-  if (normalized.length === 0) return undefined
-
-  const preferredPrefixes = (() => {
-    if (apiType === API_TYPES.GOOGLE) return ["gemini"]
-    if (apiType === API_TYPES.ANTHROPIC) return ["claude"]
-    return ["gpt", "o"]
-  })()
-
-  const preferred = normalized.find((id) => {
-    const lower = id.toLowerCase()
-    return preferredPrefixes.some((prefix) =>
-      prefix === "o" ? /^o\d/i.test(id) : lower.startsWith(prefix),
-    )
-  })
-
-  return preferred ?? normalized[0]
-}
-
-/**
- * Strips the query string and hash from a URL.
- */
-function stripQueryAndHash(baseUrl: string): string {
-  const trimmed = (baseUrl || "").trim()
-  if (!trimmed) return trimmed
-
-  let cutoff = trimmed.length
-  const queryIndex = trimmed.indexOf("?")
-  const hashIndex = trimmed.indexOf("#")
-  if (queryIndex >= 0) cutoff = Math.min(cutoff, queryIndex)
-  if (hashIndex >= 0) cutoff = Math.min(cutoff, hashIndex)
-  return trimmed.slice(0, cutoff)
-}
-
-/**
- * Normalizes the models base URL.
- */
-function normalizeModelsBaseUrl(
-  apiType: ApiVerificationApiType,
-  baseUrl: string,
-): string {
-  const trimmed = stripQueryAndHash(baseUrl).replace(/\/+$/, "")
-  if (!trimmed) return trimmed
-
-  const segmentToStrip = apiType === API_TYPES.GOOGLE ? "v1beta" : "v1"
-  const match = new RegExp(`/(?:${segmentToStrip})(?:/|$)`, "i").exec(trimmed)
-  if (!match) return trimmed
-
-  return trimmed.slice(0, match.index).replace(/\/+$/, "")
 }
 
 /**
@@ -94,13 +36,12 @@ export async function runModelsProbe(
 ): Promise<{ result: ApiVerificationProbeResult; modelId?: string }> {
   const startedAt = nowMs()
   try {
-    const normalizedBaseUrl = normalizeModelsBaseUrl(
+    const normalizedBaseUrl = toVersionedProtocolMount(
       params.apiType,
       params.baseUrl,
     )
-
-    const endpoint =
-      params.apiType === API_TYPES.GOOGLE ? "/v1beta/models" : "/v1/models"
+    if (!normalizedBaseUrl) throw new Error("Invalid protocol API base URL")
+    const endpoint = "models"
 
     const modelIds = await (async () => {
       if (
@@ -110,6 +51,9 @@ export async function runModelsProbe(
         return fetchOpenAICompatibleModelIds({
           baseUrl: normalizedBaseUrl,
           apiKey: params.apiKey,
+          ...(params.requestHeaders
+            ? { requestHeaders: params.requestHeaders }
+            : {}),
           abortSignal: params.abortSignal,
         })
       }
@@ -118,6 +62,9 @@ export async function runModelsProbe(
         return fetchAnthropicModelIds({
           baseUrl: normalizedBaseUrl,
           apiKey: params.apiKey,
+          ...(params.requestHeaders
+            ? { requestHeaders: params.requestHeaders }
+            : {}),
           abortSignal: params.abortSignal,
         })
       }
@@ -126,6 +73,9 @@ export async function runModelsProbe(
         return fetchGoogleModelIds({
           baseUrl: normalizedBaseUrl,
           apiKey: params.apiKey,
+          ...(params.requestHeaders
+            ? { requestHeaders: params.requestHeaders }
+            : {}),
           abortSignal: params.abortSignal,
         })
       }
@@ -133,7 +83,7 @@ export async function runModelsProbe(
       throw new Error("Unsupported apiType")
     })()
 
-    const suggestedModelId = pickSuggestedModelId(params.apiType, modelIds)
+    const suggestedModelId = pickDefaultVerificationModelId(modelIds)
 
     return {
       modelId: suggestedModelId,
@@ -172,7 +122,10 @@ export async function runModelsProbe(
       throw error
     }
 
-    const summary = toSanitizedErrorSummary(error, [params.apiKey])
+    const summary = toSanitizedErrorSummary(error, [
+      params.apiKey,
+      ...Object.values(params.requestHeaders ?? {}),
+    ])
     const diagnostics = buildSafeProbeFailureDiagnostics(error, summary)
 
     return {
@@ -184,11 +137,10 @@ export async function runModelsProbe(
         summaryKey: diagnostics.summaryKey,
         summaryParams: diagnostics.summaryParams,
         input: {
-          endpoint:
-            params.apiType === API_TYPES.GOOGLE
-              ? "/v1beta/models"
-              : "/v1/models",
-          baseUrl: normalizeModelsBaseUrl(params.apiType, params.baseUrl),
+          endpoint: "models",
+          baseUrl:
+            toVersionedProtocolMount(params.apiType, params.baseUrl) ??
+            params.baseUrl.trim(),
           apiType: params.apiType,
         },
         output: diagnostics.output,

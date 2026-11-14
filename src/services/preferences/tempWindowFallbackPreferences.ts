@@ -3,6 +3,15 @@ import {
   type TempContextPreferenceMode,
 } from "~/constants/tempContextMode"
 import {
+  DEFAULT_TURNSTILE_ASSIST_PRESENTATION,
+  isTurnstileAssistPresentation,
+  type TurnstileAssistPresentation,
+} from "~/services/checkin/turnstile/assistPresentation"
+import {
+  normalizeTurnstileSolverPreferences,
+  type TurnstileSolverPreferences,
+} from "~/services/checkin/turnstile/solverPreferences"
+import {
   PROTECTION_BYPASS_AUTOMATIC_FEATURES,
   type ProtectionBypassAutomaticFeature,
 } from "~/services/protectionBypass/contracts"
@@ -34,6 +43,15 @@ export interface TempWindowFallbackPreferences {
   enabled: boolean
   automaticFeatureBypass: Record<ProtectionBypassAutomaticFeature, boolean>
   tempContextMode: TempContextPreferenceMode
+  /** How to surface a Turnstile check that needs the user. */
+  turnstileAssistPresentation: TurnstileAssistPresentation
+  /**
+   * Optional third-party Turnstile solving for sites whose shield blocks the API.
+   *
+   * Always filled by the normalizer; optional here so stored profiles predating
+   * the feature and existing fixtures stay valid.
+   */
+  turnstileSolver?: TurnstileSolverPreferences
   windowWidth: number
   windowHeight: number
 }
@@ -43,6 +61,8 @@ interface LegacyTempWindowFallbackPreferences {
   automaticFeatureBypass?: unknown
   useForAutoRefresh?: unknown
   tempContextMode?: unknown
+  turnstileAssistPresentation?: unknown
+  turnstileSolver?: unknown
   windowWidth?: unknown
   windowHeight?: unknown
 }
@@ -96,5 +116,13 @@ export function normalizeTempWindowFallbackPreferences(
     tempContextMode: isTempContextPreferenceMode(source.tempContextMode)
       ? source.tempContextMode
       : DEFAULT_TEMP_CONTEXT_PREFERENCE,
+    turnstileAssistPresentation: isTurnstileAssistPresentation(
+      source.turnstileAssistPresentation,
+    )
+      ? source.turnstileAssistPresentation
+      : DEFAULT_TURNSTILE_ASSIST_PRESENTATION,
+    turnstileSolver: normalizeTurnstileSolverPreferences(
+      source.turnstileSolver,
+    ),
   }
 }

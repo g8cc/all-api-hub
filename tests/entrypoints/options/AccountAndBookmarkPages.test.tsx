@@ -69,19 +69,25 @@ vi.mock("~/utils/core/logger", () => ({
   createLogger: () => mockLogger,
 }))
 
-vi.mock("~/features/AccountManagement/hooks/AccountManagementProvider", () => ({
-  AccountManagementProvider: ({ children }: { children: ReactNode }) => (
-    <>{children}</>
-  ),
-}))
+vi.mock(
+  "~/features/AccountManagement/workspace/AccountManagementProvider",
+  () => ({
+    AccountManagementProvider: ({ children }: { children: ReactNode }) => (
+      <>{children}</>
+    ),
+  }),
+)
 
-vi.mock("~/features/AccountManagement/hooks/DialogStateContext", () => ({
+vi.mock("~/features/AccountManagement/dialogs/useDialogStateContext", () => ({
   useDialogStateContext: () => ({
+    openAddAccount: openAddAccountMock,
+  }),
+  useAccountDialogActions: () => ({
     openAddAccount: openAddAccountMock,
   }),
 }))
 
-vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
+vi.mock("~/features/AccountManagement/data/AccountDataContext", () => ({
   AccountDataProvider: ({ children }: { children: ReactNode }) => (
     <>{children}</>
   ),
@@ -92,7 +98,7 @@ vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
   }),
 }))
 
-vi.mock("~/features/AccountManagement/hooks/AccountActionsContext", () => ({
+vi.mock("~/features/AccountManagement/actions/AccountActionsContext", () => ({
   useAccountActionsContext: () => ({
     handleOpenExternalCheckIns: handleOpenExternalCheckInsMock,
   }),
@@ -118,11 +124,11 @@ vi.mock("~/features/AccountManagement/components/AccountList", () => ({
   default: () => <div>AccountList</div>,
 }))
 
-vi.mock("~/features/SiteBookmarks/components/BookmarksList", () => ({
+vi.mock("~/features/SiteBookmarks/list/BookmarksList", () => ({
   default: () => <div>BookmarksList</div>,
 }))
 
-vi.mock("~/features/SiteBookmarks/components/BookmarkDialog", () => ({
+vi.mock("~/features/SiteBookmarks/editor/BookmarkDialog", () => ({
   default: ({
     isOpen,
     prefill,

@@ -130,6 +130,7 @@
   --color-destructive-indicator: var(--destructive-indicator);
   --color-info-indicator: var(--info-indicator);
   --color-neutral-indicator: var(--neutral-indicator);
+  --color-star: var(--star);
   --color-pricing-input: var(--pricing-input);
   --color-pricing-input-soft: var(--pricing-input-soft);
   --color-pricing-output: var(--pricing-output);
@@ -264,6 +265,21 @@
   }
 }
 
+/* Keep the backdrop and surface in sync. Radix Presence waits for the
+   closing animation before unmounting and restoring the opener's focus. */
+.dialog-fade[data-state="open"] {
+  animation: fadeIn 140ms ease-out both;
+}
+
+.dialog-fade[data-state="closed"] {
+  animation: fadeOut 120ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* Reveal ready fields once; later input updates retain the same boundary. */
+[data-account-form-ready] {
+  animation: fadeIn 80ms ease-out both;
+}
+
 /* ===== 自定义工具类 ===== */
 /* Native superellipses preserve borders, shadows and focus rings without masks
    or clipping interactive descendants. Unsupported engines keep border-radius.
@@ -368,6 +384,7 @@
 /* Keep anchor navigation and search targets below the sticky options header. */
 html.options-page {
   scroll-padding-top: calc(var(--options-header-height) + 1rem);
+  scrollbar-gutter: stable;
 }
 
 html {
@@ -382,6 +399,17 @@ html {
     background-color 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Palette changes are atomic; ordinary hover/selection transitions resume as

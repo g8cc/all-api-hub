@@ -1,5 +1,7 @@
 [
   "src",
+  "e2e/fixtures/accountDetectionProbe.ts",
+  "e2e/fixtures/accountDetectionProbeSources.ts",
   "public",
   "e2e/e2e-build-variants.json",
   "e2e/utils/e2eBuildVariants.shared.d.ts",
@@ -16,5 +18,16 @@
   "postcss.config.js",
   "tailwind.config.js",
   ".env",
-  ".env.local"
+  ".env.local",
+  "plugins",
+  ".nvmrc",
+  "pnpm-workspace.yaml",
+  "e2e/utils/e2eBuildInputs.shared.js",
+  "e2e/utils/e2eBuildInputs.shared.d.ts",
+  ".env.test",
+  ".env.test.local",
+  ".env.chrome",
+  ".env.chrome.local",
+  ".env.test.chrome",
+  ".env.test.chrome.local"
 ]

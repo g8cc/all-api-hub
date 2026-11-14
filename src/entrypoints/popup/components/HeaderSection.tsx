@@ -9,11 +9,10 @@ import { BodySmall, IconButton } from "~/components/ui"
 import { VersionBadge } from "~/components/VersionBadge"
 import { COLORS } from "~/constants/designTokens"
 import { ProductAnalyticsScope } from "~/contexts/ProductAnalyticsScopeContext"
-import { useAccountDataContext } from "~/features/AccountManagement/hooks/AccountDataContext"
+import { useAccountDataContext } from "~/features/AccountManagement/data/AccountDataContext"
 import HeaderThemeSwitcher from "~/features/Appearance/HeaderThemeSwitcher"
 import { ProductAnnouncementButton } from "~/features/ProductAnnouncements/ProductAnnouncementButton"
 import toast from "~/lib/notify"
-import { buildAccountRefreshDiagnostics } from "~/services/productAnalytics/accountRefresh"
 import { startProductAnalyticsAction } from "~/services/productAnalytics/actions"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
@@ -25,18 +24,20 @@ import {
   PRODUCT_ANALYTICS_SOURCE_KINDS,
   PRODUCT_ANALYTICS_SURFACE_IDS,
 } from "~/services/productAnalytics/contracts"
+import { buildAccountRefreshDiagnostics } from "~/services/productAnalytics/facts/accountRefresh"
 import { isExtensionSidePanel } from "~/utils/browser"
-import { getSidePanelSupport } from "~/utils/browser/browserApi"
+import { getSidePanelSupport } from "~/utils/browser/sidePanel"
 import { createLogger } from "~/utils/core/logger"
 import {
   openApiCredentialProfilesPage,
   openFullAccountManagerPage,
   openFullBookmarkManagerPage,
   openSettingsPage,
-  openSidePanelPage,
 } from "~/utils/navigation"
+import { openSidePanelPage } from "~/utils/navigation/sidepanel"
 
 import { getPopupOpenFullPageButtonTestId } from "../testIds"
+import { POPUP_VIEW_TYPES } from "../viewTypes"
 import type { PopupViewType } from "./PopupViewSwitchTabs"
 
 /**
@@ -51,7 +52,7 @@ const logger = createLogger("PopupHeaderSection")
  */
 export default function HeaderSection({
   showRefresh = true,
-  activeView = "accounts",
+  activeView = POPUP_VIEW_TYPES.Accounts,
 }: {
   showRefresh?: boolean
   activeView?: PopupViewType
@@ -146,32 +147,32 @@ export default function HeaderSection({
   ])
 
   const openFullPageLabel =
-    activeView === "bookmarks"
+    activeView === POPUP_VIEW_TYPES.Bookmarks
       ? t("ui:navigation.bookmark")
-      : activeView === "apiCredentialProfiles"
+      : activeView === POPUP_VIEW_TYPES.ApiCredentialProfiles
         ? t("ui:navigation.apiCredentialProfiles")
         : t("ui:navigation.account")
   const openFullPageFeatureId =
-    activeView === "bookmarks"
+    activeView === POPUP_VIEW_TYPES.Bookmarks
       ? PRODUCT_ANALYTICS_FEATURE_IDS.BookmarkManagement
-      : activeView === "apiCredentialProfiles"
+      : activeView === POPUP_VIEW_TYPES.ApiCredentialProfiles
         ? PRODUCT_ANALYTICS_FEATURE_IDS.ApiCredentialProfiles
         : PRODUCT_ANALYTICS_FEATURE_IDS.AccountManagement
   const openFullPageActionId =
-    activeView === "bookmarks"
+    activeView === POPUP_VIEW_TYPES.Bookmarks
       ? PRODUCT_ANALYTICS_ACTION_IDS.OpenPopupBookmarkManagementPage
-      : activeView === "apiCredentialProfiles"
+      : activeView === POPUP_VIEW_TYPES.ApiCredentialProfiles
         ? PRODUCT_ANALYTICS_ACTION_IDS.OpenPopupApiCredentialProfilesPage
         : PRODUCT_ANALYTICS_ACTION_IDS.OpenPopupAccountManagementPage
   const openFullPageTestId = getPopupOpenFullPageButtonTestId(activeView)
 
   const handleOpenFullPage = async () => {
-    if (activeView === "bookmarks") {
+    if (activeView === POPUP_VIEW_TYPES.Bookmarks) {
       await openFullBookmarkManagerPage()
       return
     }
 
-    if (activeView === "apiCredentialProfiles") {
+    if (activeView === POPUP_VIEW_TYPES.ApiCredentialProfiles) {
       await openApiCredentialProfilesPage()
       return
     }

@@ -8,7 +8,8 @@ import {
   OPENROUTER_MANAGEMENT_KEY_TRANSPORT_TIMEOUT_MS,
 } from "~/constants/openRouterBootstrap"
 import { RuntimeActionIds } from "~/constants/runtimeActions"
-import { OPENROUTER_MANAGEMENT_KEY_SECRET_MAX_LENGTH } from "~/services/apiAdapters/openrouter/managementKeySecret"
+import { OPENROUTER_MANAGEMENT_KEY_SECRET_MAX_LENGTH } from "~/services/apiAdapters/openrouter/keys/managementKeySecret"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const originalBrowser = (globalThis as any).browser
 const EXPECTED_TRACKED_OPENROUTER_ACTION_IDS = 128
@@ -34,6 +35,7 @@ describe("OpenRouter Management Key background action", () => {
     sendMessageMock.mockImplementation(async (_tabId: number, message: any) => {
       if (
         message.action === RuntimeActionIds.ContentCheckCapGuard ||
+        message.action === RuntimeActionIds.ContentCheckAliyunGuard ||
         message.action === RuntimeActionIds.ContentCheckCloudflareGuard
       ) {
         return { success: true, passed: true }
@@ -95,15 +97,22 @@ describe("OpenRouter Management Key background action", () => {
       },
       windows: { get: vi.fn(), update: vi.fn().mockResolvedValue(undefined) },
     }
-    vi.doMock("~/utils/browser/browserApi", async (importOriginal) => {
+    vi.doMock("~/utils/browser/tabs", async (importOriginal) => {
       const actual =
-        await importOriginal<typeof import("~/utils/browser/browserApi")>()
+        await importOriginal<typeof import("~/utils/browser/tabs")>()
       return {
         ...actual,
         createTab: createTabMock,
+        onTabRemoved: vi.fn(() => () => {}),
+      }
+    })
+    vi.doMock("~/utils/browser/windows", async (importOriginal) => {
+      const actual =
+        await importOriginal<typeof import("~/utils/browser/windows")>()
+      return {
+        ...actual,
         createWindow: vi.fn(),
         hasWindowsAPI: vi.fn(() => true),
-        onTabRemoved: vi.fn(() => () => {}),
         onWindowRemoved: vi.fn(() => () => {}),
       }
     })
@@ -1238,7 +1247,7 @@ describe("OpenRouter Management Key background action", () => {
       },
     ])
     expect(JSON.stringify(summaries)).not.toContain("private")
-    expect(Object.keys(summaries[0])).toEqual([
+    expect(Object.keys(atIndex(summaries, 0))).toEqual([
       "requestId",
       "certainty",
       "cancellationAccepted",
@@ -1421,7 +1430,7 @@ describe("OpenRouter Management Key background action", () => {
   })
 
   it("settles with a pre-dispatch failure when the temp runtime rejects", async () => {
-    vi.doMock("~/entrypoints/background/tempWindowPool", () => ({
+    vi.doMock("~/services/browsingContext/tempPage/runtime", () => ({
       tempWindowBackgroundRuntime: {
         run: vi.fn().mockRejectedValue(new Error("runtime unavailable")),
       },

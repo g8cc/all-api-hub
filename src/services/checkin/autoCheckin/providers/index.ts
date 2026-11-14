@@ -1,24 +1,39 @@
 import { AUTO_CHECKIN_METHOD_IDS } from "~/constants/checkIn"
-import { isBrowserAutomationCheckInConfigured } from "~/services/checkin/autoCheckin/browserAutomation"
 import { agentRouterProvider } from "~/services/checkin/autoCheckin/providers/agentrouter"
 import { newApiProvider } from "~/services/checkin/autoCheckin/providers/newApi"
 import { sub2apiProProvider } from "~/services/checkin/autoCheckin/providers/sub2apiPro"
 import { voApiV2Provider } from "~/services/checkin/autoCheckin/providers/voapiV2"
 import type { CheckInMethodId } from "~/types/checkIn"
 
+import { aiRouterProvider } from "./aiRouter"
 import { anyrouterProvider } from "./anyrouter"
-import { browserAutomationProvider } from "./browserAutomation"
+import { baiApiProvider } from "./baiApi"
+import { clawhudProvider } from "./clawhud"
 import type { AutoCheckinProvider } from "./contracts"
+import { daiguaProvider } from "./daigua"
+import { dayaProvider } from "./daya"
 import { denxioProvider } from "./denxio"
+import { emRankProvider } from "./emrank"
+import { freeApiProvider } from "./freeApi"
 import { geniusProgrammerProvider } from "./geniusProgrammer"
+import { hiyoProvider } from "./hiyo"
+import { nexavlinksProvider } from "./nexavlinks"
+import { pmApiProvider } from "./pmapi"
 import {
   AUTO_CHECKIN_METHOD_DEFINITIONS,
   createAutoCheckinMethodRegistry,
 } from "./registry"
+import { relayForProvider } from "./relayfor"
+import { sidruneProvider } from "./sidrune"
+import { toolcodeProvider } from "./toolcode"
 import { veloeraProvider } from "./veloera"
 import { wongGongyiProvider } from "./wong"
+import { xiaobaiCodeProvider } from "./xiaobaiCode"
+import { xiaoenProvider } from "./xiaoen"
 
 const PROVIDER_BY_METHOD_ID = {
+  [AUTO_CHECKIN_METHOD_IDS.SidruneDailyCheckIn]: sidruneProvider,
+  [AUTO_CHECKIN_METHOD_IDS.XiaoenDailyCheckIn]: xiaoenProvider,
   [AUTO_CHECKIN_METHOD_IDS.AgentRouterLoginCheckIn]: agentRouterProvider,
   [AUTO_CHECKIN_METHOD_IDS.AnyrouterDailyCheckIn]: anyrouterProvider,
   [AUTO_CHECKIN_METHOD_IDS.VeloeraDailyCheckIn]: veloeraProvider,
@@ -29,8 +44,19 @@ const PROVIDER_BY_METHOD_ID = {
   [AUTO_CHECKIN_METHOD_IDS.GeniusProgrammerDailyCheckIn]:
     geniusProgrammerProvider,
   [AUTO_CHECKIN_METHOD_IDS.DenxioDailyCheckIn]: denxioProvider,
-  [AUTO_CHECKIN_METHOD_IDS.BrowserAutomationDailyCheckIn]:
-    browserAutomationProvider,
+  [AUTO_CHECKIN_METHOD_IDS.XiaobaiCodeDailyCheckIn]: xiaobaiCodeProvider,
+  [AUTO_CHECKIN_METHOD_IDS.AiRouterDailyCheckIn]: aiRouterProvider,
+  [AUTO_CHECKIN_METHOD_IDS.ToolcodeDailyCheckIn]: toolcodeProvider,
+  [AUTO_CHECKIN_METHOD_IDS.HiyoDailyCheckIn]: hiyoProvider,
+  [AUTO_CHECKIN_METHOD_IDS.ClawhudDailyCheckIn]: clawhudProvider,
+  [AUTO_CHECKIN_METHOD_IDS.DaiguaDailyCheckIn]: daiguaProvider,
+  [AUTO_CHECKIN_METHOD_IDS.FreeApiDailyCheckIn]: freeApiProvider,
+  [AUTO_CHECKIN_METHOD_IDS.NexaVlinksDailyCheckIn]: nexavlinksProvider,
+  [AUTO_CHECKIN_METHOD_IDS.EmrankDailyCheckIn]: emRankProvider,
+  [AUTO_CHECKIN_METHOD_IDS.RelayForDailyCheckIn]: relayForProvider,
+  [AUTO_CHECKIN_METHOD_IDS.DayaDailyCheckIn]: dayaProvider,
+  [AUTO_CHECKIN_METHOD_IDS.PmApiDailyCheckIn]: pmApiProvider,
+  [AUTO_CHECKIN_METHOD_IDS.BaiApiDailyCheckIn]: baiApiProvider,
 } as const satisfies Record<CheckInMethodId, AutoCheckinProvider>
 
 export const autoCheckinMethodRegistry = createAutoCheckinMethodRegistry(
@@ -42,12 +68,6 @@ export const autoCheckinMethodRegistry = createAutoCheckinMethodRegistry(
       ? { excludedOrigins: definition.excludedOrigins }
       : {}),
     provider: PROVIDER_BY_METHOD_ID[definition.id],
-    ...(definition.id === AUTO_CHECKIN_METHOD_IDS.BrowserAutomationDailyCheckIn
-      ? {
-          isCandidate: (config) =>
-            isBrowserAutomationCheckInConfigured(config?.customCheckIn),
-        }
-      : {}),
     compatibilityRegistration: definition.newAccountCompatibility,
   })),
 )

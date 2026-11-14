@@ -3,6 +3,13 @@ import { RefreshCw } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
+import { Badge, Button, WorkflowTransitionButton } from "~/components/ui"
+import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
+import {
+  KeyResourceCardHeader,
+  type KeyResourceCardHeaderRenderProps,
+} from "~/features/KeyManagement/inventory/KeyResourceCard"
+import { ManagedSiteStatusDisclosure } from "~/features/KeyManagement/managedSite/ManagedSiteStatusDisclosure"
 import {
   getKeySignalLabel,
   getKeySignalTooltip,
@@ -12,20 +19,14 @@ import {
   getUrlSignalLabel,
   getUrlSignalTooltip,
   SignalBadge,
-} from "~/components/ManagedSiteChannelAssessmentSignalHelpers"
-import ManagedSiteChannelLinkButton from "~/components/ManagedSiteChannelLinkButton"
-import { Badge, Button, WorkflowTransitionButton } from "~/components/ui"
-import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
-import {
-  KeyResourceCardHeader,
-  type KeyResourceCardHeaderRenderProps,
-} from "~/features/KeyManagement/components/KeyResourceCard"
-import type { AccountRuntimeKey } from "~/services/accounts/accountRuntimeKeys"
+} from "~/features/ManagedSiteWidgets/ManagedSiteChannelAssessmentSignalHelpers"
+import ManagedSiteChannelLinkButton from "~/features/ManagedSiteWidgets/ManagedSiteChannelLinkButton"
+import type { AccountRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
 import {
   MANAGED_SITE_TOKEN_CHANNEL_STATUS_UNKNOWN_REASONS,
   MANAGED_SITE_TOKEN_CHANNEL_STATUSES,
   type ManagedSiteTokenChannelStatus,
-} from "~/services/managedSites/tokenChannelStatus"
+} from "~/services/managedSites/matching/tokenChannelStatus"
 import { supportsManagedSiteBaseUrlChannelLookup } from "~/services/managedSites/utils/managedSite"
 import { startProductAnalyticsAction } from "~/services/productAnalytics/actions"
 import {
@@ -40,7 +41,6 @@ import { createLogger } from "~/utils/core/logger"
 import { openSettingsTab } from "~/utils/navigation"
 
 import { KEY_MANAGEMENT_TEST_IDS } from "../../testIds"
-import { ManagedSiteStatusDisclosure } from "../ManagedSiteStatusDisclosure"
 import {
   RuntimeKeyActionButtons,
   type RuntimeKeyActionButtonsProps,
@@ -195,7 +195,7 @@ export const getManagedSiteSettingsActionLabel = (
  * @param props.handleEditKey Edit action callback.
  * @param props.handleDeleteKey Delete action callback.
  * @param props.account Account context for cross-app operations.
- * @param props.onOpenCCSwitchDialog Optional CCSwitch export opener.
+ * @param props.onOpenDeeplinkExport Optional deeplink export opener for a target destination.
  * @param props.managedSiteStatus Current managed-site status for the runtimeKey.
  * @param props.isManagedSiteStatusChecking Whether the managed-site status is checking.
  * @param props.onManagedSiteImportSuccess Optional callback after successful managed-site import.
@@ -211,7 +211,7 @@ export function RuntimeKeyHeader({
   handleEditKey,
   handleDeleteKey,
   account,
-  onOpenCCSwitchDialog,
+  onOpenDeeplinkExport,
   managedSiteStatus,
   isManagedSiteStatusChecking = false,
   onManagedSiteImportSuccess,
@@ -460,7 +460,7 @@ export function RuntimeKeyHeader({
             handleDeleteKey={handleDeleteKey}
             account={account}
             managedSiteStatus={managedSiteStatus}
-            onOpenCCSwitchDialog={onOpenCCSwitchDialog}
+            onOpenDeeplinkExport={onOpenDeeplinkExport}
             onManagedSiteImportSuccess={onManagedSiteImportSuccess}
             guidedManagedSiteImportRequest={guidedManagedSiteImportRequest}
           />

@@ -1,8 +1,8 @@
 import { act } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { useState } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { useUpdateLogDialogContext } from "~/components/dialogs/UpdateLogDialog"
 import { RootErrorBoundary } from "~/components/RootErrorBoundary"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { DevPanel } from "~/features/DevPanel/DevPanel"
@@ -10,9 +10,14 @@ import {
   DevPanelProvider,
   useRegisterDevPanelSection,
 } from "~/features/DevPanel/DevPanelSectionsContext"
+import {
+  addDevFixtureApiCredentials,
+  countDevFixtureApiCredentials,
+} from "~/features/DevPanel/fixtureApiCredentials"
+import { useUpdateLogDialogContext } from "~/features/UpdateLog"
 import { debugQueuePopupInterruptionHint } from "~/services/popupInterruptionHint"
 import { changelogOnUpdateState } from "~/services/updates/changelogOnUpdateState"
-import { getExtensionVersion } from "~/utils/browser/browserApi"
+import { getExtensionVersion } from "~/utils/browser/runtime"
 import { openPermissionsOnboardingPage } from "~/utils/navigation"
 import {
   buildDevIdentity,
@@ -22,13 +27,21 @@ import {
 } from "~~/tests/test-utils/devIdentityFixtures"
 import { fireEvent, render, screen, waitFor } from "~~/tests/test-utils/render"
 
-const { toastErrorMock, toastSuccessMock, getDevIdentityMock } = vi.hoisted(
-  () => ({
-    toastErrorMock: vi.fn(),
-    toastSuccessMock: vi.fn(),
-    getDevIdentityMock: vi.fn(),
-  }),
-)
+const {
+  toastErrorMock,
+  toastSuccessMock,
+  toastInfoMock,
+  toastCustomMock,
+  toastDismissMock,
+  getDevIdentityMock,
+} = vi.hoisted(() => ({
+  toastErrorMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+  toastInfoMock: vi.fn(),
+  toastCustomMock: vi.fn(),
+  toastDismissMock: vi.fn(),
+  getDevIdentityMock: vi.fn(),
+}))
 
 vi.mock("~/utils/browser/extensionIdentity", () => ({
   getDevIdentity: (...args: unknown[]) => getDevIdentityMock(...args),
@@ -40,14 +53,14 @@ vi.mock("~/lib/notify", () => ({
   default: {
     error: toastErrorMock,
     success: toastSuccessMock,
+    info: toastInfoMock,
+    custom: toastCustomMock,
+    dismiss: toastDismissMock,
   },
 }))
 
-vi.mock("~/components/dialogs/UpdateLogDialog", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("~/components/dialogs/UpdateLogDialog")
-    >()
+vi.mock("~/features/UpdateLog", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/features/UpdateLog")>()
 
   return {
     ...actual,
@@ -55,9 +68,9 @@ vi.mock("~/components/dialogs/UpdateLogDialog", async (importOriginal) => {
   }
 })
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtime", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+    await importOriginal<typeof import("~/utils/browser/runtime")>()
 
   return {
     ...actual,
@@ -91,7 +104,14 @@ vi.mock("~/services/popupInterruptionHint", async (importOriginal) => {
 vi.mock("~/features/DevPanel/fixtureAccounts", () => ({
   countDevFixtureAccounts: vi.fn(async () => 0),
   addDevFixtureAccounts: vi.fn(async () => 0),
+  addDevCheckInFixtureAccounts: vi.fn(async () => 5),
   clearDevFixtureAccounts: vi.fn(async () => 0),
+}))
+
+vi.mock("~/features/DevPanel/fixtureApiCredentials", () => ({
+  countDevFixtureApiCredentials: vi.fn(async () => 0),
+  addDevFixtureApiCredentials: vi.fn(async () => 5),
+  clearDevFixtureApiCredentials: vi.fn(async () => 0),
 }))
 
 const mockedUseUpdateLogDialogContext = vi.mocked(useUpdateLogDialogContext)
@@ -112,6 +132,250 @@ async function openDevPanel() {
 }
 
 describe("DevPanel", () => {
+  it("shows an empty toolbox without build details when no provider registers tools", async () => {
+    render(<DevPanel />, {
+      withReleaseUpdateStatusProvider: false,
+      withUserPreferencesProvider: false,
+      withThemeProvider: false,
+    })
+    await openDevPanel()
+    expect(screen.getByRole("tab", { name: "Current page" })).toBeDisabled()
+    expect(screen.getByRole("tab", { name: "Toolbox" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
+    expect(
+      screen.getByText("No global tools available on this surface."),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole("group", { name: "Build information" }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("displays a read-only section without adding command buttons", async () => {
+    function ReadOnlyTools() {
+      useRegisterDevPanelSection({
+        id: "read-only",
+        title: "Read-only diagnostics",
+        rows: [{ id: "status", label: "Status", value: "Idle" }],
+        actions: [],
+      })
+      return null
+    }
+    render(
+      <DevPanelProvider surface="options">
+        <ReadOnlyTools />
+        <DevPanel />
+      </DevPanelProvider>,
+      {
+        withReleaseUpdateStatusProvider: false,
+        withUserPreferencesProvider: false,
+        withThemeProvider: false,
+      },
+    )
+    await openDevPanel()
+    await userEvent.click(
+      screen.getByRole("button", { name: "Read-only diagnostics" }),
+    )
+    expect(screen.getByText("Idle")).toBeVisible()
+    expect(screen.getByText("Status")).toBeVisible()
+  })
+
+  it("separates page tools from a categorized toolbox and keeps build details in the footer", async () => {
+    render(
+      <DevPanelProvider surface="options" page={MENU_ITEM_IDS.AUTO_CHECKIN}>
+        <DevPanel />
+      </DevPanelProvider>,
+      {
+        withReleaseUpdateStatusProvider: false,
+        withUserPreferencesProvider: false,
+        withThemeProvider: false,
+      },
+    )
+    await openDevPanel()
+    expect(screen.getByRole("tab", { name: "Current page" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
+    expect(
+      screen.getByRole("button", { name: "Dev: Add 5 fixture accounts" }),
+    ).toBeVisible()
+    expect(screen.queryByText("Dialogs")).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("group", { name: "Build information" }),
+    ).toBeVisible()
+    await userEvent.click(screen.getByRole("tab", { name: "Toolbox" }))
+    expect(
+      screen.queryByRole("button", { name: "Dev: Add 5 fixture accounts" }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("group", { name: "Interface previews" }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole("group", { name: "Extension diagnostics" }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole("group", { name: "Data maintenance" }),
+    ).toBeVisible()
+    expect(screen.queryByText("Dev pages")).not.toBeInTheDocument()
+    // A single preview command is immediately actionable, without a wrapper toggle.
+    expect(
+      screen.getByRole("button", { name: "Dev: Preview key provisioning" }),
+    ).toBeVisible()
+    const help = screen.getByRole("button", {
+      name: "About Key provisioning preview",
+    })
+    expect(help).toHaveAccessibleDescription(
+      "Preview key creation, required inputs, and one-time secrets across site types.",
+    )
+    await userEvent.click(help)
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Preview key creation, required inputs, and one-time secrets across site types.",
+    )
+    expect(
+      screen.queryByRole("button", { name: "Key provisioning preview" }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen
+        .getByRole("button", { name: "Dev: Trigger translation crash" })
+        .closest('[role="group"]'),
+    ).toHaveAccessibleName("Extension diagnostics")
+  })
+
+  it("supplies consistent decorative icons when a section or action omits one", async () => {
+    function Tools() {
+      useRegisterDevPanelSection({
+        id: "iconless-tools",
+        title: "Custom tools",
+        collapsible: true,
+        actions: [
+          { id: "custom-command", label: "Run custom command", run: () => {} },
+        ],
+      })
+      return null
+    }
+    render(
+      <DevPanelProvider surface="options">
+        <Tools />
+        <DevPanel />
+      </DevPanelProvider>,
+      {
+        withReleaseUpdateStatusProvider: false,
+        withUserPreferencesProvider: false,
+        withThemeProvider: false,
+      },
+    )
+    await openDevPanel()
+    const section = screen.getByRole("button", { name: "Custom tools" })
+    // Each header has a tool icon and a separate disclosure indicator.
+    expect(section.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(2)
+    fireEvent.click(section)
+    const action = screen.getByRole("button", { name: "Run custom command" })
+    expect(action.querySelector('svg[aria-hidden="true"]')).not.toBeNull()
+  })
+
+  it("offers credential fixtures on the credential page and refreshes their count", async () => {
+    render(
+      <DevPanelProvider
+        surface="options"
+        page={MENU_ITEM_IDS.API_CREDENTIAL_PROFILES}
+      >
+        <DevPanel />
+      </DevPanelProvider>,
+      {
+        withReleaseUpdateStatusProvider: false,
+        withUserPreferencesProvider: false,
+        withThemeProvider: false,
+      },
+    )
+
+    await openDevPanel()
+    const add = await screen.findByRole("button", {
+      name: "Dev: Add 5 fixture credentials",
+    })
+    fireEvent.click(add)
+    await waitFor(() =>
+      expect(addDevFixtureApiCredentials).toHaveBeenCalledWith(5),
+    )
+    expect(countDevFixtureApiCredentials).toHaveBeenCalled()
+    expect(screen.getByRole("tab", { name: "Current page" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
+  })
+
+  it("returns to page tools after browsing the toolbox", async () => {
+    render(
+      <DevPanelProvider surface="options" page={MENU_ITEM_IDS.AUTO_CHECKIN}>
+        <DevPanel />
+      </DevPanelProvider>,
+      {
+        withReleaseUpdateStatusProvider: false,
+        withUserPreferencesProvider: false,
+        withThemeProvider: false,
+      },
+    )
+    await openDevPanel()
+    expect(
+      screen.getByRole("button", {
+        name: "Dev: Add check-in discovery scenarios",
+      }),
+    ).toBeVisible()
+    await userEvent.click(screen.getByRole("tab", { name: "Toolbox" }))
+    const dialogs = screen.getByRole("button", { name: "Dialogs" })
+    expect(dialogs).toHaveAttribute("aria-expanded", "false")
+    fireEvent.click(dialogs)
+    expect(
+      screen.getByRole("button", { name: "Dev: Trigger update log" }),
+    ).toBeVisible()
+    await userEvent.click(screen.getByRole("tab", { name: "Current page" }))
+    expect(
+      screen.getByRole("button", {
+        name: "Dev: Add check-in discovery scenarios",
+      }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: "Dev: Trigger update log" }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("shows account fixtures on account pages but not on the credential page", async () => {
+    const { unmount } = render(
+      <DevPanelProvider surface="options" page={MENU_ITEM_IDS.ACCOUNT}>
+        <DevPanel />
+      </DevPanelProvider>,
+      {
+        withReleaseUpdateStatusProvider: false,
+        withUserPreferencesProvider: false,
+        withThemeProvider: false,
+      },
+    )
+    await openDevPanel()
+    expect(
+      screen.getByRole("button", { name: "Dev: Add 5 fixture accounts" }),
+    ).toBeVisible()
+
+    unmount()
+    render(
+      <DevPanelProvider
+        surface="options"
+        page={MENU_ITEM_IDS.API_CREDENTIAL_PROFILES}
+      >
+        <DevPanel />
+      </DevPanelProvider>,
+      {
+        withReleaseUpdateStatusProvider: false,
+        withUserPreferencesProvider: false,
+        withThemeProvider: false,
+      },
+    )
+    await openDevPanel()
+    expect(screen.queryByText("Fixture accounts")).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "Dev: Add 5 fixture credentials" }),
+    ).toBeVisible()
+  })
+
   beforeEach(() => {
     vi.stubEnv("MODE", "development")
     mockedUseUpdateLogDialogContext.mockReset()
@@ -181,6 +445,7 @@ describe("DevPanel", () => {
     )
 
     await openDevPanel()
+    fireEvent.click(screen.getByRole("button", { name: "Dialogs" }))
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Dev: Trigger update log" }),
@@ -214,6 +479,7 @@ describe("DevPanel", () => {
     )
 
     await openDevPanel()
+    fireEvent.click(screen.getByRole("button", { name: "Dialogs" }))
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Dev: Queue popup interruption hint",
@@ -352,6 +618,7 @@ describe("DevPanel", () => {
   })
 
   it("reports the build's directories when the ball is hovered", async () => {
+    const user = userEvent.setup()
     const outputPath = `${DEV_IDENTITY_FIXTURE_PATH}\\.output\\chrome-mv3-dev`
     getDevIdentityMock.mockReturnValue(buildDevIdentity({ outputPath }))
 
@@ -367,7 +634,7 @@ describe("DevPanel", () => {
     )
 
     const trigger = await screen.findByTestId("dev-panel-trigger")
-    fireEvent.mouseOver(trigger)
+    await user.hover(trigger)
 
     await waitFor(() =>
       expect(screen.getByText(DEV_IDENTITY_FIXTURE_PATH)).toBeInTheDocument(),
@@ -515,6 +782,7 @@ describe("DevPanel", () => {
   })
 
   it("runs a section action and shows its pending state", async () => {
+    const reload = vi.fn()
     let release!: () => void
     const runMock = vi.fn(
       () =>
@@ -528,6 +796,7 @@ describe("DevPanel", () => {
       useRegisterDevPanelSection({
         id: "pending-section",
         title: "Pending section",
+        collapsible: true,
         surfaces: ["options"],
         actions: [
           {
@@ -540,6 +809,7 @@ describe("DevPanel", () => {
               setIsPending(false)
             },
           },
+          { id: "reload", label: "Reload after action", run: reload },
         ],
       })
       return null
@@ -558,6 +828,7 @@ describe("DevPanel", () => {
     )
 
     await openDevPanel()
+    fireEvent.click(screen.getByRole("button", { name: "Pending section" }))
     fireEvent.click(await screen.findByRole("button", { name: "Slow action" }))
 
     await waitFor(() => {
@@ -566,11 +837,19 @@ describe("DevPanel", () => {
     const pendingButton = screen.getByRole("button", { name: "Slow action" })
     expect(pendingButton).toBeDisabled()
     expect(pendingButton).toHaveAttribute("aria-busy", "true")
+    const sibling = screen.getByRole("button", { name: "Reload after action" })
+    expect(sibling).toBeDisabled()
+    expect(sibling).not.toHaveAttribute("aria-busy")
+    await userEvent.click(sibling)
+    expect(reload).not.toHaveBeenCalled()
 
     release()
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Slow action" })).toBeEnabled()
     })
+    expect(sibling).toBeEnabled()
+    await userEvent.click(sibling)
+    expect(reload).toHaveBeenCalledOnce()
   })
 
   it("triggers the root translation crash fallback from the panel", async () => {
@@ -615,5 +894,66 @@ describe("DevPanel", () => {
     } finally {
       consoleError.mockRestore()
     }
+  })
+
+  it("triggers notice and reminder previews from the Dialogs section", async () => {
+    render(
+      <DevPanelProvider surface="options">
+        <DevPanel />
+      </DevPanelProvider>,
+      {
+        withReleaseUpdateStatusProvider: false,
+        withUserPreferencesProvider: false,
+        withThemeProvider: false,
+      },
+    )
+
+    await openDevPanel()
+    fireEvent.click(screen.getByRole("button", { name: "Dialogs" }))
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Dev: Preview Turnstile reminder",
+      }),
+    )
+    expect(toastInfoMock).toHaveBeenCalledWith(
+      expect.stringContaining("人机验证"),
+      expect.objectContaining({
+        title: expect.stringContaining("验证提醒"),
+      }),
+    )
+
+    const infoOptions = toastInfoMock.mock.calls[0]![1]
+    infoOptions.action.onClick()
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      "Dev: 点击了主操作【打开验证窗口】",
+    )
+    infoOptions.secondaryAction.onClick()
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      "Dev: 点击了次操作【提醒设置】",
+    )
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Dev: Preview ContentNotice (toast)",
+      }),
+    )
+    const renderCustomNotice = toastCustomMock.mock.calls[0]![0]
+    const customInstance = { id: "test-preview-toast" }
+    const rendered = renderCustomNotice(customInstance)
+    const notice = rendered.props.children
+    expect(notice.props.title).toBe("需要完成人机验证")
+
+    // onClose callback
+    notice.props.onClose()
+    expect(toastDismissMock).toHaveBeenCalledWith("test-preview-toast")
+
+    // Actions
+    const [cancelAction, confirmAction] = notice.props.actions.props.children
+    cancelAction.props.onClick()
+    expect(toastDismissMock).toHaveBeenCalledWith("test-preview-toast")
+
+    confirmAction.props.onClick()
+    expect(toastSuccessMock).toHaveBeenCalledWith("Dev: 操作已确认")
+    expect(toastDismissMock).toHaveBeenCalledWith("test-preview-toast")
   })
 })

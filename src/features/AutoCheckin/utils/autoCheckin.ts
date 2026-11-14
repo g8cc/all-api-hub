@@ -1,21 +1,23 @@
 import type { TFunction } from "i18next"
 
 import {
+  AUTO_CHECKIN_SKIP_CATEGORIES,
+  isAutoCheckinSkipReasonActionable,
+} from "~/features/AutoCheckin/results/skipCategories"
+import {
+  AUTO_CHECKIN_SKIP_CATEGORY,
+  getCheckinSkipReasonCategory,
+  type AutoCheckinSkipCategory,
+} from "~/services/checkin/autoCheckin/reasonCatalog"
+import {
   AUTO_CHECKIN_SKIP_REASONS,
   CHECKIN_RESULT_STATUS,
+  isSiteTypeRelatedSkipReason,
   translateAutoCheckinSkipReason,
   type AutoCheckinSkipReason,
   type CheckinAccountResult,
   type CheckinResultStatus,
 } from "~/types/autoCheckin"
-
-import {
-  AUTO_CHECKIN_SKIP_CATEGORIES,
-  AUTO_CHECKIN_SKIP_CATEGORY,
-  getAutoCheckinSkipCategory,
-  isAutoCheckinSkipReasonActionable,
-  type AutoCheckinSkipCategory,
-} from "./skipCategories"
 
 /**
  * Statuses whose results can carry a persisted reason code and therefore take
@@ -198,7 +200,7 @@ export function countAutoCheckinResults(
 function resolveResultReasonCategory(
   result: CheckinAccountResult,
 ): AutoCheckinSkipCategory | null {
-  const category = getAutoCheckinSkipCategory(result.reasonCode)
+  const category = getCheckinSkipReasonCategory(result.reasonCode)
   if (category) return category
 
   if (result.status === CHECKIN_RESULT_STATUS.SKIPPED) {
@@ -341,6 +343,13 @@ export function translateAutoCheckinMessageKey(
         "autoCheckin:providerFallback.nativePageStatusUnconfirmed",
         messageParams,
       )
+    // Older persisted results still carry the Turnstile-specific key.
+    case "autoCheckin:providerFallback.turnstileManualRequired":
+    case "autoCheckin:providerFallback.nativePageVerificationRequired":
+      return t(
+        "autoCheckin:providerFallback.nativePageVerificationRequired",
+        messageParams,
+      )
     case "autoCheckin:providerFallback.nativePageTargetNotFound":
       return t(
         "autoCheckin:providerFallback.nativePageTargetNotFound",
@@ -351,45 +360,10 @@ export function translateAutoCheckinMessageKey(
         "autoCheckin:providerFallback.nativePageTriggerFailed",
         messageParams,
       )
-    case "autoCheckin:providerFallback.browserAutomationActionTargetNotFound":
-      return t(
-        "autoCheckin:providerFallback.browserAutomationActionTargetNotFound",
-        messageParams,
-      )
-    case "autoCheckin:providerFallback.browserAutomationIdentityMismatch":
-      return t(
-        "autoCheckin:providerFallback.browserAutomationIdentityMismatch",
-        messageParams,
-      )
-    case "autoCheckin:providerFallback.browserAutomationIdentityMissing":
-      return t(
-        "autoCheckin:providerFallback.browserAutomationIdentityMissing",
-        messageParams,
-      )
-    case "autoCheckin:providerFallback.browserAutomationInvalidRequest":
-      return t(
-        "autoCheckin:providerFallback.browserAutomationInvalidRequest",
-        messageParams,
-      )
-    case "autoCheckin:providerFallback.browserAutomationTimeout":
-      return t(
-        "autoCheckin:providerFallback.browserAutomationTimeout",
-        messageParams,
-      )
-    case "autoCheckin:providerFallback.browserAutomationTriggerFailed":
-      return t(
-        "autoCheckin:providerFallback.browserAutomationTriggerFailed",
-        messageParams,
-      )
     case "autoCheckin:providerFallback.sessionBusy":
       return t("autoCheckin:providerFallback.sessionBusy", messageParams)
     case "autoCheckin:providerFallback.unknownError":
       return t("autoCheckin:providerFallback.unknownError", messageParams)
-    case "autoCheckin:providerFallback.turnstileManualRequired":
-      return t(
-        "autoCheckin:providerFallback.turnstileManualRequired",
-        messageParams,
-      )
     case "autoCheckin:providerFallback.turnstileIncognitoAccessRequired":
       return t(
         "autoCheckin:providerFallback.turnstileIncognitoAccessRequired",
@@ -401,6 +375,11 @@ export function translateAutoCheckinMessageKey(
       return t("autoCheckin:skipReasons.account_disabled", messageParams)
     case "autoCheckin:skipReasons.account_data_missing":
       return t("autoCheckin:skipReasons.account_data_missing", messageParams)
+    case "autoCheckin:skipReasons.account_state_write_failed":
+      return t(
+        "autoCheckin:skipReasons.account_state_write_failed",
+        messageParams,
+      )
     case "autoCheckin:skipReasons.authentication_required":
       return t("autoCheckin:skipReasons.authentication_required", messageParams)
     case "autoCheckin:skipReasons.credentials_missing":
@@ -434,6 +413,8 @@ export function translateAutoCheckinMessageKey(
       return t("autoCheckin:skipReasons.method_unsupported", messageParams)
     case "autoCheckin:skipReasons.network_error":
       return t("autoCheckin:skipReasons.network_error", messageParams)
+    case "autoCheckin:skipReasons.no_available_method":
+      return t("autoCheckin:skipReasons.no_available_method", messageParams)
     case "autoCheckin:skipReasons.no_selected_method":
       return t("autoCheckin:skipReasons.no_selected_method", messageParams)
     case "autoCheckin:skipReasons.permission_denied":
@@ -452,6 +433,8 @@ export function translateAutoCheckinMessageKey(
       return t("autoCheckin:skipReasons.status_unavailable", messageParams)
     case "autoCheckin:skipReasons.upstream_error":
       return t("autoCheckin:skipReasons.upstream_error", messageParams)
+    case "autoCheckin:skipReasons.upstream_rejected":
+      return t("autoCheckin:skipReasons.upstream_rejected", messageParams)
     case "autoCheckin:skipReasons.no_provider":
       return t("autoCheckin:skipReasons.no_provider", messageParams)
     case "autoCheckin:skipReasons.account_unavailable":
@@ -462,6 +445,13 @@ export function translateAutoCheckinMessageKey(
       return messageKey
   }
 }
+
+const RECONCILIATION_MESSAGE_KEYS = {
+  checked: "autoCheckin:providerFallback.alreadyCheckedToday",
+  not_checked: "autoCheckin:skipReasons.checkin_unconfirmed",
+  unknown: "autoCheckin:skipReasons.status_unavailable",
+  unavailable: "autoCheckin:skipReasons.source_unavailable",
+} as const
 
 /**
  * Resolves the user-facing message for one persisted execution result.
@@ -475,11 +465,9 @@ export function getAutoCheckinResultMessage<
     | "messageParams"
     | "rawMessage"
     | "message"
+    | "reconciliation"
   >,
 >(t: TFunction, result: T): string {
-  if (result.status === CHECKIN_RESULT_STATUS.UNCERTAIN) {
-    return t("autoCheckin:providerFallback.resultPendingConfirmation")
-  }
   if (result.messageKey) {
     return translateAutoCheckinMessageKey(
       t,
@@ -487,10 +475,13 @@ export function getAutoCheckinResultMessage<
       result.messageParams,
     )
   }
+  if (result.rawMessage) return result.rawMessage
   if (result.reasonCode) {
     return translateAutoCheckinSkipReason(t, result.reasonCode)
   }
-  if (result.rawMessage) return result.rawMessage
+  if (result.reconciliation) {
+    return t(RECONCILIATION_MESSAGE_KEYS[result.reconciliation])
+  }
   if (result.message) return result.message
   return t("autoCheckin:providerFallback.unknownError")
 }
@@ -585,11 +576,22 @@ function isManualVerificationRequiredMessage(message: string): boolean {
   )
 }
 
-type AutoCheckinTroubleshootingHintKey =
-  | "execution.hints.invalidAccessToken"
-  | "execution.hints.manualVerificationRequired"
-  | "execution.hints.noTabWithId"
-  | "execution.hints.siteTypeCheckinUnsupported"
+/**
+ * Translation keys of the per-result troubleshooting hints.
+ *
+ * Keep each key's text as a literal argument at its `t()` call site as well: the
+ * i18n extractor only sees literal arguments, so copy translated through this
+ * constant alone counts as unused and is pruned from the locale files.
+ */
+export const AUTO_CHECKIN_TROUBLESHOOTING_HINT_KEYS = {
+  invalidAccessToken: "execution.hints.invalidAccessToken",
+  manualVerificationRequired: "execution.hints.manualVerificationRequired",
+  noTabWithId: "execution.hints.noTabWithId",
+  siteTypeCheckinUnsupported: "execution.hints.siteTypeCheckinUnsupported",
+} as const
+
+export type AutoCheckinTroubleshootingHintKey =
+  (typeof AUTO_CHECKIN_TROUBLESHOOTING_HINT_KEYS)[keyof typeof AUTO_CHECKIN_TROUBLESHOOTING_HINT_KEYS]
 
 /**
  * Resolve an optional troubleshooting hint for a result row based on its
@@ -597,30 +599,45 @@ type AutoCheckinTroubleshootingHintKey =
  */
 export function resolveAutoCheckinTroubleshootingHintKey(params: {
   status?: string
+  reasonCode?: AutoCheckinSkipReason
   messageKey?: string
   message: string
 }): AutoCheckinTroubleshootingHintKey | null {
   if (
+    (params.reasonCode && isSiteTypeRelatedSkipReason(params.reasonCode)) ||
     params.messageKey === "autoCheckin:skipReasons.no_provider" ||
     params.messageKey === "autoCheckin:providerFallback.endpointNotSupported"
   ) {
-    return "execution.hints.siteTypeCheckinUnsupported"
+    return AUTO_CHECKIN_TROUBLESHOOTING_HINT_KEYS.siteTypeCheckinUnsupported
   }
 
-  if (params.status !== CHECKIN_RESULT_STATUS.FAILED) {
+  if (
+    params.status !== CHECKIN_RESULT_STATUS.FAILED &&
+    params.status !== CHECKIN_RESULT_STATUS.UNCERTAIN
+  ) {
     return null
   }
 
+  // The generic manual-verification copy is stable across locales, so the key
+  // decides the hint; the regexes below only cover raw backend messages.
+  if (
+    params.messageKey ===
+      "autoCheckin:providerFallback.nativePageVerificationRequired" ||
+    params.messageKey === "autoCheckin:providerFallback.turnstileManualRequired"
+  ) {
+    return AUTO_CHECKIN_TROUBLESHOOTING_HINT_KEYS.manualVerificationRequired
+  }
+
   if (isInvalidAccessTokenMessage(params.message)) {
-    return "execution.hints.invalidAccessToken"
+    return AUTO_CHECKIN_TROUBLESHOOTING_HINT_KEYS.invalidAccessToken
   }
 
   if (isNoTabWithIdMessage(params.message)) {
-    return "execution.hints.noTabWithId"
+    return AUTO_CHECKIN_TROUBLESHOOTING_HINT_KEYS.noTabWithId
   }
 
   if (isManualVerificationRequiredMessage(params.message)) {
-    return "execution.hints.manualVerificationRequired"
+    return AUTO_CHECKIN_TROUBLESHOOTING_HINT_KEYS.manualVerificationRequired
   }
 
   return null

@@ -1,10 +1,11 @@
-import type { AccountRuntimeKeyLocator } from "~/services/accounts/accountRuntimeKeys"
+import type { AccountRuntimeKeyLocator } from "~/services/accounts/keys/accountRuntimeKeys"
 import type { ApiCredentialProfileLinkState } from "~/types/apiCredentialProfiles"
 
 export const API_CREDENTIAL_PROFILE_EXPORT_ACTIONS = {
   CherryStudio: "cherryStudio",
   Kelivo: "kelivo",
   CCSwitch: "ccSwitch",
+  AiToolbox: "aiToolbox",
   CursorPlus: "cursorPlus",
   KiloCode: "kiloCode",
 

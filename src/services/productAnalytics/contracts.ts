@@ -20,6 +20,7 @@ import {
   TEMP_CONTEXT_MODES,
   TEMP_CONTEXT_PREFERENCE_MODES,
 } from "~/constants/tempContextMode"
+import type { SettingsSnapshotAutomaticFeatureBypassProperty } from "~/services/productAnalytics/configuration/settingsSnapshot"
 import {
   PROTECTION_BYPASS_AUTOMATIC_TRIGGERS,
   PROTECTION_BYPASS_DECISION_RESULTS,
@@ -45,8 +46,12 @@ import {
   BROWSER_FOCUS_STATES,
   BROWSER_FOCUS_TRANSITIONS,
 } from "~/utils/browser/browserFocus"
+import type { DistributionChannel } from "~/utils/core/distributionChannel"
 
-import type { SettingsSnapshotAutomaticFeatureBypassProperty } from "./settingsSnapshot"
+/** Build facts attached after event-specific filtering; never installation provenance. */
+export interface ProductAnalyticsDistributionContext {
+  distribution_channel: DistributionChannel
+}
 
 type SettingsSnapshotAutomaticFeatureBypassPayload = Partial<
   Record<SettingsSnapshotAutomaticFeatureBypassProperty, boolean>
@@ -67,7 +72,32 @@ export const PRODUCT_ANALYTICS_EVENTS = {
   PermissionResult: "permission_result",
   SiteEcosystemSnapshot: "site_ecosystem_snapshot",
   SiteTypePresent: "site_type_present",
+  StorageWriteFailed: "storage_write_failed",
 } as const
+
+export const PRODUCT_ANALYTICS_STORAGE_AREAS = {
+  Local: "local",
+} as const
+
+export type ProductAnalyticsStorageArea =
+  (typeof PRODUCT_ANALYTICS_STORAGE_AREAS)[keyof typeof PRODUCT_ANALYTICS_STORAGE_AREAS]
+
+export const PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES = {
+  Read: "read",
+  Apply: "apply",
+  Write: "write",
+} as const
+
+export type ProductAnalyticsStorageFailureStage =
+  (typeof PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES)[keyof typeof PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES]
+
+export const PRODUCT_ANALYTICS_STORAGE_OPERATIONS = {
+  AutoCheckinStatus: "auto_checkin_status",
+  ProductAnalyticsState: "product_analytics_state",
+} as const
+
+export type ProductAnalyticsStorageOperation =
+  (typeof PRODUCT_ANALYTICS_STORAGE_OPERATIONS)[keyof typeof PRODUCT_ANALYTICS_STORAGE_OPERATIONS]
 
 export type ProductAnalyticsEventName =
   (typeof PRODUCT_ANALYTICS_EVENTS)[keyof typeof PRODUCT_ANALYTICS_EVENTS]
@@ -202,7 +232,6 @@ export const PRODUCT_ANALYTICS_PROTECTION_BYPASS_COUNT_PROPERTIES = [
   "protection_bypass_operation_fetch_count",
   "protection_bypass_operation_turnstile_fetch_count",
   "protection_bypass_operation_native_page_action_count",
-  "protection_bypass_operation_browser_check_in_count",
   "protection_bypass_operation_rendered_title_count",
   "protection_bypass_operation_session_read_count",
   "protection_bypass_operation_open_context_count",
@@ -566,6 +595,18 @@ export const PRODUCT_ANALYTICS_CHECK_IN_SELECTION_SOURCES = [
 export type ProductAnalyticsCheckInSelectionSource =
   (typeof PRODUCT_ANALYTICS_CHECK_IN_SELECTION_SOURCES)[number]
 
+/**
+ * Persisted check-in selection modes for grouping skip reasons. Distinct from
+ * PRODUCT_ANALYTICS_CHECK_IN_SELECTION_SOURCES ("none" applies to the account
+ * dialog inspection where no selection exists, not to a stored account).
+ */
+export const PRODUCT_ANALYTICS_CHECK_IN_SELECTION_MODES = [
+  "automatic",
+  "manual",
+] as const
+export type ProductAnalyticsCheckInSelectionMode =
+  (typeof PRODUCT_ANALYTICS_CHECK_IN_SELECTION_MODES)[number]
+
 export const PRODUCT_ANALYTICS_CHECK_IN_RECOVERY_ACTIONS = [
   "manual_override",
   "restore_automatic",
@@ -594,6 +635,7 @@ export const PRODUCT_ANALYTICS_ACTION_IDS = {
   CopyAccountSiteUrl: "copy_account_site_url",
   CopyAccountInviteLink: "copy_account_invite_link",
   CopySelectedAccountInviteLinks: "copy_selected_account_invite_links",
+  CopySelectedAccountSiteUrls: "copy_selected_account_site_urls",
   CopyAccountTokenKey: "copy_account_token_key",
   CopyAccountTokenKelivoImportCode: "copy_account_token_kelivo_import_code",
   CopyServiceCredentialKelivoImportCode:
@@ -609,6 +651,7 @@ export const PRODUCT_ANALYTICS_ACTION_IDS = {
   DecryptImportWebDavBackup: "decrypt_import_webdav_backup",
   DeleteAccount: "delete_account",
   DeleteAccountToken: "delete_account_token",
+  RevokeAccountToken: "revoke_account_token",
   DeleteApiCredentialProfile: "delete_api_credential_profile",
   DeleteAutoCheckinAccount: "delete_auto_checkin_account",
   DeleteBookmark: "delete_bookmark",
@@ -622,9 +665,12 @@ export const PRODUCT_ANALYTICS_ACTION_IDS = {
   EnterAccountBulkMode: "enter_account_bulk_mode",
   ExportAccountData: "export_account_data",
   ExportAccountTokenToCCSwitch: "export_account_token_to_cc_switch",
+  ExportAccountTokenToAiToolbox: "export_account_token_to_ai_toolbox",
   ExportAccountTokenToCherryStudio: "export_account_token_to_cherry_studio",
   ExportApiCredentialProfileToCCSwitch:
     "export_api_credential_profile_to_cc_switch",
+  ExportApiCredentialProfileToAiToolbox:
+    "export_api_credential_profile_to_ai_toolbox",
   ExportApiCredentialProfileToCherryStudio:
     "export_api_credential_profile_to_cherry_studio",
   ExportApiCredentialSettingsFile: "export_api_credential_settings_file",
@@ -961,14 +1007,21 @@ export const PRODUCT_ANALYTICS_SURFACE_IDS = {
   PopupActionBar: "popup_action_bar",
   PopupApiCredentialProfilesEmptyState:
     "popup_api_credential_profiles_empty_state",
+  PopupApiCredentialProfilesSponsorRecommendations:
+    "popup_api_credential_profiles_sponsor_recommendations",
   PopupApiCredentialProfilesStats: "popup_api_credential_profiles_stats",
+  PopupBookmarksSponsorRecommendations:
+    "popup_bookmarks_sponsor_recommendations",
   PopupHeader: "popup_header",
   PopupProductAnnouncementsHeader: "popup_product_announcements_header",
+  PopupStats: "popup_stats",
   PopupViewTabs: "popup_view_tabs",
   SidepanelActionBar: "sidepanel_action_bar",
   SidepanelHeader: "sidepanel_header",
+  SidepanelStats: "sidepanel_stats",
   SidepanelViewTabs: "sidepanel_view_tabs",
   OptionsStarPromotionCard: "options_star_promotion_card",
+  OptionsSidebarStarItem: "options_sidebar_star_item",
   UpdateLogDialogStarPrompt: "update_log_dialog_star_prompt",
   FeedbackMenuStarItem: "feedback_menu_star_item",
   PermissionOnboardingStarCta: "permission_onboarding_star_cta",
@@ -1022,7 +1075,6 @@ export type ProductAnalyticsAutoCheckinRunKind =
 export const PRODUCT_ANALYTICS_AUTO_CHECKIN_METHOD_CATEGORIES = {
   StrictReadback: "strict_readback",
   Compatibility: "compatibility",
-  BrowserAutomation: "browser_automation",
 } as const
 
 export type ProductAnalyticsAutoCheckinMethodCategory =
@@ -1037,10 +1089,12 @@ export const PRODUCT_ANALYTICS_AUTO_CHECKIN_SKIP_REASONS = {
   AlreadyCheckedToday: "already_checked_today",
   NoProvider: "no_provider",
   NoSelectedMethod: "no_selected_method",
+  NoAvailableMethod: "no_available_method",
   MethodUnavailable: "method_unavailable",
   MethodNotMatched: "method_not_matched",
   MethodUnsupported: "method_unsupported",
   AccountDataMissing: "account_data_missing",
+  AccountStateWriteFailed: "account_state_write_failed",
   AuthenticationRequired: "authentication_required",
   CredentialsMissing: "credentials_missing",
   ManualVerificationRequired: "manual_verification_required",
@@ -1054,7 +1108,9 @@ export const PRODUCT_ANALYTICS_AUTO_CHECKIN_SKIP_REASONS = {
   CheckinPageUnavailable: "checkin_page_unavailable",
   SessionBusy: "session_busy",
   UpstreamError: "upstream_error",
+  UpstreamRejected: "upstream_rejected",
   LoginProviderInUse: "login_provider_in_use",
+  LoginProviderRequired: "login_provider_required",
 } as const
 
 export type ProductAnalyticsAutoCheckinSkipReason =
@@ -1228,6 +1284,9 @@ export const PRODUCT_ANALYTICS_MANAGED_SITE_TYPES = {
   ClaudeCodeHub: SITE_TYPES.CLAUDE_CODE_HUB,
   CliProxyApi: SITE_TYPES.CLI_PROXY_API,
   Sub2Api: SITE_TYPES.SUB2API,
+  OmniRoute: SITE_TYPES.OMNIROUTE,
+  GptLoad: SITE_TYPES.GPT_LOAD,
+  Magpie: SITE_TYPES.MAGPIE,
 } as const
 
 export type ProductAnalyticsManagedSiteType =
@@ -1305,6 +1364,7 @@ export type ProductAnalyticsEventPayloadMap = {
     failure_reason?: ProductAnalyticsFailureReason
     account_auto_detect_failure_reason?: ProductAnalyticsAccountAutoDetectFailureReason
     account_auto_detect_attempt_outcome?: OpenRouterBootstrapAttemptOutcome
+    account_auto_detect_identity_detected?: boolean
     auto_detect_strategy?: ProductAnalyticsAccountAutoDetectStrategy
     requested_auth_mode?: ProductAnalyticsRequestedAuthMode
     site_type?: ProductAnalyticsSiteType
@@ -1421,6 +1481,7 @@ export type ProductAnalyticsEventPayloadMap = {
     requested_auth_mode?: ProductAnalyticsRequestedAuthMode
     skip_reason?: ProductAnalyticsAutoCheckinSkipReason
     method_category?: ProductAnalyticsAutoCheckinMethodCategory
+    check_in_selection_mode?: ProductAnalyticsCheckInSelectionMode
     total_accounts: number
     runnable_accounts: number
     success_count: number
@@ -1466,6 +1527,9 @@ export type ProductAnalyticsEventPayloadMap = {
     axon_hub_configured?: boolean
     claude_code_hub_configured?: boolean
     cli_proxy_configured?: boolean
+    omniroute_configured?: boolean
+    gpt_load_configured?: boolean
+    magpie_configured?: boolean
     claude_code_router_configured?: boolean
     concurrency?: number
     rate_limit_rpm?: number
@@ -1636,6 +1700,13 @@ export type ProductAnalyticsEventPayloadMap = {
   [PRODUCT_ANALYTICS_EVENTS.SiteTypePresent]: {
     site_type: ProductAnalyticsSiteType
     account_count: number
+  }
+  [PRODUCT_ANALYTICS_EVENTS.StorageWriteFailed]: {
+    storage_area: ProductAnalyticsStorageArea
+    storage_operation: ProductAnalyticsStorageOperation
+    storage_failure_stage: ProductAnalyticsStorageFailureStage
+    /** `Error.name` only — never a message, key, or path. */
+    error_name: string
   }
 }
 

@@ -21,7 +21,7 @@ import {
 import {
   AUTO_CHECKIN_SKIP_CATEGORY,
   type AutoCheckinSkipCategory,
-} from "~/features/AutoCheckin/utils/skipCategories"
+} from "~/services/checkin/autoCheckin/reasonCatalog"
 import {
   AUTO_CHECKIN_SKIP_REASON,
   CHECKIN_RESULT_STATUS,
@@ -118,14 +118,15 @@ describe("autoCheckin utils", () => {
       "autoCheckin:providerFallback.nativePageIdentityMismatch",
       "autoCheckin:providerFallback.nativePageIdentityMissing",
       "autoCheckin:providerFallback.nativePageStatusUnconfirmed",
+      "autoCheckin:providerFallback.nativePageVerificationRequired",
       "autoCheckin:providerFallback.nativePageTargetNotFound",
       "autoCheckin:providerFallback.nativePageTriggerFailed",
       "autoCheckin:providerFallback.sessionBusy",
       "autoCheckin:providerFallback.unknownError",
-      "autoCheckin:providerFallback.turnstileManualRequired",
       "autoCheckin:providerFallback.turnstileIncognitoAccessRequired",
       "autoCheckin:providerWong.checkinDisabled",
       "autoCheckin:skipReasons.account_data_missing",
+      "autoCheckin:skipReasons.account_state_write_failed",
       "autoCheckin:skipReasons.account_disabled",
       "autoCheckin:skipReasons.authentication_required",
       "autoCheckin:skipReasons.credentials_missing",
@@ -140,11 +141,13 @@ describe("autoCheckin utils", () => {
       "autoCheckin:skipReasons.method_unsupported",
       "autoCheckin:skipReasons.network_error",
       "autoCheckin:skipReasons.no_selected_method",
+      "autoCheckin:skipReasons.no_available_method",
       "autoCheckin:skipReasons.permission_denied",
       "autoCheckin:skipReasons.session_busy",
       "autoCheckin:skipReasons.source_unavailable",
       "autoCheckin:skipReasons.timeout",
       "autoCheckin:skipReasons.upstream_error",
+      "autoCheckin:skipReasons.upstream_rejected",
       "autoCheckin:skipReasons.auto_checkin_disabled",
       "autoCheckin:skipReasons.already_checked_today",
       "autoCheckin:skipReasons.status_unavailable",
@@ -179,7 +182,7 @@ describe("autoCheckin utils", () => {
     })
   })
 
-  it("prefers controlled result reasons over backend copy", () => {
+  it("shows backend copy before a generic reason label", () => {
     const t = vi.fn((key: string) => `translated:${key}`)
 
     expect(
@@ -191,7 +194,7 @@ describe("autoCheckin utils", () => {
         rawMessage: "deployment-controlled copy",
         timestamp: 1,
       }),
-    ).toBe("translated:autoCheckin:skipReasons.authentication_required")
+    ).toBe("deployment-controlled copy")
   })
 
   it("keeps provider copy when a reason-coded failure has its own message key", () => {
@@ -203,10 +206,35 @@ describe("autoCheckin utils", () => {
         accountName: "Account",
         status: CHECKIN_RESULT_STATUS.FAILED,
         reasonCode: "manual_verification_required",
-        messageKey: "autoCheckin:providerFallback.turnstileManualRequired",
+        messageKey:
+          "autoCheckin:providerFallback.nativePageVerificationRequired",
         timestamp: 1,
       }),
-    ).toBe("translated:autoCheckin:providerFallback.turnstileManualRequired")
+    ).toBe(
+      "translated:autoCheckin:providerFallback.nativePageVerificationRequired",
+    )
+  })
+
+  it("shows generic verification copy for a persisted legacy Turnstile result", () => {
+    const t = vi.fn((key: string) => `translated:${key}`)
+
+    expect(
+      getAutoCheckinResultMessage(t as any, {
+        accountId: "account-1",
+        accountName: "Account",
+        status: CHECKIN_RESULT_STATUS.FAILED,
+        reasonCode: "manual_verification_required",
+        messageKey: "autoCheckin:providerFallback.turnstileManualRequired",
+        messageParams: { checkInUrl: "https://example.com/check-in" },
+        timestamp: 1,
+      }),
+    ).toBe(
+      "translated:autoCheckin:providerFallback.nativePageVerificationRequired",
+    )
+    expect(t).toHaveBeenCalledWith(
+      "autoCheckin:providerFallback.nativePageVerificationRequired",
+      { checkInUrl: "https://example.com/check-in" },
+    )
   })
 
   it("uses the localized unknown fallback when a result has no message", () => {
@@ -222,7 +250,7 @@ describe("autoCheckin utils", () => {
     ).toBe("translated:autoCheckin:providerFallback.unknownError")
   })
 
-  it("uses a localized pending-confirmation message for uncertain results", () => {
+  it("shows the reconciliation detail when an uncertain result has no site text", () => {
     const t = vi.fn((key: string) => `translated:${key}`)
 
     expect(
@@ -233,7 +261,7 @@ describe("autoCheckin utils", () => {
         reconciliation: "unknown",
         timestamp: 1,
       }),
-    ).toBe("translated:autoCheckin:providerFallback.resultPendingConfirmation")
+    ).toBe("translated:autoCheckin:skipReasons.status_unavailable")
   })
 
   describe("isInvalidAccessTokenMessage", () => {
@@ -782,10 +810,12 @@ describe("autoCheckin utils", () => {
         [AUTO_CHECKIN_SKIP_REASON.STATUS_UNAVAILABLE]: 0,
         [AUTO_CHECKIN_SKIP_REASON.NO_PROVIDER]: 0,
         [AUTO_CHECKIN_SKIP_REASON.NO_SELECTED_METHOD]: 0,
+        [AUTO_CHECKIN_SKIP_REASON.NO_AVAILABLE_METHOD]: 0,
         [AUTO_CHECKIN_SKIP_REASON.METHOD_UNAVAILABLE]: 0,
         [AUTO_CHECKIN_SKIP_REASON.METHOD_NOT_MATCHED]: 1,
         [AUTO_CHECKIN_SKIP_REASON.METHOD_UNSUPPORTED]: 0,
         [AUTO_CHECKIN_SKIP_REASON.ACCOUNT_DATA_MISSING]: 0,
+        [AUTO_CHECKIN_SKIP_REASON.ACCOUNT_STATE_WRITE_FAILED]: 0,
         [AUTO_CHECKIN_SKIP_REASON.AUTHENTICATION_REQUIRED]: 0,
         [AUTO_CHECKIN_SKIP_REASON.CREDENTIALS_MISSING]: 2,
         [AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED]: 0,
@@ -794,6 +824,7 @@ describe("autoCheckin utils", () => {
         [AUTO_CHECKIN_SKIP_REASON.CHECKIN_PAGE_UNAVAILABLE]: 0,
         [AUTO_CHECKIN_SKIP_REASON.SESSION_BUSY]: 0,
         [AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR]: 0,
+        [AUTO_CHECKIN_SKIP_REASON.UPSTREAM_REJECTED]: 0,
         [AUTO_CHECKIN_SKIP_REASON.NETWORK_ERROR]: 0,
         [AUTO_CHECKIN_SKIP_REASON.SOURCE_UNAVAILABLE]: 0,
         [AUTO_CHECKIN_SKIP_REASON.PERMISSION_DENIED]: 0,
@@ -801,6 +832,7 @@ describe("autoCheckin utils", () => {
         [AUTO_CHECKIN_SKIP_REASON.TIMEOUT]: 2,
         [AUTO_CHECKIN_SKIP_REASON.ACCOUNT_UNAVAILABLE]: 0,
         [AUTO_CHECKIN_SKIP_REASON.LOGIN_PROVIDER_IN_USE]: 0,
+        [AUTO_CHECKIN_SKIP_REASON.LOGIN_PROVIDER_REQUIRED]: 0,
       })
 
       expect(
@@ -951,6 +983,46 @@ describe("autoCheckin utils", () => {
       ).toBe("execution.hints.siteTypeCheckinUnsupported")
     })
 
+    it.each([
+      AUTO_CHECKIN_SKIP_REASON.STATUS_UNAVAILABLE,
+      AUTO_CHECKIN_SKIP_REASON.NO_SELECTED_METHOD,
+      AUTO_CHECKIN_SKIP_REASON.METHOD_NOT_MATCHED,
+      AUTO_CHECKIN_SKIP_REASON.METHOD_UNSUPPORTED,
+      AUTO_CHECKIN_SKIP_REASON.METHOD_UNAVAILABLE,
+    ])(
+      "returns the site-type hint when %s can be explained by a wrong site type",
+      (reasonCode) => {
+        expect(
+          resolveAutoCheckinTroubleshootingHintKey({
+            status: CHECKIN_RESULT_STATUS.SKIPPED,
+            reasonCode,
+            messageKey: `autoCheckin:skipReasons.${reasonCode}`,
+            message: "",
+          }),
+        ).toBe("execution.hints.siteTypeCheckinUnsupported")
+      },
+    )
+
+    it.each([
+      AUTO_CHECKIN_SKIP_REASON.AUTHENTICATION_REQUIRED,
+      AUTO_CHECKIN_SKIP_REASON.CREDENTIALS_MISSING,
+      AUTO_CHECKIN_SKIP_REASON.NETWORK_ERROR,
+      AUTO_CHECKIN_SKIP_REASON.TIMEOUT,
+      AUTO_CHECKIN_SKIP_REASON.PERMISSION_DENIED,
+      AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED,
+      AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR,
+      AUTO_CHECKIN_SKIP_REASON.NO_AVAILABLE_METHOD,
+    ])("keeps %s on its own explanation", (reasonCode) => {
+      expect(
+        resolveAutoCheckinTroubleshootingHintKey({
+          status: CHECKIN_RESULT_STATUS.SKIPPED,
+          reasonCode,
+          messageKey: `autoCheckin:skipReasons.${reasonCode}`,
+          message: "",
+        }),
+      ).toBeNull()
+    })
+
     it("still matches access-token hints for failed raw messages", () => {
       expect(
         resolveAutoCheckinTroubleshootingHintKey({
@@ -958,6 +1030,37 @@ describe("autoCheckin utils", () => {
           message: "access token invalid",
         }),
       ).toBe("execution.hints.invalidAccessToken")
+    })
+
+    it.each([
+      "autoCheckin:providerFallback.nativePageVerificationRequired",
+      "autoCheckin:providerFallback.turnstileManualRequired",
+    ])(
+      "returns the manual verification hint from the message key: %s",
+      (messageKey) => {
+        // The localized copy no longer mentions a widget, so the key — not the
+        // message text — has to decide the hint in every locale.
+        expect(
+          resolveAutoCheckinTroubleshootingHintKey({
+            status: CHECKIN_RESULT_STATUS.FAILED,
+            reasonCode: AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED,
+            messageKey,
+            message: "Open the check-in page, finish it, then retry",
+          }),
+        ).toBe("execution.hints.manualVerificationRequired")
+      },
+    )
+
+    it("does not turn a skipped row with that key into a troubleshooting hint", () => {
+      expect(
+        resolveAutoCheckinTroubleshootingHintKey({
+          status: CHECKIN_RESULT_STATUS.SKIPPED,
+          reasonCode: AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED,
+          messageKey:
+            "autoCheckin:providerFallback.nativePageVerificationRequired",
+          message: "",
+        }),
+      ).toBeNull()
     })
 
     it.each([
@@ -1005,6 +1108,22 @@ describe("autoCheckin utils", () => {
           message: "签到跳过",
         }),
       ).toBeNull()
+    })
+
+    it("surfaces troubleshooting hints for UNCERTAIN results needing verification", () => {
+      expect(
+        resolveAutoCheckinTroubleshootingHintKey({
+          status: CHECKIN_RESULT_STATUS.UNCERTAIN,
+          message: "Turnstile token not available",
+        }),
+      ).toBe("execution.hints.manualVerificationRequired")
+
+      expect(
+        resolveAutoCheckinTroubleshootingHintKey({
+          status: CHECKIN_RESULT_STATUS.UNCERTAIN,
+          message: "access token invalid",
+        }),
+      ).toBe("execution.hints.invalidAccessToken")
     })
   })
 })

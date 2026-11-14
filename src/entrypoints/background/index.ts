@@ -1,12 +1,14 @@
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { setupRuntimeMessageListeners } from "~/entrypoints/background/runtimeMessages"
-import {
-  cleanupTempContextsOnSuspend,
-  setupTempWindowListeners,
-} from "~/entrypoints/background/tempWindowPool"
 import { accountDataTransfer } from "~/services/accounts/accountStorage/accountDataTransfer"
 import { accountQueries } from "~/services/accounts/accountStorage/accountQueries"
 import { migrateAccountsConfig } from "~/services/accounts/migrations/accountDataMigration"
+import {
+  cleanupTempContextsOnSuspend,
+  setupTempWindowListeners,
+} from "~/services/browsingContext/tempPage/runtime"
+import { setupCheckInFeedbackTabHints } from "~/services/checkin/feedback/githubTab"
+import { appendLogHistory } from "~/services/logging/logHistory"
 import {
   hasNewOptionalPermissions,
   setLastSeenOptionalPermissions,
@@ -15,10 +17,13 @@ import {
   hasPermissions,
   OPTIONAL_PERMISSIONS,
 } from "~/services/permissions/permissionManager"
+import { TOOLBAR_ACTION_CLICK_BEHAVIORS } from "~/services/preferences/preferencesSchema"
 import {
-  TOOLBAR_ACTION_CLICK_BEHAVIORS,
-  userPreferences,
-} from "~/services/preferences/userPreferences"
+  applyActionClickBehavior,
+  setupActionClickBehaviorListener,
+} from "~/services/preferences/runtime/actionClickBehavior"
+import { setupContextMenus } from "~/services/preferences/runtime/contextMenus"
+import { userPreferences } from "~/services/preferences/userPreferences"
 import {
   setupProductAnalyticsAccountChangeListener,
   setupProductAnalyticsPreferencesChangeListener,
@@ -26,37 +31,43 @@ import {
   triggerStartupShieldBypassDailySummary,
   triggerStartupSiteEcosystemSnapshot,
   triggerStartupSponsorRecommendationsDailySummary,
-} from "~/services/productAnalytics/runtime"
+} from "~/services/productAnalytics/runtime/runtime"
 import { tagStorage } from "~/services/tags/tagStorage"
-import { shouldAutoOpenChangelogForUpdate } from "~/services/updates/changelogIndex"
+import { uninstallSurveyService } from "~/services/uninstallSurvey/uninstallSurvey"
 import { changelogOnUpdateState } from "~/services/updates/changelogOnUpdateState"
+import {
+  compareDottedVersions,
+  normalizeDottedVersion,
+} from "~/services/updates/versionComparison"
 import {
   getExtensionVersion,
   getRuntimeId,
   onInstalled,
   onStartup,
   onSuspend,
-} from "~/utils/browser/browserApi"
+} from "~/utils/browser/runtime"
 import { isTestMode } from "~/utils/core/environment"
-import { createLogger } from "~/utils/core/logger"
-import { openOrFocusOptionsMenuItem } from "~/utils/navigation"
+import { createLogger, setLogHistoryWriter } from "~/utils/core/logger"
+import { openOrFocusOptionsMenuItem } from "~/utils/navigation/optionsPage"
 
-import {
-  applyActionClickBehavior,
-  setupActionClickBehaviorListener,
-} from "./actionClickBehavior"
-import { setupContextMenus } from "./contextMenus"
 import {
   initializeCookieInterceptors,
   setupCookieInterceptorListeners,
 } from "./cookieInterceptor"
 import { applyDevActionBranding } from "./devActionBranding"
 import { initializeServices } from "./servicesInit"
+import {
+  reclaimOrphanedTempPages,
+  rotateTempPageBrowserSession,
+  setupTempPageReclaimRetryListener,
+} from "./tempContextReclamation"
 
 /**
  * Unified logger scoped to the background entrypoint and lifecycle hooks.
  */
 const logger = createLogger("BackgroundEntrypoint")
+
+let browserStartupRotation: Promise<unknown> | undefined
 
 /**
  * Test-mode builds should not auto-open install/update permission onboarding,
@@ -68,6 +79,7 @@ function shouldAutoOpenPermissionsOnboarding(): boolean {
 }
 
 export default defineBackground(() => {
+  setLogHistoryWriter(appendLogHistory)
   logger.debug("Hello background", { id: getRuntimeId() })
 
   setupActionClickBehaviorListener()
@@ -78,8 +90,12 @@ export default defineBackground(() => {
   /**
    * 设置各种事件监听器
    */
+  setupCheckInFeedbackTabHints()
   setupRuntimeMessageListeners()
   setupTempWindowListeners()
+  // Registered before the first await so an alarm wake is handled in this
+  // activation rather than the next one.
+  setupTempPageReclaimRetryListener()
   setupCookieInterceptorListeners()
   setupContextMenus()
   setupProductAnalyticsAccountChangeListener()
@@ -143,13 +159,10 @@ export default defineBackground(() => {
         }
 
         if (details.reason === "update") {
-          const version = getExtensionVersion("")
+          const version = normalizeDottedVersion(getExtensionVersion(""))
           if (
             version &&
-            (await shouldAutoOpenChangelogForUpdate({
-              currentVersion: version,
-              previousVersion: details.previousVersion,
-            }))
+            (compareDottedVersions(version, details.previousVersion) ?? 1) > 0
           ) {
             await changelogOnUpdateState.setPendingVersion(version)
           }
@@ -199,6 +212,12 @@ export default defineBackground(() => {
    */
   onStartup(async () => {
     logger.info("浏览器启动，恢复后台服务与 alarms 调度")
+    // A browser start begins a new session for temp-page ownership; tab ids do
+    // not carry over, so markers from the previous one only get cleared.
+    browserStartupRotation = rotateTempPageBrowserSession().catch((error) => {
+      logger.warn("Failed to start a new temp-page browser session", error)
+    })
+    await browserStartupRotation
     try {
       await initializeServices()
     } catch (error) {
@@ -243,4 +262,13 @@ async function main() {
   triggerStartupSettingsSnapshot()
   triggerStartupShieldBypassDailySummary()
   triggerStartupSponsorRecommendationsDailySummary()
+  // Runs after i18n initialization so the survey URL carries the active UI language.
+  void uninstallSurveyService.refresh()
+  // Runs on every worker activation, which is the recovery point for temp-window
+  // closes lost to the previous worker's death. Never blocks startup.
+  // The startup event can still be rotating the browser-session token here.
+  if (browserStartupRotation) await browserStartupRotation
+  void reclaimOrphanedTempPages().catch((error) => {
+    logger.warn("Failed to reclaim orphaned temporary pages", error)
+  })
 }

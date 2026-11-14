@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -62,7 +62,7 @@ describe("IconButton", () => {
     expect(screen.getByRole("button", { name: "Delete item" })).toHaveClass(
       "bg-transparent",
       "text-destructive-text",
-      "hover:bg-destructive/10",
+      "hover:bg-destructive-soft",
     )
   })
 
@@ -167,11 +167,10 @@ describe("IconButton", () => {
     await user.tab()
 
     expect(screen.getByRole("button", { name: "Nested action" })).toHaveFocus()
-    const tooltipText = (await screen.findAllByRole("tooltip")).map(
-      (tooltip) => tooltip.textContent,
-    )
-    expect(tooltipText).toEqual(
-      expect.arrayContaining(["Nested action", "Outer description"]),
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("tooltip").map((tooltip) => tooltip.textContent),
+      ).toEqual(expect.arrayContaining(["Nested action", "Outer description"])),
     )
   })
 
@@ -200,6 +199,33 @@ describe("IconButton", () => {
     fireEvent.click(button)
 
     expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it("keeps a loading button at full strength instead of fading it", () => {
+    render(
+      <>
+        <IconButton aria-label="Busy refresh" loading>
+          <span />
+        </IconButton>
+        <IconButton aria-label="Inert refresh" disabled>
+          <span />
+        </IconButton>
+      </>,
+    )
+
+    const busy = screen.getByRole("button", { name: "Busy refresh" })
+    const inert = screen.getByRole("button", { name: "Inert refresh" })
+
+    // Loading disables input, but the control is doing the most visible work on
+    // screen, so it must not also read as inert.
+    expect(busy).toHaveAttribute("aria-busy", "true")
+    expect(busy).toBeDisabled()
+    expect(busy).toHaveClass("disabled:not-aria-busy:opacity-50")
+    expect(busy).not.toHaveClass("disabled:opacity-50")
+
+    expect(inert).not.toHaveAttribute("aria-busy")
+    expect(inert).toHaveClass("disabled:not-aria-busy:opacity-50")
+    expect(inert).toBeDisabled()
   })
 
   it("preserves an explicit aria-busy value when not loading", () => {

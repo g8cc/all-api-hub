@@ -4,13 +4,17 @@ import { AUTO_DETECT_ERROR_CODES } from "~/constants/autoDetect"
 import { SITE_TYPES } from "~/constants/siteType"
 import {
   analyzeAutoDetectError,
+  AUTO_DETECT_FAILURE_REASONS,
   AutoDetectErrorType,
   getAutoDetectErrorByCode,
+  isIdentityKnownAutoDetectFailureReason,
   openLoginTab,
   reloadCurrentTab,
 } from "~/services/accounts/utils/autoDetectUtils"
 import { getBestEffortLoginUrl } from "~/services/accounts/utils/siteRouteResolver"
-import { clearSiteRouteThemeCacheForTests } from "~/services/apiAdapters/newApi/accountRoutes"
+import { clearSiteRouteFactsCacheForTests } from "~/services/apiAdapters/newApi/account/accountRoutes"
+import { mapCompatibilityResponse } from "~/services/apiTransport/compatibilityResponse"
+import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
 import { getDocsAutoDetectUrl } from "~/utils/navigation/docsLinks"
 
 const { tMock } = vi.hoisted(() => ({
@@ -46,6 +50,167 @@ describe("autoDetectUtils", () => {
   })
 
   describe("analyzeAutoDetectError", () => {
+    it.each([
+      [408, AutoDetectErrorType.TIMEOUT],
+      [429, AutoDetectErrorType.RATE_LIMITED],
+      [503, AutoDetectErrorType.SERVER_ERROR],
+      [504, AutoDetectErrorType.TIMEOUT],
+    ] as const)(
+      "retains HTTP %s facts when the response has no site-owned message",
+      (status, type) => {
+        let error: unknown
+        try {
+          mapCompatibilityResponse(
+            {
+              ok: false,
+              status,
+              headers: { "content-type": "text/html", "retry-after": "60" },
+              body: "",
+            },
+            {
+              endpoint: "/api/user/token",
+              responseType: "json",
+              onlyData: true,
+              decodeApplicationError: true,
+            },
+          )
+        } catch (caught) {
+          error = caught
+        }
+        expect(error).toMatchObject({
+          statusCode: status,
+          unattributedMessage: true,
+        })
+        const result = analyzeAutoDetectError(error)
+        expect(result.type).toBe(type)
+        expect(result.actionText).toBeUndefined()
+      },
+    )
+
+    it("keeps legacy message classification when an API error has no transport facts", () => {
+      expect(
+        analyzeAutoDetectError(new ApiError("Network connection lost")),
+      ).toMatchObject({
+        type: AutoDetectErrorType.NETWORK_ERROR,
+        message: "messages:autodetect.networkError",
+      })
+    })
+
+    it("preserves interception attribution after an error crosses a message boundary", () => {
+      const error = { message: "401 Unauthorized", unattributedMessage: true }
+      expect(analyzeAutoDetectError(error)).toMatchObject({
+        type: AutoDetectErrorType.UNKNOWN,
+      })
+      expect(analyzeAutoDetectError(error).actionText).toBeUndefined()
+    })
+
+    it("reports rate limiting without suggesting a login or unsupported-site fallback", () => {
+      expect(
+        analyzeAutoDetectError(
+          new ApiError(
+            "private response",
+            429,
+            "/api/user/token",
+            API_ERROR_CODES.HTTP_429,
+          ),
+        ),
+      ).toMatchObject({
+        type: "rate_limited",
+        message: "messages:autodetect.rateLimited",
+      })
+    })
+    it.each([
+      [
+        401,
+        API_ERROR_CODES.HTTP_401,
+        AutoDetectErrorType.UNAUTHORIZED,
+        "notLoggedIn",
+      ],
+      [
+        403,
+        API_ERROR_CODES.HTTP_403,
+        AutoDetectErrorType.FORBIDDEN,
+        "forbidden",
+      ],
+      [
+        404,
+        API_ERROR_CODES.HTTP_OTHER,
+        AutoDetectErrorType.NOT_FOUND,
+        "notFound",
+      ],
+      [408, API_ERROR_CODES.HTTP_OTHER, AutoDetectErrorType.TIMEOUT, "timeout"],
+      [
+        500,
+        API_ERROR_CODES.HTTP_OTHER,
+        AutoDetectErrorType.SERVER_ERROR,
+        "serverError",
+      ],
+      [
+        503,
+        API_ERROR_CODES.HTTP_OTHER,
+        AutoDetectErrorType.SERVER_ERROR,
+        "serverError",
+      ],
+      [504, API_ERROR_CODES.HTTP_OTHER, AutoDetectErrorType.TIMEOUT, "timeout"],
+      [
+        401,
+        API_ERROR_CODES.CONTENT_TYPE_MISMATCH,
+        AutoDetectErrorType.INVALID_RESPONSE,
+        "unexpectedData",
+      ],
+    ] as const)(
+      "uses structured status %s / %s before message keywords",
+      (status, code, type, messageKey) => {
+        const result = analyzeAutoDetectError(
+          new ApiError(
+            "401 unauthorized network timeout in reflected text",
+            status,
+            "/api/user/token",
+            code,
+          ),
+        )
+        expect(result).toMatchObject({
+          type,
+          message: `messages:autodetect.${messageKey}`,
+        })
+        expect(Boolean(result.actionText)).toBe(
+          type === AutoDetectErrorType.UNAUTHORIZED,
+        )
+      },
+    )
+
+    it.each([
+      new ApiError(
+        "401 Unauthorized",
+        401,
+        "/api/user/self",
+        API_ERROR_CODES.ROBOT_CHALLENGE,
+      ),
+      Object.assign(
+        new ApiError(
+          "403 Forbidden",
+          403,
+          "/api/user/self",
+          API_ERROR_CODES.HTTP_403,
+        ),
+        { unattributedMessage: true },
+      ),
+      Object.assign(
+        new ApiError(
+          "401 Unauthorized",
+          401,
+          "/api/user/self",
+          API_ERROR_CODES.HTTP_401,
+        ),
+        { unattributedMessage: true },
+      ),
+    ])("does not infer authentication from an interception page", (error) => {
+      expect(analyzeAutoDetectError(error)).toMatchObject({
+        type: AutoDetectErrorType.UNKNOWN,
+      })
+      expect(analyzeAutoDetectError(error).actionText).toBeUndefined()
+    })
+
     describe("Timeout errors", () => {
       it("should detect timeout error with Chinese text", () => {
         const error = new Error("请求超时")
@@ -101,6 +266,21 @@ describe("autoDetectUtils", () => {
     })
 
     describe("Current-tab reload hints", () => {
+      it.each([
+        [
+          "content script fetch failed: HTTP 403 Forbidden",
+          AutoDetectErrorType.FORBIDDEN,
+        ],
+        [
+          "content script fetch failed: network offline",
+          AutoDetectErrorType.NETWORK_ERROR,
+        ],
+      ])(
+        "does not prescribe a reload merely because an error mentions content script: %s",
+        (message, type) => {
+          expect(analyzeAutoDetectError(message).type).toBe(type)
+        },
+      )
       it("should detect content-script connection errors", () => {
         const error = new Error(
           "Could not establish connection. Receiving end does not exist.",
@@ -132,6 +312,17 @@ describe("autoDetectUtils", () => {
     })
 
     describe("Invalid response errors", () => {
+      it.each([
+        "messages:operations.detection.getUserIdFailed",
+        "messages:operations.detection.getUserIdFailedDetailed",
+      ])("preserves actionable user-ID guidance for %s", (message) => {
+        expect(analyzeAutoDetectError(message)).toEqual({
+          type: AutoDetectErrorType.INVALID_RESPONSE,
+          message: "messages:operations.detection.getUserIdFailedDetailed",
+          helpDocUrl: getDocsAutoDetectUrl(),
+        })
+      })
+
       it("should detect format error", () => {
         const error = new Error("响应格式错误")
         const result = analyzeAutoDetectError(error)
@@ -425,7 +616,7 @@ describe("autoDetectUtils", () => {
   describe("openLoginTab", () => {
     beforeEach(() => {
       vi.clearAllMocks()
-      clearSiteRouteThemeCacheForTests()
+      clearSiteRouteFactsCacheForTests()
       vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"))
     })
 
@@ -596,6 +787,46 @@ describe("autoDetectUtils", () => {
       const values = Object.values(AutoDetectErrorType)
       const uniqueValues = new Set(values)
       expect(uniqueValues.size).toBe(values.length)
+    })
+  })
+
+  describe("isIdentityKnownAutoDetectFailureReason", () => {
+    it("marks completion-stage credential failures as identity-detected", () => {
+      expect(
+        isIdentityKnownAutoDetectFailureReason(
+          AUTO_DETECT_FAILURE_REASONS.AccessTokenVerificationRequired,
+        ),
+      ).toBe(true)
+      expect(
+        isIdentityKnownAutoDetectFailureReason(
+          AUTO_DETECT_FAILURE_REASONS.AccountIdentityMismatch,
+        ),
+      ).toBe(true)
+      expect(
+        isIdentityKnownAutoDetectFailureReason(
+          AUTO_DETECT_FAILURE_REASONS.TokenFetchFailed,
+        ),
+      ).toBe(true)
+    })
+
+    it("does not mark detection-stage or missing reasons as identity-detected", () => {
+      expect(
+        isIdentityKnownAutoDetectFailureReason(
+          AUTO_DETECT_FAILURE_REASONS.UserDataMissing,
+        ),
+      ).toBe(false)
+      expect(
+        isIdentityKnownAutoDetectFailureReason(
+          AUTO_DETECT_FAILURE_REASONS.UsernameMissing,
+        ),
+      ).toBe(false)
+      expect(
+        isIdentityKnownAutoDetectFailureReason(
+          AUTO_DETECT_FAILURE_REASONS.SiteTypeDetectionFailed,
+        ),
+      ).toBe(false)
+      expect(isIdentityKnownAutoDetectFailureReason(undefined)).toBe(false)
+      expect(isIdentityKnownAutoDetectFailureReason(null)).toBe(false)
     })
   })
 

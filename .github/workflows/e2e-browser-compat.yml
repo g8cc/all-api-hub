@@ -1,7 +1,16 @@
 name: E2E Browser Compatibility
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: Workers per browser compatibility shard
+        required: true
+        default: "2"
+        type: choice
+        options:
+          - "2"
+          - "4"
   schedule:
     - cron: "23 18 * * *"
 
@@ -10,15 +19,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  e2e-build:
+    uses: ./.github/workflows/e2e-build.yml
+
   chrome-compat:
-    name: Chrome ${{ matrix.chrome_version }} compatibility (${{ matrix.shard }}/2)
+    name: Chrome ${{ matrix.chrome_version }} compatibility (${{ matrix.shard }}/3)
+    needs: e2e-build
     runs-on: ubuntu-latest
-    # Leave time for setup and failure artifacts after Playwright stops.
-    timeout-minutes: 40
+    # Covers the 35-minute test budget plus setup, the failure report, and
+    # artifact upload, so a timeout never truncates the evidence.
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        # All Chrome versions and shards reuse the same extension build.
+        shard: [1, 2, 3]
         chrome_version:
           # 114 is the current Chromium support floor for this build: the
           # manifest declares sidePanel, and chrome.sidePanel starts at 114.
@@ -42,24 +57,42 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Download E2E extension
+        uses: actions/download-artifact@v7
+        with:
+          name: e2e-extension-default
+          path: .output/chrome-mv3-test
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:
-          version: 10
           run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version-file: .nvmrc
+          node-version-file: .output/chrome-mv3-test/.node-version
           cache: "pnpm"
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Build extension
-        run: pnpm build:e2e
+      - name: Get Playwright version
+        id: playwright_version
+        run: |
+          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); console.log('version=' + (pkg.devDependencies?.['@playwright/test'] ?? 'unknown'))" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright_version.outputs.version }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright video recorder
+        run: pnpm exec playwright install ffmpeg
 
       - name: Setup Chrome ${{ matrix.chrome_version }}
         id: setup_chrome
@@ -69,17 +102,47 @@ jobs:
           install-dependencies: true
 
       - name: Run browser compatibility E2E
-        timeout-minutes: 30
+        timeout-minutes: 40
         env:
           AAH_E2E_CHROME_EXECUTABLE_PATH: ${{ steps.setup_chrome.outputs.chrome-path }}
           AAH_SKIP_E2E_BUILD: "1"
           AAH_E2E_SMOKE_ONLY: "1"
+          # Retain each file's configured execution mode without fullyParallel.
+          # Scheduled runs use two contexts; manual trials can compare four
+          # without changing the scheduled default or shard assignments.
+          AAH_E2E_WORKERS: ${{ inputs.workers || '2' }}
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/compatibility
         # Playwright finishes its report before the step or job is cancelled.
         # The list reporter preserves per-test progress even during a timeout.
-        run: pnpm run e2e:default --shard=${{ matrix.shard }}/2 --global-timeout=1500000 --reporter=list,github,html
+        # Retain the budget for slow versions and retries until the new
+        # concurrency has been measured across every version in CI.
+        run: pnpm run e2e:default --shard=${{ matrix.shard }}/3 --grep-invert="major pages with" --output=test-results/compatibility --global-timeout=2100000 --fail-on-flaky-tests --reporter=list,github,html
 
-      - name: Upload Playwright artifacts (failure)
-        if: failure()
+      # Performance measurements need a single browser context on the runner.
+      # Execute the complete file once per Chrome version, outside the sharded
+      # functional suite, retaining its timing and virtualization assertions.
+      - name: Run isolated performance E2E
+        if: ${{ !cancelled() && matrix.shard == 2 }}
+        timeout-minutes: 10
+        env:
+          AAH_E2E_CHROME_EXECUTABLE_PATH: ${{ steps.setup_chrome.outputs.chrome-path }}
+          AAH_SKIP_E2E_BUILD: "1"
+          AAH_E2E_SMOKE_ONLY: "1"
+          AAH_E2E_WORKERS: "1"
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/performance
+        run: pnpm exec playwright test e2e/multiAccountPerformance.spec.ts --project=chromium --output=test-results/performance --reporter=list,github,html
+
+      - name: Upload performance measurements
+        if: ${{ !cancelled() && matrix.shard == 2 }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-performance-${{ matrix.chrome_version }}-${{ github.run_attempt }}
+          path: playwright-report/performance/
+          retention-days: 7
+
+      # Keep first-attempt failures and reports even if a retry succeeds.
+      - name: Upload Playwright artifacts
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: playwright-browser-compat-${{ matrix.chrome_version }}-${{ matrix.shard }}-${{ github.run_attempt }}

@@ -49,7 +49,7 @@ test("creates an API credential profile from the popup tab", async ({
   ).toBeVisible()
 
   await page
-    .getByTestId(POPUP_TEST_IDS.apiCredentialProfilesPrimaryAction)
+    .getByRole("button", { name: "Add API credential", exact: true })
     .click()
 
   await page.locator("#api-credential-profile-name").fill("Popup Profile")
@@ -63,6 +63,22 @@ test("creates an API credential profile from the popup tab", async ({
 
   await expect(
     page.getByRole("heading", { name: "Popup Profile" }),
+  ).toBeVisible()
+  const primaryAction = page.getByTestId(
+    POPUP_TEST_IDS.apiCredentialProfilesPrimaryAction,
+  )
+  await expect(primaryAction).toBeVisible()
+  await page
+    .getByPlaceholder("Search by name, base URL, tag, source page, or notes")
+    .fill("no-such-credential")
+  await expect(page.getByText("No matching credentials")).toBeVisible()
+  await expect(primaryAction).toBeVisible()
+  await page.getByTestId(POPUP_TEST_IDS.bookmarksTab).click()
+  await page.getByTestId(POPUP_TEST_IDS.apiCredentialProfilesTab).click()
+  await expect(primaryAction).toBeVisible()
+  await primaryAction.click()
+  await expect(
+    page.getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.dialog),
   ).toBeVisible()
 })
 
@@ -82,7 +98,7 @@ test("creates a popup API credential profile, verifies it, and uses it in Model 
   ).toBeVisible()
 
   await page
-    .getByTestId(POPUP_TEST_IDS.apiCredentialProfilesPrimaryAction)
+    .getByRole("button", { name: "Add API credential", exact: true })
     .click()
 
   await page
@@ -166,7 +182,7 @@ test("creates a popup API credential profile, verifies it, and uses it in Model 
   await expect(targetPage.getByText("gpt-4.1-mini")).toBeVisible()
   await expect(
     targetPage
-      .getByText("Profile: Popup Journey Profile", { exact: false })
+      .getByText("Credential: Popup Journey Profile", { exact: false })
       .first(),
   ).toBeVisible()
 })
@@ -246,7 +262,7 @@ test("opens Model Management for a stored popup API credential profile and loads
   await expect(targetPage.getByText("gpt-4o-mini")).toBeVisible()
   await expect(targetPage.getByText("gpt-4.1-mini")).toBeVisible()
   await expect(
-    targetPage.getByText("Profile: Model Profile", { exact: false }).first(),
+    targetPage.getByText("Credential: Model Profile", { exact: false }).first(),
   ).toBeVisible()
   await expect(
     targetPage.getByRole("button", { name: "Key for this model" }),
@@ -353,6 +369,13 @@ test("deletes a stored popup API credential profile and removes it from storage"
     .click()
 
   await expect(page.getByRole("heading", { name: "Delete Me" })).toHaveCount(0)
+  await expect(page.getByText("No API credentials saved yet")).toBeVisible()
+  await expect(
+    page.getByTestId(POPUP_TEST_IDS.apiCredentialProfilesPrimaryAction),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole("button", { name: "Add API credential", exact: true }),
+  ).toBeVisible()
 
   await expect
     .poll(async () => {

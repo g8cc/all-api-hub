@@ -1,8 +1,9 @@
 import { waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
+import { ProductAnalyticsScope } from "~/contexts/ProductAnalyticsScopeContext"
 import {
   SPONSOR_CATALOG_SCHEMA_VERSION,
   SPONSOR_RECOMMENDATION_SURFACES,
@@ -17,6 +18,7 @@ import {
 import { ACCOUNT_MANAGEMENT_TEST_IDS } from "~/features/AccountManagement/testIds"
 import { PRODUCT_ANALYTICS_EVENTS } from "~/services/productAnalytics/contracts"
 import { AuthTypeEnum } from "~/types"
+import * as browserUtils from "~/utils/browser"
 import { render, screen } from "~~/tests/test-utils/render"
 
 const { recordSponsorSummaryMock, trackProductAnalyticsEventMock } = vi.hoisted(
@@ -26,22 +28,28 @@ const { recordSponsorSummaryMock, trackProductAnalyticsEventMock } = vi.hoisted(
   }),
 )
 
-vi.mock("~/services/productAnalytics/dispatch", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("~/services/productAnalytics/dispatch")
-    >()
+vi.mock(
+  "~/services/productAnalytics/runtime/dispatch",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/productAnalytics/runtime/dispatch")
+      >()
 
-  return {
-    ...actual,
-    trackProductAnalyticsEvent: (...args: unknown[]) =>
-      trackProductAnalyticsEventMock(...args),
-  }
-})
+    return {
+      ...actual,
+      trackProductAnalyticsEvent: (...args: unknown[]) =>
+        trackProductAnalyticsEventMock(...args),
+    }
+  },
+)
 
-vi.mock("~/services/productAnalytics/sponsorRecommendationsSummary", () => ({
-  recordSponsorRecommendationsSummary: recordSponsorSummaryMock,
-}))
+vi.mock(
+  "~/services/productAnalytics/facts/sponsorRecommendationsSummary",
+  () => ({
+    recordSponsorRecommendationsSummary: recordSponsorSummaryMock,
+  }),
+)
 
 const onContinueAddAccount = vi.fn()
 const onOpenBookmarkManager = vi.fn()
@@ -125,8 +133,15 @@ function createUnsupportedSponsor(
 }
 
 describe("SponsorRecommendationsSection", () => {
-  beforeEach(() => {
+  afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    vi.stubGlobal("open", vi.fn())
     trackProductAnalyticsEventMock.mockReset()
     recordSponsorSummaryMock.mockReset()
     recordSponsorSummaryMock.mockResolvedValue(undefined)
@@ -160,6 +175,10 @@ describe("SponsorRecommendationsSection", () => {
 
     await user.click(continueAction)
 
+    expect(
+      screen.queryByText("account:sponsor.actions.continueAddAccount"),
+    ).not.toBeInTheDocument()
+
     expect(onContinueAddAccount).toHaveBeenCalledWith({
       siteUrl: "https://supported.example.invalid",
       siteType: SITE_TYPES.NEW_API,
@@ -175,6 +194,66 @@ describe("SponsorRecommendationsSection", () => {
     expect(
       screen.queryByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.sponsorPrimaryAction),
     ).not.toBeInTheDocument()
+  })
+
+  it.each([
+    [false, false, "options"],
+    [true, false, "popup"],
+    [false, true, "sidepanel"],
+  ] as const)(
+    "attributes sponsor clicks to the runtime entrypoint (popup=%s, sidepanel=%s)",
+    async (inPopup, inSidePanel, entrypoint) => {
+      vi.spyOn(browserUtils, "isExtensionPopup").mockReturnValue(inPopup)
+      vi.spyOn(browserUtils, "isExtensionSidePanel").mockReturnValue(
+        inSidePanel,
+      )
+      vi.stubGlobal("open", vi.fn())
+      renderSection([createSupportedSponsor()])
+      await userEvent
+        .setup()
+        .click(
+          await screen.findByTestId(
+            ACCOUNT_MANAGEMENT_TEST_IDS.sponsorContinueAddAccountAction,
+          ),
+        )
+
+      expect(trackProductAnalyticsEventMock).toHaveBeenCalledWith(
+        PRODUCT_ANALYTICS_EVENTS.FeatureActionCompleted,
+        expect.objectContaining({ entrypoint }),
+      )
+    },
+  )
+
+  it("preserves a caller's explicit sponsor analytics entrypoint", async () => {
+    vi.spyOn(browserUtils, "isExtensionPopup").mockReturnValue(true)
+    vi.stubGlobal("open", vi.fn())
+    render(
+      <ProductAnalyticsScope entrypoint="sidepanel">
+        <SponsorRecommendationsSection
+          surface={SPONSOR_RECOMMENDATION_SURFACES.Newcomer}
+          items={[createSupportedSponsor()]}
+          onContinueAddAccount={vi.fn()}
+          onOpenBookmarkManager={vi.fn()}
+          onOpenApiCredentialProfiles={vi.fn()}
+        />
+      </ProductAnalyticsScope>,
+      {
+        withUserPreferencesProvider: false,
+        withThemeProvider: false,
+        withReleaseUpdateStatusProvider: false,
+      },
+    )
+    await userEvent
+      .setup()
+      .click(
+        await screen.findByTestId(
+          ACCOUNT_MANAGEMENT_TEST_IDS.sponsorContinueAddAccountAction,
+        ),
+      )
+    expect(trackProductAnalyticsEventMock).toHaveBeenCalledWith(
+      PRODUCT_ANALYTICS_EVENTS.FeatureActionCompleted,
+      expect.objectContaining({ entrypoint: "sidepanel" }),
+    )
   })
 
   it("omits optional auth type from sponsor add-account prefill when none is provided", async () => {
@@ -763,5 +842,72 @@ describe("SponsorRecommendationsSection", () => {
       "add-account,bookmark",
       "add-account,api",
     ])
+  })
+
+  it("promotes API credential fallback action when surface is PopupApiCredentialProfiles", async () => {
+    const user = userEvent.setup()
+    const item = createSupportedSponsor({
+      id: "hybrid-provider",
+      name: "Hybrid Provider",
+      actions: {
+        addAccount: {
+          siteType: SITE_TYPES.NEW_API,
+          siteUrl: "https://hybrid.example.invalid",
+        },
+        apiCredentialProfileFallback: {
+          baseUrl: "https://api.hybrid.example.invalid/v1",
+          apiKeyCreateUrl: "https://hybrid.example.invalid/keys",
+          apiKeyCreateHint: "Copy your key here",
+        },
+      },
+    })
+
+    renderSection(
+      [item],
+      SPONSOR_RECOMMENDATION_SURFACES.PopupApiCredentialProfiles,
+    )
+
+    const button = screen.getByRole("button", {
+      name: /account:sponsor.actions.openApiCredentialProfilesFallback: Hybrid Provider/u,
+    })
+    expect(button).toBeVisible()
+
+    await user.click(button)
+    expect(onOpenApiCredentialProfiles).toHaveBeenCalledWith({
+      name: "Hybrid Provider",
+      baseUrl: "https://api.hybrid.example.invalid/v1",
+      apiKeyCreateUrl: "https://hybrid.example.invalid/keys",
+      apiKeyCreateHint: "Copy your key here",
+    })
+  })
+
+  it("promotes bookmark fallback action when surface is PopupBookmarks", async () => {
+    const user = userEvent.setup()
+    const item = createSupportedSponsor({
+      id: "any-provider",
+      name: "Any Provider",
+      links: {
+        primary: "https://provider.example.invalid",
+      },
+      actions: {
+        addAccount: {
+          siteType: SITE_TYPES.NEW_API,
+          siteUrl: "https://provider.example.invalid",
+        },
+      },
+    })
+
+    renderSection([item], SPONSOR_RECOMMENDATION_SURFACES.PopupBookmarks)
+
+    const button = screen.getByRole("button", {
+      name: /account:sponsor.actions.openBookmarkManagerFallback: Any Provider/u,
+    })
+    expect(button).toBeVisible()
+
+    await user.click(button)
+    expect(onOpenBookmarkManager).toHaveBeenCalledWith({
+      name: "Any Provider",
+      url: "https://provider.example.invalid",
+    })
   })
 })

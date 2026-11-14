@@ -4,7 +4,7 @@
 
 ## 1. 安装插件
 
-为了获得最佳体验（包括自动更新），我们**强烈推荐从各浏览器官方商店安装**。
+为了获得最佳体验（包括自动更新），我们**强烈推荐从各浏览器官方商店安装**。需要 GitHub 版本时，Chromium 用户请优先安装 `.crx` 自更新版，它同样会自动更新。
 
 | 渠道 | 下载链接 | 当前版本 | 用户数 |
 |------|----------|----------|--------|
@@ -15,8 +15,8 @@
 <details>
 <summary>📦 需要手动安装、Safari 或手机端？（点击展开）</summary>
 
-- **GitHub Stable**：无法安装商店版或 Chrome Web Store 兼容版本，或需要临时手动安装已发布修复时，可前往 [GitHub Releases](https://github.com/qixing-jk/all-api-hub/releases) 下载正式版。手动安装版本不会像商店版一样自动更新，你可以 Star / Watch 仓库来接收新版本通知。
-- **Nightly 预发布**：适合想抢先体验并协助测试的用户，可能不如商店稳定版稳定。Nightly 也属于手动安装通道，不会自动更新。
+- **GitHub Stable**：无法安装商店版或 Chrome Web Store 兼容版本，或需要临时安装已发布修复时，可前往 [GitHub Releases](https://github.com/qixing-jk/all-api-hub/releases) 下载正式版。Chromium 用户请安装 `.crx` 自更新版，它会和商店版一样自动更新；解压加载的 `.zip` 不会自动更新。详见 [安装渠道与更新说明](./extension-update-install.md)。
+- **Nightly 预发布**：适合想抢先体验并协助测试的用户，可能不如商店稳定版稳定。Nightly 也属于手动安装通道，Chromium 用户可用 [自更新 `.crx`](./chromium-crx-self-update.md) 获得自动更新。
 - **Safari (Mac)**：需要通过 Xcode 安装，详见 [Safari 安装指南](./safari-install.md)。
 - **QQ / 360 / Brave / Vivaldi / Opera 等**：不同 Chromium 浏览器的商店入口不同，Brave、Vivaldi、Opera 可优先尝试 Chrome Web Store；无法使用商店时再手动加载，详见 [其他浏览器安装指南](./other-browser-install.md)。
 - **移动端**：支持 Edge 手机版、Firefox Android、Kiwi 等，详见 [移动端 FAQ](./faq.md#mobile-browser-support)。
@@ -45,12 +45,11 @@
 
 - [七牛云AI](https://s.qiniu.com/qE3eai)：企业级大模型 MaaS 平台，一站式调用全球 150+ 主流模型，企业用户可免费领 1200 万 Token。
 - [FennoAI](https://api.fenno.ai/s/DCGC)：稳定、高效的 Codex 中转服务商，兼容 OpenAI 及 Anthropic 协议，可接入主流编程工具并支撑千亿 Token/日的企业级调用；All API Hub 用户仅需 1.99 美元即可获得价值 50 美元的 Coding Plan 额度，邀请好友购买最高可获得 20% 返佣。[使用教程](./service-guides/fenno.md)
-- [PackyCode](https://www.packyapi.com/register?aff=all-api-hub)：注册并充值时填写 `all-api-hub` 优惠码可享 9 折。[使用教程](./sponsor-guides/packycode.md)
+- [PackyCode](https://www.packyapi.ai/register?aff=all-api-hub)：注册并充值时填写 `all-api-hub` 优惠码可享 9 折。[使用教程](./sponsor-guides/packycode.md)
 - [星辰AI](https://ai.centos.hk)：充值比例 1:1，可开发票；Claude 低至 4 折。[使用教程](./sponsor-guides/xingchen.md)
-- [玄枢API](https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB)：面向企业、技术团队和个人开发者的新一代 AI 模型路由网关，提供企业级稳定性的全球顶级模型（Claude, GPT, Grok等）一站式 API 接入。模型一折到六折，通过此链接注册，充值额外加赠，首充送更多！企业支持对公转账和开票。[使用教程](./service-guides/xuanshuapi.md)
-- [AICodeMirror](https://www.aicodemirror.ai/register?invitecode=7IQNR8)：提供 Claude Code / Codex / Gemini CLI 官方高稳定中转服务，通过此链接注册可享首充 8 折，企业客户最高可享 7.5 折。
 - [随想AI中转站](https://sui-xiang.com/)：提供 Claude、Codex、Gemini 等 API 中继服务，按量付费，支持每日签到测试额度、多线路冗余和自动故障切换。[使用教程](./service-guides/suixiang.md)
-- [APIMart](https://go.apimart.ai/gh-all-api-hub)：专注 AI 图片/视频生成的低价 API 平台，GPT-Image-2 低至 $0.006/张，1 美元可出图 160+ 张；图片、视频一套异步 API 通吃，提交任务拿 ID、回调取结果，跑批万张不超时、换模型不改代码，按量付费、无月费。
+- [88API Token聚合平台](https://88api.ai/register?aff=XcTj)：由香港企业运营的一站式多模型 API 平台，通过统一接口接入文本、图片、语音和视频模型，支持在 CC Switch 中添加并切换 Provider、国际主流付款方式及开票。通过专属链接注册可获取赠送额度。
+- [ccccccapi](https://dzhsmartai.com/)：支持 ChatGPT、Claude、Gemini、Deepseek 等，全网最低价，用的不烧心，是兄弟就来砍我！
 - [火山引擎方舟 Coding-Plan](https://dis.chatdesks.cn/chatdesk/hsyqallapihub.html)：Lite 套餐 9.9 元/月起，并有邀请返利及首单优惠。
 :::
 

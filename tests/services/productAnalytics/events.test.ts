@@ -16,14 +16,17 @@ import {
   PRODUCT_ANALYTICS_MODE_IDS,
   PRODUCT_ANALYTICS_SETTING_IDS,
   PRODUCT_ANALYTICS_SOURCE_KINDS,
+  PRODUCT_ANALYTICS_STORAGE_AREAS,
+  PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES,
+  PRODUCT_ANALYTICS_STORAGE_OPERATIONS,
   PRODUCT_ANALYTICS_SURFACE_IDS,
   PRODUCT_ANALYTICS_TARGET_KINDS,
 } from "~/services/productAnalytics/contracts"
 import {
   registerProductAnalyticsBackgroundHandler,
   trackProductAnalyticsEvent,
-} from "~/services/productAnalytics/dispatch"
-import { ProductAnalyticsMessageTypes } from "~/services/productAnalytics/messaging"
+} from "~/services/productAnalytics/runtime/dispatch"
+import { ProductAnalyticsMessageTypes } from "~/services/productAnalytics/runtime/messaging"
 import { setLoggingPreferences } from "~/utils/core/logger"
 
 const {
@@ -41,12 +44,15 @@ vi.mock("~/utils/browser", async (importOriginal) => ({
   isExtensionBackground: isExtensionBackgroundMock,
 }))
 
-vi.mock("~/services/productAnalytics/messaging", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("~/services/productAnalytics/messaging")
-  >()),
-  sendProductAnalyticsMessage: sendProductAnalyticsMessageMock,
-}))
+vi.mock(
+  "~/services/productAnalytics/runtime/messaging",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/productAnalytics/runtime/messaging")
+    >()),
+    sendProductAnalyticsMessage: sendProductAnalyticsMessageMock,
+  }),
+)
 
 let cleanupBackgroundHandler: (() => void) | undefined
 
@@ -314,6 +320,27 @@ describe("product analytics event enums", () => {
     })
   })
 
+  it("defines fixed storage write failure analytics ids", () => {
+    expect(PRODUCT_ANALYTICS_EVENTS).toMatchObject({
+      StorageWriteFailed: "storage_write_failed",
+    })
+
+    expect(PRODUCT_ANALYTICS_STORAGE_AREAS).toMatchObject({
+      Local: "local",
+    })
+
+    expect(PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES).toMatchObject({
+      Read: "read",
+      Apply: "apply",
+      Write: "write",
+    })
+
+    expect(PRODUCT_ANALYTICS_STORAGE_OPERATIONS).toMatchObject({
+      AutoCheckinStatus: "auto_checkin_status",
+      ProductAnalyticsState: "product_analytics_state",
+    })
+  })
+
   it("defines fixed Options Overview navigation analytics ids", () => {
     expect(PRODUCT_ANALYTICS_FEATURE_IDS).toMatchObject({
       OptionsOverview: "options_overview",
@@ -368,6 +395,7 @@ describe("product analytics event enums", () => {
       AutoCheckinDisabled: "auto_checkin_disabled",
       NetworkError: "network_error",
       NoSelectedMethod: "no_selected_method",
+      NoAvailableMethod: "no_available_method",
       NoProvider: "no_provider",
       PermissionDenied: "permission_denied",
       SourceUnavailable: "source_unavailable",

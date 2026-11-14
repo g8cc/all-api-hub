@@ -1,8 +1,9 @@
 import {
   collectAccountMetricContributors,
   createEmptyAccountStats,
-} from "~/services/accounts/accountTodayStats"
-import { resolveAccountTodayStatsAvailability } from "~/services/accounts/accountTodayStatsResolver"
+} from "~/services/accounts/metrics/accountTodayStats"
+import { resolveAccountTodayStatsAvailability } from "~/services/accounts/metrics/accountTodayStatsResolver"
+import { supportsMonetaryBalance } from "~/services/accounts/metrics/monetaryBalancePolicy"
 import type {
   AccountStats,
   AccountTodayStatsAvailability,
@@ -23,7 +24,12 @@ export const calculateAccountStats = (
 ): AccountStats => {
   const enabledAccounts = accounts.filter((account) => !account.disabled)
   const balanceAccounts = enabledAccounts.filter(
-    (account) => account.excludeFromTotalBalance !== true,
+    (account) =>
+      account.excludeFromTotalBalance !== true &&
+      supportsMonetaryBalance(
+        account.account_info.nativeBalance,
+        account.account_info.balanceUnavailable,
+      ),
   )
   const incomeAccounts = enabledAccounts.filter(
     (account) => account.excludeFromTodayIncome !== true,

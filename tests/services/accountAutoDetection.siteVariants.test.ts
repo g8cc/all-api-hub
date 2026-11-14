@@ -21,23 +21,23 @@ vi.mock(
 )
 vi.mock("~/utils/core/logger", accountAutoDetectionModuleMocks.logger)
 vi.mock(
-  "~/utils/browser/browserApi",
+  "~/utils/browser/runtimeMessages",
   accountAutoDetectionModuleMocks.browserApi,
 )
 vi.mock(
-  "~/services/apiAdapters/openrouter/managementKeyActionClient",
+  "~/services/apiAdapters/openrouter/keys/managementKeyActionClient",
   accountAutoDetectionModuleMocks.openRouterManagementKeyActionClient,
 )
 vi.mock(
-  "~/services/apiAdapters/newApi/accountBootstrap",
+  "~/services/apiAdapters/newApi/account/accountBootstrap",
   accountAutoDetectionModuleMocks.newApiAccountBootstrap,
 )
 vi.mock(
-  "~/services/apiAdapters/sub2api/accountBootstrap",
+  "~/services/apiAdapters/sub2api/account/accountBootstrap",
   accountAutoDetectionModuleMocks.sub2ApiAccountBootstrap,
 )
 vi.mock(
-  "~/services/apiAdapters/aihubmix/accountBootstrap",
+  "~/services/apiAdapters/aihubmix/account/accountBootstrap",
   accountAutoDetectionModuleMocks.aihubmixAccountBootstrap,
 )
 vi.mock(
@@ -45,7 +45,7 @@ vi.mock(
   accountAutoDetectionModuleMocks.sharedChat,
 )
 vi.mock(
-  "~/services/checkin/autoCheckin/discovery",
+  "~/services/checkin/autoCheckin/discovery/discovery",
   accountAutoDetectionModuleMocks.checkInDiscovery,
 )
 
@@ -275,6 +275,7 @@ describe("accountAutoDetection", () => {
       }),
     })
     expect(mockFetchUserInfo).toHaveBeenCalledWith({
+      directRequestReason: "caller_managed" as const,
       baseUrl: "https://cookie.example.com",
       auth: {
         authType: AuthTypeEnum.Cookie,
@@ -322,6 +323,7 @@ describe("accountAutoDetection", () => {
       }),
     })
     expect(mockGetOrCreateAccessToken).toHaveBeenCalledWith({
+      directRequestReason: "caller_managed" as const,
       baseUrl: "https://anyrouter.example.com",
       fetchContext: currentTabFetchContext("https://anyrouter.example.com"),
       auth: {
@@ -331,6 +333,7 @@ describe("accountAutoDetection", () => {
     })
     expect(mockFetchSupportCheckIn).toHaveBeenCalledWith(
       {
+        directRequestReason: "caller_managed" as const,
         baseUrl: "https://anyrouter.example.com",
         fetchContext: currentTabFetchContext("https://anyrouter.example.com"),
         auth: {
@@ -379,6 +382,7 @@ describe("accountAutoDetection", () => {
     })
     expect(mockFetchSupportCheckIn).toHaveBeenCalledWith(
       {
+        directRequestReason: "caller_managed" as const,
         baseUrl: "https://wong.example.com",
         fetchContext: currentTabFetchContext("https://wong.example.com"),
         auth: {
@@ -422,6 +426,7 @@ describe("accountAutoDetection", () => {
     expect(mockGetOrCreateAccessToken).not.toHaveBeenCalled()
     expect(mockFetchUserInfo).not.toHaveBeenCalled()
     expect(mockLoadBootstrapFacts).toHaveBeenCalledWith({
+      directRequestReason: "caller_managed" as const,
       baseUrl: "https://aihubmix.com",
       fetchContext: currentTabFetchContext("https://aihubmix.com"),
       auth: {

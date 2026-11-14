@@ -1,15 +1,15 @@
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { UpdateLogDialogProvider } from "~/components/dialogs/UpdateLogDialog"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { SITE_TYPES } from "~/constants/siteType"
 import * as userPreferencesContext from "~/contexts/UserPreferencesContext"
 import AutoCheckin from "~/entrypoints/options/pages/AutoCheckin"
 import { DevPanel } from "~/features/DevPanel/DevPanel"
 import { DevPanelProvider } from "~/features/DevPanel/DevPanelSectionsContext"
+import { UpdateLogDialogProvider } from "~/features/UpdateLog"
 import { accountQueries } from "~/services/accounts/accountStorage/accountQueries"
-import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/compatibilityConfig"
+import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/configuration/compatibilityConfig"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -81,13 +81,11 @@ vi.mock("~/services/accounts/accountStorage/accountQueries", () => ({
   },
 }))
 
-vi.mock("~/utils/navigation", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/utils/navigation")>()
+vi.mock("~/utils/navigation/optionsPage", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/utils/navigation/optionsPage")>()
 
-  return {
-    ...actual,
-    pushWithinOptionsPage: pushWithinOptionsPageMock,
-  }
+  return { ...actual, pushWithinOptionsPage: pushWithinOptionsPageMock }
 })
 
 vi.mock("~/services/checkin/autoCheckin/messaging", async (importOriginal) => {
@@ -328,7 +326,7 @@ describe("AutoCheckin quick run", () => {
   })
 
   it("captures the popup source when routeParams.runNow triggers a run", async () => {
-    const navigation = await import("~/utils/navigation")
+    const navigation = await import("~/utils/navigation/optionsPage")
     const navigateWithinOptionsPageSpy = vi
       .spyOn(navigation, "navigateWithinOptionsPage")
       .mockImplementation(vi.fn() as any)

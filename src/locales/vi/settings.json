@@ -135,7 +135,7 @@
   "autoProvisionKeyOnAccountAdd": {
     "description": "Tự động chuẩn bị khóa API sau khi thêm tài khoản: khóa mặc định hoặc khóa cho tất cả nhóm khả dụng.",
     "manualHint": "Với tài khoản đã lưu, dùng Quản lý khóa → {{actionLabel}} để bổ sung khóa còn thiếu cho tất cả nhóm khả dụng.",
-    "modeDescription": "Chế độ mặc định chỉ tạo một khóa khi tài khoản chưa có khóa. Tất cả nhóm tạo một khóa cho mỗi nhóm chưa có khóa dùng được. Các nhóm cần thiết lập thủ công sẽ được thông báo.",
+    "modeDescription": "Chế độ mặc định chuẩn bị một khóa khi không có khóa hoạt động. Tất cả nhóm bổ sung từng nhóm còn thiếu; trang không yêu cầu nhóm sẽ chuẩn bị một khóa mặc định. Cả hai chế độ đều có thể mở hộp thoại để nhập thông tin hoặc xử lý khóa chỉ hiển thị một lần.",
     "modeLabel": "Phạm vi tạo tự động",
     "modes": {
       "allGroups": "Tất cả nhóm khả dụng",
@@ -170,16 +170,13 @@
       "description": "Kiểm tra xem cấu hình hiện tại có thể kết nối và quản lý trang web hay không.",
       "failed": "Xác minh cấu hình AxonHub thất bại: {{error}}",
       "missingFields": "Vui lòng điền tất cả trường bắt buộc",
-      "success": "Kết nối thành công",
-      "title": "Xác minh kết nối",
-      "validate": "Xác minh kết nối",
-      "validating": "Đang xác minh…"
+      "title": "Xác minh kết nối"
     }
   },
   "changelogOnUpdate": {
-    "description": "Kiểm soát việc hiển thị nội dung cập nhật trong tiện ích khi mở giao diện tiện ích lần đầu sau khi cập nhật xong.",
+    "description": "Kiểm soát việc hiển thị nội dung cập nhật trong tiện ích khi mở trang cài đặt lần đầu sau khi cập nhật xong.",
     "title": "Nhật ký thay đổi",
-    "toggleDesc": "Sau khi bật, lần đầu mở giao diện tiện ích sau khi cập nhật xong, tiện ích sẽ hiển thị nội dung cập nhật trong app (mỗi phiên bản chỉ một lần), đồng thời có thể mở thủ công trang nhật ký thay đổi đầy đủ.",
+    "toggleDesc": "Sau khi bật, lần đầu mở trang cài đặt sau khi cập nhật xong, tiện ích sẽ hiển thị nội dung cập nhật trong app (mỗi phiên bản chỉ một lần), đồng thời có thể mở thủ công trang nhật ký thay đổi đầy đủ.",
     "toggleLabel": "Tự động hiển thị nội dung cập nhật sau khi cập nhật"
   },
   "claudeCodeHub": {
@@ -203,10 +200,7 @@
       "description": "Kiểm tra xem cấu hình hiện tại có thể kết nối và quản lý trang web hay không.",
       "failed": "Xác minh cấu hình Claude Code Hub thất bại: {{error}}",
       "missingFields": "Vui lòng điền tất cả trường bắt buộc",
-      "success": "Kết nối thành công",
-      "title": "Xác minh kết nối",
-      "validate": "Xác minh kết nối",
-      "validating": "Đang xác minh…"
+      "title": "Xác minh kết nối"
     }
   },
   "claudeCodeRouter": {
@@ -221,7 +215,6 @@
   },
   "cliProxyApi": {
     "baseUrlLabel": "URL cơ sở API quản trị",
-    "checkConnectionAction": "Xác minh kết nối",
     "checkConnectionDesc": "Kiểm tra xem cấu hình hiện tại có thể kết nối và quản lý trang web hay không.",
     "checkConnectionLabel": "Xác minh kết nối",
     "description": "Cấu hình thông tin kết nối tới API quản trị CLIProxyAPI.",
@@ -289,10 +282,60 @@
     "toggleDesc": "Yêu cầu xác nhận khi cùng ID người dùng đã được lưu cho trang web này. Với OpenRouter, kiểm tra Management Key giống hệt nhau.",
     "toggleLabel": "Nhắc trước khi thêm tài khoản trùng lặp"
   },
+  "gptLoad": {
+    "description": "Manage a self-hosted gpt-load instance: a lightweight Go AI gateway that load balances requests across provider channels.",
+    "fields": {
+      "baseUrlDesc": "The base URL of your gpt-load dashboard (for example https://gateway.example.com).",
+      "baseUrlLabel": "Gateway address",
+      "baseUrlPlaceholder": "https://gateway.example.com",
+      "hideManagementKey": "Hide management key",
+      "managementKeyDesc": "The gateway's root AUTH_KEY, presented to the management API as a bearer token. It holds the same power as every workspace channel key.",
+      "managementKeyLabel": "Management key",
+      "managementKeyPlaceholder": "The AUTH_KEY from your gateway config",
+      "showManagementKey": "Show management key"
+    },
+    "title": "gpt-load",
+    "validation": {
+      "description": "Send one request with the key above to verify the gateway is reachable and the key is accepted.",
+      "failed": "Could not reach the gateway: {{error}}",
+      "insufficientPrivilege": "The management key lacks permission: {{error}}",
+      "invalidCredential": "The management key was rejected: {{error}}",
+      "missingFields": "Enter the gateway address and management key first",
+      "title": "Check connection"
+    }
+  },
   "logging": {
-    "consoleEnabled": "Bật nhật ký console",
-    "consoleEnabledDesc": "Sau khi tắt, All API Hub sẽ không xuất bất kỳ nhật ký nào trong console trình duyệt (bao gồm lỗi).",
-    "description": "Kiểm soát việc xuất nhật ký trong console trình duyệt để hỗ trợ xử lý sự cố.",
+    "consoleEnabled": "Bật nhật ký",
+    "consoleEnabledDesc": "Khi tắt, đầu ra bảng điều khiển và việc ghi nhật ký cục bộ mới sẽ dừng.",
+    "description": "Cấu hình đầu ra nhật ký và lịch sử chẩn đoán cục bộ.",
+    "history": {
+      "allContexts": "Tất cả nguồn",
+      "allLevels": "Tất cả mức",
+      "allTime": "Tất cả nhật ký đã lưu",
+      "clearDescription": "Xóa tất cả nhật ký được giữ trên thiết bị này.",
+      "clearError": "Không thể xóa nhật ký",
+      "clearTitle": "Xóa nhật ký cục bộ",
+      "context": "Nguồn",
+      "copied": "Đã sao chép nhật ký",
+      "copy": "Sao chép nhật ký đã lọc",
+      "copyError": "Không thể sao chép nhật ký",
+      "description": "Hiển thị tối đa {{limit}} bản ghi cục bộ trong {{hours}} giờ qua. Việc dọn dẹp bản ghi hết hạn diễn ra khi ghi hoặc xem nhật ký. Bật nhật ký để ghi lại sự kiện; đặt mức nhật ký tối thiểu thành Gỡ lỗi để có thêm chi tiết.",
+      "details": "Chi tiết",
+      "empty": "Không có nhật ký phù hợp. Bật nhật ký, tái hiện sự cố rồi quay lại đây.",
+      "entryDescription": "Theo dõi trực tiếp nhật ký từ các trang của tiện ích hoặc xem lịch sử gần đây.",
+      "lastHour": "1 giờ gần nhất",
+      "lastMinutes": "5 phút gần nhất",
+      "level": "Mức nhật ký",
+      "loadError": "Không thể đọc nhật ký. Các mục đang hiển thị được giữ lại. Vui lòng thử lại.",
+      "more": "Tải nhật ký cũ hơn",
+      "open": "Xem nhật ký",
+      "pause": "Tạm dừng cập nhật",
+      "period": "Khoảng thời gian",
+      "resume": "Tiếp tục cập nhật trực tiếp",
+      "search": "Tìm thông báo, mô-đun hoặc ID yêu cầu",
+      "showing": "Hiển thị {{visible}} / {{total}}",
+      "title": "Nhật ký gần đây"
+    },
     "levels": {
       "debug": "Gỡ lỗi",
       "error": "Lỗi",
@@ -300,8 +343,29 @@
       "warn": "Cảnh báo"
     },
     "minLevel": "Cấp nhật ký tối thiểu",
-    "minLevelDesc": "Sau khi bật nhật ký console, chỉ xuất nhật ký không thấp hơn cấp này.",
+    "minLevelDesc": "Nhật ký dưới mức đã chọn không được xuất hoặc lưu.",
     "title": "Nhật ký"
+  },
+  "magpie": {
+    "description": "Quản lý nhà cung cấp trên máy chủ Magpie Web tự lưu trữ.",
+    "fields": {
+      "baseUrlDesc": "Khởi động magpie web (cổng mặc định 3430). Nhập URL Web, không phải URL suy luận ở cổng 3425.",
+      "baseUrlLabel": "URL quản trị Web",
+      "baseUrlPlaceholder": "http://localhost:3430",
+      "hideWebKey": "Ẩn khóa quản trị",
+      "showWebKey": "Hiện khóa quản trị",
+      "webKeyDesc": "Dùng MAGPIE_WEB_KEY hoặc giá trị k trong liên kết khởi động. MAGPIE_WEB_KEY cố định vẫn dùng được sau khi khởi động lại; nếu không, hãy cập nhật khóa tại đây. API key suy luận không dùng để quản trị.",
+      "webKeyLabel": "Khóa quản trị Web",
+      "webKeyPlaceholder": "Nhập khóa quản trị Web"
+    },
+    "title": "Magpie",
+    "validation": {
+      "description": "Dùng khóa ở trên để kiểm tra kết nối và quyền truy cập danh sách nhà cung cấp.",
+      "failed": "Không thể kết nối Magpie. Kiểm tra địa chỉ Web và máy chủ đã chạy chưa.",
+      "invalidCredential": "Khóa Web bị từ chối. Kiểm tra MAGPIE_WEB_KEY hoặc dùng khóa khởi động hiện tại.",
+      "missingFields": "Trước tiên hãy nhập địa chỉ cổng và khóa quản trị",
+      "title": "Kiểm tra kết nối"
+    }
   },
   "managedSite": {
     "axonHub": "AxonHub",
@@ -326,14 +390,31 @@
         "title": "Cấu hình AI gateway tự triển khai"
       }
     },
+    "gptLoad": "gpt-load",
+    "magpie": "Magpie",
     "newApi": "New API",
     "octopus": "Octopus",
+    "omniroute": "OmniRoute",
     "popularityHint": "Sắp xếp theo số sao GitHub tại thời điểm cập nhật.",
     "siteTypeDesc": "Chọn nền tảng dùng cho quản lý kênh và đồng bộ mô hình",
     "siteTypeLabel": "Loại gateway",
     "sub2api": "Sub2API",
     "title": "Cấu hình AI gateway tự triển khai",
     "veloera": "Veloera"
+  },
+  "managedSiteConnection": {
+    "check": "Kiểm tra kết nối",
+    "checkError": "Đã lưu cấu hình nhưng kiểm tra kết nối thất bại. Vui lòng thử lại.",
+    "checking": "Đang kiểm tra…",
+    "conflict": "Cấu hình đã thay đổi trên trang khác. Nội dung nhập được giữ lại. Hãy xem cấu hình mới nhất hoặc tải lại cấu hình đã lưu để thay thế nội dung nhập.",
+    "failed": "Đã lưu cấu hình nhưng kiểm tra kết nối thất bại: {{reason}}",
+    "invalidField": "Kiểm tra {{field}} trước khi lưu",
+    "reload": "Tải lại cấu hình đã lưu",
+    "saveError": "Không thể lưu cấu hình. Nội dung nhập được giữ lại. Vui lòng thử lại.",
+    "saveFailed": "Không thể lưu cấu hình: {{reason}}. Nội dung nhập được giữ lại. Vui lòng thử lại.",
+    "saving": "Đang lưu…",
+    "success": "Đã lưu cấu hình. Kết nối đã được xác minh.",
+    "unreachable": "Không thể kết nối đến trang"
   },
   "messages": {
     "alreadyDefault": "Đã ở giá trị mặc định",
@@ -380,7 +461,6 @@
       "usernamePlaceholder": "admin"
     },
     "sessionTest": {
-      "action": "Kiểm tra cấu hình",
       "description": "Kiểm tra tên đăng nhập, mật khẩu và TOTP secret đã điền có chính xác và khả dụng hay không. Sau khi xác minh thành công, bạn có thể tiếp tục thực hiện các thao tác cần đăng nhập và xác minh hai bước.",
       "testing": "Đang kiểm tra cấu hình...",
       "title": "Kiểm tra đăng nhập và xác minh hai bước"
@@ -411,10 +491,36 @@
       "error": "Đã xảy ra lỗi trong quá trình xác minh",
       "failed": "Xác minh cấu hình thất bại, vui lòng kiểm tra tên người dùng và mật khẩu",
       "missingFields": "Vui lòng điền tất cả trường bắt buộc",
-      "success": "Kết nối thành công",
-      "title": "Xác minh kết nối",
-      "validate": "Xác minh kết nối",
-      "validating": "Đang xác minh…"
+      "title": "Xác minh kết nối"
+    }
+  },
+  "omniroute": {
+    "accessTokens": {
+      "description": "Quản lý token truy cập trên bảng điều khiển của gateway và thu hồi bất cứ lúc nào token mà tiện ích này dùng.",
+      "missingBaseUrl": "Hãy nhập địa chỉ triển khai trước để mở trang token của gateway.",
+      "open": "Mở trang token truy cập",
+      "title": "Quản lý token truy cập của gateway"
+    },
+    "description": "Cấu hình kết nối tới gateway OmniRoute tự triển khai.",
+    "fields": {
+      "baseUrlDesc": "Địa chỉ bạn dùng để mở bảng điều khiển OmniRoute trong trình duyệt.",
+      "baseUrlLabel": "Địa chỉ triển khai",
+      "baseUrlPlaceholder": "http://localhost:20128",
+      "credentialDesc": "Tạo token truy cập có phạm vi admin trong Settings → Access Tokens của gateway rồi dán vào đây.",
+      "credentialLabel": "Token truy cập",
+      "credentialPlaceholder": "oma_…",
+      "hideCredential": "Ẩn token truy cập",
+      "showCredential": "Hiện token truy cập"
+    },
+    "title": "Cài đặt tích hợp OmniRoute",
+    "validation": {
+      "description": "Kiểm tra xem cấu hình hiện tại có kết nối và quản lý được site không.",
+      "failed": "Kiểm tra cấu hình OmniRoute thất bại: {{error}}",
+      "insufficientScope": "Phạm vi token không đủ: hiện có {{have}}, cần {{need}}. Hãy tạo token mới với phạm vi admin trong Settings → Access Tokens của gateway.",
+      "invalidCredential": "Token truy cập không hợp lệ hoặc đã hết hạn: {{error}}",
+      "missingFields": "Nhập địa chỉ triển khai và token truy cập",
+      "title": "Kiểm tra kết nối",
+      "unknownScope": "không rõ"
     }
   },
   "permissions": {
@@ -425,13 +531,35 @@
     },
     "description": "Cấp quyền tùy chọn khi cần để làm mới dữ liệu tài khoản, dùng công cụ hỗ trợ, nhận thông báo tác vụ và nhập trang.",
     "helper": "Mỗi quyền chỉ được dùng cho chức năng tương ứng và có thể thu hồi bất cứ lúc nào. Chức năng chưa được cấp quyền có thể bị hạn chế, còn các chức năng khác vẫn hoạt động.",
+    "incognito": {
+      "checking": "Đang kiểm tra quyền truy cập cửa sổ riêng tư…",
+      "chromeInstructions": "Trong chi tiết tiện ích trên Chrome, bật “Cho phép ở chế độ ẩn danh”.",
+      "denied": "Chưa cho phép truy cập riêng tư",
+      "details": "Cài đặt",
+      "edgeInstructions": "Trong chi tiết tiện ích trên Edge, bật “Cho phép trong InPrivate”.",
+      "enabled": "Đã cho phép truy cập riêng tư",
+      "firefoxInstructions": "Mở Tiện ích và chủ đề trong Firefox, chọn tiện ích này và cho phép chạy trong cửa sổ riêng tư.",
+      "firefoxMobileInstructions": "Firefox: Mở trình quản lý tiện ích từ menu trình duyệt và kiểm tra tùy chọn truy cập riêng tư. Menu và khả năng hỗ trợ tùy thuộc phiên bản trình duyệt.",
+      "genericInstructions": "Kiểm tra quyền truy cập riêng tư trong trình quản lý tiện ích của trình duyệt.",
+      "manualSteps": "Xem hướng dẫn",
+      "mobileInstructions": "Mở trình quản lý tiện ích từ menu trình duyệt và kiểm tra tùy chọn truy cập riêng tư. Menu và khả năng hỗ trợ tùy thuộc phiên bản trình duyệt.",
+      "openChromeSettings": "Cài đặt Chrome",
+      "openEdgeSettings": "Cài đặt Edge",
+      "recommended": "Nên cho phép tiện ích chạy trong cửa sổ riêng tư",
+      "reloadWarning": "Thay đổi quyền này có thể tải lại tiện ích, đóng trang tiện ích hoặc gián đoạn tác vụ. Hãy lưu các chỉnh sửa chưa hoàn tất trước.",
+      "safariInstructions": "Chọn tiện ích này trong cài đặt tiện ích của Safari và cho phép dùng trong chế độ riêng tư. Các tùy chọn phụ thuộc vào phiên bản Safari.",
+      "settingsFailed": "Không thể mở cài đặt. Hãy mở trình quản lý tiện ích của trình duyệt và cho phép tiện ích chạy trong cửa sổ riêng tư.",
+      "summary": "Tách đăng nhập khỏi cửa sổ thường để tránh nhầm tài khoản hoặc ảnh hưởng đến phiên đang đăng nhập.",
+      "title": "Quyền truy cập cửa sổ ẩn danh / riêng tư",
+      "unknown": "Không thể kiểm tra quyền truy cập riêng tư"
+    },
     "items": {
       "bookmarks": {
         "description": "Chỉ đọc URL đã lưu khi bạn chọn nhập trang từ dấu trang trình duyệt.",
         "title": "Dấu trang trình duyệt"
       },
       "clipboardRead": {
-        "description": "Sau khi bạn sao chép nội dung liên quan, giúp trợ lý đổi mã hoặc công cụ kiểm tra AI API nhận diện mã đổi thưởng và thông tin API.",
+        "description": "Sau khi bạn sao chép nội dung liên quan, giúp trợ lý đổi mã hoặc công cụ kiểm tra API trên trang web nhận diện mã đổi thưởng và thông tin API.",
         "title": "Đọc clipboard"
       },
       "cookies": {
@@ -484,7 +612,7 @@
       "cta": "Ghé GitHub để xem mã nguồn và những cập nhật mới nhất. Bạn cũng có thể báo lỗi hoặc chia sẻ ý tưởng.",
       "getStartedCta": "Mở hướng dẫn bắt đầu",
       "label": "Mã nguồn",
-      "starCta": "All API Hub hữu ích với bạn? Hãy Star trên GitHub để ủng hộ dự án"
+      "starCta": "Tặng một Star trên GitHub để ủng hộ việc cải tiến liên tục"
     },
     "reason": {
       "newPermissions": "Chức năng mới cần thêm quyền tùy chọn. Hãy xem mục đích của từng quyền và chỉ cấp những quyền bạn cần."
@@ -504,13 +632,14 @@
   },
   "refresh": {
     "autoRefresh": "Tự động làm mới",
-    "autoRefreshDesc": "Định kỳ tự động làm mới dữ liệu tài khoản",
+    "autoRefreshDesc": "Định kỳ tự động làm mới dữ liệu tài khoản (vẫn chạy dưới nền ngay cả sau khi đóng giao diện tiện ích)",
     "description": "Cấu hình các cài đặt liên quan đến tự động làm mới dữ liệu, ví dụ khoảng thời gian làm mới và hành vi khi khởi động.",
     "minRefreshInterval": "Khoảng làm mới tối thiểu",
     "minRefreshIntervalDesc": "Giới hạn khoảng thời gian tối thiểu giữa các lần làm mới liên tiếp để tránh yêu cầu quá thường xuyên (ít nhất {{minSeconds}} giây)",
     "minRefreshIntervalInvalid": "Vui lòng nhập khoảng làm mới tối thiểu hợp lệ (ít nhất {{minSeconds}} giây).",
     "refreshInterval": "Khoảng làm mới",
     "refreshIntervalDesc": "Đặt khoảng thời gian tự động làm mới (mặc định {{defaultInterval}} giây, khuyến nghị không đặt quá nhỏ để tránh yêu cầu quá thường xuyên)",
+    "refreshIntervalHint": "Làm mới thường xuyên có thể kích hoạt giới hạn yêu cầu của trang web khi có nhiều tài khoản. Nên đặt khoảng thời gian từ {{minutes}} phút trở lên.",
     "refreshIntervalInvalid": "Vui lòng nhập khoảng làm mới hợp lệ (ít nhất {{minSeconds}} giây).",
     "refreshOnOpen": "Tự động làm mới khi mở tiện ích",
     "refreshOnOpenDesc": "Tự động làm mới dữ liệu tài khoản khi mở popup tiện ích",
@@ -553,10 +682,15 @@
     "shieldDevTriggerPresetLabel": "Hành vi cần mô phỏng",
     "shieldDevTriggerPresetLdohSiteLookupRecovery": "Khôi phục tra cứu trang",
     "shieldDevTriggerPresetRedemptionAssistRecovery": "Khôi phục sau đổi mã",
+    "shieldDevTriggerPresetTurnstileAutomatic": "Turnstile: tự động thành công",
+    "shieldDevTriggerPresetTurnstileFailure": "Turnstile: xác minh thất bại",
+    "shieldDevTriggerPresetTurnstileInteractive": "Turnstile: xác minh thủ công",
+    "shieldDevTriggerPresetTurnstileQueue": "Turnstile: hàng đợi ba trang web",
     "shieldDevTriggerRunning": "Đang kích hoạt...",
     "shieldDevTriggerStart": "Kích hoạt sau độ trễ",
     "shieldDevTriggerSuccess": "Yêu cầu đã hoàn tất (HTTP {{status}})",
     "shieldDevTriggerTitle": "Kiểm thử phát triển",
+    "shieldDevTriggerTurnstileHint": "Chạy pnpm dev:turnstile trước. Các tình huống dùng thành phần thử nghiệm chính thức trên máy cục bộ, không điểm danh tài khoản thật. Bật lời nhắc trong giao diện rồi nhấp từng lời nhắc để mở xác minh.",
     "shieldDevTriggerUrlLabel": "URL đích",
     "shieldEnabled": "Cho phép tác vụ tự động mở trang tạm",
     "shieldEnabledDescTempWindowOnly": "Khi bật, các tác vụ như làm mới tự động và điểm danh có thể mở trang tạm khi cần xác minh trang web. Khi tắt, thao tác do bạn chủ động bắt đầu vẫn có thể dùng tính năng này theo các cài đặt bên dưới.",
@@ -577,53 +711,76 @@
     "shieldPermissionWarningTitle": "Cần các quyền Cookies, Web Request và Web Request Blocking",
     "shieldPopupFirefoxNote": "Trên Firefox, bắt đầu tính năng này từ popup của tiện ích sẽ làm popup đóng lại, nên không thể dùng điểm truy cập này. Hãy dùng thanh bên hoặc trang cài đặt.",
     "shieldTitle": "Hỗ trợ xác minh trang web",
+    "shieldTurnstileAssistDesc": "Chọn cách được báo khi Turnstile phải hoàn tất bằng tay. Cửa sổ xác minh vẫn mở cho đến khi xong hoặc hết thời gian.",
+    "shieldTurnstileAssistNotify": "Thông báo trình duyệt",
+    "shieldTurnstileAssistNotifyHint": "Gửi thông báo trình duyệt cục bộ. Nhấp để mở cửa sổ xác minh; cần quyền thông báo.",
+    "shieldTurnstileAssistPage": "Nhắc trong giao diện",
+    "shieldTurnstileAssistPageHint": "Hiển thị lời nhắc trên trang web hoặc giao diện tiện ích hiện tại. Nhấp để mở cửa sổ xác minh.",
+    "shieldTurnstileAssistQuietNotice": "Đã tắt tất cả lời nhắc. Xác minh vẫn tiếp tục trong cửa sổ nền nhưng sẽ không nhắc bạn.",
+    "shieldTurnstileAssistTitle": "Khi cần bạn xác minh",
+    "shieldTurnstileSolverApiKey": "API Key",
+    "shieldTurnstileSolverCostNotice": "Đây là dịch vụ bên thứ ba trả phí: mỗi yêu cầu đều tiêu hao hạn mức của tài khoản, chỉ bật khi bạn thấy phù hợp.",
+    "shieldTurnstileSolverDesc": "Nhờ dịch vụ bên thứ ba lấy token Turnstile hộ bạn. Dịch vụ chỉ trả về token, không xử lý captcha ảnh, trượt công tắc hay xác minh lớp hai, nên những trang đó vẫn yêu cầu bạn tự hoàn tất.",
+    "shieldTurnstileSolverEnabled": "Dùng dịch vụ giải quyết Turnstile",
+    "shieldTurnstileSolverEndpoint": "Địa chỉ dịch vụ",
+    "shieldTurnstileSolverKeyMissing": "Để trống API Key thì dịch vụ vẫn tắt, việc điểm danh dùng quy trình tích hợp sẵn.",
+    "shieldTurnstileSolverModeApiFirst": "Dịch vụ trước",
+    "shieldTurnstileSolverModeApiFirstHint": "Hỏi dịch vụ trước rồi mới hiển thị trang: những trang chỉ có Turnstile sẽ điểm danh xong mà bạn không cần làm gì, cửa sổ xác minh cũng không bị đưa lên trước.",
+    "shieldTurnstileSolverModePageFirst": "Trang trước",
+    "shieldTurnstileSolverModePageFirstHint": "Để trang tự thử im lặng trước, chỉ hỏi dịch vụ khi không lấy được token, nhờ vậy tiết kiệm hạn mức.",
+    "shieldTurnstileSolverModeTitle": "Thứ tự yêu cầu",
+    "shieldTurnstileSolverTimeout": "Thời gian chờ mỗi yêu cầu (giây, 5-120)",
+    "shieldTurnstileSolverTitle": "Tự động qua Turnstile",
     "shieldWindowHeight": "Chiều cao (px)",
     "shieldWindowSizeDesc": "Đặt chiều rộng và chiều cao theo pixel rồi lưu. Áp dụng cho cửa sổ xác minh mở mới; cửa sổ và thẻ hiện có giữ nguyên kích thước.",
     "shieldWindowSizeReset": "Khôi phục mặc định",
     "shieldWindowSizeTitle": "Kích thước cửa sổ xác minh",
     "shieldWindowWidth": "Chiều rộng (px)",
-    "title": "Cài đặt làm mới"
+    "title": "Cài đặt làm mới",
+    "turnstileNotificationEnable": "Cho phép thông báo hệ thống",
+    "turnstileNotificationManage": "Quản lý quyền thông báo",
+    "turnstileNotificationPermissionTitle": "Cho phép thông báo trình duyệt từ All API Hub",
+    "turnstileNotificationStatus": {
+      "available": "Thông báo hệ thống: đã được cấp quyền. Chế độ không làm phiền hoặc cài đặt trình duyệt vẫn có thể ẩn thông báo.",
+      "blocked": "Trình duyệt đã chặn thông báo. Kiểm tra cài đặt thông báo rồi quay lại thử lại.",
+      "loading": "Đang kiểm tra quyền thông báo…",
+      "permission_required": "Thông báo hệ thống: cần cấp quyền. Lời nhắc trên trang không cần quyền này.",
+      "unavailable": "Trình duyệt này không hỗ trợ thông báo. Bạn có thể bật lời nhắc trong giao diện riêng.",
+      "unknown": "Không thể xác nhận khả năng thông báo. Kiểm tra quyền rồi thử lại."
+    }
   },
   "releaseUpdate": {
-    "checkNow": "Kiểm tra ngay",
+    "changelog": "Nhật ký thay đổi",
+    "checkNow": "Kiểm tra cập nhật",
     "downloadUpdate": "Tải bản cập nhật",
     "helpers": {
-      "checkFailed": "Có thể thử lại sau hoặc vào trang phát hành để xem phiên bản mới nhất thủ công.",
+      "amoUpdate": "Firefox Add-ons đã có phiên bản mới. Mở cửa hàng để cập nhật hoặc chờ Firefox tự động cập nhật.",
+      "checkFailed": "Hãy kiểm tra cập nhật lại.",
       "manualUpdate": "Bản cài đặt hiện tại là kênh cập nhật thủ công. Vui lòng vào trang phát hành để lấy phiên bản mới.",
       "manualUpdateGeneric": "Vui lòng cập nhật theo kênh cài đặt hiện tại; khi cần có thể vào trang phát hành để lấy phiên bản mới thủ công.",
-      "notChecked": "Bấm \"Kiểm tra ngay\" để xác nhận phiên bản hiện tại có cần cập nhật hay không.",
-      "openLatest": "Có thể vào trang phát hành để xem bản chính thức mới nhất và nội dung cập nhật.",
-      "storeUpdate": "Bản cài từ cửa hàng sẽ cập nhật qua trình duyệt. Nếu GitHub đã có bản mới nhưng cửa hàng chưa sẵn sàng, thường là do đang duyệt hoặc phân phối.",
+      "selfUpdate": "Bản cài đặt này tự cập nhật. Trình duyệt sẽ tải phiên bản mới từ trang phát hành, không cần tải xuống thủ công.",
+      "storeUpdate": "Trình duyệt tự động cập nhật bản cài từ cửa hàng. Vui lòng chờ cửa hàng phát hành.",
       "storeUpdateReady": "Trình duyệt đã tìm thấy bản cập nhật từ cửa hàng. Hãy tải lại tiện ích để dùng phiên bản mới.",
-      "unavailable": "Có thể thử lại sau hoặc trực tiếp vào trang phát hành để xem bản chính thức mới nhất.",
-      "upToDate": "Có thể vào trang phát hành để xem nội dung cập nhật và xác nhận các thay đổi trong phiên bản này."
+      "unavailable": "Hãy kiểm tra cập nhật lại."
     },
-    "lastChecked": "Lần kiểm tra gần nhất: {{time}}",
-    "latestVersionPending": "Bản chính thức mới nhất: chờ kiểm tra",
-    "latestVersionUnavailable": "Bản chính thức mới nhất: chưa lấy được",
-    "openLatest": "Xem phiên bản mới nhất",
-    "reasons": {
-      "api-unavailable": "Môi trường trình duyệt hiện tại không hỗ trợ tự động kiểm tra; có thể kiểm tra bản chính thức mới nhất thủ công",
-      "chromium-development": "Kênh cài đặt hiện tại hỗ trợ kiểm tra bản chính thức mới nhất; có thể kiểm tra thủ công",
-      "firefox-ambiguous": "Firefox hiện không thể xác định kênh cài đặt một cách đáng tin cậy; nên kiểm tra bản chính thức mới nhất thủ công khi cần",
-      "safari-unsupported": "Safari tạm thời chưa hỗ trợ tự động kiểm tra; nên vào trang phát hành để xem bản chính thức mới nhất",
-      "store-build": "Đây là bản cài từ cửa hàng trình duyệt. Có thể kiểm tra cập nhật cửa hàng và so sánh với bản GitHub mới nhất",
-      "unknown": "Kênh cài đặt hiện tại tạm thời chưa hỗ trợ tự động kiểm tra; có thể kiểm tra thủ công"
-    },
+    "latestAmoVersion": "Firefox Add-ons: v{{version}}",
+    "latestNightlyVersion": "Nightly mới nhất: {{version}}",
     "reloadToUpdate": "Tải lại để cập nhật",
     "states": {
-      "checkFailed": "Kiểm tra thất bại, chưa lấy được thông tin bản chính thức mới nhất",
+      "checkFailed": "Không thể kiểm tra cập nhật",
       "notChecked": "Chưa kiểm tra bản chính thức mới nhất, có thể kiểm tra thủ công",
-      "storeUpdatePending": "GitHub đã có bản phát hành mới hơn, nhưng bản cập nhật trên cửa hàng chưa sẵn sàng",
-      "storeUpdateReady": "Bản cập nhật cửa hàng đã sẵn sàng, hãy tải lại để áp dụng",
-      "unavailable": "Tạm thời không thể đọc trạng thái cập nhật",
-      "updateAvailable": "Phát hiện phiên bản mới có thể nâng cấp",
-      "upToDate": "Đã kiểm tra xong, phiên bản hiện tại là bản chính thức mới nhất"
+      "selfUpdatePending": "Có phiên bản mới hơn. Trình duyệt sẽ tự động cài đặt",
+      "storeUpdatePending": "Đang chờ bản cập nhật từ cửa hàng",
+      "storeUpdateReady": "Bản cập nhật đã sẵn sàng",
+      "unavailable": "Không thể xem trạng thái cập nhật",
+      "updateAvailable": "Có bản cập nhật",
+      "upToDate": "Bạn đang dùng phiên bản mới nhất"
     },
     "versionBadge": {
       "changelogAriaLabel": "Nhật ký thay đổi phiên bản {{version}}",
       "updateAvailableAriaLabel": "Phiên bản {{version}} có bản cập nhật khả dụng"
-    }
+    },
+    "viewReleaseNotes": "Xem ghi chú phát hành"
   },
   "siteAnnouncementNotifications": {
     "description": "Kiểm soát việc nền có định kỳ lấy thông báo website của các trang thuộc tài khoản đã bật hay không.",
@@ -686,10 +843,7 @@
       "description": "Kiểm tra xem cấu hình hiện tại có thể kết nối và quản lý trang web hay không.",
       "failed": "Kiểm tra kết nối Sub2API thất bại: {{error}}",
       "missingFields": "Vui lòng nhập URL trang web và Admin API Key trước",
-      "success": "Kết nối thành công",
-      "title": "Xác minh kết nối",
-      "validate": "Xác minh kết nối",
-      "validating": "Đang xác minh…"
+      "title": "Xác minh kết nối"
     }
   },
   "tabs": {
@@ -706,7 +860,7 @@
     "refresh": "Làm mới dữ liệu",
     "select": "Chọn một nhóm",
     "siteAnnouncements": "Thông báo website",
-    "webAiApiCheck": "Kiểm tra AI API"
+    "webAiApiCheck": "Kiểm tra API trên trang web"
   },
   "taskNotifications": {
     "channels": {

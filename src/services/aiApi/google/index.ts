@@ -1,8 +1,11 @@
 import { executeWithUnauthorizedFallback } from "~/services/aiApi/authFallback"
+import { sanitizeHeaderOverrideError } from "~/services/apiTransport/headerOverrides"
 import { fetchApi } from "~/services/apiTransport/request"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 import { createLogger } from "~/utils/core/logger"
 
+import { toVersionedProtocolMount } from "../protocolAddress"
 import {
   createGoogleAuthHeaders,
   getGoogleAuthMode,
@@ -16,6 +19,7 @@ import { decodeGoogleResponseError } from "./responseError"
 type GoogleAuthParams = {
   baseUrl: string
   apiKey: string
+  requestHeaders?: Record<string, string>
   abortSignal?: AbortSignal
 }
 
@@ -37,8 +41,12 @@ const MAX_MODELS = 2000
 export async function fetchGoogleModelIds(
   params: GoogleAuthParams,
 ): Promise<string[]> {
+  const baseUrl = toVersionedProtocolMount("google", params.baseUrl)
+  if (!baseUrl) throw new Error("Invalid Google API base URL")
   const request = {
-    baseUrl: params.baseUrl,
+    directRequestReason: API_DIRECT_REQUEST_REASONS.CredentialIsolation,
+    requestHeaders: params.requestHeaders,
+    baseUrl,
     auth: { authType: AuthTypeEnum.None },
   }
 
@@ -51,8 +59,8 @@ export async function fetchGoogleModelIds(
     if (nextPageToken) searchParams.set("pageToken", nextPageToken)
 
     const endpoint = searchParams.size
-      ? `/v1beta/models?${searchParams.toString()}`
-      : "/v1beta/models"
+      ? `models?${searchParams.toString()}`
+      : "models"
 
     try {
       const fetchPage = (mode: GoogleAuthMode) =>
@@ -98,7 +106,10 @@ export async function fetchGoogleModelIds(
       if (!token || token === nextPageToken) break
       nextPageToken = token
     } catch (error) {
-      logger.error("Failed to fetch google model list", { endpoint, error })
+      logger.error("Failed to fetch google model list", {
+        endpoint,
+        error: sanitizeHeaderOverrideError(error, params.requestHeaders),
+      })
       throw error
     }
   }

@@ -2,15 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { QUOTA_PER_USD } from "~/constants/money"
 import { SITE_TYPES } from "~/constants/siteType"
-import { AccountUpdateUserTimestampMode } from "~/services/accounts/accountDefaults"
+import { AccountUpdateUserTimestampMode } from "~/services/accounts/editing/accountDefaults"
 import {
   isValidAccount,
   isValidExchangeRate,
   parseManualQuotaFromUsd,
-} from "~/services/accounts/accountFormValidation"
-import { validateAndUpdateAccount } from "~/services/accounts/accountUpdate"
-import { extractDomainPrefix, getSiteName } from "~/services/accounts/siteName"
-import { openRouterAccountPersistence } from "~/services/apiAdapters/openrouter/accountPersistence"
+} from "~/services/accounts/editing/accountFormValidation"
+import { validateAndUpdateAccount } from "~/services/accounts/editing/accountUpdate"
+import {
+  extractDomainPrefix,
+  getSiteName,
+} from "~/services/accounts/identity/siteName"
+import { openRouterAccountPersistence } from "~/services/apiAdapters/openrouter/account/accountPersistence"
 import { AuthTypeEnum } from "~/types"
 import { buildCheckInConfig } from "~~/tests/test-utils/checkIn"
 
@@ -46,10 +49,8 @@ vi.mock("~/services/accounts/accountStorage/accountQueries", () => ({
   accountQueries: { getAllAccountsOrThrow: mockGetAllAccountsOrThrow },
 }))
 vi.mock("~/services/accounts/accountStorage/accountMutations", () => ({
-  accountMutations: { updateAccount: mockUpdateAccount },
-}))
-vi.mock("~/services/accounts/accountStorage/accountCheckInState", () => ({
-  accountCheckInState: {
+  accountMutations: {
+    updateAccount: mockUpdateAccount,
     updateAccountWithCheckInDraft: mockUpdateAccountWithCheckInDraft,
     updateAccountCheckInDraft: mockUpdateAccountCheckInDraft,
   },
@@ -94,26 +95,26 @@ describe("account persistence and form validation", () => {
       )
 
       await expect(
-        validateAndUpdateAccount(
-          "account-1",
-          "https://openrouter.ai",
-          "OpenRouter",
-          "",
-          "management-key",
-          "",
-          "7.0",
-          "",
-          [],
-          checkInDisabled,
-          SITE_TYPES.OPENROUTER,
-          AuthTypeEnum.AccessToken,
-          "",
-          undefined,
-          false,
-          false,
-          undefined,
-          { deferDataRefresh: true },
-        ),
+        validateAndUpdateAccount({
+          accountId: "account-1",
+          url: "https://openrouter.ai",
+          siteName: "OpenRouter",
+          username: "",
+          accessToken: "management-key",
+          userId: "",
+          exchangeRate: "7.0",
+          notes: "",
+          tagIds: [],
+          checkInConfig: checkInDisabled,
+          siteType: SITE_TYPES.OPENROUTER,
+          authType: AuthTypeEnum.AccessToken,
+          cookieAuthSessionCookie: "",
+          manualBalanceUsd: undefined,
+          excludeFromTotalBalance: false,
+          excludeFromTodayIncome: false,
+          sub2apiAuth: undefined,
+          options: { deferDataRefresh: true },
+        }),
       ).resolves.toEqual({
         success: false,
         message: "messages:errors.validation.updateAccountFailed",
@@ -133,21 +134,21 @@ describe("account persistence and form validation", () => {
         today_income: 0,
         checkIn: buildCheckInConfig(),
       })
-      const result = await validateAndUpdateAccount(
-        "account-1",
-        "https://api.example.com",
-        "Test Site",
-        "user",
-        "token",
-        "1",
-        "7.0",
-        "notes",
-        [],
-        checkInDisabled,
-        "openai",
-        AuthTypeEnum.AccessToken,
-        "",
-      )
+      const result = await validateAndUpdateAccount({
+        accountId: "account-1",
+        url: "https://api.example.com",
+        siteName: "Test Site",
+        username: "user",
+        accessToken: "token",
+        userId: "1",
+        exchangeRate: "7.0",
+        notes: "notes",
+        tagIds: [],
+        checkInConfig: checkInDisabled,
+        siteType: "openai",
+        authType: AuthTypeEnum.AccessToken,
+        cookieAuthSessionCookie: "",
+      })
 
       expect(result.success).toBe(true)
       expect(result.feedbackLevel).toBe("success")
@@ -168,21 +169,21 @@ describe("account persistence and form validation", () => {
 
     it("clears tagIds even when data refresh fails", async () => {
       mockFetchAccountData.mockRejectedValueOnce(new Error("network error"))
-      const result = await validateAndUpdateAccount(
-        "account-1",
-        "https://api.example.com",
-        "Test Site",
-        "user",
-        "token",
-        "1",
-        "7.0",
-        "notes",
-        [],
-        checkInDisabled,
-        "openai",
-        AuthTypeEnum.AccessToken,
-        "",
-      )
+      const result = await validateAndUpdateAccount({
+        accountId: "account-1",
+        url: "https://api.example.com",
+        siteName: "Test Site",
+        username: "user",
+        accessToken: "token",
+        userId: "1",
+        exchangeRate: "7.0",
+        notes: "notes",
+        tagIds: [],
+        checkInConfig: checkInDisabled,
+        siteType: "openai",
+        authType: AuthTypeEnum.AccessToken,
+        cookieAuthSessionCookie: "",
+      })
 
       expect(result.success).toBe(true)
       expect(result).toMatchObject({
@@ -211,21 +212,21 @@ describe("account persistence and form validation", () => {
       })
       mockUpdateAccountWithCheckInDraft.mockResolvedValueOnce(false)
 
-      const result = await validateAndUpdateAccount(
-        "account-1",
-        "https://api.example.com",
-        "Test Site",
-        "user",
-        "token",
-        "1",
-        "7.0",
-        "notes",
-        [],
-        checkInDisabled,
-        "openai",
-        AuthTypeEnum.AccessToken,
-        "",
-      )
+      const result = await validateAndUpdateAccount({
+        accountId: "account-1",
+        url: "https://api.example.com",
+        siteName: "Test Site",
+        username: "user",
+        accessToken: "token",
+        userId: "1",
+        exchangeRate: "7.0",
+        notes: "notes",
+        tagIds: [],
+        checkInConfig: checkInDisabled,
+        siteType: "openai",
+        authType: AuthTypeEnum.AccessToken,
+        cookieAuthSessionCookie: "",
+      })
 
       expect(result).toEqual({
         success: false,
@@ -237,21 +238,21 @@ describe("account persistence and form validation", () => {
       mockFetchAccountData.mockRejectedValueOnce(new Error("network error"))
       mockUpdateAccountWithCheckInDraft.mockResolvedValueOnce(false)
 
-      const result = await validateAndUpdateAccount(
-        "account-1",
-        "https://api.example.com",
-        "Test Site",
-        "user",
-        "token",
-        "1",
-        "7.0",
-        "notes",
-        [],
-        checkInDisabled,
-        "openai",
-        AuthTypeEnum.AccessToken,
-        "",
-      )
+      const result = await validateAndUpdateAccount({
+        accountId: "account-1",
+        url: "https://api.example.com",
+        siteName: "Test Site",
+        username: "user",
+        accessToken: "token",
+        userId: "1",
+        exchangeRate: "7.0",
+        notes: "notes",
+        tagIds: [],
+        checkInConfig: checkInDisabled,
+        siteType: "openai",
+        authType: AuthTypeEnum.AccessToken,
+        cookieAuthSessionCookie: "",
+      })
 
       expect(result).toEqual({
         success: false,
@@ -269,26 +270,25 @@ describe("account persistence and form validation", () => {
         today_income: 0,
         checkIn: buildCheckInConfig(),
       })
-      const result = await validateAndUpdateAccount(
-        "account-1",
-        "https://api.example.com",
-        "Test Site",
-        "user",
-        "token",
-        "1",
-        "7.0",
-        "notes",
-        [],
-        checkInDisabled,
-        "legacy-invalid-site",
-        AuthTypeEnum.AccessToken,
-        "",
-      )
+      const result = await validateAndUpdateAccount({
+        accountId: "account-1",
+        url: "https://api.example.com",
+        siteName: "Test Site",
+        username: "user",
+        accessToken: "token",
+        userId: "1",
+        exchangeRate: "7.0",
+        notes: "notes",
+        tagIds: [],
+        checkInConfig: checkInDisabled,
+        siteType: "legacy-invalid-site",
+        authType: AuthTypeEnum.AccessToken,
+        cookieAuthSessionCookie: "",
+      })
 
       expect(result.success).toBe(true)
-      const { getSiteTypeCapabilities } = await import(
-        "~/services/apiAdapters/registry"
-      )
+      const { getSiteTypeCapabilities } =
+        await import("~/services/apiAdapters/registry")
       expect(vi.mocked(getSiteTypeCapabilities)).toHaveBeenCalledWith(
         SITE_TYPES.UNKNOWN,
       )
@@ -588,6 +588,12 @@ describe("account persistence and form validation", () => {
   })
 
   describe("parseManualQuotaFromUsd", () => {
+    it.each([null, 2, true, {}])(
+      "rejects imported non-string manual balance %j without throwing",
+      (value) => {
+        expect(parseManualQuotaFromUsd(value)).toBeUndefined()
+      },
+    )
     it("rounds valid manual balances into quota units", () => {
       expect(parseManualQuotaFromUsd("1.234")).toBe(
         Math.round(1.234 * QUOTA_PER_USD),
@@ -646,6 +652,74 @@ describe("account persistence and form validation", () => {
   })
 
   describe("getSiteName", () => {
+    it.each([
+      ["My API portal", "My API portal"],
+      ["New API", ""],
+      [undefined, ""],
+    ])(
+      "handles a browser tab without a URL and title %s",
+      async (title, expected) => {
+        await expect(getSiteName({ title } as browser.tabs.Tab)).resolves.toBe(
+          expected,
+        )
+        expect(mockLoadBootstrapFacts).not.toHaveBeenCalled()
+      },
+    )
+
+    it("preserves a deployment title on registered adapter-family hosts", async () => {
+      expect(
+        await getSiteName({
+          url: "https://ai-router.dev",
+          title: "AI Router Portal",
+        } as browser.tabs.Tab),
+      ).toBe("AI Router Portal")
+    })
+    it.each([
+      [
+        "https://novita.ai/settings/key-management",
+        "Key Management | Novita AI",
+        "Novita AI",
+      ],
+      ["https://novita.ai/console", "Console | Novita AI", "Novita AI"],
+      [
+        "https://openrouter.ai/settings/keys",
+        "API Keys | OpenRouter",
+        "OpenRouter",
+      ],
+      ["https://app.requesty.ai/api-keys", "API Keys | Requesty", "Requesty"],
+    ])(
+      "uses the registered platform name for %s instead of the page title",
+      async (url, title, registeredName) => {
+        expect(
+          await getSiteName({ id: 1, url, title } as browser.tabs.Tab),
+        ).toBe(registeredName)
+        expect(mockLoadBootstrapFacts).not.toHaveBeenCalled()
+      },
+    )
+
+    it("does not brand a lookalike hostname as a registered platform", async () => {
+      expect(
+        await getSiteName({
+          url: "https://novita.ai.example.test/settings",
+          title: "Custom portal",
+        } as browser.tabs.Tab),
+      ).toBe("Custom portal")
+    })
+
+    it("prefers the deployment's verified name to a browser page title", async () => {
+      expect(
+        await getSiteName(
+          {
+            url: "https://relay.example/usage",
+            title: "Usage dashboard",
+          } as browser.tabs.Tab,
+          SITE_TYPES.NEW_API,
+          { displayName: "Acme AI" },
+        ),
+      ).toBe("Acme AI")
+      expect(mockLoadBootstrapFacts).not.toHaveBeenCalled()
+    })
+
     it("prefers a custom browser-tab title without calling site status", async () => {
       const result = await getSiteName({
         id: 1,
@@ -693,13 +767,13 @@ describe("account persistence and form validation", () => {
       )
 
       expect(result).toBe("Sub2 Portal")
-      const { getSiteTypeCapabilities } = await import(
-        "~/services/apiAdapters/registry"
-      )
+      const { getSiteTypeCapabilities } =
+        await import("~/services/apiAdapters/registry")
       expect(vi.mocked(getSiteTypeCapabilities)).toHaveBeenCalledWith(
         SITE_TYPES.SUB2API,
       )
       expect(mockLoadBootstrapFacts).toHaveBeenCalledWith({
+        directRequestReason: "passive" as const,
         baseUrl: "https://example.com",
         auth: { authType: AuthTypeEnum.None },
       })
@@ -735,6 +809,7 @@ describe("account persistence and form validation", () => {
 
       expect(result).toBe("Billing Center")
       expect(mockLoadBootstrapFacts).toHaveBeenCalledWith({
+        directRequestReason: "passive" as const,
         baseUrl: "https://example.com",
         auth: { authType: AuthTypeEnum.None },
       })

@@ -8,6 +8,57 @@
     "tokenBased": "按量计费"
   },
   "dialog": {
+    "aiToolbox": {
+      "actions": {
+        "export": "导出"
+      },
+      "appOptions": {
+        "claude": "Claude Code",
+        "claudedesktop": "Claude Desktop",
+        "codex": "Codex",
+        "dsh": "DeepSeek Harness",
+        "gemini": "Gemini CLI",
+        "grok": "Grok CLI",
+        "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "omp": "Oh My Pi",
+        "openclaw": "OpenClaw",
+        "opencode": "OpenCode",
+        "pi": "Pi"
+      },
+      "description": "通过深链接一键导入当前站点配置到 AI Toolbox",
+      "descriptions": {
+        "apiFormat": "AI Toolbox 会按目标应用重建供应商配置，因此仅当此供应商不使用应用默认协议时才需要指定。",
+        "model": "若可用，会自动从 /v1/models 获取模型列表供选择；也可以直接输入自定义模型名称。"
+      },
+      "fields": {
+        "apiFormat": "接口协议",
+        "app": "目标应用",
+        "baseUrl": "接口地址",
+        "homepage": "主页地址",
+        "model": "默认模型（可选）",
+        "name": "供应商名称",
+        "notes": "备注（可选）"
+      },
+      "formatOptions": {
+        "anthropicMessages": "Anthropic Messages",
+        "automatic": "自动（跟随应用默认）",
+        "geminiNative": "Gemini Native",
+        "openAIChat": "OpenAI Chat Completions",
+        "openAIResponses": "OpenAI Responses"
+      },
+      "modelOptions": {
+        "none": "不设置默认模型"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com",
+        "homepage": "https://example.com",
+        "model": "例如 claude-3-opus",
+        "name": "例如 Acme 中转",
+        "notes": "添加导入说明"
+      },
+      "title": "导出到 AI Toolbox"
+    },
     "bookmarkAccountImport": {
       "actions": {
         "allowAndScan": "选择书签并开始批量导入",
@@ -18,20 +69,24 @@
         "collapseFolder": "折叠文件夹",
         "expandAll": "全部展开",
         "expandFolder": "展开文件夹",
-        "importSelected": "导入所选项（{{count}}）",
+        "importSelected": "添加所选项（{{count}}）",
         "invertSelected": "反选",
-        "openAddAccount": "打开添加账号",
+        "openAddAccount": "手动完善",
+        "retryFailed": "重试未完成项",
         "scanSelected": "扫描所选范围",
         "selectAll": "全选"
       },
       "apiUnavailable": "当前浏览器未向扩展开放原生书签接口。",
+      "bestEffortHelp": "会尽量自动完成添加，部分站点可能需要你先登录、完成验证或补充信息。",
       "bookmarkCount": "{{count}} 个书签",
-      "description": "批量扫描浏览器书签中的账号站点，并在导入前复核候选项。",
+      "description": "从收藏的站点中批量添加账号，省去逐个录入。",
       "empty": "浏览器没有返回任何书签。",
       "failures": {
-        "detection": "自动检测无法读取此站点。",
-        "save": "账号无法保存。",
-        "unknown": "导入失败。"
+        "detection": "还需要一些账号信息，可重试或手动完善。",
+        "login": "请先登录此站点，再重试添加。",
+        "save": "请检查并补充账号信息后再添加。",
+        "unknown": "暂未完成添加，可重试或手动完善。",
+        "verification": "此站点需要你完成验证，可点击「手动完善」继续。"
       },
       "folderCount": "{{count}} 个文件夹",
       "importFailed": "导入未能完成，请重试。",
@@ -39,16 +94,17 @@
       "includeExisting": "包含已有已保存账号的站点",
       "initialSteps": {
         "chooseScope": "选择书签范围",
-        "review": "预览可导入站点",
+        "review": "确认待添加站点",
         "skipExisting": "默认跳过已有账号"
       },
-      "initialValue": "如果你之前用浏览器书签收藏了各个中转站，可以一次扫描这些书签，批量生成账号候选。导入前会先让你选择书签范围并复核结果，已有账号默认跳过。",
+      "initialValue": "选择收藏中转站的书签，确认站点后即可批量添加，已有账号默认跳过。",
       "noCandidates": "未找到可导入的网页书签网址。",
       "permissionDenied": "未授予书签权限。你可以不关闭此对话框并重试。",
       "permissionNeeded": "书签访问是可选权限，仅会在本次批量导入时请求。",
       "readFailed": "无法读取浏览器书签树。",
+      "recoveryHelp": "剩余账号可登录后重试，也可以点击「手动完善」继续添加。",
       "reloadFailed": "导入已完成，但账号数据无法重新加载。如果新账号未显示，请刷新账号列表后重试。",
-      "resultSummary": "已导入 {{success}} 个，失败 {{failed}} 个，跳过 {{skipped}} 个。",
+      "resultSummary": "已添加 {{success}} 个，待完善 {{failed}} 个，跳过 {{skipped}} 个。",
       "scanning": "正在扫描浏览器书签...",
       "scopeHelp": "扫描只会生成候选预览，导入前可以返回这里调整选择。",
       "searchEmpty": "未找到匹配的书签范围",
@@ -58,7 +114,7 @@
       "status": {
         "duplicate": "默认跳过。已有保存账号匹配数：{{count}}",
         "imported": "已导入",
-        "ready": "可导入"
+        "ready": "待添加"
       },
       "title": "从书签导入账号",
       "untitledFolder": "未命名文件夹"
@@ -68,13 +124,20 @@
         "export": "导出"
       },
       "appOptions": {
+        "agy": "Antigravity",
         "claude": "Claude",
+        "claudeDesktop": "Claude Desktop",
         "codex": "Codex",
+        "dsh": "DeepSeek Harness",
         "gemini": "Gemini",
         "grokbuild": "Grok CLI",
         "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "mcode": "MiniMax Code",
+        "omp": "Oh My Pi",
         "openclaw": "OpenClaw",
-        "opencode": "OpenCode"
+        "opencode": "OpenCode",
+        "pi": "Pi"
       },
       "description": "通过深链接一键导入当前站点配置到 CC Switch",
       "descriptions": {
@@ -84,7 +147,7 @@
         "app": "目标应用",
         "endpoint": "接口地址",
         "homepage": "主页地址",
-        "model": "默认模型（可选）",
+        "model": "默认模型",
         "name": "供应商名称",
         "notes": "备注（可选）"
       },
@@ -92,7 +155,9 @@
         "none": "不设置默认模型"
       },
       "notices": {
+        "claudeDesktop": "需要 CC Switch v4.0.26 或更高版本。使用 Anthropic API 格式。模型名以 claude- 开头或未指定模型时导入为直连卡片；其他模型名导入为通过 CC Switch 本地路由转发的模型映射卡片。",
         "hermes": "CC Switch 会将 Hermes 导入为 Chat Completions 协议。导出时，供应商名称会转换为只含小写字母、数字和连字符的合法标识；如需 Anthropic Messages、Codex Responses 等其他格式，请在导入后到 CC Switch 中调整。",
+        "modelRequired": "需要 CC Switch v4.0.26 或更高版本。导出前请选择或输入模型。使用 OpenAI Chat Completions API 格式。",
         "openclaw": "CC Switch 当前不支持通过外部导入的方式配置 OpenClaw AI 服务的 API 接口格式；如有需要，请在导入后到 CC Switch 中手动调整。",
         "opencode": "CC Switch 当前不支持通过外部导入的方式配置 OpenCode AI 服务的 API 接口格式；如有需要，请在导入后到 CC Switch 中手动调整。"
       },
@@ -143,6 +208,7 @@
       "keyCopied": "密钥已复制到剪贴板",
       "loadFailed": "加载密钥列表失败: {{error}}",
       "loading": "正在获取密钥列表...",
+      "managementConfigurationRequired": "加载和管理站点密钥列表需要管理令牌。已保存的 API 密钥仍可单独使用。",
       "noKeyFoundAfterCreate": "创建成功但未获取到密钥，请重试。",
       "noKeys": "暂无密钥数据",
       "noKeysDescription": "该账号暂无可用密钥，可快速创建默认密钥或自定义创建后再复制。",
@@ -276,11 +342,15 @@
     "expand": "展开",
     "firefox": {
       "confirm": "确定",
+      "howOpenOptions": "在完整页面继续",
       "howOpenSidebar": "如何打开侧边栏",
       "limitation": "Firefox 浏览器功能限制",
+      "openFailed": "暂时无法打开侧边栏或完整页面，请重试。",
+      "openOptions": "在完整页面继续",
       "openSidebar": "打开侧边栏",
-      "popupLimitation": "在 Firefox 浏览器的弹窗中无法正常使用此功能。请使用侧边栏模式来添加账号",
-      "sidebarInstruction": "点击浏览器工具栏中的插件图标，然后选择\"侧边栏\"选项来打开侧边栏模式",
+      "optionsInstruction": "点击下方按钮，打开扩展的完整账号管理页面。",
+      "popupLimitation": "Firefox 弹窗可能在打开其他页面时关闭。建议在侧边栏或完整页面添加账号。",
+      "sidebarInstruction": "点击下方按钮，在侧边栏继续。无法打开时会使用完整页面。",
       "warningTitle": "功能限制提醒"
     },
     "kelivo": {
@@ -409,27 +479,32 @@
       "titleWithCookieInterceptor": "自动刷新需要网站验证"
     },
     "updateLog": {
-      "autoOpenSetting": "更新日志自动打开",
-      "disableAutoOpen": "不再自动打开",
-      "enableAutoOpen": "重新启用自动打开",
       "loading": "正在加载更新日志…",
-      "missingSection": "更新日志预览加载失败（v{{version}}）。你可以打开完整更新日志查看。",
-      "openFullChangelog": "打开完整更新日志",
-      "starPrompt": "觉得 All API Hub 有帮助？点个 Star 跟随每日更新",
+      "missingSection": "更新日志加载较慢（v{{version}}），可以打开完整日志查看。",
+      "openFullChangelog": "查看完整日志",
+      "starPrompt": "点个 Star，支持持续改进",
       "title": "更新内容",
       "updatedTo": "已更新至 v{{version}}"
     }
   },
   "feedback": {
     "bugReport": "反馈问题",
+    "clickAnywhereToClose": "点击空白处关闭",
     "community": "社区交流群",
+    "communityUnavailable": "社区链接加载失败，请打开在线社区页查看最新邀请方式。",
     "discussion": "参与讨论",
     "featureRequest": "提出功能建议",
     "languageRequest": "请求支持新语言",
+    "openCommunityPage": "打开在线社区页",
     "siteSupportRequest": "反馈未适配站点",
+    "sponsor": "赞助支持",
+    "sponsorTitle": "查看赞助商与赞助支持",
     "starOnGithub": "去 GitHub 点个 Star",
     "trigger": "反馈",
-    "triggerTooltip": "打开反馈快捷入口"
+    "triggerTooltip": "打开反馈快捷入口",
+    "wechat": "微信群",
+    "wechatHelp": "群码失效或群已满？可扫描图中的个人二维码加好友，请对方邀请入群，也可查看在线社区页。",
+    "wechatUnavailable": "二维码加载失败。"
   },
   "modelListInput": {
     "actions": {
@@ -479,6 +554,7 @@
     "basic": "设置",
     "batchCheckin": "批量签到",
     "bookmark": "书签管理",
+    "browserApiLab": "浏览器 API 实验室 (Dev)",
     "categories": {
       "api": "接口",
       "automation": "自动化",
@@ -534,10 +610,12 @@
   "popupInterruption": {
     "actions": {
       "keepPopup": "继续用弹窗",
-      "useSidepanel": "改用侧边栏"
+      "useOptions": "在完整页面继续",
+      "useSidepanel": "在侧边栏继续"
     },
-    "description": "弹窗在账号自动识别期间关闭了。建议改用侧边栏完成添加账号流程。",
-    "settingName": "工具栏点击行为",
+    "description": "弹窗在账号自动识别期间关闭了。建议在侧边栏继续添加账号；无法打开时会使用完整页面。",
+    "openFailed": "暂时无法打开侧边栏或完整页面，请重试。",
+    "optionsDescription": "弹窗在账号自动识别期间关闭了。建议在完整页面继续添加账号。",
     "title": "自动识别可能被中断"
   },
   "repeatableInput": {
@@ -554,6 +632,12 @@
   },
   "searchableSelect": {
     "empty": "未找到匹配项",
+    "fetchDetails": "错误详情",
+    "fetchEmpty": "请求成功，但接口返回的模型列表为空。",
+    "fetchEmptyLabel": "列表为空",
+    "fetchFailed": "获取列表失败。",
+    "fetchSuccess": "已获取 {{count}} 个模型。",
+    "manualInputHint": "可直接输入模型 ID。",
     "noOptions": "暂无可选项",
     "noOptionsAllowCustom": "暂无可选项，可输入创建",
     "searchPlaceholder": "搜索...",
@@ -561,6 +645,7 @@
   },
   "secretList": {
     "add": "添加密钥",
+    "clearedState": "保存的密钥将被清除",
     "collapse": "收起 API 密钥 {{number}}",
     "configured": "已配置",
     "enableKey": "启用此密钥",
@@ -568,6 +653,7 @@
     "hide": "隐藏密钥",
     "keepPlaceholder": "留空以保留原密钥",
     "loadFailed": "无法加载此密钥，请重试。",
+    "maskedOnly": "此已保存密钥仅提供掩码，无法查看明文。",
     "newPlaceholder": "输入 API 密钥",
     "newState": "新增，尚未保存",
     "previousDisableReason": "上次禁用原因：{{reason}}",
@@ -580,6 +666,12 @@
     "show": "查看密钥",
     "title": "API 密钥"
   },
+  "sidebarFooter": {
+    "community": "社区",
+    "docs": "文档",
+    "github": "GitHub",
+    "sponsor": "赞助支持"
+  },
   "starPromotion": {
     "actions": {
       "alreadyStarred": "我已经 Star 过了",
@@ -588,7 +680,7 @@
       "star": "去 Star"
     },
     "cardDescription": "All API Hub 完全开源，不断适配更多站点、优化使用体验。点个 Star，支持它持续维护，也让更多需要它的人发现这里。",
-    "cardTitle": "用得顺手吗？"
+    "cardTitle": "支持持续改进"
   },
   "textEntries": {
     "add": "添加一行",

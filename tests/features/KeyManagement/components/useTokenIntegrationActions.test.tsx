@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
 import { useRuntimeKeyIntegrationActions } from "~/features/KeyManagement/components/RuntimeKeyActions/useRuntimeKeyIntegrationActions"
+import { buildAccountKeyResourceRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
 import type { NewApiToken } from "~/services/apiService/newApiFamily/tokenTypes"
+import { OpenInCherryStudio } from "~/services/integrations/cherryStudio"
 import { AuthTypeEnum, SiteHealthStatus, type DisplaySiteData } from "~/types"
 import { buildNewApiRuntimeKey } from "~~/tests/test-utils/accountKeyFixtures"
 import { buildCompleteTodayStatsAvailability } from "~~/tests/test-utils/accountTodayStats"
@@ -14,6 +16,7 @@ const {
   loggerErrorMock,
   markOnboardingCompletedMock,
   openWithAccountMock,
+  resolveSecretMock,
   showResultToastMock,
   startActionMock,
   toSanitizedErrorSummaryMock,
@@ -22,6 +25,7 @@ const {
   loggerErrorMock: vi.fn(),
   markOnboardingCompletedMock: vi.fn(),
   openWithAccountMock: vi.fn(),
+  resolveSecretMock: vi.fn(),
   showResultToastMock: vi.fn(),
   startActionMock: vi.fn(),
   toSanitizedErrorSummaryMock: vi.fn(),
@@ -46,12 +50,16 @@ vi.mock("~/contexts/FeatureGuidanceContext", () => ({
   }),
 }))
 
-vi.mock("~/components/dialogs/ChannelDialog", () => ({
+vi.mock("~/features/ManagedSiteChannels/editor/ChannelDialog", () => ({
   useChannelDialog: () => ({ openWithAccount: openWithAccountMock }),
 }))
 
 vi.mock("~/services/integrations/cherryStudio", () => ({
   OpenInCherryStudio: vi.fn(),
+}))
+
+vi.mock("~/services/accounts/utils/apiServiceRequest", () => ({
+  resolveDisplayAccountRuntimeKeySecret: resolveSecretMock,
 }))
 
 vi.mock("~/services/managedSites/utils/managedSite", () => ({
@@ -154,6 +162,151 @@ describe("useRuntimeKeyIntegrationActions", () => {
     act(() => result.current.dialogs.kiloCode.close())
     expect(result.current.dialogs.claudeCodeRouter.isOpen).toBe(false)
     expect(result.current.dialogs.kiloCode.isOpen).toBe(false)
+  })
+
+  // A split-origin deployment answers its API on a different origin than the
+  // dashboard, so an external integration must be told the API origin even
+  // though the account is addressed by the dashboard URL.
+  // See .scratch/ai-router-adaptation/research.md.
+  it("exports split-origin accounts with the deployment API origin", async () => {
+    const splitOriginAccount = {
+      ...account,
+      id: "ai-router-account",
+      name: "Split origin account",
+      siteType: SITE_TYPES.SUB2API,
+      baseUrl: "https://ai-router.dev",
+    } satisfies DisplaySiteData
+    const splitOriginKey = buildNewApiRuntimeKey(splitOriginAccount, token)
+    resolveSecretMock.mockResolvedValue({
+      ...splitOriginKey,
+      secret: "sk-example",
+    })
+
+    const { result } = renderHook(() =>
+      useRuntimeKeyIntegrationActions({
+        account: splitOriginAccount,
+        enabled: true,
+        runtimeKey: splitOriginKey,
+      }),
+    )
+
+    await act(async () => {
+      await result.current.exportActions.openCherryStudio()
+    })
+    expect(vi.mocked(OpenInCherryStudio)).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: "https://api.ai-router.dev" }),
+    )
+
+    await act(async () => {
+      await result.current.exportActions.openKelivo()
+    })
+    expect(result.current.dialogs.kelivo.input).toMatchObject({
+      baseUrl: "https://api.ai-router.dev",
+    })
+  })
+
+  it("exports an inherited key through the current account endpoint after an account address edit", async () => {
+    const inheritedKey = buildNewApiRuntimeKey(account, token)
+    const editedAccount = {
+      ...account,
+      baseUrl: "https://edited.example.invalid",
+    }
+    resolveSecretMock.mockResolvedValue({
+      ...inheritedKey,
+      secret: "sk-example",
+    })
+    const { result } = renderHook(() =>
+      useRuntimeKeyIntegrationActions({
+        account: editedAccount,
+        enabled: true,
+        runtimeKey: inheritedKey,
+      }),
+    )
+    await act(async () => {
+      await result.current.exportActions.openCherryStudio()
+      await result.current.exportActions.openKelivo()
+    })
+    expect(vi.mocked(OpenInCherryStudio)).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: editedAccount.baseUrl }),
+    )
+    expect(result.current.dialogs.kelivo.input).toMatchObject({
+      baseUrl: editedAccount.baseUrl,
+    })
+  })
+
+  it("exports a key-specific gateway URL through Cherry Studio and Kelivo", async () => {
+    const kimiAccount = {
+      ...account,
+      siteType: SITE_TYPES.KIMI,
+      baseUrl: "https://platform.kimi.com",
+    } satisfies DisplaySiteData
+    const kimiKey = buildAccountKeyResourceRuntimeKey(kimiAccount, {
+      ref: {
+        accountId: kimiAccount.id,
+        siteType: SITE_TYPES.KIMI,
+        scopeKey: "project-1",
+        resourceId: "key-1",
+      },
+      label: "Kimi key",
+      secret: "",
+      baseUrl: "https://gateway.example.invalid/v1",
+    })
+    resolveSecretMock.mockResolvedValue({ ...kimiKey, secret: "sk-example" })
+    const { result } = renderHook(() =>
+      useRuntimeKeyIntegrationActions({
+        account: kimiAccount,
+        enabled: true,
+        runtimeKey: kimiKey,
+      }),
+    )
+
+    await act(async () => {
+      await result.current.exportActions.openCherryStudio()
+      await result.current.exportActions.openKelivo()
+    })
+
+    expect(vi.mocked(OpenInCherryStudio)).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: "https://gateway.example.invalid" }),
+    )
+    expect(result.current.dialogs.kelivo.input).toMatchObject({
+      baseUrl: "https://gateway.example.invalid",
+    })
+  })
+
+  it("clears an open export and discards a pending export when the key endpoint changes", async () => {
+    let key = {
+      ...buildNewApiRuntimeKey(account, token),
+      baseUrl: "https://first.example/v1",
+    }
+    resolveSecretMock.mockResolvedValue(key)
+    const { result, rerender } = renderHook(() =>
+      useRuntimeKeyIntegrationActions({
+        account,
+        enabled: true,
+        runtimeKey: key,
+      }),
+    )
+    await act(() => result.current.exportActions.openKelivo())
+    expect(result.current.dialogs.kelivo.input).toMatchObject({
+      baseUrl: "https://first.example",
+    })
+    let finish!: (value: typeof key) => void
+    resolveSecretMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    const pending = result.current.exportActions.openKelivo()
+    const oldKey = key
+    key = { ...key, baseUrl: "https://second.example/v1" }
+    rerender()
+    expect(result.current.dialogs.kelivo.input).toBeNull()
+    await act(async () => {
+      finish(oldKey)
+      await pending
+    })
+    expect(result.current.dialogs.kelivo.input).toBeNull()
   })
 
   it("isolates a rejecting post-import callback", async () => {

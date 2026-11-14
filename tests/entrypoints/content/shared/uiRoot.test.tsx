@@ -3,6 +3,7 @@ import React from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { CONTENT_UI_HOST_TAG } from "~/entrypoints/content/shared/contentUi"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const {
   createRootMock,
@@ -93,7 +94,7 @@ describe("uiRoot", () => {
 
     expect(ensureContentI18nReadyMock).toHaveBeenCalledTimes(1)
     expect(ensureContentI18nReadyMock.mock.invocationCallOrder[0]).toBeLessThan(
-      createShadowRootUiMock.mock.invocationCallOrder[0],
+      atIndex(createShadowRootUiMock.mock.invocationCallOrder, 0),
     )
     expect(root.render).toHaveBeenCalledTimes(1)
   })
@@ -164,6 +165,35 @@ describe("uiRoot", () => {
 
     expect(createShadowRootUiMock).toHaveBeenCalledTimes(2)
     expect(createRootMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps the shared content host attached after page DOM replacement and stops after removal", async () => {
+    const host = document.createElement(CONTENT_UI_HOST_TAG)
+    const container = document.createElement("div")
+    const root = { render: vi.fn(), unmount: vi.fn() }
+    let remove!: (value: typeof root) => void
+    createRootMock.mockReturnValue(root)
+    createShadowRootUiMock.mockImplementation(async (_ctx, options) => {
+      remove = options.onRemove
+      return {
+        shadowHost: host,
+        mount: () => {
+          document.body.append(host)
+          options.onMount(container)
+        },
+      }
+    })
+    const { ensureRedemptionToastUi, setContentScriptContext } = await import(
+      "~/entrypoints/content/shared/uiRoot"
+    )
+    setContentScriptContext({ contentScript: "ctx" } as any)
+    await ensureRedemptionToastUi()
+    host.remove()
+    await waitFor(() => expect(host.isConnected).toBe(true))
+    remove(root)
+    host.remove()
+    await Promise.resolve()
+    expect(host.isConnected).toBe(false)
   })
 
   it("reuses the in-flight mounting promise so concurrent callers do not mount twice", async () => {

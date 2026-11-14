@@ -4,15 +4,18 @@ import { fetchAccountData as fetchAnyRouterAccountData } from "~/services/apiSer
 import { fetchAccountData as fetchDoneHubAccountData } from "~/services/apiService/newApiFamily/variants/doneHub"
 import { fetchAccountData as fetchVeloeraAccountData } from "~/services/apiService/newApiFamily/variants/veloera"
 import { fetchAccountData as fetchWongAccountData } from "~/services/apiService/newApiFamily/variants/wong"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 import { buildCheckInConfig } from "~~/tests/test-utils/checkIn"
 
 const {
+  mockRefreshSelectedStatus,
   mockFetchAccountQuota,
   mockFetchTodayIncome,
   mockFetchTodayUsage,
   mockGetTodayTimestampRange,
 } = vi.hoisted(() => ({
+  mockRefreshSelectedStatus: vi.fn(),
   mockFetchAccountQuota: vi.fn(),
   mockFetchTodayIncome: vi.fn(),
   mockFetchTodayUsage: vi.fn(),
@@ -30,7 +33,12 @@ vi.mock("~/services/apiService/newApiFamily/default/accountDataUtils", () => ({
   getTodayTimestampRange: mockGetTodayTimestampRange,
 }))
 
+vi.mock("~/services/checkin/autoCheckin/scheduling/refresh", () => ({
+  refreshSelectedStatus: mockRefreshSelectedStatus,
+}))
+
 const request = {
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://variant.example.invalid",
   accountId: "account-1",
   auth: {
@@ -74,6 +82,8 @@ describe("New API-family account-data variants", () => {
     async (_name, fetchData) => {
       const result = await fetchData(request)
 
+      expect(result.checkIn).toBe(request.checkIn)
+      expect(mockRefreshSelectedStatus).not.toHaveBeenCalled()
       expect(mockGetTodayTimestampRange).toHaveBeenCalledTimes(1)
       expect(mockFetchTodayUsage).toHaveBeenCalledWith(
         request,

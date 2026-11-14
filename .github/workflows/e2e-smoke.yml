@@ -13,14 +13,25 @@ on:
       - ".github/workflows/release-pr-check.yml"
       - "scripts/release-pr-check.mjs"
       - "tests/scripts/release-pr-check.test.mjs"
+      - ".nvmrc"
+      - ".env*"
       - "package.json"
       - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "tsconfig.json"
       - "playwright.config.ts"
+      - "playwright.firefox.config.ts"
       - "postcss.config.js"
       - "tailwind.config.js"
       - "wxt.config.ts"
       - ".github/workflows/e2e-smoke.yml"
+      - ".github/workflows/e2e-build.yml"
+      - ".github/actions/validate-firefox-package/**"
+      - "tests/scripts/firefoxPackageValidation.test.ts"
+      - ".github/actions/setup-unit-test-browser/**"
+      - "scripts/e2e-ci-build-cache.mjs"
+      - "scripts/mobile/adapters.*"
+      - "scripts/mobile/protocol.*"
   pull_request:
     paths:
       - "src/**"
@@ -30,14 +41,25 @@ on:
       - ".github/workflows/release-pr-check.yml"
       - "scripts/release-pr-check.mjs"
       - "tests/scripts/release-pr-check.test.mjs"
+      - ".nvmrc"
+      - ".env*"
       - "package.json"
       - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "tsconfig.json"
       - "playwright.config.ts"
+      - "playwright.firefox.config.ts"
       - "postcss.config.js"
       - "tailwind.config.js"
       - "wxt.config.ts"
       - ".github/workflows/e2e-smoke.yml"
+      - ".github/workflows/e2e-build.yml"
+      - ".github/actions/validate-firefox-package/**"
+      - "tests/scripts/firefoxPackageValidation.test.ts"
+      - ".github/actions/setup-unit-test-browser/**"
+      - "scripts/e2e-ci-build-cache.mjs"
+      - "scripts/mobile/adapters.*"
+      - "scripts/mobile/protocol.*"
   workflow_dispatch: {}
 
 permissions:
@@ -48,78 +70,117 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release-changes:
-    uses: ./.github/workflows/release-pr-check.yml
-
-  e2e-build:
-    needs: release-changes
-    name: E2E build (${{ matrix.name }})
+  firefox-smoke:
+    name: Firefox extension smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    if: ${{ needs.release-changes.outputs.release-only != 'true' && (github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'skip-e2e')) }}
+    needs: release-changes
+    if: ${{ !cancelled() && needs.release-changes.result != 'failure' && needs.release-changes.outputs.release-only != 'true' && (github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'skip-e2e')) }}
     continue-on-error: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'e2e-optional') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # Each build variant is produced once and reused by its test jobs.
-        include:
-          - name: default
-            build_variant: default
-            extension_dir: chrome-mv3-test
-          - name: dnr-required
-            build_variant: dnr-required
-            extension_dir: chrome-mv3-test-dnr-required
-          - name: bookmarks-required
-            build_variant: bookmarks-required
-            extension_dir: chrome-mv3-test-bookmarks-required
-
+    timeout-minutes: 15
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
         with:
-          version: 10
           run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-          cache: "pnpm"
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Build E2E extension
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Install Firefox stable
+        id: firefox
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest
+      - name: Run Firefox extension smoke
         env:
-          AAH_E2E_BUILD_VARIANT: ${{ matrix.build_variant }}
-        run: pnpm build:e2e
-
-      - name: Upload E2E extension
+          AAH_E2E_FIREFOX_EXECUTABLE_PATH: ${{ steps.firefox.outputs.firefox-path }}
+        run: pnpm e2e:firefox
+      - name: Retain Firefox screenshots and report
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-extension-${{ matrix.build_variant }}
-          path: .output/${{ matrix.extension_dir }}
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 1
+          name: firefox-extension-smoke-${{ github.run_attempt }}
+          path: |
+            test-results/firefox/
+            playwright-report/firefox/
+          retention-days: 7
+
+  release-changes:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'release-please--branches--')
+    uses: ./.github/workflows/release-pr-check.yml
+
+  firefox-amo-validation:
+    name: Firefox AMO package
+    # Validate release candidates before release-please creates the GitHub Release.
+    # Ordinary PRs retain their existing checks without another production build.
+    needs: release-changes
+    if: ${{ !cancelled() && needs.release-changes.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup
+      - name: Build Firefox store package
+        shell: bash
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          AAH_DISTRIBUTION_CHANNEL: firefox-amo
+          AAH_DISTRIBUTION_OUT_DIR: .output/firefox-amo-pr
+          VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ secrets.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN || vars.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+          VITE_PUBLIC_POSTHOG_HOST: ${{ secrets.VITE_PUBLIC_POSTHOG_HOST || vars.VITE_PUBLIC_POSTHOG_HOST }}
+        run: |
+          node node_modules/wxt/bin/wxt.mjs zip -b firefox
+          shopt -s nullglob
+          archives=(.output/firefox-amo-pr/*-firefox.zip)
+          if [ "${#archives[@]}" -ne 1 ]; then
+            echo "Expected exactly one Firefox store archive."
+            exit 1
+          fi
+          mkdir -p .output/stores
+          cp -- "${archives[0]}" .output/stores/firefox-amo.zip
+      - name: Validate Firefox store package
+        uses: ./.github/actions/validate-firefox-package
+      - name: Retain Firefox store package
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: firefox-amo-package-${{ github.run_attempt }}
+          path: .output/stores/firefox-amo.zip
+          retention-days: 7
+
+  e2e-build:
+    # One build produces every artifact: the variants only differ in the manifest's
+    # required permissions, so they are derived instead of built twice more. Building
+    # the default variant first also keeps the artifact every shard needs off the
+    # runner queue: in 47 of 78 measured runs it was the last of three to start,
+    # waiting 113s at p90 while the variants went first.
+    needs: release-changes
+    name: E2E build
+    if: ${{ !cancelled() && needs.release-changes.result != 'failure' && needs.release-changes.outputs.release-only != 'true' && (github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'skip-e2e')) }}
+    uses: ./.github/workflows/e2e-build.yml
+    with:
+      build_variant: default
+      derive_variants: true
+      optional: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'e2e-optional') }}
 
   e2e-smoke:
     name: E2E (${{ matrix.name }})
     runs-on: ubuntu-latest
     needs: e2e-build
-    timeout-minutes: 20
-    if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'skip-e2e') }}
+    timeout-minutes: 25
+    if: ${{ !cancelled() && needs.e2e-build.result == 'success' && (github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'skip-e2e')) }}
     continue-on-error: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'e2e-optional') }}
     strategy:
       fail-fast: false
       matrix:
-        # The default suite is sharded across runners with Playwright's native
-        # --shard flag to cut wall-clock time; each shard builds nothing extra
-        # because the extension is built in this job's own step.
+        # The default suite is sharded across runners to cut wall-clock time; all
+        # shards reuse the default extension artifact from e2e-build. Shards are
+        # packed by measured spec duration (scripts/e2e-shard-plan.mjs), falling
+        # back to Playwright's count-based --shard when no timings exist yet.
         include:
           - name: default-shard-1
             e2e_type: default
@@ -168,57 +229,108 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v5
-        with:
-          version: 10
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-          cache: "pnpm"
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
-
       - name: Download E2E extension
         uses: actions/download-artifact@v7
         with:
           name: e2e-extension-${{ matrix.build_variant }}
           path: .output/${{ matrix.extension_dir }}
 
-      - name: Get Playwright version
-        id: playwright_version
-        run: |
-          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); console.log('version=' + (pkg.devDependencies?.['@playwright/test'] ?? 'unknown'))" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v5
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
         with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright_version.outputs.version }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
+          run_install: false
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .output/${{ matrix.extension_dir }}/.node-version
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Prepare E2E Chromium
+        uses: ./.github/actions/setup-unit-test-browser
+        with:
+          channel: chromium
+
+      - name: Restore E2E spec durations
+        # The producer freezes one profile for this run. An empty profile retains
+        # count-based sharding; failed-job reruns keep the same original membership.
+        if: ${{ matrix.e2e_type == 'default' }}
+        uses: actions/download-artifact@v7
+        with:
+          path: .e2e-durations
+          name: e2e-shard-duration-profile
+
+      # Cold-cache count shards completed 105 tests in 8.2m; allow reporting and
+      # additional specs while retaining a bounded 12m deadline.
       - name: Run E2E smoke
-        timeout-minutes: ${{ matrix.e2e_type == 'default' && 8 || 5 }}
+        timeout-minutes: ${{ matrix.e2e_type == 'default' && 12 || 5 }}
         env:
           AAH_E2E_BUILD_VARIANT: ${{ matrix.build_variant }}
           AAH_E2E_SMOKE_ONLY: ${{ matrix.e2e_type == 'default' && '1' || '' }}
           AAH_E2E_WORKERS: "4"
           AAH_SKIP_E2E_BUILD: "1"
-        run: >
-          pnpm run e2e:${{ matrix.e2e_type }}
-          ${{ matrix.shard && format('--shard={0}/{1}', matrix.shard, env.AAH_E2E_SHARD_TOTAL) || '' }}
+          AAH_E2E_TYPE: ${{ matrix.e2e_type }}
+          AAH_E2E_SHARD_INDEX: ${{ matrix.shard }}
+          AAH_E2E_JSON_REPORT: ${{ matrix.e2e_type == 'default' && format('.e2e-durations/reports/shard-{0}.json', matrix.shard) || '' }}
+        run: |
+          set -euo pipefail
+          spec_args=()
+          # Count-based shards put 2.45x more work on the slowest shard; pack by
+          # measured duration whenever the timings manifest is available.
+          if [ -n "${AAH_E2E_SHARD_INDEX}" ]; then
+            planned_list="$(node scripts/e2e-shard-plan.mjs --index "${AAH_E2E_SHARD_INDEX}" --total "${AAH_E2E_SHARD_TOTAL}")"
+            mapfile -t planned <<< "${planned_list}"
+            if [ -n "${planned_list}" ]; then
+              echo "Duration-balanced shard ${AAH_E2E_SHARD_INDEX}/${AAH_E2E_SHARD_TOTAL}: ${#planned[@]} specs"
+              spec_args=("${planned[@]}")
+            else
+              echo "Falling back to --shard=${AAH_E2E_SHARD_INDEX}/${AAH_E2E_SHARD_TOTAL}"
+              spec_args=("--shard=${AAH_E2E_SHARD_INDEX}/${AAH_E2E_SHARD_TOTAL}")
+            fi
+          fi
+          if [ "${AAH_E2E_TYPE}" = "default" ]; then
+            spec_args+=(--grep-invert="major pages with")
+          fi
+          pnpm run "e2e:${AAH_E2E_TYPE}" "${spec_args[@]}"
+
+      - name: Upload E2E spec durations
+        # Only push runs publish timings; pull requests restore the base branch's copy.
+        if: ${{ !cancelled() && matrix.e2e_type == 'default' && github.event_name != 'pull_request' && hashFiles('.e2e-durations/reports/*.json') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-spec-durations-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: .e2e-durations/reports/
+          retention-days: 1
+          overwrite: true
+
+      # Keep timing and virtualization assertions free of competing contexts,
+      # as in the browser compatibility workflow. Run the complete file once.
+      - name: Run isolated performance E2E
+        if: ${{ !cancelled() && matrix.e2e_type == 'default' && matrix.shard == 2 }}
+        timeout-minutes: 8
+        env:
+          AAH_E2E_BUILD_VARIANT: default
+          AAH_SKIP_E2E_BUILD: "1"
+          AAH_E2E_SMOKE_ONLY: "1"
+          AAH_E2E_WORKERS: "1"
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/performance
+        run: pnpm exec playwright test e2e/multiAccountPerformance.spec.ts --project=chromium --output=test-results/performance --reporter=list,github,html
+
+      - name: Upload performance measurements
+        if: ${{ !cancelled() && matrix.e2e_type == 'default' && matrix.shard == 2 }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-performance-${{ matrix.name }}-${{ github.run_attempt }}
+          path: playwright-report/performance/
+          retention-days: 7
 
       - name: Upload Playwright artifacts (failure)
-        if: failure()
+        # Retried passes still leave failure screenshots needed to diagnose flakes.
+        if: ${{ !cancelled() && (failure() || hashFiles('test-results/**/test-failed-*.png') != '') }}
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ matrix.name }}-${{ github.run_attempt }}
@@ -226,3 +338,45 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  e2e-durations:
+    name: Publish E2E spec durations
+    runs-on: ubuntu-latest
+    needs: e2e-smoke
+    # Timings stay valid when tests fail, but nothing can be published when the shards
+    # were skipped or the run was cancelled. Pull requests restore main's copy instead
+    # of republishing their own.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && (needs.e2e-smoke.result == 'success' || needs.e2e-smoke.result == 'failure') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Download spec duration reports
+        uses: actions/download-artifact@v7
+        with:
+          path: .e2e-durations/reports
+          pattern: e2e-spec-durations-*
+          # Retried shards reuse report filenames. Keep attempt directories so
+          # concurrent downloads cannot overwrite JSON; the writer reads recursively.
+          merge-multiple: false
+
+      - name: Write spec durations manifest
+        if: ${{ hashFiles('.e2e-durations/reports/**/*.json') != '' }}
+        # Cache only the manifest; the shard reports are inputs, not published state.
+        run: |
+          node scripts/write-e2e-spec-durations.mjs
+          rm -rf .e2e-durations/reports
+
+      - name: Save spec durations
+        if: ${{ hashFiles('.e2e-durations/spec-durations.json') != '' }}
+        uses: actions/cache/save@v5
+        with:
+          path: .e2e-durations
+          key: e2e-spec-durations-${{ github.run_id }}-${{ github.run_attempt }}

@@ -5,7 +5,7 @@ import {
   getAccountManagementListItemTestId,
   ACCOUNT_MANAGEMENT_TEST_IDS as ids,
 } from "~/features/AccountManagement/testIds"
-import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/compatibilityConfig"
+import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/configuration/compatibilityConfig"
 import { mergeCompatibilityCheckInStatus } from "~/services/checkin/autoCheckin/state"
 import { SiteHealthStatus } from "~/types"
 import { THEME_COLORS, THEME_PRESETS } from "~/types/theme"
@@ -23,6 +23,7 @@ import {
 } from "~~/e2e/utils/commonUserFlows"
 import { getServiceWorker } from "~~/e2e/utils/extensionState"
 import { waitForExtensionRoot } from "~~/e2e/utils/lazyLoading"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 test("account dots and check-in icons share readable colors across themes and widths", async ({
   page,
@@ -91,7 +92,7 @@ test("account dots and check-in icons share readable colors across themes and wi
     {
       status: SiteHealthStatus.Warning,
       icon: row(SiteHealthStatus.Warning)
-        .getByRole("button", { name: /Check-in status wasn't detected today/ })
+        .getByRole("button", { name: /Check-in status needs updating/ })
         .locator("svg"),
     },
     {
@@ -118,14 +119,26 @@ test("account dots and check-in icons share readable colors across themes and wi
         expect(
           stroke.foreground,
           `${preset} ${dark} ${status} dot/icon`,
-        ).toEqual(fill.foreground)
+        ).toEqual(
+          status === SiteHealthStatus.Warning
+            ? (
+                await readColorContrast(
+                  dot(SiteHealthStatus.Unknown),
+                  "background",
+                )
+              ).foreground
+            : fill.foreground,
+        )
         expect(fill.ratio).toBeGreaterThanOrEqual(3)
         expect(stroke.ratio).toBeGreaterThanOrEqual(3)
         // Keep small status marks vivid rather than grayish or pastel.
         const brightest = Math.max(...stroke.foreground)
         const saturation =
           (brightest - Math.min(...stroke.foreground)) / brightest
-        if (status !== SiteHealthStatus.Unknown) {
+        if (
+          status !== SiteHealthStatus.Unknown &&
+          status !== SiteHealthStatus.Warning
+        ) {
           expect(saturation).toBeGreaterThanOrEqual(dark ? 0.7 : 0.88)
         }
       }
@@ -136,7 +149,7 @@ test("account dots and check-in icons share readable colors across themes and wi
       expect(errorDot.ratio).toBeGreaterThanOrEqual(3)
       if (dark) {
         expect(
-          errorDot.foreground[0] - errorDot.foreground[1],
+          atIndex(errorDot.foreground, 0) - atIndex(errorDot.foreground, 1),
         ).toBeGreaterThanOrEqual(150)
       }
       const completedCustomCheckIn = row(SiteHealthStatus.Healthy)
@@ -437,8 +450,8 @@ test("a theme can change each status base and update every presentation in its o
       )
     }
     const indicator = after.at(-1)!
-    expect(indicator[2]).toBeGreaterThan(indicator[0])
-    expect(indicator[0]).toBeGreaterThan(indicator[1])
+    expect(indicator[2]).toBeGreaterThan(atIndex(indicator, 0))
+    expect(indicator[0]).toBeGreaterThan(atIndex(indicator, 1))
     expect(siblingAfter).toEqual(siblingBefore)
   }
 })

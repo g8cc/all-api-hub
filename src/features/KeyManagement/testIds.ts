@@ -8,17 +8,21 @@ export const KEY_MANAGEMENT_TEST_IDS = {
   linkedProfileExportMenuButton:
     "key-management-linked-profile-export-menu-button",
   exportToCCSwitchButton: "key-management-export-to-cc-switch-button",
+  exportToAiToolboxButton: "key-management-export-to-ai-toolbox-button",
   serviceCredentialExportMenuButton:
     "key-management-service-credential-export-menu-button",
   serviceCredentialImportToManagedSiteButton:
     "key-management-service-credential-import-to-managed-site-button",
   serviceCredentialExportToCCSwitchButton:
     "key-management-service-credential-export-to-cc-switch-button",
+  serviceCredentialExportToAiToolboxButton:
+    "key-management-service-credential-export-to-ai-toolbox-button",
   verifyTokenApiButton: "key-management-verify-token-api-button",
   verifyTokenCliSupportButton: "key-management-verify-token-cli-support-button",
   batchSaveToApiProfilesButton:
     "key-management-batch-save-to-api-profiles-button",
   keyResourceSecretDisplay: "key-management-key-resource-secret-display",
+  keyResourceBadge: "key-management-key-resource-badge",
   keyResourceSummaryFacts: "key-management-key-resource-summary-facts",
   tokenRowActions: "key-management-token-row-actions",
   managedSiteStatusBadge: "key-management-managed-site-status-badge",
@@ -67,6 +71,10 @@ export const KEY_MANAGEMENT_TEST_IDS = {
   nativeEditorSubmitButton: "key-management-native-editor-submit-button",
   nativeKeyRow: "key-management-native-key-row",
   nativeDeleteConfirmButton: "key-management-native-delete-confirm-button",
+  nativeDeleteCredentialWarning:
+    "key-management-native-delete-credential-warning",
+  nativeDeleteCredentialAcknowledge:
+    "key-management-native-delete-credential-acknowledge",
   associateCredentialDialog: "key-management-associate-credential-dialog",
   associateCredentialProfileSelect:
     "key-management-associate-credential-profile-select",

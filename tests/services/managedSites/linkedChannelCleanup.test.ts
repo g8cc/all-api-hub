@@ -15,6 +15,7 @@ import {
   prepareLinkedChannelCleanup,
   runLinkedChannelCleanup,
 } from "~/services/managedSites/linkedChannelCleanup"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const mocks = vi.hoisted(() => ({
   stored: new Map<string, unknown>(),
@@ -69,7 +70,7 @@ vi.mock("~/services/apiAdapters/registry", () => ({
     },
   }),
 }))
-vi.mock("~/services/managedSites/runtimeConfig", () => ({
+vi.mock("~/services/managedSites/configuration/runtimeConfig", () => ({
   getCurrentManagedSiteType: async () => "new-api",
 }))
 vi.mock("~/services/apiAdapters/managedResources/registry", () => ({
@@ -160,6 +161,37 @@ beforeEach(() => {
 })
 
 describe("linked channel cleanup", () => {
+  it("reconciles a deleted source when its gateway differs from the account URL", async () => {
+    const task = await prepareLinkedChannelCleanup({
+      ...input,
+      source: {
+        accountId: "account",
+        accountBaseUrl: "https://console.example",
+        ref: {
+          accountId: "account",
+          siteType: SITE_TYPES.NEW_API,
+          scopeKey: "account",
+          resourceId: "7",
+        },
+      },
+    })
+    mocks.accounts.mockResolvedValue([
+      {
+        id: "account",
+        site_url: "https://console.example",
+        site_type: SITE_TYPES.NEW_API,
+      },
+    ])
+    mocks.sourceGet.mockRejectedValue(
+      new AccountKeyResourceError({ code: "not_found" }),
+    )
+
+    await runLinkedChannelCleanup(task!)
+
+    expect(mocks.sourceGet).toHaveBeenCalled()
+    expect(await getLinkedChannelCleanupTasks()).toEqual([])
+  })
+
   it("retains pending work when source identity no longer matches its account", async () => {
     const task = await prepare()
     task!.source = {
@@ -269,7 +301,7 @@ describe("linked channel cleanup", () => {
     const task = await prepare()
     expect(task?.targets.map(({ name }) => name)).toEqual(["single", "multi"])
     expect(mocks.list).toHaveBeenCalledTimes(2)
-    expect(mocks.list.mock.calls[1][0]).toEqual({ cursor: "next" })
+    expect(atIndex(mocks.list.mock.calls, 1)[0]).toEqual({ cursor: "next" })
   })
 
   it("rejects a repeated inventory cursor without saving incomplete work", async () => {
@@ -299,7 +331,7 @@ describe("linked channel cleanup", () => {
       await vi.advanceTimersByTimeAsync(30_000)
       await rejection
       expect(await getLinkedChannelCleanupTasks()).toHaveLength(1)
-      expect(mocks.open.mock.calls[1][0].signal.aborted).toBe(true)
+      expect(atIndex(mocks.open.mock.calls, 1)[0].signal.aborted).toBe(true)
       await runLinkedChannelCleanup(task!)
       expect(await getLinkedChannelCleanupTasks()).toEqual([])
     } finally {
@@ -371,6 +403,44 @@ describe("linked channel cleanup", () => {
     expect(channels.get("multi")?.keys).toEqual(["retained"])
     expect(await getLinkedChannelCleanupTasks()).toEqual([])
   })
+  it("reads detail when cleanup URLs are absent, regardless of misleading display fields", async () => {
+    mocks.list.mockResolvedValue({
+      items: [
+        {
+          ref: ref("multi"),
+          displayName: "multi",
+          fields: [
+            {
+              fieldId: "baseURL",
+              kind: "text",
+              value: "https://display.example",
+            },
+          ],
+        },
+      ],
+      total: 1,
+    })
+    const task = await prepare()
+    expect(mocks.openKeys).toHaveBeenCalledWith(ref("multi"), expect.anything())
+    expect(task?.targets.map(({ ref }) => ref.resourceId)).toEqual(["multi"])
+  })
+
+  it("skips an explicitly unrelated cleanup URL without reading credentials", async () => {
+    mocks.list.mockResolvedValue({
+      items: [
+        {
+          ref: ref("multi"),
+          displayName: "multi",
+          keyCleanupBaseUrls: ["https://other.example"],
+          fields: [{ fieldId: "baseURL", kind: "text", value: sourceUrl }],
+        },
+      ],
+      total: 1,
+    })
+    expect(await prepare()).toBeNull()
+    expect(mocks.openKeys).not.toHaveBeenCalled()
+  })
+
   it("collects all matching channels and persists no plaintext credentials", async () => {
     const task = await prepare()
     expect(task?.targets.map((target) => target.ref.resourceId)).toEqual([
@@ -419,11 +489,11 @@ describe("linked channel cleanup", () => {
     channels.get("multi")!.fail = true
     await finishLinkedChannelCleanup(task)
     const pending = await getLinkedChannelCleanupTasks()
-    expect(pending[0].targets.map((target) => target.ref.resourceId)).toEqual([
-      "multi",
-    ])
+    expect(
+      atIndex(pending, 0).targets.map((target) => target.ref.resourceId),
+    ).toEqual(["multi"])
     channels.get("multi")!.fail = false
-    await runLinkedChannelCleanup(pending[0])
+    await runLinkedChannelCleanup(atIndex(pending, 0))
     expect(await getLinkedChannelCleanupTasks()).toEqual([])
     expect(mocks.removeChannel).toHaveBeenCalledTimes(1)
   })
@@ -451,7 +521,9 @@ describe("linked channel cleanup", () => {
     await finishLinkedChannelCleanup(task)
     expect(mocks.removeChannel).not.toHaveBeenCalled()
     expect(channels.get("multi")?.keys).toEqual(["replacement"])
-    expect((await getLinkedChannelCleanupTasks())[0].targets).toHaveLength(1)
+    expect(
+      atIndex(await getLinkedChannelCleanupTasks(), 0).targets,
+    ).toHaveLength(1)
   })
   it("does not delete a channel when another credential was added after inspection", async () => {
     const task = await prepare()
@@ -494,9 +566,9 @@ describe("cleanup activity", () => {
     await operation
     const pending = await getPendingLinkedChannelCleanupTasks()
     expect(pending).toHaveLength(1)
-    expect(pending[0].targets.map((target) => target.ref.resourceId)).toEqual([
-      "multi",
-    ])
+    expect(
+      atIndex(pending, 0).targets.map((target) => target.ref.resourceId),
+    ).toEqual(["multi"])
   })
 
   it("releases activity when source deletion fails without touching target channels", async () => {

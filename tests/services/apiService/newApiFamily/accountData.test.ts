@@ -1,7 +1,13 @@
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
+
+// Initialize provider registrations before measuring the shared snapshot queries.
+import "~/services/checkin/autoCheckin/providers"
+
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AUTO_CHECKIN_METHOD_IDS } from "~/constants/checkIn"
 import { SITE_TYPES } from "~/constants/siteType"
+import { fetchAccountDataWithCheckInStatus } from "~/services/accounts/refresh/fetchAccountData"
 import {
   defaultAccountDataImplementation,
   fetchAccountData,
@@ -11,7 +17,7 @@ import {
 } from "~/services/apiService/newApiFamily/default/accountData"
 import { fetchTodayUsage as fetchDoneHubTodayUsage } from "~/services/apiService/newApiFamily/variants/doneHub"
 import { ApiError } from "~/services/apiTransport/errors"
-import { getSelectedCheckInStatus } from "~/services/checkin/autoCheckin/inspection"
+import { getSelectedCheckInStatus } from "~/services/checkin/autoCheckin/discovery/inspection"
 import { LogType } from "~/services/history/usageHistory/usageLogModel"
 import {
   ACCOUNT_TODAY_METRIC_REASONS,
@@ -19,6 +25,7 @@ import {
   AuthTypeEnum,
 } from "~/types"
 import { buildCheckInConfig } from "~~/tests/test-utils/checkIn"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 import { createCheckInConfig } from "../../apiAdapters/checkInFixtures"
 
@@ -83,6 +90,7 @@ vi.mock("~/utils/core/logger", () => ({
 }))
 
 const baseRequest = {
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://data.example.invalid",
   accountId: "account-1",
   siteType: SITE_TYPES.NEW_API,
@@ -139,11 +147,14 @@ describe("newApiFamily accountData", () => {
       )
       for (const item of items) {
         result.coverage.rows.validCount += 1
-        for (const [field, total, coverage] of [
+        for (const indexedEntry of [
           ["quota", "today_quota_consumption", "consumption"],
           ["prompt_tokens", "today_prompt_tokens", "promptTokens"],
           ["completion_tokens", "today_completion_tokens", "completionTokens"],
         ]) {
+          const field = atIndex(indexedEntry, 0)
+          const total = atIndex(indexedEntry, 1)
+          const coverage = atIndex(indexedEntry, 2)
           const value = item[field]
           if (typeof value === "number" && Number.isFinite(value)) {
             result[total] += value
@@ -232,6 +243,7 @@ describe("newApiFamily accountData", () => {
 
     expect(mockFetchApiData).toHaveBeenCalledTimes(1)
     expect(mockFetchApiData).toHaveBeenCalledWith(baseRequest, {
+      credentialRecovery: "read",
       endpoint: `/api/log/self/stat?${new URLSearchParams({
         p: "1",
         page_size: "2",
@@ -326,6 +338,7 @@ describe("newApiFamily accountData", () => {
 
     expect(mockFetchApiData).toHaveBeenCalledTimes(1)
     expect(mockFetchApiData).toHaveBeenCalledWith(baseRequest, {
+      credentialRecovery: "read",
       endpoint: `/api/log/self/stat?${new URLSearchParams({
         page: "1",
         size: "2",
@@ -515,6 +528,7 @@ describe("newApiFamily accountData", () => {
     })
 
     expect(mockFetchApiData).toHaveBeenNthCalledWith(2, baseRequest, {
+      credentialRecovery: "read",
       endpoint: `/api/log/self?${new URLSearchParams({
         p: "1",
         page_size: "2",
@@ -652,6 +666,69 @@ describe("newApiFamily accountData", () => {
     expect(mockExtractAmount).toHaveBeenCalledWith("recharge 3 USD", 9)
   })
 
+  it("aggregates zero-quota reward content across income sources and pages", async () => {
+    const { aggregateIncomeData } = await vi.importActual<
+      typeof import("~/services/apiService/newApiFamily/default/accountDataUtils")
+    >("~/services/apiService/newApiFamily/default/accountDataUtils")
+    mockAggregateIncomeData.mockImplementation(aggregateIncomeData)
+    mockFetchApiData.mockImplementation(async (_request, { endpoint }) => {
+      const params = new URL(endpoint, baseRequest.baseUrl).searchParams
+      if (params.get("type") === String(LogType.Topup)) {
+        return params.get("p") === "1"
+          ? {
+              items: [
+                { quota: 0, content: "通过兑换码充值 ＄2.000000 额度" },
+                { quota: 50, content: "充值 ＄100.00 额度" },
+              ],
+              total: 3,
+            }
+          : { items: [{ quota: 0, content: "充值 ¥7.00 额度" }], total: 3 }
+      }
+      return {
+        items: [{ quota: 0, content: "签到奖励 ＄0.500000 额度" }],
+        total: 1,
+      }
+    })
+
+    await expect(
+      fetchTodayIncome({ ...baseRequest, exchangeRate: 7 }),
+    ).resolves.toEqual({
+      today_income: 400,
+      todayStatsAvailability: { income: complete },
+    })
+    expect(mockFetchApiData).toHaveBeenCalledTimes(3)
+  })
+
+  it.each([
+    ["negative", -7, 100],
+    ["zero", 0, 100],
+    ["NaN", Number.NaN, 100],
+    ["infinite", Number.POSITIVE_INFINITY, 100],
+    ["missing", undefined, 100],
+    ["positive", 14, 50],
+  ])(
+    "normalizes a %s request exchange rate before parsing zero-quota CNY income",
+    async (_label, exchangeRate, expectedIncome) => {
+      const { aggregateIncomeData } = await vi.importActual<
+        typeof import("~/services/apiService/newApiFamily/default/accountDataUtils")
+      >("~/services/apiService/newApiFamily/default/accountDataUtils")
+      mockAggregateIncomeData.mockImplementation(aggregateIncomeData)
+      mockFetchApiData
+        .mockResolvedValueOnce({
+          items: [{ quota: 0, content: "充值 ¥7.00 额度" }],
+          total: 1,
+        })
+        .mockResolvedValueOnce({ items: [], total: 0 })
+
+      await expect(
+        fetchTodayIncome({ ...baseRequest, exchangeRate }),
+      ).resolves.toEqual({
+        today_income: expectedIncome,
+        todayStatsAvailability: { income: complete },
+      })
+    },
+  )
+
   it("fetchTodayIncome uses the default exchange rate when the request has no exchange rate", async () => {
     mockExtractAmount.mockReturnValueOnce({ amount: 2 })
     mockFetchApiData
@@ -713,6 +790,7 @@ describe("newApiFamily accountData", () => {
     })
 
     expect(mockFetchApiData).toHaveBeenNthCalledWith(1, baseRequest, {
+      credentialRecovery: "read",
       endpoint: `/api/log/self?${new URLSearchParams({
         page: "1",
         size: "2",
@@ -725,6 +803,7 @@ describe("newApiFamily accountData", () => {
     })
 
     expect(mockFetchApiData).toHaveBeenNthCalledWith(2, baseRequest, {
+      credentialRecovery: "read",
       endpoint: `/api/log/self?${new URLSearchParams({
         page: "1",
         size: "2",
@@ -735,6 +814,18 @@ describe("newApiFamily accountData", () => {
         log_type: String(LogType.System),
       }).toString()}`,
     })
+  })
+
+  it("fetchAccountData does not query a selected check-in method", async () => {
+    mockFetchApiData.mockResolvedValue({ quota: 321 })
+    const checkIn = createCheckInConfig(SITE_TYPES.NEW_API)
+    const result = await fetchAccountData({
+      ...baseRequest,
+      includeTodayCashflow: false,
+      checkIn,
+    })
+    expect(result.checkIn).toBe(checkIn)
+    expect(mockFetchApiData).toHaveBeenCalledTimes(1)
   })
 
   it("fetchAccountData preserves check-in knowledge when no method is selected", async () => {
@@ -762,7 +853,7 @@ describe("newApiFamily accountData", () => {
     })
   })
 
-  it("fetchAccountData maps refresh results into selected-method status", async () => {
+  it("public account snapshot maps refresh results into selected-method status", async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-03-28T12:00:00.000Z"))
     mockFetchApiData.mockImplementation((_request, { endpoint }) => {
@@ -792,10 +883,13 @@ describe("newApiFamily accountData", () => {
 
       return Promise.reject(new Error(`Unexpected endpoint: ${endpoint}`))
     })
-    const result = await fetchAccountData({
-      ...baseRequest,
-      checkIn: createCheckInConfig(SITE_TYPES.NEW_API),
-    })
+    const result = await fetchAccountDataWithCheckInStatus(
+      { fetchData: fetchAccountData },
+      {
+        ...baseRequest,
+        checkIn: createCheckInConfig(SITE_TYPES.NEW_API),
+      },
+    )
 
     expect(
       getSelectedCheckInStatus({
@@ -814,7 +908,7 @@ describe("newApiFamily accountData", () => {
     vi.useRealTimers()
   })
 
-  it("fetchAccountData marks only the selected method unsupported on 404", async () => {
+  it("public account snapshot marks only the selected method unsupported on 404", async () => {
     mockFetchApiData.mockImplementation((_request, { endpoint }) => {
       if (endpoint === "/api/user/self") {
         return Promise.resolve({ quota: 99 })
@@ -835,10 +929,13 @@ describe("newApiFamily accountData", () => {
       return Promise.reject(new Error(`Unexpected endpoint: ${endpoint}`))
     })
 
-    const result = await fetchAccountData({
-      ...baseRequest,
-      checkIn: createCheckInConfig(SITE_TYPES.NEW_API),
-    })
+    const result = await fetchAccountDataWithCheckInStatus(
+      { fetchData: fetchAccountData },
+      {
+        ...baseRequest,
+        checkIn: createCheckInConfig(SITE_TYPES.NEW_API),
+      },
+    )
     const methodId = AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn
 
     expect(result.checkIn?.methodKnowledge.methods[methodId]).toMatchObject({

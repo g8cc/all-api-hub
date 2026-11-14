@@ -8,7 +8,7 @@ import {
 import { cn } from "~/lib/utils"
 
 const textareaVariants = cva(
-  "flex w-full rounded-md border border-input bg-card px-3 py-density-2 text-sm placeholder:text-faint-foreground text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 transition-colors resize-vertical",
+  "flex w-full rounded-md border border-input bg-card px-3 py-density-2 text-sm placeholder:text-faint-foreground text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent aria-invalid:border-destructive-border aria-invalid:focus:border-destructive-text aria-invalid:focus:ring-destructive-text disabled:cursor-not-allowed disabled:opacity-50 transition-colors resize-vertical",
   {
     variants: {
       variant: {
@@ -32,7 +32,8 @@ const textareaVariants = cva(
 )
 
 export interface TextareaProps
-  extends React.TextareaHTMLAttributes<HTMLTextAreaElement>,
+  extends
+    React.TextareaHTMLAttributes<HTMLTextAreaElement>,
     VariantProps<typeof textareaVariants> {
   error?: string
   success?: string
@@ -40,6 +41,8 @@ export interface TextareaProps
   maxLength?: number
   onClear?: () => void
   clearButtonLabel?: string
+  /** Fit the controlled value to its content, respecting CSS min/max heights. */
+  autoSize?: boolean
 }
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
@@ -55,6 +58,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       value,
       onClear,
       clearButtonLabel = "Clear",
+      autoSize = false,
       ...props
     },
     ref,
@@ -81,6 +85,25 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       [ref],
     )
 
+    React.useLayoutEffect(() => {
+      const textarea = textareaRef.current
+      if (!autoSize || !textarea) return
+      const fitContent = () => {
+        textarea.style.height = "auto"
+        const borderHeight = textarea.offsetHeight - textarea.clientHeight
+        textarea.style.height = `${textarea.scrollHeight + borderHeight}px`
+      }
+      fitContent()
+      let width = textarea.clientWidth
+      const observer = new ResizeObserver(() => {
+        if (textarea.clientWidth === width) return
+        width = textarea.clientWidth
+        fitContent()
+      })
+      observer.observe(textarea)
+      return () => observer.disconnect()
+    }, [autoSize, value])
+
     const focusTextareaAfterClear = () => {
       const focusTextarea = () => textareaRef.current?.focus()
 
@@ -95,6 +118,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <div className="relative">
         <textarea
+          data-slot="textarea"
           className={cn(
             textareaVariants({ variant: textareaVariant, size, className }),
             showClearButton && "pr-[calc(var(--density-control-xs)+1rem)]",
@@ -125,7 +149,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           </p>
         )}
         {showCount && maxLength && (
-          <div className="text-faint-foreground absolute right-2 bottom-2 text-xs">
+          <div className="absolute right-2 bottom-2 text-xs text-faint-foreground">
             {currentLength}/{maxLength}
           </div>
         )}

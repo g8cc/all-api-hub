@@ -40,11 +40,15 @@ export async function setPlasmoStorageValue(
   serviceWorker: Worker,
   key: string,
   value: unknown,
-  options?: { lock?: string },
+  options?: {
+    lock?: string
+    /** Worker event emitted after this write has submitted its lock request. */
+    lockRequestEvent?: string
+  },
 ) {
   const serialized = JSON.stringify(value)
   await serviceWorker.evaluate(
-    async ({ storageKey, storageValue, storageLockName }) => {
+    async ({ storageKey, storageValue, storageLockName, lockRequestEvent }) => {
       const chromeApi = (globalThis as any).chrome
       const lockManager = (globalThis as any).navigator?.locks
 
@@ -67,7 +71,15 @@ export async function setPlasmoStorageValue(
       }
 
       if (storageLockName && typeof lockManager?.request === "function") {
-        await lockManager.request(storageLockName, { mode: "exclusive" }, write)
+        const pending = lockManager.request(
+          storageLockName,
+          { mode: "exclusive" },
+          write,
+        )
+        if (lockRequestEvent) {
+          globalThis.dispatchEvent(new Event(lockRequestEvent))
+        }
+        await pending
         return
       }
 
@@ -77,6 +89,7 @@ export async function setPlasmoStorageValue(
       storageKey: key,
       storageValue: serialized,
       storageLockName: options?.lock,
+      lockRequestEvent: options?.lockRequestEvent,
     },
   )
 }
@@ -107,7 +120,7 @@ export async function removePlasmoStorageKey(
  * Read a raw value from chrome.storage.local without local deserialization.
  */
 export async function getPlasmoStorageRawValue<T>(
-  serviceWorker: Worker,
+  serviceWorker: Pick<Worker, "evaluate">,
   key: string,
 ): Promise<T> {
   return await serviceWorker.evaluate(async (storageKey) => {
@@ -119,7 +132,11 @@ export async function getPlasmoStorageRawValue<T>(
           reject(new Error(error.message))
           return
         }
-        resolve(stored[storageKey])
+        const entry = Object.entries(stored).find(
+          ([storedKey]) => storedKey === storageKey,
+        )
+        // The worker cannot reach the test helper, and an absent key reads as undefined.
+        resolve(entry ? entry[1] : (undefined as T))
       })
     })
   }, key)
@@ -145,7 +162,7 @@ export function normalizePlasmoStorageJsonValue<T>(raw: unknown): T | null {
  * Read and JSON-normalize a Plasmo-backed storage value.
  */
 export async function getPlasmoStorageJsonValue<T>(
-  serviceWorker: Worker,
+  serviceWorker: Pick<Worker, "evaluate">,
   key: string,
 ): Promise<T | null> {
   const raw = await getPlasmoStorageRawValue<unknown>(serviceWorker, key)
@@ -316,4 +333,51 @@ export async function expectPermissionOnboardingHidden(page: Page) {
   await expect(
     page.getByTestId(OPTIONS_OVERVIEW_TEST_IDS.permissionOnboardingDialog),
   ).toHaveCount(0)
+}
+
+/**
+ * Lets Playwright attach before an extension-created window navigates to a
+ * routed site fixture. Chromium can otherwise bypass interception on its first
+ * navigation and accidentally load the live site. Only the next exact URL is held.
+ */
+export async function holdExtensionWindowNavigation(
+  context: BrowserContext,
+  worker: Pick<Worker, "evaluate">,
+  url: string,
+) {
+  const existingPages = new Set(context.pages())
+  await worker.evaluate((targetUrl) => {
+    const chromeApi = (globalThis as any).chrome
+    const create = chromeApi.windows.create.bind(chromeApi.windows)
+    chromeApi.windows.create = async (options: Record<string, unknown>) => {
+      if (options.url !== targetUrl) return create(options)
+      chromeApi.windows.create = create
+      const opened = await create({ ...options, url: "about:blank" })
+      await new Promise<void>((resolve) => {
+        ;(globalThis as any).__releaseFixtureNavigation = resolve
+      })
+      delete (globalThis as any).__releaseFixtureNavigation
+      const tab = await chromeApi.tabs.update(opened.tabs[0].id, {
+        url: targetUrl,
+      })
+      return { ...opened, tabs: [tab] }
+    }
+  }, url)
+  return async () => {
+    await expect
+      .poll(() =>
+        worker.evaluate(
+          () =>
+            typeof (globalThis as any).__releaseFixtureNavigation ===
+            "function",
+        ),
+      )
+      .toBe(true)
+    await expect
+      .poll(() => context.pages().some((page) => !existingPages.has(page)))
+      .toBe(true)
+    await worker.evaluate(() =>
+      (globalThis as any).__releaseFixtureNavigation(),
+    )
+  }
 }

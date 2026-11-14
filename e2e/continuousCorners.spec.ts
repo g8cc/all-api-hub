@@ -1,7 +1,11 @@
+import type { Locator } from "@playwright/test"
+
 import { OPTIONS_PAGE_PATH, POPUP_PAGE_PATH } from "~/constants/extensionPages"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { SETTINGS_ANCHORS } from "~/constants/settingsAnchors"
-import { THEME_MODE } from "~/constants/theme"
+import { THEME_MODE, THEME_PRESET } from "~/constants/theme"
+import { OPTIONS_TEST_IDS } from "~/entrypoints/options/testIds"
+import { DEFAULT_APPEARANCE } from "~/types/theme"
 import { expect, test } from "~~/e2e/fixtures/extensionTest"
 import {
   createStoredBookmark,
@@ -14,6 +18,59 @@ import { expectCornerShape } from "~~/e2e/utils/cornerShape"
 import { getServiceWorker } from "~~/e2e/utils/extensionState"
 import { setVisualDarkMode } from "~~/e2e/utils/visualTheme"
 
+const OPTIONS_PAGE_HEADINGS = {
+  [MENU_ITEM_IDS.OVERVIEW]: "Overview",
+  [MENU_ITEM_IDS.BASIC]: "Settings",
+  [MENU_ITEM_IDS.ACCOUNT]: "Account Management",
+  [MENU_ITEM_IDS.BOOKMARK]: "Bookmark Management",
+  [MENU_ITEM_IDS.AUTO_CHECKIN]: /^(Auto Check-in|Batch Check-in)$/,
+  [MENU_ITEM_IDS.USAGE_ANALYTICS]: "Usage Analytics",
+  [MENU_ITEM_IDS.BALANCE_HISTORY]: "Balance History",
+  [MENU_ITEM_IDS.SITE_ANNOUNCEMENTS]: "Site Announcements",
+  [MENU_ITEM_IDS.MODELS]: "Model List",
+  [MENU_ITEM_IDS.KEYS]: "Key Management",
+  [MENU_ITEM_IDS.API_CREDENTIAL_PROFILES]: "API credential library",
+  [MENU_ITEM_IDS.MANAGED_SITE_CHANNELS]: "Channels management",
+  [MENU_ITEM_IDS.MANAGED_SITE_MODEL_SYNC]: "Model List Synchronization",
+  [MENU_ITEM_IDS.IMPORT_EXPORT]: "Import/Export",
+  [MENU_ITEM_IDS.ABOUT]: "About",
+} as const
+
+/**
+ * Lists the opaque surfaces painted between a card and the workspace canvas.
+ *
+ * A card only reads as rounded when the canvas shows through its corners. A
+ * plate of the same color directly behind the card fills those corners in, so
+ * every element between the page root and the card has to stay transparent.
+ * The walk stays inside the page-owned surface: a portalled card belongs to a
+ * floating layer, not to the page canvas.
+ */
+async function opaqueSurfacesBehindCard(card: Locator): Promise<string[]> {
+  // Resolve and inspect the optional card in one browser task. It may disappear
+  // after a separate count() when navigation or asynchronous data replaces it.
+  return card.evaluateAll((elements) => {
+    const element = elements[0]
+    if (!element) return []
+    const pageSurface = element.closest('[data-testid="options-content-card"]')
+    if (!pageSurface) return []
+
+    const opaque: string[] = []
+    for (
+      let node = element.parentElement;
+      node && pageSurface.contains(node);
+      node = node.parentElement
+    ) {
+      const background = getComputedStyle(node).backgroundColor
+      if (background !== "rgba(0, 0, 0, 0)") {
+        opaque.push(
+          `${node.tagName.toLowerCase()}.${node.getAttribute("class") ?? ""} → ${background}`,
+        )
+      }
+    }
+    return opaque
+  })
+}
+
 test.beforeEach(async ({ context, page }) => {
   await forceExtensionLanguage(page, "en")
   await stubLlmMetadataIndex(context)
@@ -21,6 +78,31 @@ test.beforeEach(async ({ context, page }) => {
     themeMode: THEME_MODE.LIGHT,
     currencyType: "USD",
   })
+})
+
+test("card backdrop inspection handles a card disappearing during navigation", async ({
+  page,
+}) => {
+  page.setDefaultTimeout(1_000)
+  await page.setContent(`
+    <main data-testid="options-content-card">
+      <section class="backdrop" style="background: rgb(255, 255, 255)">
+        <div data-slot="card">Departing page</div>
+      </section>
+    </main>
+  `)
+  const card = page.locator('main [data-slot="card"]:visible').first()
+  expect(await card.count()).toBe(1)
+  expect(await opaqueSurfacesBehindCard(card)).toEqual([
+    "section.backdrop → rgb(255, 255, 255)",
+  ])
+  await page.locator("section").evaluate((element) => {
+    element.style.background = "transparent"
+  })
+  expect(await opaqueSurfacesBehindCard(card)).toEqual([])
+  await card.evaluate((element) => element.remove())
+
+  expect(await opaqueSurfacesBehindCard(card)).toEqual([])
 })
 
 test("responsive finite radii restore continuous shaping after rounded-full", async ({
@@ -167,6 +249,62 @@ test("bookmark search surface follows the owning card in both themes", async ({
       animations: "disabled",
       path: testInfo.outputPath(`bookmark-search-${dark}.png`),
     })
+  }
+})
+
+test("page roots and card backdrops keep the workspace canvas behind every corner", async ({
+  context,
+  page,
+  extensionId,
+}) => {
+  test.setTimeout(240_000)
+  await seedStoredBookmarks(await getServiceWorker(context), [
+    createStoredBookmark({ id: "surface-bookmark", name: "Surface bookmark" }),
+  ])
+  const base = `chrome-extension://${extensionId}/${OPTIONS_PAGE_PATH}`
+  const appearances = [
+    { label: "default light", preferences: { themeMode: THEME_MODE.LIGHT } },
+    { label: "default dark", preferences: { themeMode: THEME_MODE.DARK } },
+    {
+      label: "anthropic preset",
+      preferences: {
+        themeMode: THEME_MODE.LIGHT,
+        appearance: {
+          ...DEFAULT_APPEARANCE,
+          preset: THEME_PRESET.ANTHROPIC,
+        },
+      },
+    },
+  ]
+
+  for (const { label, preferences } of appearances) {
+    await seedUserPreferences(await getServiceWorker(context), preferences)
+    for (const route of Object.values(MENU_ITEM_IDS)) {
+      // Force document navigation: a hash-only change leaves the departing
+      // page's heading and cards visible while its exit animation runs.
+      await page.goto(`${base}?surface-check=${route}#${route}`)
+      await expect(
+        page.locator("main").getByRole("heading", {
+          name: OPTIONS_PAGE_HEADINGS[route],
+          exact: true,
+        }),
+      ).toBeVisible()
+
+      // Page roots own only their own content; the canvas stays visible.
+      const pageRoot = page
+        .getByTestId(OPTIONS_TEST_IDS.contentCard)
+        .locator(":scope > *")
+      await expect(
+        pageRoot,
+        `${route}/${label}: page roots stay transparent over the workspace canvas`,
+      ).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+
+      const card = page.locator('main [data-slot="card"]:visible').first()
+      expect(
+        await opaqueSurfacesBehindCard(card),
+        `${route}/${label}: the card background would hide its own corners`,
+      ).toEqual([])
+    }
   }
 })
 

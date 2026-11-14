@@ -1,12 +1,12 @@
 import type { TFunction } from "i18next"
 import {
   BookmarkPlus,
-  CheckCircle2,
+  CircleAlert,
+  CircleCheck,
   FolderOpen,
   ListChecks,
   Loader2,
   ShieldCheck,
-  XCircle,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -19,13 +19,18 @@ import { Modal } from "~/components/ui/Dialog/Modal"
 import { cn } from "~/lib/utils"
 
 import type { BookmarkAccountImportFailureCategory } from "../../bookmarkImport/types"
-import { useBookmarkAccountImportDialog } from "../../bookmarkImport/useBookmarkAccountImportDialog"
+import {
+  useBookmarkAccountImportDialog,
+  type BookmarkAccountImportDialogRuntime,
+} from "../../bookmarkImport/useBookmarkAccountImportDialog"
 import { ACCOUNT_MANAGEMENT_TEST_IDS } from "../../testIds"
 import { BookmarkTreeSelector } from "./BookmarkTreeSelector"
 
 interface BookmarkAccountImportDialogProps {
   isOpen: boolean
   onClose: () => void
+  runtime?: BookmarkAccountImportDialogRuntime
+  devNotice?: string
 }
 
 const errorMessageKeys = {
@@ -67,6 +72,10 @@ function translateFailureCategory(
   switch (category) {
     case "detection":
       return t("ui:dialog.bookmarkAccountImport.failures.detection")
+    case "login":
+      return t("ui:dialog.bookmarkAccountImport.failures.login")
+    case "verification":
+      return t("ui:dialog.bookmarkAccountImport.failures.verification")
     case "save":
       return t("ui:dialog.bookmarkAccountImport.failures.save")
     case "unknown":
@@ -91,7 +100,7 @@ function CandidateStatusBadge({
   }
 
   return (
-    <Badge variant="success">
+    <Badge variant="secondary">
       {t("ui:dialog.bookmarkAccountImport.status.ready")}
     </Badge>
   )
@@ -101,9 +110,11 @@ function CandidateStatusBadge({
 export default function BookmarkAccountImportDialog({
   isOpen,
   onClose,
+  runtime,
+  devNotice,
 }: BookmarkAccountImportDialogProps) {
   const { t } = useTranslation()
-  const dialog = useBookmarkAccountImportDialog()
+  const dialog = useBookmarkAccountImportDialog(runtime)
   const importCount = dialog.selectedCandidates.length
   const batchImportSteps = [
     {
@@ -122,7 +133,7 @@ export default function BookmarkAccountImportDialog({
 
   const header = (
     <div className="gap-y-density-3 flex min-w-0 items-start gap-x-3 pr-8">
-      <div className="bg-theme-50 text-theme-600 dark:bg-theme-900/30 dark:text-theme-200 py-density-2 mt-0.5 rounded-lg px-2">
+      <div className="bg-primary-soft text-primary-soft-foreground py-density-2 mt-0.5 rounded-lg px-2">
         <BookmarkPlus className="h-5 w-5" aria-hidden="true" />
       </div>
       <div className="space-y-density-1 min-w-0">
@@ -158,6 +169,14 @@ export default function BookmarkAccountImportDialog({
           {translateImportCount(t, importCount)}
         </Button>
       </ActionGroup>
+    ) : dialog.stage === "results" && dialog.result.failureCount > 0 ? (
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => void dialog.startImport(true)}
+      >
+        {t("ui:dialog.bookmarkAccountImport.actions.retryFailed")}
+      </Button>
     ) : null
 
   return (
@@ -175,6 +194,7 @@ export default function BookmarkAccountImportDialog({
       header={header}
       footer={footer}
     >
+      {devNotice && <Alert compact variant="warning" description={devNotice} />}
       {dialog.stage === "permission-needed" && (
         <div className="space-y-density-4">
           {dialog.error ? (
@@ -227,7 +247,7 @@ export default function BookmarkAccountImportDialog({
       )}
 
       {dialog.stage === "scanning" && (
-        <div className="border-theme-100 bg-theme-50 text-theme-800 dark:border-theme-800 dark:bg-theme-900/30 dark:text-theme-100 gap-y-density-3 py-density-4 flex items-center gap-x-3 rounded-lg border px-4 text-sm">
+        <div className="border-primary-soft-border bg-primary-soft text-primary-soft-foreground gap-y-density-3 py-density-4 flex items-center gap-x-3 rounded-lg border px-4 text-sm">
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
           <span>{t("ui:dialog.bookmarkAccountImport.scanning")}</span>
         </div>
@@ -277,6 +297,11 @@ export default function BookmarkAccountImportDialog({
 
       {dialog.stage === "review" && (
         <div className="space-y-density-4">
+          <Alert
+            compact
+            variant="default"
+            description={t("ui:dialog.bookmarkAccountImport.bestEffortHelp")}
+          />
           {dialog.error === "import-failed" && (
             <Alert
               compact
@@ -344,7 +369,7 @@ export default function BookmarkAccountImportDialog({
       )}
 
       {dialog.stage === "importing" && (
-        <div className="border-theme-100 bg-theme-50 text-theme-800 dark:border-theme-800 dark:bg-theme-900/30 dark:text-theme-100 gap-y-density-3 py-density-4 flex items-center gap-x-3 rounded-lg border px-4 text-sm">
+        <div className="border-primary-soft-border bg-primary-soft text-primary-soft-foreground gap-y-density-3 py-density-4 flex items-center gap-x-3 rounded-lg border px-4 text-sm">
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
           <span>
             {t("ui:dialog.bookmarkAccountImport.importing", {
@@ -357,6 +382,20 @@ export default function BookmarkAccountImportDialog({
 
       {dialog.stage === "results" && (
         <div className="space-y-density-4">
+          {dialog.error === "import-failed" && (
+            <Alert
+              compact
+              variant="warning"
+              description={t(errorMessageKeys["import-failed"])}
+            />
+          )}
+          {dialog.result.failureCount > 0 && (
+            <Alert
+              compact
+              variant="default"
+              description={t("ui:dialog.bookmarkAccountImport.recoveryHelp")}
+            />
+          )}
           {dialog.error === "reload-failed" && (
             <Alert
               compact
@@ -382,13 +421,13 @@ export default function BookmarkAccountImportDialog({
                 <div className="space-y-density-1 min-w-0">
                   <div className="gap-y-density-2 flex items-center gap-x-2">
                     {row.status === "success" ? (
-                      <CheckCircle2
+                      <CircleCheck
                         className="text-success-text h-4 w-4"
                         aria-hidden="true"
                       />
                     ) : (
-                      <XCircle
-                        className="text-destructive-text h-4 w-4"
+                      <CircleAlert
+                        className="text-warning-text h-4 w-4"
                         aria-hidden="true"
                       />
                     )}

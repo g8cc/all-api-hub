@@ -1,0 +1,601 @@
+import { Info } from "lucide-react"
+import { useId, useLayoutEffect, useRef, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
+
+import Tooltip from "~/components/Tooltip"
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  Heading6,
+  IconButton,
+  Spinner,
+} from "~/components/ui"
+import { CredentialAssociationMenu } from "~/features/ApiCredentialProfiles/associations/CredentialAssociationMenu"
+import type { KeyCredentialAssociationStatus } from "~/features/KeyManagement/associations/credentialAssociations"
+import { BatchSelectionControl } from "~/features/KeyManagement/inventory/BatchSelectionControl"
+import type {
+  KeyResourceCardPresentation,
+  KeyResourceDetailState,
+  KeyResourceFact,
+} from "~/features/KeyManagement/presentation/keyResourceCard"
+import { KEY_MANAGEMENT_TEST_IDS } from "~/features/KeyManagement/testIds"
+import { cn } from "~/lib/utils"
+
+export const KEY_RESOURCE_CONTENT_LAYOUTS = {
+  Default: "default",
+  Adaptive: "adaptive",
+} as const
+
+type KeyResourceContentLayout =
+  (typeof KEY_RESOURCE_CONTENT_LAYOUTS)[keyof typeof KEY_RESOURCE_CONTENT_LAYOUTS]
+
+export type KeyResourceCredentialAssociation = {
+  status: KeyCredentialAssociationStatus
+  label: string
+  actionLabel: string
+  saveAndAssociateLabel?: string
+  associateLabel?: string
+  onSaveAndAssociate?: () => void | Promise<void>
+  onAssociate?: () => void
+  onOpen?: () => void
+  onUnlink?: () => void
+  unlinkLabel?: string
+}
+
+export type KeyResourceCardProps = {
+  /** Render as a flat row inside an account group. */
+  embedded?: boolean
+  presentation: KeyResourceCardPresentation
+  secret?: ReactNode
+  secretControls?: ReactNode
+  actions?: ReactNode
+  details?: KeyResourceDetailState
+  showDetails?: boolean
+  isDetailsExpanded: boolean
+  onDetailsExpandedChange: (isExpanded: boolean) => void
+  isSelected?: boolean
+  onSelectionChange?: (checked: boolean) => void
+  selectionLabel?: string
+  selectionDisabledReason?: string
+  renderHeader?: (props: KeyResourceCardHeaderRenderProps) => ReactNode
+  testId?: string
+  resourceId?: string
+  /** Stable local target used by asynchronous in-page navigation. */
+  targetId?: string
+  /** Whether this card is the current route navigation target. */
+  isNavigationTarget?: boolean
+  association?: KeyResourceCredentialAssociation
+}
+
+export type KeyResourceCardHeaderRenderProps = {
+  presentation: KeyResourceCardPresentation
+  selection?: ReactNode
+  detailsTrigger: ReactNode
+  actions?: ReactNode
+  association?: ReactNode
+  providerBadges?: ReactNode
+}
+
+export type KeyResourceCardHeaderProps = {
+  presentation: KeyResourceCardPresentation
+  actions?: ReactNode
+  association?: ReactNode
+  providerBadges?: ReactNode
+  selection?: ReactNode
+  detailsTrigger?: ReactNode
+}
+
+export type KeyResourceFactListProps = {
+  facts: KeyResourceFact[]
+  testId?: string
+  layout?: KeyResourceContentLayout
+}
+
+export type KeyResourceSecretDisplayProps = {
+  label?: ReactNode
+  secret?: ReactNode
+  controls?: ReactNode
+  message?: string
+  layout?: KeyResourceContentLayout
+}
+
+/**
+ * Maps the provider-neutral status to the shared semantic badge variants.
+ */
+function getStatusBadgeVariant(status: KeyResourceCardPresentation["status"]) {
+  switch (status) {
+    case "active":
+      return "success"
+    case "inactive":
+      return "destructive"
+    case "unknown":
+      return "outline"
+  }
+}
+
+/**
+ * Renders the shared title, status, account, and action area for a key resource.
+ */
+export function KeyResourceCardHeader({
+  presentation,
+  actions,
+  association,
+  providerBadges,
+  selection,
+  detailsTrigger,
+}: KeyResourceCardHeaderProps) {
+  const { t } = useTranslation(["keyManagement"])
+  const actionsRef = useKeyResourceActionRows()
+
+  return (
+    <div className="gap-y-density-2 flex min-w-0 flex-col gap-x-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="gap-y-density-2 flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
+        {selection}
+        <Heading6 className="min-w-0 text-sm break-words sm:text-base">
+          {presentation.title}
+        </Heading6>
+        <Badge variant={getStatusBadgeVariant(presentation.status)} size="sm">
+          {presentation.statusLabel}
+        </Badge>
+        <Badge
+          variant="outline"
+          size="sm"
+          className="max-w-full break-words whitespace-normal"
+        >
+          {presentation.accountLabel}
+        </Badge>
+        {presentation.badges?.map((badge) => {
+          const badgeNode = (
+            <Badge
+              variant={badge.variant ?? "outline"}
+              size="sm"
+              data-testid={KEY_MANAGEMENT_TEST_IDS.keyResourceBadge}
+              data-badge={badge.id}
+            >
+              {badge.label}
+            </Badge>
+          )
+          return badge.title ? (
+            // The tooltip anchors on a native span: Badge does not forward refs.
+            <Tooltip key={badge.id} content={badge.title} anchorAsChild>
+              <span className="inline-flex">{badgeNode}</span>
+            </Tooltip>
+          ) : (
+            <span key={badge.id} className="inline-flex">
+              {badgeNode}
+            </span>
+          )
+        })}
+        {providerBadges}
+      </div>
+      <div
+        ref={actionsRef}
+        className="gap-y-density-1-5 flex min-w-0 flex-wrap items-center gap-x-1.5 [--key-action-separator-left:-0.1875rem]"
+      >
+        {association ? (
+          <KeyResourceActionGroup
+            label={t("keyManagement:actionToolbar.apiCredential")}
+          >
+            {association}
+          </KeyResourceActionGroup>
+        ) : null}
+        {detailsTrigger ? detailsTrigger : null}
+        {actions}
+      </div>
+    </div>
+  )
+}
+
+type KeyResourceCredentialAssociationControlProps = {
+  association: KeyResourceCredentialAssociation
+}
+
+/** Renders a credential relationship as one compact action menu. */
+export function KeyResourceCredentialAssociationControl({
+  association,
+}: KeyResourceCredentialAssociationControlProps) {
+  const { t } = useTranslation(["keyManagement"])
+
+  return (
+    <CredentialAssociationMenu
+      status={association.status}
+      items={[
+        {
+          id: "credential-association",
+          testId: association.onSaveAndAssociate
+            ? KEY_MANAGEMENT_TEST_IDS.saveToApiProfilesButton
+            : undefined,
+          onSaveAndAssociate: association.onSaveAndAssociate,
+          onAssociate: association.onAssociate,
+          onOpen: association.onOpen,
+          onUnlink: association.onUnlink,
+        },
+      ]}
+      labels={{
+        saveAndAssociate: association.saveAndAssociateLabel,
+        associate: association.associateLabel,
+        open: association.actionLabel,
+        unlink: association.unlinkLabel,
+      }}
+      triggerAriaLabel={t("keyManagement:actionToolbar.apiCredential")}
+      testId={KEY_MANAGEMENT_TEST_IDS.apiCredentialAssociationButton}
+    />
+  )
+}
+
+type KeyResourceActionToolbarProps = {
+  label: string
+  children: ReactNode
+  testId?: string
+}
+
+/** Measures every flex item, including ungrouped header details controls. */
+function useKeyResourceActionRows() {
+  const toolbarRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current
+    if (!toolbar) return
+    const groups = Array.from(toolbar.children) as HTMLElement[]
+    const measureRows = () => {
+      let previousCenter: number | undefined
+      for (const group of groups) {
+        const position = getComputedStyle(group).position
+        // Tooltip descriptions remain accessible but do not occupy a flex row.
+        if (position === "absolute" || position === "fixed") continue
+        const bounds = group.getBoundingClientRect()
+        if (bounds.width === 0) continue
+        const center = bounds.top + bounds.height / 2
+        group.dataset.rowStart = String(
+          previousCenter === undefined || Math.abs(center - previousCenter) > 1,
+        )
+        previousCenter = center
+      }
+    }
+    measureRows()
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(measureRows)
+    observer.observe(toolbar)
+    groups.forEach((group) => observer.observe(group))
+    return () => observer.disconnect()
+  })
+
+  return toolbarRef
+}
+
+/** Groups dense row actions into a wrapping, accessible toolbar. */
+export function KeyResourceActionToolbar({
+  label,
+  children,
+  testId,
+}: KeyResourceActionToolbarProps) {
+  const toolbarRef = useKeyResourceActionRows()
+
+  return (
+    <div
+      ref={toolbarRef}
+      role="toolbar"
+      aria-label={label}
+      data-testid={testId}
+      className="gap-y-density-1 flex w-full flex-wrap items-center justify-start gap-x-4 [--key-action-separator-left:-0.5rem] sm:w-auto sm:shrink-0 sm:justify-end"
+    >
+      {children}
+    </div>
+  )
+}
+
+type KeyResourceActionGroupProps = {
+  label: string
+  separated?: boolean
+  children: ReactNode
+  testId?: string
+}
+
+/** Shows a boundary only between action groups sharing the same rendered row. */
+function KeyResourceActionSeparator() {
+  return (
+    <span
+      aria-hidden="true"
+      className="bg-border absolute top-1/2 left-[var(--key-action-separator-left,-0.5rem)] h-4 w-px -translate-y-1/2 group-data-[row-start=true]/key-actions:invisible"
+    />
+  )
+}
+
+/** Keeps each semantic action group and its separator together when wrapping. */
+export function KeyResourceActionGroup({
+  label,
+  separated = false,
+  children,
+  testId,
+}: KeyResourceActionGroupProps) {
+  return (
+    <div
+      data-key-action-group
+      className="group/key-actions relative inline-flex shrink-0 items-center"
+    >
+      {separated ? <KeyResourceActionSeparator /> : null}
+      <div
+        role="group"
+        aria-label={label}
+        data-testid={testId}
+        className="inline-flex items-center gap-0.5"
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Renders label and value facts in a responsive, wrapping grid.
+ */
+export function KeyResourceFactList({
+  facts,
+  testId,
+  layout = KEY_RESOURCE_CONTENT_LAYOUTS.Default,
+}: KeyResourceFactListProps) {
+  return (
+    <div
+      data-testid={testId}
+      className={cn(
+        "grid",
+        layout === KEY_RESOURCE_CONTENT_LAYOUTS.Adaptive
+          ? "gap-y-density-3-5 grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-x-3.5"
+          : "xs:grid-cols-2 gap-y-density-2-5 sm:gap-y-density-3-5 grid-cols-1 gap-x-2.5 sm:grid-cols-4 sm:gap-x-3.5",
+      )}
+    >
+      {facts.map((fact) => (
+        <div
+          key={fact.id}
+          className="flex min-w-0 flex-wrap items-baseline gap-x-2 break-words"
+        >
+          <span className="text-muted-foreground text-xs sm:text-sm">
+            {fact.label}
+          </span>
+          <span className="text-foreground min-w-0 text-xs font-medium break-words sm:text-sm">
+            {fact.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Renders the shared secret label, caller-owned content and availability guidance.
+ */
+export function KeyResourceSecretDisplay({
+  label,
+  secret,
+  controls,
+  message,
+  layout = KEY_RESOURCE_CONTENT_LAYOUTS.Default,
+}: KeyResourceSecretDisplayProps) {
+  if (!secret && !controls && !message) {
+    return null
+  }
+
+  const labelContent = label ? (
+    <span className="text-muted-foreground shrink-0 whitespace-nowrap">
+      {label}
+    </span>
+  ) : null
+  const secretContent = secret ? (
+    <div className="max-w-full min-w-0 font-mono text-xs break-all">
+      {secret}
+    </div>
+  ) : null
+  const controlsContent = controls ? (
+    <div className="gap-y-density-1-5 flex flex-wrap items-center gap-x-1.5">
+      {controls}
+    </div>
+  ) : null
+  const messageContent = message ? (
+    <span className="text-muted-foreground gap-y-density-1-5 inline-flex min-w-0 items-center gap-x-1.5 text-xs">
+      <IconButton
+        type="button"
+        aria-label={message}
+        className="dark:hover:bg-secondary text-muted-foreground hover:bg-muted hover:text-secondary-foreground shrink-0"
+        size="xs"
+        tooltip={message}
+        variant="ghost"
+      >
+        <Info aria-hidden="true" className="h-3.5 w-3.5" />
+      </IconButton>
+      <span role="note" className="min-w-0 break-words">
+        {message}
+      </span>
+    </span>
+  ) : null
+
+  if (layout === KEY_RESOURCE_CONTENT_LAYOUTS.Adaptive) {
+    return (
+      <div
+        data-testid={KEY_MANAGEMENT_TEST_IDS.keyResourceSecretDisplay}
+        className="gap-y-density-2 grid min-w-0 grid-cols-1 gap-x-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+      >
+        <div className="gap-y-density-2 flex min-w-0 flex-wrap items-center gap-x-2">
+          {labelContent}
+          {secretContent}
+          {messageContent}
+        </div>
+        {controlsContent ? (
+          <div className="min-w-0 sm:justify-self-end">{controlsContent}</div>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      data-testid={KEY_MANAGEMENT_TEST_IDS.keyResourceSecretDisplay}
+      className="gap-y-density-2 flex min-w-0 flex-wrap items-center gap-x-2"
+    >
+      {labelContent}
+      {secretContent}
+      {messageContent}
+      {controlsContent}
+    </div>
+  )
+}
+
+/**
+ * Renders a provider-neutral key resource summary with controlled detail disclosure.
+ */
+export function KeyResourceCard({
+  embedded = false,
+  presentation,
+  secret,
+  secretControls,
+  actions,
+  details,
+  showDetails = true,
+  isDetailsExpanded,
+  onDetailsExpandedChange,
+  isSelected,
+  onSelectionChange,
+  selectionLabel,
+  selectionDisabledReason,
+  renderHeader,
+  resourceId,
+  testId,
+  targetId,
+  isNavigationTarget = false,
+  association,
+}: KeyResourceCardProps) {
+  const { t } = useTranslation(["keyManagement", "common"])
+  const detailsPanelId = useId()
+  const detailsTriggerId = useId()
+  const detailState = details ?? {
+    status: "ready" as const,
+    facts: presentation.detailFacts,
+  }
+  const detailsLabel = t("actions.details")
+  const detailsAriaLabel = t("actions.detailsFor", {
+    name: presentation.title,
+  })
+
+  // Expansion is local disclosure state, so it intentionally emits no analytics.
+  const detailsTrigger = showDetails ? (
+    <Tooltip content={detailsLabel} anchorAsChild>
+      <IconButton
+        id={detailsTriggerId}
+        type="button"
+        aria-label={detailsAriaLabel}
+        aria-controls={detailsPanelId}
+        aria-expanded={isDetailsExpanded}
+        size="sm"
+        variant="ghost"
+        onClick={() => onDetailsExpandedChange(!isDetailsExpanded)}
+      >
+        <Info aria-hidden="true" className="h-4 w-4" />
+      </IconButton>
+    </Tooltip>
+  ) : null
+  const selection = (
+    <BatchSelectionControl
+      checked={isSelected === true}
+      label={selectionLabel ?? presentation.title}
+      onSelectionChange={onSelectionChange}
+      disabledReason={selectionDisabledReason}
+    />
+  )
+  const headerProps: KeyResourceCardHeaderRenderProps = {
+    presentation,
+    selection,
+    detailsTrigger,
+    actions,
+    association: association ? (
+      <KeyResourceCredentialAssociationControl association={association} />
+    ) : undefined,
+  }
+  const Container = embedded ? "div" : Card
+
+  return (
+    <Container
+      id={targetId}
+      data-resource-id={resourceId}
+      data-testid={testId}
+      data-navigation-target={isNavigationTarget ? "true" : undefined}
+      tabIndex={targetId ? -1 : undefined}
+      className={cn(
+        isNavigationTarget &&
+          "ring-theme-500 dark:ring-offset-surface-subtle ring-offset-background ring-2 ring-offset-2",
+        embedded && "ring-offset-0 ring-inset",
+      )}
+    >
+      <CardContent
+        padding="default"
+        spacing="default"
+        className={embedded ? "px-3" : undefined}
+      >
+        <div className="gap-density-3 flex min-w-0 flex-col">
+          {renderHeader ? (
+            renderHeader(headerProps)
+          ) : (
+            <KeyResourceCardHeader {...headerProps} />
+          )}
+          <KeyResourceSecretDisplay
+            label={t("keyDetails.key")}
+            secret={secret}
+            controls={secretControls}
+            message={presentation.secretAvailabilityMessage}
+          />
+          <KeyResourceFactList
+            facts={presentation.summaryFacts}
+            testId={KEY_MANAGEMENT_TEST_IDS.keyResourceSummaryFacts}
+          />
+          {showDetails && isDetailsExpanded ? (
+            <div
+              id={detailsPanelId}
+              role="region"
+              aria-labelledby={detailsTriggerId}
+              className="border-border gap-density-3 pt-density-3 flex min-w-0 flex-col border-t"
+            >
+              {detailState.status === "loading" ? (
+                <div
+                  role="status"
+                  className="gap-y-density-2 flex items-center gap-x-2 text-sm"
+                >
+                  <Spinner aria-hidden="true" size="sm" />
+                  <span>{t("details.loading")}</span>
+                </div>
+              ) : null}
+              {detailState.status === "error" ? (
+                <div
+                  role="alert"
+                  className="gap-y-density-2 flex min-w-0 flex-wrap items-center gap-x-2 text-sm"
+                >
+                  <span className="min-w-0 break-words">
+                    {detailState.message || t("details.unavailable")}
+                  </span>
+                  {detailState.onRetry ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={detailState.onRetry}
+                    >
+                      {t("common:actions.retry")}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+              {detailState.status === "ready" ? (
+                detailState.facts.length > 0 ? (
+                  <KeyResourceFactList facts={detailState.facts} />
+                ) : (
+                  <p className="dark:text-secondary-foreground text-muted-foreground text-sm">
+                    {t("details.empty")}
+                  </p>
+                )
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </CardContent>
+    </Container>
+  )
+}

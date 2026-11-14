@@ -1,11 +1,13 @@
 import { type ManagedSiteType, type SITE_TYPES } from "~/constants/siteType"
-import type { ManagedSiteRuntimeConfigValueForType } from "~/services/managedSites/runtimeConfig"
+import type { ManagedSiteRuntimeConfigValueForType } from "~/services/managedSites/configuration/runtimeConfig"
 
 import { readEnv } from "./shared"
 
 type ManagedSiteEnvKey =
   | `AAH_E2E_${string}_BASE_URL`
   | `AAH_E2E_${string}_ADMIN_TOKEN`
+  | `AAH_E2E_${string}_MANAGEMENT_KEY`
+  | `AAH_E2E_${string}_WEB_KEY`
   | `AAH_E2E_${string}_ADMIN_USER_ID`
   | `AAH_E2E_${string}_USERNAME`
   | `AAH_E2E_${string}_PASSWORD`
@@ -93,6 +95,36 @@ export function resolveSub2ApiManagedSiteConfig(): ManagedSiteConfigResolution<
 
   return {
     config: { baseUrl, adminToken },
+    missingEnvKeys: [],
+  }
+}
+
+/**
+ * Reads a ready-made OmniRoute `admin` access token.
+ *
+ * The password path is deliberately not exercised here: exchanging a password
+ * mints a persistent token on the deployment under test, so the E2E uses a
+ * token the operator created beforehand and leaves the exchange to the
+ * settings-page tests.
+ */
+export function resolveOmniRouteManagedSiteConfig(): ManagedSiteConfigResolution<
+  typeof SITE_TYPES.OMNIROUTE
+> {
+  const baseUrlKey = "AAH_E2E_OMNIROUTE_BASE_URL" as const
+  const tokenKey = "AAH_E2E_OMNIROUTE_ADMIN_TOKEN" as const
+  const baseUrl = readEnv(baseUrlKey)
+  const token = readEnv(tokenKey)
+  const missingEnvKeys = [
+    ...(!baseUrl ? [baseUrlKey] : []),
+    ...(!token ? [tokenKey] : []),
+  ] satisfies ManagedSiteEnvKey[]
+
+  if (!baseUrl || !token) {
+    return { config: null, missingEnvKeys }
+  }
+
+  return {
+    config: { baseUrl, token },
     missingEnvKeys: [],
   }
 }
@@ -191,4 +223,38 @@ export function getManagedSiteRealSiteSkipReason(params: {
   missingEnvKeys: string[]
 }) {
   return `Missing real-site ${params.label} managed-site E2E env: ${params.missingEnvKeys.join(", ")}`
+}
+
+/** Magpie's Web key establishes a management Cookie; inference keys do not. */
+export function resolveMagpieManagedSiteConfig(): ManagedSiteConfigResolution<
+  typeof SITE_TYPES.MAGPIE
+> {
+  const baseUrlKey = "AAH_E2E_MAGPIE_BASE_URL" as const
+  const webKeyKey = "AAH_E2E_MAGPIE_WEB_KEY" as const
+  const baseUrl = readEnv(baseUrlKey)
+  const webKey = readEnv(webKeyKey)
+  return {
+    config: baseUrl && webKey ? { baseUrl, webKey } : null,
+    missingEnvKeys: [
+      ...(!baseUrl ? [baseUrlKey] : []),
+      ...(!webKey ? [webKeyKey] : []),
+    ],
+  }
+}
+
+/** gpt-load uses the root AUTH_KEY, independently of downstream access keys. */
+export function resolveGptLoadManagedSiteConfig(): ManagedSiteConfigResolution<
+  typeof SITE_TYPES.GPT_LOAD
+> {
+  const baseUrlKey = "AAH_E2E_GPT_LOAD_BASE_URL" as const
+  const managementKeyKey = "AAH_E2E_GPT_LOAD_MANAGEMENT_KEY" as const
+  const baseUrl = readEnv(baseUrlKey)
+  const managementKey = readEnv(managementKeyKey)
+  return {
+    config: baseUrl && managementKey ? { baseUrl, managementKey } : null,
+    missingEnvKeys: [
+      ...(!baseUrl ? [baseUrlKey] : []),
+      ...(!managementKey ? [managementKeyKey] : []),
+    ],
+  }
 }

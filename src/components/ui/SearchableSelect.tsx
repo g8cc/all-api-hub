@@ -1,4 +1,5 @@
-import { CheckIcon, ChevronsUpDownIcon } from "lucide-react"
+import { defaultFilter } from "cmdk"
+import { ChevronsUpDownIcon } from "lucide-react"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 
@@ -14,6 +15,12 @@ import {
   CommandList,
 } from "./command"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
+import {
+  SelectFetchFeedback,
+  SelectFetchIndicator,
+  type SelectFetchResult,
+} from "./SelectFetchFeedback"
+import { Spinner } from "./spinner"
 
 /**
  * Option type for the `SearchableSelect` component.
@@ -35,8 +42,10 @@ export interface SearchableSelectOption {
  * It is intended as a drop‑in replacement for simple `Select`
  * usages where search is required.
  */
-export interface SearchableSelectProps
-  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> {
+export interface SearchableSelectProps extends Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  "onChange"
+> {
   /**
    * Available options to choose from.
    */
@@ -66,8 +75,19 @@ export interface SearchableSelectProps
   /**
    * Custom message shown when no options match the current search.
    * Falls back to the i18n key `ui:searchableSelect.empty`.
+   * Set null when the footer supplies its own recovery state.
    */
-  emptyMessage?: string
+  emptyMessage?: string | null
+  /** Indicates pending options without preventing custom input or selection. */
+  loading?: boolean
+  /** null means no completed request; undefined leaves fetch feedback to the caller. */
+  fetchResult?: SelectFetchResult | null
+  onRetryFetch?: () => void
+  retryFetchDisabled?: boolean
+  /** Persistent dropdown content for actions or status, outside the filtered options. */
+  footer?: React.ReactNode
+  /** Compact actions displayed beside the dropdown search input. */
+  searchActions?: React.ReactNode
 
   /**
    * Allow selecting a custom value not present in `options`.
@@ -103,6 +123,8 @@ export interface SearchableSelectProps
    * Optional class applied to the internal option list.
    */
   listClassName?: string
+  /** Optional dropdown sizing and appearance, independent of the trigger. */
+  contentClassName?: string
 
   /**
    * Optional stable test id resolver for option rows.
@@ -133,11 +155,18 @@ export const SearchableSelect = React.forwardRef<
     placeholder,
     searchPlaceholder,
     emptyMessage,
+    loading = false,
+    fetchResult,
+    onRetryFetch,
+    retryFetchDisabled,
+    footer,
+    searchActions,
     allowCustomValue = false,
     open,
     onOpenChange,
     portalContainer,
     listClassName,
+    contentClassName,
     getOptionTestId,
     searchInputTestId,
     className,
@@ -173,9 +202,12 @@ export const SearchableSelect = React.forwardRef<
         : t("searchableSelect.noOptions")
       : t("searchableSelect.empty")
 
-  const resolvedEmptyMessage = emptyMessage ?? defaultEmptyMessage
+  const resolvedEmptyMessage =
+    emptyMessage === undefined ? defaultEmptyMessage : emptyMessage
 
   const isDisabled = disabled ?? false
+  const showFetchFeedback =
+    fetchResult !== undefined && (loading || fetchResult !== null)
 
   React.useEffect(() => {
     if (!resolvedOpen) setSearchTerm("")
@@ -197,14 +229,22 @@ export const SearchableSelect = React.forwardRef<
           aria-expanded={resolvedOpen}
           data-slot="searchable-select-trigger"
           className={cn(
-            "dark:border-border dark:hover:bg-card/80 border-border-strong bg-card text-foreground hover:bg-surface-subtle focus-visible:ring-ring data-placeholder:text-faint-foreground aria-invalid:border-destructive-border aria-invalid:focus-visible:ring-destructive-text/40 gap-density-2 flex w-full items-center justify-between rounded-md border px-3 text-sm whitespace-nowrap shadow-xs transition-colors outline-none focus-visible:border-transparent focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60",
+            "flex w-full items-center justify-between gap-density-2 rounded-md border border-border-strong bg-card px-3 text-sm whitespace-nowrap text-foreground shadow-xs transition-colors outline-none hover:bg-surface-subtle focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-destructive-border aria-invalid:focus-visible:ring-destructive-text/40 data-placeholder:text-faint-foreground dark:border-border dark:hover:bg-card/80",
             !selectedOption && "text-muted-foreground",
             className,
           )}
           disabled={isDisabled}
           {...buttonProps}
+          aria-busy={loading || buttonProps["aria-busy"]}
           rightIcon={
-            <ChevronsUpDownIcon className="size-4 shrink-0 opacity-50" />
+            loading ? (
+              <Spinner size="sm" variant="current" aria-hidden="true" />
+            ) : (
+              <span className="flex items-center gap-2">
+                <SelectFetchIndicator result={fetchResult} />
+                <ChevronsUpDownIcon className="size-4 shrink-0 opacity-50" />
+              </span>
+            )
           }
         >
           {/* Prevent long option labels from overflowing the trigger button. */}
@@ -215,7 +255,10 @@ export const SearchableSelect = React.forwardRef<
       </PopoverTrigger>
       <PopoverContent
         container={portalContainer}
-        className="flex max-h-(--radix-popover-content-available-height) w-(--radix-popper-anchor-width) flex-col overflow-hidden p-0"
+        className={cn(
+          "flex max-h-(--radix-popover-content-available-height) w-(--radix-popper-anchor-width) flex-col overflow-hidden p-0",
+          contentClassName,
+        )}
         collisionPadding={8}
       >
         <Command className="min-h-0 flex-1 rounded-(--popover-inner-radius) [&>[data-slot=command-input-wrapper]]:shrink-0">
@@ -224,67 +267,116 @@ export const SearchableSelect = React.forwardRef<
             value={searchTerm}
             onValueChange={setSearchTerm}
             data-testid={searchInputTestId}
+            trailingContent={searchActions}
           />
           <CommandList
             className={cn("max-h-none min-h-0 flex-1", listClassName)}
           >
-            {options.length === 0 && !canUseCustomValue ? (
+            {options.length === 0 &&
+            !showFetchFeedback &&
+            !canUseCustomValue &&
+            emptyMessage !== null ? (
               <div
                 data-slot="searchable-select-empty"
                 className="py-density-6 text-center text-sm"
               >
-                {resolvedEmptyMessage}
+                {loading ? (
+                  <Spinner size="sm" className="mx-auto" />
+                ) : (
+                  resolvedEmptyMessage
+                )}
               </div>
             ) : null}
 
-            {options.length > 0 ? (
-              <CommandEmpty>{resolvedEmptyMessage}</CommandEmpty>
+            {options.length > 0 &&
+            (emptyMessage !== null || normalizedSearchTerm) ? (
+              <CommandEmpty>
+                {loading ? (
+                  <Spinner size="sm" className="mx-auto" />
+                ) : normalizedSearchTerm ? (
+                  t("searchableSelect.empty")
+                ) : (
+                  resolvedEmptyMessage
+                )}
+              </CommandEmpty>
             ) : null}
-            <CommandGroup>
-              {canUseCustomValue ? (
-                <CommandItem
-                  key={`__custom__:${normalizedSearchTerm}`}
-                  value={normalizedSearchTerm}
-                  onSelect={() => {
-                    onChange(normalizedSearchTerm)
-                    setResolvedOpen(false)
-                  }}
-                >
-                  <span className="truncate">
-                    {t("searchableSelect.useValue", {
-                      value: normalizedSearchTerm,
-                    })}
-                  </span>
-                </CommandItem>
-              ) : null}
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  keywords={[option.label]}
-                  data-testid={getOptionTestId?.(option)}
-                  disabled={option.disabled}
-                  onSelect={() => {
-                    if (option.disabled) return
-                    onChange(option.value)
-                    setResolvedOpen(false)
-                  }}
-                >
-                  <CheckIcon
-                    className={cn(
-                      "size-4",
-                      value === option.value ? "opacity-100" : "opacity-0",
-                    )}
-                  />
-                  <span className="min-w-0 flex-1 truncate">
-                    {option.label}
-                  </span>
-                  {option.suffix}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {canUseCustomValue &&
+            options.length > 0 &&
+            !loading &&
+            !options.some(
+              (option) =>
+                defaultFilter(option.value, normalizedSearchTerm, [
+                  option.label,
+                ]) > 0,
+            ) ? (
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                {t("searchableSelect.empty")}
+              </div>
+            ) : null}
+            {options.length > 0 || canUseCustomValue ? (
+              <CommandGroup>
+                {canUseCustomValue ? (
+                  <CommandItem
+                    key={`__custom__:${normalizedSearchTerm}`}
+                    value={normalizedSearchTerm}
+                    onSelect={() => {
+                      onChange(normalizedSearchTerm)
+                      setResolvedOpen(false)
+                    }}
+                  >
+                    <span className="truncate">
+                      {t("searchableSelect.useValue", {
+                        value: normalizedSearchTerm,
+                      })}
+                    </span>
+                  </CommandItem>
+                ) : null}
+                {options.map((option) => (
+                  <CommandItem
+                    checked={value === option.value}
+                    key={option.value}
+                    value={option.value}
+                    keywords={[option.label]}
+                    data-testid={getOptionTestId?.(option)}
+                    disabled={option.disabled}
+                    onSelect={() => {
+                      onChange(option.value)
+                      setResolvedOpen(false)
+                    }}
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {option.label}
+                    </span>
+                    {option.suffix}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ) : null}
           </CommandList>
         </Command>
+        {fetchResult !== undefined ? (
+          <SelectFetchFeedback
+            loading={loading}
+            result={fetchResult}
+            onRetry={onRetryFetch}
+            retryDisabled={retryFetchDisabled}
+            allowCustomValue={allowCustomValue}
+          />
+        ) : null}
+        {footer ? (
+          <div
+            className={cn(
+              "shrink-0 p-2",
+              showFetchFeedback && "pt-0",
+              (options.length > 0 ||
+                canUseCustomValue ||
+                emptyMessage !== null) &&
+                "border-t border-border-subtle",
+            )}
+          >
+            {footer}
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   )

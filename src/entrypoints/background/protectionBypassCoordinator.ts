@@ -3,17 +3,17 @@ import {
   API_ERROR_CODES,
   type ApiErrorCode,
 } from "~/services/apiTransport/errors"
+import { type AuthorizeTempContextAtAcquire } from "~/services/browsingContext/tempPage/contracts"
+import { executeAuthorizedTempContextTask } from "~/services/browsingContext/tempPage/taskDispatch"
 import { hasCookieInterceptorPermissions } from "~/services/permissions/permissionManager"
-import {
-  DEFAULT_PREFERENCES,
-  userPreferences,
-  type TempWindowFallbackPreferences,
-} from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { type TempWindowFallbackPreferences } from "~/services/preferences/tempWindowFallbackPreferences"
+import { userPreferences } from "~/services/preferences/userPreferences"
 import { PRODUCT_ANALYTICS_PROTECTION_BYPASS_DENIAL_CLASSIFICATION } from "~/services/productAnalytics/contracts"
 import {
   recordProtectionBypassDecision,
   type ProtectionBypassDecisionSummary,
-} from "~/services/productAnalytics/shieldBypassSummary"
+} from "~/services/productAnalytics/facts/shieldBypassSummary"
 import {
   getTempContextTaskMetadata,
   isProtectionBypassExecution,
@@ -41,18 +41,18 @@ import {
   type ProtectionBypassPolicyState,
 } from "~/services/protectionBypass/policy"
 import { readProtectionBypassPolicy } from "~/services/protectionBypass/preferencePolicy"
-import { hasWindowsAPI } from "~/utils/browser/browserApi"
+import {
+  TEMP_WINDOW_CHECKIN_PAGE_ACTION_REASONS,
+  TEMP_WINDOW_TURNSTILE_STATUSES,
+} from "~/types/tempWindowFetch"
 import { isProtectionBypassFirefoxEnv } from "~/utils/browser/protectionBypass"
+import { hasWindowsAPI } from "~/utils/browser/windows"
 import { t } from "~/utils/i18n/core"
 
 import {
   validateProtectionBypassTaskResource,
   type ValidateProtectionBypassTaskResource,
 } from "./protectionBypassResourceValidation"
-import {
-  executeAuthorizedTempContextTask,
-  type AuthorizeTempContextAtAcquire,
-} from "./tempWindowPool"
 
 type ExecuteAuthorizedTask = (
   task: TempContextTask,
@@ -65,8 +65,6 @@ type ExecuteAuthorizedTask = (
 const executeCoordinatorAuthorizedTask: ExecuteAuthorizedTask =
   executeAuthorizedTempContextTask
 
-export { getProtectionBypassDecisionErrorCode } from "~/services/protectionBypass/decisionErrorCode"
-
 /** Builds the operation-specific failure response used at runtime boundaries. */
 function buildTaskFailure(
   task: TempContextTask | undefined,
@@ -78,14 +76,19 @@ function buildTaskFailure(
       success: false,
       error,
       code,
-      turnstile: { status: "error", hasTurnstile: false },
+      turnstile: {
+        status: TEMP_WINDOW_TURNSTILE_STATUSES.Error,
+        hasTurnstile: false,
+      },
     }
   }
   if (task?.kind === TEMP_CONTEXT_TASK_KINDS.NativePageAction) {
-    return { success: false, reason: "trigger_failed", error, code }
-  }
-  if (task?.kind === TEMP_CONTEXT_TASK_KINDS.BrowserCheckIn) {
-    return { success: false, reason: "invalid_request", error, code }
+    return {
+      success: false,
+      reason: TEMP_WINDOW_CHECKIN_PAGE_ACTION_REASONS.TriggerFailed,
+      error,
+      code,
+    }
   }
   return { success: false, error, code }
 }
@@ -282,7 +285,7 @@ export function createProtectionBypassCoordinator({
           }
         }
 
-        let resourceIsCurrent = false
+        let resourceIsCurrent: boolean
         try {
           resourceIsCurrent = await validateTaskResource(
             authorizedTask,

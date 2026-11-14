@@ -5,17 +5,20 @@ import { useState } from "react"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { CHANNEL_DIALOG_TEST_IDS } from "~/components/dialogs/ChannelDialog/testIds"
 import {
   AXON_HUB_CHANNEL_FIELD_IDS,
   AXON_HUB_CHANNEL_TYPE,
 } from "~/constants/axonHub"
 import { SITE_TYPES } from "~/constants/siteType"
-import { SUB2API_MANAGED_RESOURCE_TABLE_FIELD_IDS } from "~/constants/sub2api"
+import {
+  SUB2API_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
+  SUB2API_MANAGED_RESOURCE_TABLE_FIELD_IDS,
+} from "~/constants/sub2api"
 import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
+import { CHANNEL_DIALOG_TEST_IDS } from "~/features/ManagedSiteChannels/editor/ChannelDialog/testIds"
+import { MANAGED_RESOURCE_CHANNEL_FIELD_ROLES } from "~/features/ManagedSiteChannels/editor/managedResourceFieldPolicy"
 import { ManagedSiteChannelsRoute } from "~/features/ManagedSiteChannels/ManagedSiteChannelsRoute"
 import type { ManagedChannelsRowViewModel } from "~/features/ManagedSiteChannels/presentation/contracts"
-import { MANAGED_RESOURCE_CHANNEL_FIELD_ROLES } from "~/features/ManagedSiteChannels/presentation/managedResourceFieldPolicy"
 import {
   getManagedSiteChannelRowActionsButtonTestId,
   getManagedSiteChannelRowSelectTestId,
@@ -34,10 +37,11 @@ import type {
 } from "~/services/apiAdapters/contracts/managedResourceNative"
 import { MANAGED_RESOURCE_FAILURE_CODES } from "~/services/apiAdapters/contracts/managedResourceNative"
 import * as nativeRegistry from "~/services/apiAdapters/managedResources/registry"
-import type { ManagedSiteTargetOption } from "~/services/managedSites/channelMigrationTargets"
+import type { ManagedSiteTargetOption } from "~/services/managedSites/migration/channelMigrationTargets"
 import { PRODUCT_ANALYTICS_ACTION_IDS } from "~/services/productAnalytics/contracts"
 import { buildUserPreferences } from "~~/tests/test-utils/factories"
 import { createResourceTestI18n } from "~~/tests/test-utils/i18n"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import {
   createManagedResourceEditor,
   createManagedResourceFacts,
@@ -83,7 +87,7 @@ vi.mock("~/lib/notify", () => ({
 }))
 
 vi.mock(
-  "~/features/ManagedSiteChannels/hooks/useManagedSiteChannelModelSync",
+  "~/features/ManagedSiteChannels/modelSync/useManagedSiteChannelModelSync",
   () => ({
     useManagedSiteChannelModelSync: () => ({
       syncingResourceKeys: new Set<string>(),
@@ -92,23 +96,20 @@ vi.mock(
   }),
 )
 
-vi.mock(
-  "~/features/ManagedSiteChannels/components/ChannelFilterDialog",
-  () => ({
-    default: ({
-      channel,
-      open,
-    }: {
-      channel: { resourceRef: { resourceId: string }; name: string } | null
-      open: boolean
-    }) =>
-      open && channel ? (
-        <div data-testid="native-channel-filter-target">
-          {channel.resourceRef.resourceId}:{channel.name}
-        </div>
-      ) : null,
-  }),
-)
+vi.mock("~/features/ManagedSiteChannels/filters/ChannelFilterDialog", () => ({
+  default: ({
+    channel,
+    open,
+  }: {
+    channel: { resourceRef: { resourceId: string }; name: string } | null
+    open: boolean
+  }) =>
+    open && channel ? (
+      <div data-testid="native-channel-filter-target">
+        {channel.resourceRef.resourceId}:{channel.name}
+      </div>
+    ) : null,
+}))
 
 vi.mock("~/services/productAnalytics/actions", async (importActual) => ({
   ...(await importActual()),
@@ -126,33 +127,31 @@ vi.mock("~/contexts/UserPreferencesContext", async (importActual) => ({
 }))
 
 vi.mock(
-  "~/features/ManagedSiteChannels/controllers/useManagedResourceListController",
+  "~/features/ManagedSiteChannels/table/useManagedResourceListController",
   () => ({ useManagedResourceListController: useListController }),
 )
 vi.mock(
-  "~/features/ManagedSiteChannels/presentation/managedResourceFieldPolicy",
+  "~/features/ManagedSiteChannels/editor/managedResourceFieldPolicy",
   async (importActual) => ({
     ...(await importActual()),
     getManagedResourceFieldPolicy: getFieldPolicy,
   }),
 )
 vi.mock(
-  "~/features/ManagedSiteChannels/controllers/useManagedResourceMutationController",
+  "~/features/ManagedSiteChannels/editor/useManagedResourceMutationController",
   () => ({ useManagedResourceMutationController: useMutationController }),
 )
 vi.mock(
-  "~/features/ManagedSiteChannels/controllers/useManagedResourceMigrationController",
+  "~/features/ManagedSiteChannels/migration/useManagedResourceMigrationController",
   () => ({ useManagedResourceMigrationController: useMigrationController }),
 )
-vi.mock("~/services/managedSites/channelMigrationTargets", () => ({
+vi.mock("~/services/managedSites/migration/channelMigrationTargets", () => ({
   getManagedSiteTargetOptions: getTargetOptions,
 }))
 
 const nativeRow = {
   rowKey: "opaque:native",
   testToken: "resource-1",
-  displayIdentifier: "",
-  displayIdentifierSort: "Native example",
   name: "Native example",
   baseURL: "https://api.example.invalid",
   searchText: "Native example",
@@ -306,11 +305,19 @@ type NativePreferenceSiteType =
   | typeof SITE_TYPES.AXON_HUB
   | typeof SITE_TYPES.CLAUDE_CODE_HUB
   | typeof SITE_TYPES.SUB2API
+  | typeof SITE_TYPES.MAGPIE
 
 const getNativePreferenceOverrides = (
   siteType: NativePreferenceSiteType,
 ): Partial<ReturnType<typeof buildUserPreferences>> => {
   switch (siteType) {
+    case SITE_TYPES.MAGPIE:
+      return {
+        magpie: {
+          baseUrl: "https://console.example.invalid",
+          webKey: "example-credential",
+        },
+      }
     case SITE_TYPES.OCTOPUS:
       return {
         octopus: {
@@ -444,6 +451,7 @@ describe("ManagedSiteChannelsRoute", () => {
     SITE_TYPES.AXON_HUB,
     SITE_TYPES.CLAUDE_CODE_HUB,
     SITE_TYPES.SUB2API,
+    SITE_TYPES.MAGPIE,
   ])(
     "focuses the stable resource identity for %s despite an unrelated search",
     (siteType) => {
@@ -472,7 +480,10 @@ describe("ManagedSiteChannelsRoute", () => {
           },
         },
       }))
-      const resourceId = siteType === SITE_TYPES.AXON_HUB ? "native/42+=" : "42"
+      const resourceId =
+        siteType === SITE_TYPES.AXON_HUB || siteType === SITE_TYPES.MAGPIE
+          ? "native/42+="
+          : "42"
       installNativeControllers({
         list: {
           allRows: rows,
@@ -499,6 +510,9 @@ describe("ManagedSiteChannelsRoute", () => {
       expect(screen.getByText("Example 42")).toBeVisible()
       expect(screen.queryByText("Example 142")).not.toBeInTheDocument()
       expect(
+        screen.getByTestId(MANAGED_SITE_CHANNELS_TEST_IDS.searchInput),
+      ).toHaveValue(resourceId)
+      expect(
         screen.getByTestId(MANAGED_SITE_CHANNELS_TEST_IDS.paginationSummary),
       ).toHaveAttribute("data-total", "1")
       expect(useListController).toHaveBeenLastCalledWith(
@@ -507,56 +521,62 @@ describe("ManagedSiteChannelsRoute", () => {
     },
   )
 
-  it("matches a resource deep link by its full reference and resets selection on a scope change", () => {
-    const ref = {
-      siteType: SITE_TYPES.AXON_HUB,
-      kind: "channel" as const,
-      scopeKey: "https://console.example.invalid",
-      resourceId: "opaque:42",
-    }
-    const foreignRef = { ...ref, scopeKey: "https://other.example.invalid" }
-    const rows = ["Current", "Other"].map((name) => ({
-      ...nativeRow,
-      rowKey: name,
-      testToken: name,
-      name,
-      searchText: name,
-    }))
-    const setSelectedRowKeys = vi.fn()
-    installNativeControllers({
-      list: {
-        rows,
-        allRows: rows,
-        totalRows: 2,
-        setSelectedRowKeys,
-        resolveRef: (rowKey: string) =>
-          rowKey === "Current" ? ref : foreignRef,
-      },
-    })
-    configureNativePreferences(SITE_TYPES.AXON_HUB)
-    const onReplaceRouteQuery = vi.fn()
-    const { rerender } = render(
-      <ManagedSiteChannelsRoute
-        siteType={SITE_TYPES.AXON_HUB}
-        routeParams={{ resourceRef: JSON.stringify(ref) }}
-        onReplaceRouteQuery={onReplaceRouteQuery}
-      />,
-    )
+  it.each([SITE_TYPES.AXON_HUB, SITE_TYPES.MAGPIE])(
+    "matches a %s resource deep link by its full reference and resets selection on a scope change",
+    (siteType) => {
+      const ref = {
+        siteType,
+        kind: "channel" as const,
+        scopeKey: "https://console.example.invalid",
+        resourceId: "opaque:42",
+      }
+      const foreignRef = { ...ref, scopeKey: "https://other.example.invalid" }
+      const rows = ["Current", "Other"].map((name) => ({
+        ...nativeRow,
+        rowKey: name,
+        testToken: name,
+        name,
+        searchText: name,
+      }))
+      const setSelectedRowKeys = vi.fn()
+      installNativeControllers({
+        list: {
+          rows,
+          allRows: rows,
+          totalRows: 2,
+          setSelectedRowKeys,
+          resolveRef: (rowKey: string) =>
+            rowKey === "Current" ? ref : foreignRef,
+        },
+      })
+      configureNativePreferences(siteType)
+      const onReplaceRouteQuery = vi.fn()
+      const { rerender } = render(
+        <ManagedSiteChannelsRoute
+          siteType={siteType}
+          routeParams={{ resourceRef: JSON.stringify(ref) }}
+          onReplaceRouteQuery={onReplaceRouteQuery}
+        />,
+      )
 
-    expect(screen.getByText("Current")).toBeVisible()
-    expect(screen.queryByText("Other")).not.toBeInTheDocument()
+      expect(screen.getByText("Current")).toBeVisible()
+      expect(screen.queryByText("Other")).not.toBeInTheDocument()
+      expect(
+        screen.getByTestId(MANAGED_SITE_CHANNELS_TEST_IDS.searchInput),
+      ).toHaveValue(ref.resourceId)
 
-    rerender(
-      <ManagedSiteChannelsRoute
-        siteType={SITE_TYPES.AXON_HUB}
-        routeParams={{ resourceRef: JSON.stringify(foreignRef) }}
-        onReplaceRouteQuery={onReplaceRouteQuery}
-      />,
-    )
-    expect(screen.queryByText("Current")).not.toBeInTheDocument()
-    expect(screen.queryByText("Other")).not.toBeInTheDocument()
-    expect(setSelectedRowKeys).toHaveBeenCalledWith({})
-  })
+      rerender(
+        <ManagedSiteChannelsRoute
+          siteType={siteType}
+          routeParams={{ resourceRef: JSON.stringify(foreignRef) }}
+          onReplaceRouteQuery={onReplaceRouteQuery}
+        />,
+      )
+      expect(screen.queryByText("Current")).not.toBeInTheDocument()
+      expect(screen.queryByText("Other")).not.toBeInTheDocument()
+      expect(setSelectedRowKeys).toHaveBeenCalledWith({})
+    },
+  )
 
   it("routes the production Veloera definition through native controllers", () => {
     installNativeControllers()
@@ -685,7 +705,12 @@ describe("ManagedSiteChannelsRoute", () => {
 
     expect(useListController).toHaveBeenCalledWith(
       expect.objectContaining({
-        fieldIds: SUB2API_MANAGED_RESOURCE_TABLE_FIELD_IDS,
+        // Both the columns and the declared detail rows read from the same
+        // accepted projection.
+        fieldIds: expect.arrayContaining([
+          ...SUB2API_MANAGED_RESOURCE_TABLE_FIELD_IDS,
+          ...SUB2API_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
+        ]),
       }),
     )
   })
@@ -833,16 +858,12 @@ describe("ManagedSiteChannelsRoute", () => {
       ...nativeRow,
       rowKey: "opaque:alpha",
       testToken: "resource-alpha",
-      displayIdentifier: "2",
-      displayIdentifierSort: 2,
       name: "Alpha channel",
     }
     const zuluRow = {
       ...nativeRow,
       rowKey: "opaque:zulu",
       testToken: "resource-zulu",
-      displayIdentifier: "1",
-      displayIdentifierSort: 1,
       name: "Zulu channel",
     }
     installNativeControllers({
@@ -1638,11 +1659,13 @@ describe("ManagedSiteChannelsRoute", () => {
         screen.getByTestId(MANAGED_SITE_CHANNELS_TEST_IDS.addChannelButton),
       ),
     )
+    // Claude Code Hub channels carry no identifier, so the shared table must not
+    // render an id column for them.
     expect(
-      screen.getByRole("columnheader", {
+      screen.queryByRole("columnheader", {
         name: "managedSiteChannels:table.columns.id",
       }),
-    ).toBeVisible()
+    ).toBeNull()
     expect(
       screen.getByRole("columnheader", {
         name: "managedSiteChannels:table.columns.name",
@@ -1694,20 +1717,18 @@ describe("ManagedSiteChannelsRoute", () => {
     })
     const [listModule, mutationModule, fieldPolicyModule] = await Promise.all([
       vi.importActual<
-        typeof import("~/features/ManagedSiteChannels/controllers/useManagedResourceListController")
+        typeof import("~/features/ManagedSiteChannels/table/useManagedResourceListController")
       >(
-        "~/features/ManagedSiteChannels/controllers/useManagedResourceListController",
+        "~/features/ManagedSiteChannels/table/useManagedResourceListController",
       ),
       vi.importActual<
-        typeof import("~/features/ManagedSiteChannels/controllers/useManagedResourceMutationController")
+        typeof import("~/features/ManagedSiteChannels/editor/useManagedResourceMutationController")
       >(
-        "~/features/ManagedSiteChannels/controllers/useManagedResourceMutationController",
+        "~/features/ManagedSiteChannels/editor/useManagedResourceMutationController",
       ),
       vi.importActual<
-        typeof import("~/features/ManagedSiteChannels/presentation/managedResourceFieldPolicy")
-      >(
-        "~/features/ManagedSiteChannels/presentation/managedResourceFieldPolicy",
-      ),
+        typeof import("~/features/ManagedSiteChannels/editor/managedResourceFieldPolicy")
+      >("~/features/ManagedSiteChannels/editor/managedResourceFieldPolicy"),
     ])
     const facts = Array.from({ length: 12 }, (_, index) => ({
       ...createManagedResourceFacts(
@@ -1764,13 +1785,15 @@ describe("ManagedSiteChannelsRoute", () => {
       </I18nextProvider>,
     )
 
-    await screen.findByText("Example 12")
+    // The default sort is by name ascending, so the first page holds the first
+    // ten rows and the second page starts at the eleventh.
+    await screen.findByText("Example 01")
     await user.click(
       screen.getByRole("button", {
         name: resourceI18n.t("managedSiteChannels:table.paginationNext"),
       }),
     )
-    const rowToken = "resource-1"
+    const rowToken = "resource-11"
     const row = screen.getByTestId(getManagedSiteChannelRowTestId(rowToken))
     await user.click(
       screen.getByTestId(getManagedSiteChannelRowSelectTestId(rowToken)),
@@ -1843,7 +1866,7 @@ describe("ManagedSiteChannelsRoute", () => {
     const editDialog = await screen.findByRole("dialog")
     const nameInput = within(editDialog).getByRole("textbox")
     await user.clear(nameInput)
-    await user.type(nameInput, "Unsaved local edit")
+    await user.paste("Unsaved local edit")
 
     await act(async () => resourceI18n.changeLanguage("en"))
 
@@ -1880,7 +1903,7 @@ describe("ManagedSiteChannelsRoute", () => {
         onReplaceRouteQuery={onReplaceRouteQuery}
       />,
     )
-    const firstOptions = useListController.mock.calls[0][0]
+    const firstOptions = atIndex(useListController.mock.calls, 0)[0]
 
     rerender(
       <ManagedSiteChannelsRoute
@@ -2318,23 +2341,19 @@ describe("ManagedSiteChannelsRoute", () => {
       screen.queryByText("managedSiteChannels:editor.validation.required"),
     ).not.toBeInTheDocument()
 
-    await user.type(
-      screen.getByTestId(CHANNEL_DIALOG_TEST_IDS.nameInput),
-      "Example channel",
-    )
+    await user.click(screen.getByTestId(CHANNEL_DIALOG_TEST_IDS.nameInput))
+    await user.paste("Example channel")
     await user.click(screen.getByTestId(CHANNEL_DIALOG_TEST_IDS.typeSelect))
     await user.click(
       await screen.findByRole("option", {
         name: "managedSiteChannels:editor.options.unknown",
       }),
     )
-    await user.type(
-      screen.getByTestId(CHANNEL_DIALOG_TEST_IDS.keyInput),
-      "example-key",
-    )
+    await user.click(screen.getByTestId(CHANNEL_DIALOG_TEST_IDS.keyInput))
+    await user.paste("example-key")
     const modelsInput = screen.getByTestId(CHANNEL_DIALOG_TEST_IDS.modelsInput)
     await user.click(modelsInput)
-    await user.type(modelsInput, "model-example")
+    await user.paste("model-example")
     await user.keyboard("{Enter}")
 
     await waitFor(() => expect(submitButton).toBeEnabled())
@@ -2423,12 +2442,12 @@ describe("ManagedSiteChannelsRoute", () => {
     getFieldPolicy.mockReturnValue({
       fields: [
         {
-          fieldId: "manualModels",
+          fieldId: "defaultTestModel",
           section: "models",
           order: 1,
           resolveLabel: (t: TFunction) =>
-            t("managedSiteChannels:editor.fields.manualModels.label"),
-          renderer: "multi-select",
+            t("managedSiteChannels:editor.fields.defaultTestModel.label"),
+          renderer: "select",
         },
         {
           fieldId: "remark",
@@ -2448,10 +2467,10 @@ describe("ManagedSiteChannelsRoute", () => {
           name: "Detail example",
           cells: {
             ...nativeRow.cells,
-            manualModels: {
-              kind: "groups",
-              values: ["manual-model"],
-              sortValue: "manual-model",
+            defaultTestModel: {
+              kind: "text",
+              value: "Approved default model",
+              sortValue: "Approved default model",
             },
             remark: {
               kind: "text",
@@ -2486,7 +2505,7 @@ describe("ManagedSiteChannelsRoute", () => {
       />,
     )
 
-    expect(screen.getByText("manual-model")).toBeVisible()
+    expect(screen.getByText("Approved default model")).toBeVisible()
     expect(screen.getByText("Approved remark")).toBeVisible()
     expect(screen.queryByText("private detail")).toBeNull()
     expect(screen.queryByText("backendMessage")).toBeNull()

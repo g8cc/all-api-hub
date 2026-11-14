@@ -2,12 +2,13 @@ import type { TFunction } from "i18next"
 
 import { SITE_TYPES, type ManagedSiteType } from "~/constants/siteType"
 import type {
+  ManagedResourceProductPolicy,
   ManagedSiteLabelKey,
   ManagedSiteMessagesKey,
 } from "~/services/accountSiteDefinitions/contracts"
 import { getAccountSiteDefinition } from "~/services/accountSiteDefinitions/registry"
 import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
-import type { UserPreferences } from "~/services/preferences/userPreferences"
+import type { UserPreferences } from "~/services/preferences/preferencesSchema"
 
 /**
  * Returns the i18n key for the managed site label shown in UI.
@@ -44,6 +45,25 @@ export function getManagedSiteMessagesKeyFromSiteType(
  */
 export function getManagedSiteType(prefs: UserPreferences): ManagedSiteType {
   return prefs.managedSiteType || SITE_TYPES.NEW_API
+}
+
+/**
+ * Returns the settings tab that owns the managed-site connection form for the
+ * given provider, including its section anchor when the provider defines one.
+ */
+export function getManagedSiteSettingsTarget(siteType: ManagedSiteType): {
+  tabId: ManagedResourceProductPolicy["settingsTarget"]["tabId"]
+  anchor?: string
+} {
+  const target =
+    getAccountSiteDefinition(siteType)?.managedResource?.settingsTarget
+  if (!target) {
+    return { tabId: "managedSite" }
+  }
+
+  return target.anchor
+    ? { tabId: target.tabId, anchor: target.anchor }
+    : { tabId: target.tabId }
 }
 
 /**
@@ -108,6 +128,12 @@ export function getManagedSiteConfigMissingMessage(
       return t("messages:claudecodehub.configMissing")
     case "sub2api":
       return t("messages:sub2api.configMissing")
+    case "omniroute":
+      return t("messages:omniroute.configMissing")
+    case "magpie":
+      return t("messages:magpie.configMissing")
+    case "gptLoad":
+      return t("messages:gptLoad.configMissing")
     case "newapi":
     default:
       return t("messages:newapi.configMissing")
@@ -132,6 +158,12 @@ export function getManagedSiteNoChannelsToSyncMessage(
       return t("messages:axonhub.noChannelsToSync")
     case "claudecodehub":
       return t("messages:claudecodehub.noChannelsToSync")
+    case "omniroute":
+      return t("messages:omniroute.noChannelsToSync")
+    case "magpie":
+      return t("messages:magpie.noChannelsToSync")
+    case "gptLoad":
+      return t("messages:gptLoad.noChannelsToSync")
     case "newapi":
     default:
       return t("messages:newapi.noChannelsToSync")

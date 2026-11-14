@@ -1,10 +1,12 @@
 {
   "verifyDialog": {
+    "about": "测试说明",
     "actions": {
       "close": "关闭",
       "manageModelKey": "打开模型对应密钥",
       "retry": "重试",
-      "run": "开始验证",
+      "runAll": "运行常规测试",
+      "runAllHint": "仅运行常规测试；按需测试需单独启动。",
       "running": "运行中...",
       "runOne": "运行",
       "stop": "停止",
@@ -16,55 +18,127 @@
       "openai": "OpenAI",
       "openaiCompatible": "OpenAI 兼容"
     },
+    "associatedCredentialHint": "此站点不支持重新读取完整密钥。测试会使用 API 凭据库中与所选密钥关联的完整 Key；若尚未关联，请先前往密钥管理保存或关联密钥。",
     "details": {
       "input": "输入",
-      "output": "输出"
+      "output": "输出",
+      "result": "执行结果"
     },
     "errors": {
       "unexpected": "发生未知错误"
     },
+    "generatedImagePreview": "生成图像预览",
+    "generatedVideoPreview": "生成的视频预览",
     "history": {
       "clear": "清除历史",
-      "lastVerified": "最近验证"
+      "lastVerified": "最近测试",
+      "previousResult": "上次{{result}}",
+      "storage": {
+        "context": "历史记录保留测量结果，未保存逐次请求明细。",
+        "drawing": "历史记录未保存作品和执行明细。",
+        "needle": "历史记录保留测量结果；可用相同样本编号和设置重新生成测试文本。",
+        "probe": "历史记录仅保留测试摘要，未保存请求和响应内容。"
+      }
     },
-    "idleHint": "请选择密钥开始验证；模型相关探测需要填写模型 ID。",
+    "intro": {
+      "probes": {
+        "decision": "向决策接口提交示例状态，检查是否返回决策值或概率。",
+        "embedding": "发送示例文本，检查是否返回有效向量及其维度。",
+        "image-generation": "提交绘图提示词，检查图像响应并预览生成的图片。",
+        "models": "获取接口返回的模型名称与数量，供后续测试选择模型。",
+        "rerank": "提交查询和候选文档，检查相关性排序结果。",
+        "structured-output": "要求模型返回包含 ok: true 的 JSON，并校验该字段的值和结构。",
+        "text-generation": "检查模型能否按提示词回复。回复包含 OK（不区分大小写）时通过。",
+        "tool-calling": "要求模型调用内置的时间戳工具，检测到该工具的调用时通过。",
+        "video-generation": "提交视频生成任务，等待任务状态并查看生成的视频。",
+        "web-search": "检查接口能否使用联网搜索，并查看搜索结果与引用信息。"
+      },
+      "startHint": "点击 <run>运行</run> 开始本项测试。"
+    },
     "loadingRuntimeKeysHint": "正在加载密钥...",
+    "mediaPreviewUnavailable": "无法加载预览。",
     "meta": {
       "apiType": "接口类型",
       "apiTypePlaceholder": "选择接口类型",
+      "configuration": "请求配置",
       "mode": "测试方式",
       "model": "模型",
       "modelPlaceholder": "输入模型 ID",
+      "requestProfile": "客户端模拟",
       "runtimeKey": "密钥",
       "runtimeKeyIncompatible": "不适用于该模型",
       "runtimeKeyPlaceholder": "选择密钥"
+    },
+    "modalityNotice": {
+      "image": "此模型为图像生成模型，测试调用将按次产生额度消耗。",
+      "quotaCost": "按次计费",
+      "video": "生成视频并等待最多两分钟以供播放。停止只会结束本地等待；服务端任务可能继续并产生费用。"
     },
     "modes": {
       "nonStreaming": "非流式",
       "streaming": "流式"
     },
     "noCompatibleRuntimeKeyHint": "当前没有适用于该模型分组的密钥。请在密钥管理中创建或选择可用分组的密钥。",
-    "notRunYet": "尚未运行",
+    "openGeneratedMedia": "打开生成的媒体",
     "probes": {
+      "decision": "决策模型",
+      "embedding": "向量嵌入",
+      "image-generation": "图像生成",
       "models": "模型列表",
-      "structured-output": "结构化输出（JSON Schema）",
+      "rerank": "文档重排",
+      "structured-output": "结构化输出",
       "text-generation": "文本生成",
       "tool-calling": "工具/函数调用",
-      "web-search": "联网搜索 / Grounding"
+      "video-generation": "视频生成任务",
+      "web-search": "联网搜索"
+    },
+    "requestProfiles": {
+      "claude": "Claude Code",
+      "codex": "Codex CLI",
+      "default": "普通 API",
+      "enhancedBadge": "增强",
+      "enhancedCostHint": "可能增加输入用量",
+      "enhancedHint": "补充已知的身份提示词、SDK 请求头、缓存和会话特征。可能增加输入用量；不保证所有站点放行。",
+      "enhancedLabel": "增强 CLI 模拟",
+      "gemini": "Gemini CLI",
+      "hint": "选择客户端会匹配其默认协议，之后仍可手动修改协议。模拟对应客户端的 API 请求，不会启动本机 CLI。",
+      "protocolMismatch": "与客户端默认协议（{{apiType}}）不同，可能不兼容。",
+      "shortcutHint": "已选择 {{client}}，你可以直接运行测试，或切换其他客户端。",
+      "shortcutTooltip": "测试此 API 对 CLI 客户端的支持情况"
     },
     "requiresModelId": "请输入模型 ID 后运行该测试。",
+    "sections": {
+      "onDemand": "按需测试",
+      "routine": "常规测试"
+    },
     "selectedRuntimeKeyIncompatibleHint": "当前选择的密钥不适用于该模型分组。请先选择适用的密钥后再测试。",
+    "source": {
+      "account": "账号：{{name}}",
+      "profile": "凭据：{{name}}"
+    },
     "status": {
+      "emptyResponse": "未返回正文",
       "fail": "失败",
+      "inconclusive": "未能确认",
       "pass": "通过",
+      "paused": "已暂停",
       "pending": "待运行",
+      "stopped": "已停止",
+      "timeout": "请求超时",
       "unsupported": "不支持",
-      "unverified": "未验证"
+      "unverified": "未测试"
     },
     "summaries": {
+      "decisionSucceeded": "决策模型探测测试成功。",
+      "decisionUnexpectedResponse": "决策接口返回内容不符合预期。",
+      "embeddingSucceeded": "向量生成成功（维度：{{dimension}}）。",
+      "embeddingUnexpectedResponse": "向量接口返回内容不符合预期。",
+      "embeddingUnsupportedAnthropic": "Anthropic 接口不支持向量嵌入探测。",
       "endpointNotFound": "端点不存在（404）：此 API 可能不受支持",
       "forbidden": "禁止访问（403）：访问被拒绝",
       "httpError": "HTTP 错误（{{status}}）",
+      "imageGenerationNoData": "未返回图像数据。",
+      "imageGenerationSucceeded": "图像生成成功。",
       "modelsFetched": "成功获取 {{count}} 个模型。",
       "modelsProbeUnsupportedForApiType": "当前接口类型不支持模型列表探测。",
       "noModelAvailableToRunProbes": "没有可用模型，无法运行探测。",
@@ -73,6 +147,11 @@
       "noModelIdProvidedToRunProbes": "未提供模型 ID，无法运行探测。",
       "noModelsReturned": "未返回任何模型。",
       "noToolCallDetected": "未检测到工具调用（模型可能不支持工具）。",
+      "probeRequiresOpenAiProtocol": "此测试需要 OpenAI 兼容 API 端点。仅当服务提供该端点时，请切换到对应协议。",
+      "requestProfileIncompatible": "所选客户端模拟不支持当前 API 协议或测试项目。",
+      "requestTimedOut": "请求超时，未获得可判断的结果。可以稍后重试；超时不代表模型不支持此功能。",
+      "rerankSucceeded": "文档重排测试成功。",
+      "rerankUnexpectedResponse": "重排接口返回内容不符合预期。",
       "stopped": "已停止。",
       "structuredOutputInvalid": "输出内容无效。",
       "structuredOutputSucceeded": "结构化输出成功。",
@@ -80,6 +159,12 @@
       "textGenerationUnexpectedResponse": "返回内容不符合预期。",
       "toolCallSucceeded": "工具调用成功。",
       "unauthorized": "未授权（401）：密钥无效或缺少认证",
+      "videoGenerationSucceeded": "视频生成成功。",
+      "videoGenerationTimedOut": "视频未在两分钟内完成，服务端任务可能仍在运行。",
+      "videoNoPlayableResult": "视频任务已完成，但未返回可播放的地址。",
+      "videoNoTaskReturned": "未返回视频任务标识。",
+      "videoTaskAccepted": "视频生成任务已提交接收。",
+      "videoUnexpectedResponse": "视频任务失败或返回了无效响应。",
       "webSearchGroundingNoResults": "未获取到联网搜索 / Grounding 结果。",
       "webSearchGroundingSucceeded": "联网搜索 / Grounding 成功。",
       "webSearchNoResults": "未获取到联网搜索结果。",
@@ -88,8 +173,227 @@
       "webSearchUnsupportedAnthropic": "Anthropic 接口不支持联网搜索探测。",
       "webSearchUnsupportedForApiType": "当前接口类型不支持联网搜索探测。"
     },
-    "title": "接口验证",
+    "title": "API 测试",
+    "tools": {
+      "agent": {
+        "calls": "工具调用记录",
+        "completed": "已生成 SVG 文件，绘图质量由你判断。",
+        "files": "工作区文件",
+        "hint": "让模型自行检查并改进绘图，可能增加额度消耗。",
+        "label": "Agent 测试模式",
+        "noArtifact": "模型未在 pelican.svg 中写入完整 SVG，不会将最终回复当作产物。",
+        "summary": "轮次：{{steps}} · 工具调用：{{calls}} 次 · {{seconds}} 秒"
+      },
+      "context": {
+        "about": "模型上下文测试说明",
+        "acceptedTitle": "模型上下文：已验证约 {{tokens}} tokens",
+        "comparison": "元数据声明 {{expected}} tokens",
+        "continue": "继续探测",
+        "counter": "分词器：{{encoding}}。",
+        "coverage": "上下文 ≈{{percent}}%",
+        "description": "按模型声明的上下文长度设置测试上限；未知时最高测试 1M tokens。每批累计输入预算约 8M tokens，暂停后可继续。",
+        "details": "测试详情",
+        "discard": "丢弃中断测试",
+        "discardWarning": "中断测试记录已达上限。可丢弃未运行的记录后继续；这些请求的计费状态未知，正在运行的测试会保留。",
+        "emptyResponse": "接口正常结束但未返回正文，尚无法确认输入接收结果。",
+        "errorTitle": "探测未能完成",
+        "estimated": "模型编码为估算。",
+        "hint": "测试模型可接收的输入上下文长度。结果受接口和请求配置影响，不代表完整上下文窗口。",
+        "historyError": "历史记录暂不可用，当前结果仍可查看。",
+        "incompleteResponse": "未获得可判定的回复，结束原因：{{reason}}。",
+        "interrupted": "请求已中断，计费状态未知，未自动重试。重新开始测试可能产生额外用量。",
+        "lower": "最大已接收输入：{{tokens}} 个本地文本 token",
+        "maskedHistoryHint": "这是此脱敏密钥的历史测量，当前真实凭证尚未重新验证。",
+        "matched": "已匹配模型编码；完整请求的 token 数可能不同。",
+        "measuredBadge": "已接收约 {{tokens}} tokens",
+        "measurementDetails": "测量依据",
+        "outputLimited": "输入已接收；输出因长度限制被截断，不影响输入接收结论。",
+        "pausedTitle": "探测已暂停",
+        "progress": "已发送 {{requests}} 次请求 · 累计输入预算用量约 {{tokens}} tokens（含失败请求）",
+        "reasons": {
+          "bracketed": "已找到当前连接的接收边界，结果为近似范围。",
+          "budget": "已达到本批请求或累计输入预算。继续将增加用量，并从当前位置恢复。",
+          "inconclusive": "未获得可判断的结果，探测已停止。可以重试或展开详情查看原因。",
+          "test-limit": "这个长度的输入已被接收，实际容量可能更大。",
+          "timeout": "请求超时，未能确认这次输入是否被接收。超时不能证明输入超过模型容量。可以稍后重试；重试仍会发送长文本，并可能消耗额度。"
+        },
+        "reportedUsage": "接口报告用量：输入 {{input}} + 输出 {{output}} = 合计 {{total}} tokens",
+        "requestDetails": "请求与用量",
+        "resultLabel": "上下文探测结果",
+        "run": "探测上下文",
+        "startHint": "探测会发送长文本并消耗接口额度，达到用量预算后暂停。",
+        "stoppedTitle": "探测已停止",
+        "title": "模型上下文测试",
+        "unableTitle": "本次未能确认输入容量",
+        "upper": "容量拒绝位置：{{tokens}} 个本地文本 token"
+      },
+      "errors": {
+        "unexpected": "请求失败：{{message}}"
+      },
+      "needle": {
+        "automatic": "自动",
+        "automaticLimit": "自动（{{limit}}）",
+        "budget": "预计输入约 {{tokens}} tokens，输出另计。测试会使用你的接口额度。",
+        "cancelledCell": "已取消",
+        "cancelledUnknown": "未获得可判定结果。",
+        "capacityRunning": "正在检测可用上下文，完成后会更新测试长度。",
+        "capped": "本次每条请求最多测试 1M 输入 tokens。",
+        "cell": "本地输入 {{tokens}} tokens · 实际位置 {{depth}}% · {{latency}} 毫秒",
+        "cellDetails": "单元格详情",
+        "cumulativeScore": "累计结果：可判定答案中命中 {{hits}}/{{graded}}",
+        "custom": "自定义",
+        "customLimit": "自定义长度（tokens）",
+        "description": "在长文本的不同位置查找指定信息，检查模型的检索能力。",
+        "errors": {
+          "busy": "其他页面正在测试此连接，请等待完成或先停止。",
+          "failed": "大海捞针测试未能完成：{{detail}}",
+          "metadata": "无法加载上下文信息，请重试。",
+          "request": "请选择模型并配置可用凭据后再运行。"
+        },
+        "exactLengths": "准确长度：{{lengths}} tokens",
+        "exactTotal": "预计累计输入：{{tokens}} tokens",
+        "expected": "预期答案：{{value}}",
+        "invalid": "文本长度须为 1,024～1,048,576 的整数；样本编号须为 0～4,294,967,295 的整数。",
+        "length": "Tokens",
+        "lengthRule": "从 8K 起逐步翻倍，最后补至本次输入上限 {{limit}}。",
+        "limit": "最长测试文本（tokens）",
+        "limitation": "命中仅验证本次样本。未命中不能证明输入被截断、上下文窗口更小或模型身份不同。",
+        "matrix": "各输入长度和位置的检索结果",
+        "matrixHint": "点击状态可查看详情并运行或重测该项。行、列按钮会运行范围内的全部项目，包括已有结果。停止按钮只影响对应单元格、行或列。",
+        "notRun": "未运行",
+        "notScheduled": "本次不执行",
+        "outcomes": {
+          "contextLimit": "超限",
+          "error": "请求错误",
+          "hit": "命中",
+          "incomplete": "输出不完整",
+          "interrupted": "结果未知",
+          "miss": "未命中"
+        },
+        "planDetails": "长度如何确定",
+        "planned": "计划执行",
+        "plannedLengths": "测试文本长度（tokens）",
+        "positionRule": "在文本的 {{positions}} 位置分别测试，检查前、中、后部的信息检索。",
+        "preparing": "正在准备测试方案…",
+        "preparingCellState": "准备中",
+        "previewPositions": "每种长度在 {{positions}} 位置各测一次。",
+        "previewTitle": "本次测试预览",
+        "previousResult": "上次结果（本轮执行前）",
+        "probeFirst": "检测可用上下文",
+        "progress": "最近一次执行：已处理 {{completed}}/{{total}} 次请求",
+        "quick": "仅测试最长文本",
+        "quickHint": "仅运行计划最长长度的三个位置。其他长度不纳入本次执行，可按行或列单独补测。",
+        "randomSample": "每次随机生成",
+        "reasons": {
+          "budget": "已达预算",
+          "complete": "已完成",
+          "error": "请求失败",
+          "interrupted": "已中断，结果未知"
+        },
+        "reference": {
+          "context": "模型标注上下文：{{tokens}}（未验证）",
+          "input": "模型标注输入上限：{{tokens}}（未验证）",
+          "measured": "此前已接收 {{tokens}} 输入（最大容量未知）",
+          "unknown": "未获取到上下文上限，自动模式暂用 {{tokens}} tokens；检测后会更新自动值。"
+        },
+        "reproduce": "样本 {{seed}} · 分词器：{{encoding}}。",
+        "requestCount": "共 {{count}} 次请求",
+        "requestDetails": "请求与答案详情",
+        "resultDetails": "测试参数与复现信息",
+        "retestCell": "重测此项",
+        "retestColumn": "重测 {{depth}}% 列（{{requests}}）",
+        "retestRow": "重测 {{length}} 行（{{requests}}）",
+        "retry": "重试",
+        "run": "开始捞针测试",
+        "runCell": "运行此项",
+        "runColumn": "运行 {{depth}}% 列（{{requests}}）",
+        "runRow": "运行 {{length}} 行（{{requests}}）",
+        "savedResult": "历史结果",
+        "scopeProgress": "已处理 {{completed}}/{{total}}",
+        "score": "{{hits}}/{{total}} 命中",
+        "seedHint": "留空时每次生成新样本。使用相同编号和设置，可重复测试同一份文本。",
+        "seedInput": "测试样本编号（选填）",
+        "singleLengthRule": "本次只测试 {{limit}} 这一种长度。",
+        "sources": {
+          "custom": "你将最长测试输入设为 {{limit}}，本次按此上限选择长度。",
+          "declaredContext": "模型资料中的总上下文为 {{context}}，预留 {{reserve}} 用于回复，输入上限为 {{input}}。这是资料值，尚未在当前接口验证。",
+          "declaredInput": "模型资料中的独立输入上限为 {{input}}，本次依据该限制选择长度。该值尚未在当前接口验证。",
+          "fallback": "暂无可用的模型长度资料或接收记录，本次使用默认上限 {{limit}}。你可以在测试设置中调整，或先检测可用上下文。",
+          "measured": "参考此连接此前成功接收的输入，本次以 {{limit}} 为测试上限。这不代表已测得模型的最大容量。"
+        },
+        "stopCapacity": "停止上下文探测",
+        "stopCell": "停止 {{length}} · {{depth}}%",
+        "stopColumn": "停止 {{depth}}% 整列",
+        "stopFailed": "未能停止，请重试。",
+        "stoppingCell": "正在停止…",
+        "stopRow": "停止 {{length}} 整行",
+        "title": "大海捞针",
+        "tokenUnits": "本测试中，1K = 1,024 tokens，1M = 1,048,576 tokens。"
+      },
+      "pelican": {
+        "analysis": "{{shapes}} 个形状 · {{wheels}} 个圆形/椭圆 · viewBox {{viewBox}}",
+        "description": "让模型画一只骑自行车的鹈鹕 SVG，方便你直接比对画风与结构；结论由人工判断。",
+        "noSvg": "模型没有返回 SVG。",
+        "outcomes": {
+          "error": "执行失败",
+          "generated": "已生成绘图",
+          "no-artifact": "未生成绘图产物"
+        },
+        "previewAlt": "模型生成的绘图",
+        "previewFailed": "SVG 无法显示，可能包含重复属性等 XML 格式错误。可展开原始回复或工作区文件查看内容。",
+        "raw": "原始回答",
+        "run": "生成绘图",
+        "title": "绘图测试",
+        "unsafe": "回答包含脚本或外部引用，已阻止渲染。"
+      },
+      "prompts": {
+        "editorLabel": "{{probe}} 提示词",
+        "label": "提示词",
+        "resetOne": "恢复此项默认",
+        "saveFailed": "保存提示词失败：{{message}}",
+        "sharedHint": "已保存的提示词对所有测试入口生效。"
+      },
+      "questionAnswer": {
+        "comparison": "答案对照",
+        "comparisonHint": "仅对照最终答案的文本是否一致，推理是否正确请结合完整回答判断。",
+        "description": "用自定义问题查看模型的回答与推理；可填写参考答案，对照最终答案。",
+        "draftChanged": "问题或参考答案已修改。当前展示的是上次运行结果，请重新运行以对照修改后的内容。",
+        "finalAnswer": "提取的最终答案",
+        "loadFailed": "无法读取问答设置，请重试以加载已保存的草稿。",
+        "notIdentified": "未提取到",
+        "outcomes": {
+          "empty": "未返回回答",
+          "incomplete": "输出不完整",
+          "manual": "已返回回答",
+          "matched": "与参考答案一致",
+          "mismatched": "与参考答案不一致",
+          "ungraded": "最终答案未明确"
+        },
+        "question": "问题",
+        "questionRequired": "请填写问题后再运行测试。",
+        "reference": "参考答案（选填）",
+        "requestFailed": "请求失败",
+        "reset": "重置题目与参考答案",
+        "response": "模型回答",
+        "rules": {
+          "extraction": "填写参考答案后，会要求模型在最后一行以 FINAL_ANSWER: 开头给出最终答案，并提取冒号后的内容。 留空只查看回答，不判定对错。",
+          "matching": "去掉首尾空白、统一全半角等兼容字符后，文本须完全一致。例如：２１ 能匹配 21，21个 不能匹配 21；大小写、标点和中间空格仍会影响结果。",
+          "privacy": "参考答案仅在本地使用，不发送给模型。",
+          "title": "比对规则",
+          "unavailable": "未按格式给出最终答案时，仅当整段回答与参考答案一致才算匹配，否则显示“最终答案未明确”。空回答或输出不完整会单独提示。"
+        },
+        "run": "运行问答测试",
+        "runQuestion": "本次使用的问题",
+        "runReference": "本次参考答案",
+        "saveFailed": "设置保存失败，当前草稿仍可用于测试。",
+        "saving": "正在保存…",
+        "title": "问答测试"
+      },
+      "settingsTitle": "测试设置",
+      "stop": "停止",
+      "stopped": "已停止，本次结果未记录。"
+    },
     "unsupportedProbeForApiType": "当前接口类型不支持 {{probe}} 探测。",
-    "warning": "检测到支持时，高概率为真实支持；未检测到支持时，也可能实际支持。结果仅供参考，请以工具的实际使用情况为准。"
+    "warning": "结果仅适用于本次测试的接口、模型和请求配置。"
   }
 }

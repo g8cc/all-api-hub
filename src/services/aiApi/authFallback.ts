@@ -1,4 +1,5 @@
-import type { FetchFunction } from "@ai-sdk/provider-utils"
+import { createHeaderOverrideFetch } from "~/services/apiTransport/headerOverrides"
+import { createDeploymentProbeMemory } from "~/services/core/deploymentProbeMemory"
 
 export const API_AUTH_MODES = {
   ApiKey: "api-key",
@@ -19,29 +20,22 @@ type UnauthorizedFallbackParams<TMode extends string, TResult> = {
 }
 
 type UnauthorizedFallbackFetchParams<TMode extends string> = {
+  requestHeaders?: Record<string, string>
   initialMode: TMode
   fallbackMode: TMode
   replaceCredential: (request: Request, mode: TMode) => Request
   rememberFallback: () => void
 }
 
-/** Normalize a compatible API URL into a stable session-level auth scope. */
-function normalizeAuthScope(baseUrl: string): string {
-  return baseUrl.trim().replace(/\/+$/, "")
-}
-
 /** Store an auth mode learned for a compatible base URL during this session. */
 export function createAuthModeMemory<TMode extends string>(
   defaultMode: TMode,
 ): AuthModeMemory<TMode> {
-  const modesByBaseUrl = new Map<string, TMode>()
+  const modesByBaseUrl = createDeploymentProbeMemory<TMode>()
 
   return {
-    get: (baseUrl) =>
-      modesByBaseUrl.get(normalizeAuthScope(baseUrl)) ?? defaultMode,
-    remember: (baseUrl, mode) => {
-      modesByBaseUrl.set(normalizeAuthScope(baseUrl), mode)
-    },
+    get: (baseUrl) => modesByBaseUrl.read(baseUrl) ?? defaultMode,
+    remember: (baseUrl, mode) => modesByBaseUrl.remember(baseUrl, mode),
   }
 }
 
@@ -92,11 +86,9 @@ export async function executeWithUnauthorizedFallback<
 /** Create an SDK fetch that retries one 401 with a provider-defined credential. */
 export function createUnauthorizedFallbackFetch<TMode extends string>(
   params: UnauthorizedFallbackFetchParams<TMode>,
-): FetchFunction {
-  const fallbackFetch = async (
-    input: RequestInfo | URL,
-    init?: RequestInit,
-  ) => {
+): (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
+  const fetch = createHeaderOverrideFetch(params.requestHeaders)
+  return async (input, init) => {
     const request = new Request(input, init)
 
     if (params.initialMode === params.fallbackMode) {
@@ -115,12 +107,6 @@ export function createUnauthorizedFallbackFetch<TMode extends string>(
 
     return fallbackResponse
   }
-
-  // `FetchFunction` mirrors the ambient `fetch`, whose static members vary by
-  // environment: the DOM lib declares none, while Bun adds `preconnect`. Mirror
-  // the ambient implementation instead of naming one runtime's member, so this
-  // satisfies the SDK type under either `fetch` declaration.
-  return Object.assign(fallbackFetch, globalThis.fetch)
 }
 
 /** Return whether a transport error exposes the exact retryable status code. */

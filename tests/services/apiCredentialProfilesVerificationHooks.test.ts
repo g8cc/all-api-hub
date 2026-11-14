@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Storage } from "@plasmohq/storage"
 
-import { apiCredentialProfilesStorage } from "~/services/apiCredentialProfiles/apiCredentialProfilesStorage"
+import { listApiCredentialProfileIdsOrThrow } from "~/services/apiCredentialProfiles/storage/configReader"
+import { apiCredentialProfilesStorage } from "~/services/apiCredentialProfiles/storage/profiles"
 import { API_CREDENTIAL_PROFILES_STORAGE_KEYS } from "~/services/core/storageKeys"
 import { API_TYPES } from "~/services/verification/aiApiVerification"
 import {
@@ -92,9 +93,9 @@ describe("apiCredentialProfilesStorage verification hooks", () => {
       apiKey: "sk-a",
     })
 
-    await expect(
-      apiCredentialProfilesStorage.listProfileIdsOrThrow(),
-    ).resolves.toEqual([profile.id])
+    await expect(listApiCredentialProfileIdsOrThrow()).resolves.toEqual([
+      profile.id,
+    ])
 
     const readSpy = vi
       .spyOn(Storage.prototype, "get")
@@ -104,9 +105,9 @@ describe("apiCredentialProfilesStorage verification hooks", () => {
         )
         throw new Error("unreadable")
       })
-    await expect(
-      apiCredentialProfilesStorage.listProfileIdsOrThrow(),
-    ).rejects.toThrow("unreadable")
+    await expect(listApiCredentialProfileIdsOrThrow()).rejects.toThrow(
+      "unreadable",
+    )
     readSpy.mockRestore()
   })
 
@@ -376,7 +377,7 @@ describe("apiCredentialProfilesStorage verification hooks", () => {
     )
 
     await apiCredentialProfilesStorage.listProfiles()
-    await apiCredentialProfilesStorage.listProfileIdsOrThrow()
+    await listApiCredentialProfileIdsOrThrow()
     await apiCredentialProfilesStorage.getConfig()
 
     expect(

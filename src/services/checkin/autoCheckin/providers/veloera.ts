@@ -13,6 +13,8 @@ import {
 } from "~/constants/checkIn"
 import { newApiFamilyRequests } from "~/services/apiService/newApiFamily/request"
 import { fetchSupportCheckIn } from "~/services/apiService/newApiFamily/variants/veloeraCheckIn"
+import { bindApiTransportRequest } from "~/services/apiTransport/recovery"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ApiServiceRequest } from "~/services/apiTransport/type"
 import {
   AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS,
@@ -20,14 +22,16 @@ import {
   getEffectiveAuthType,
   isAlreadyCheckedMessage,
   normalizeCheckinMessage,
+  readQuotaReward,
   resolveProviderErrorResult,
 } from "~/services/checkin/autoCheckin/providers/shared"
-import type { AutoCheckinProviderResult } from "~/services/checkin/autoCheckin/providers/types"
+import type { AutoCheckinProviderOutcome } from "~/services/checkin/autoCheckin/providers/types"
 import type { SiteAccount } from "~/types"
 import { AuthTypeEnum } from "~/types"
 import { CHECKIN_RESULT_STATUS } from "~/types/autoCheckin"
 import type { TempWindowRequestSource } from "~/types/tempWindowFetch"
 import { normalizeTempWindowRequestSource } from "~/utils/browser/tempWindowRequestSource"
+import { isPlainObject } from "~/utils/core/object"
 
 import type {
   AutoCheckinProvider,
@@ -35,9 +39,22 @@ import type {
 } from "./contracts"
 import { detectWithStatusReadback } from "./detection"
 
-type CheckinResult = AutoCheckinProviderResult
+type CheckinResult = AutoCheckinProviderOutcome
 
 const ENDPOINT = "/api/user/check_in"
+
+/**
+ * Read the awarded quota from this deployment's untyped success payload.
+ *
+ * Upstream answers a successful check-in with
+ * `{success, message: "签到成功", data: {quota: reward}}`, where the reward is
+ * added to the user's quota, so it is already in the internal quota unit:
+ * https://github.com/Veloera/Veloera/blob/6525dfce816beaa270e78f0d8b762e19e54d13b8/controller/user.go
+ * The payload stays `unknown` at the transport because this is the only part of
+ * the shape the extension consumes.
+ */
+const readAwardedQuota = (data: unknown): unknown =>
+  isPlainObject(data) ? data.quota : undefined
 
 // Veloera exposes the global switch through /api/status and today's state
 // through /api/user/check_in_status. Keep these independent: `can_check_in`
@@ -49,19 +66,23 @@ const createRequest = (
   tempWindowRequestSource?: TempWindowRequestSource,
   protectionBypassExecution?: AutoCheckinProviderContext["protectionBypassExecution"],
   mutationLifecycle?: AutoCheckinProviderContext["mutationLifecycle"],
-): ApiServiceRequest => ({
-  baseUrl: account.site_url,
-  accountId: account.id,
-  cookieAuthSessionCookie: account.cookieAuth?.sessionCookie,
-  auth: {
-    authType: getEffectiveAuthType(account),
-    userId: account.account_info.id,
-    accessToken: account.account_info.access_token,
-  },
-  ...(tempWindowRequestSource ? { tempWindowRequestSource } : {}),
-  ...(protectionBypassExecution ? { protectionBypassExecution } : {}),
-  ...(mutationLifecycle ? { observer: mutationLifecycle } : {}),
-})
+): ApiServiceRequest =>
+  bindApiTransportRequest(
+    {
+      baseUrl: account.site_url,
+      accountId: account.id,
+      cookieAuthSessionCookie: account.cookieAuth?.sessionCookie,
+      auth: {
+        authType: getEffectiveAuthType(account),
+        userId: account.account_info.id,
+        accessToken: account.account_info.access_token,
+      },
+      ...(tempWindowRequestSource ? { tempWindowRequestSource } : {}),
+      ...(protectionBypassExecution ? { protectionBypassExecution } : {}),
+      ...(mutationLifecycle ? { observer: mutationLifecycle } : {}),
+    },
+    API_DIRECT_REQUEST_REASONS.CallerManaged,
+  )
 
 type VeloeraCheckInObservation = {
   enabled?: boolean
@@ -135,6 +156,7 @@ async function checkinVeloera(
         messageKey: responseMessage
           ? undefined
           : AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinSuccessful,
+        reward: readQuotaReward(readAwardedQuota(response.data)),
         data: response.data,
       }
     }
@@ -203,6 +225,7 @@ const getStatus: NonNullable<AutoCheckinProvider["getStatus"]> = async ({
     request ??
     (account
       ? {
+          directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
           baseUrl: account.site_url,
           accountId: account.id,
           cookieAuthSessionCookie: account.cookieAuth?.sessionCookie,

@@ -1,16 +1,16 @@
 import { SITE_TYPES } from "~/constants/siteType"
+import { normalizeAccountSiteProfileUrlForOriginKey } from "~/services/accounts/accountSiteProfile/urls"
 import {
   AccountUpdateUserTimestampMode,
   applySiteAccountUpdates,
   type AccountUpdateOptions,
-} from "~/services/accounts/accountDefaults"
-import { normalizeAccountIdentity } from "~/services/accounts/accountIdentity"
-import { normalizeAccountSiteProfileUrlForOriginKey } from "~/services/accounts/accountSiteProfile"
+} from "~/services/accounts/editing/accountDefaults"
+import { normalizeAccountIdentity } from "~/services/accounts/identity/accountIdentity"
 import {
   SUB2API_AUTH_PERSISTENCE_STATUSES,
   type Sub2ApiAuthPersistenceResult,
   type Sub2ApiPersistAuthUpdate,
-} from "~/services/apiService/sub2api/authSession"
+} from "~/services/apiService/sub2api/auth/authSession"
 import type { SiteAccount } from "~/types"
 import type { DeepPartial } from "~/types/utils"
 import { getErrorMessage } from "~/utils/core/error"
@@ -39,7 +39,8 @@ class Sub2ApiAuthPersistence {
       return await accountConfigStore.mutate<Sub2ApiAuthPersistenceResult>(
         (config) => {
           const index = config.accounts.findIndex((item) => item.id === id)
-          if (index === -1) {
+          const account = index === -1 ? undefined : config.accounts[index]
+          if (!account) {
             return {
               result: {
                 status: SUB2API_AUTH_PERSISTENCE_STATUSES.ACCOUNT_MISSING,
@@ -47,7 +48,6 @@ class Sub2ApiAuthPersistence {
               changed: false,
             }
           }
-          const account = config.accounts[index]
 
           const actualOrigin = normalizeAccountSiteProfileUrlForOriginKey({
             siteType: account.site_type,
@@ -60,7 +60,12 @@ class Sub2ApiAuthPersistence {
             !actualUserId ||
             actualOrigin !== expectedOrigin ||
             actualUserId !== expectedUserId ||
-            (update.userId !== undefined && updateUserId !== expectedUserId)
+            (update.userId !== undefined && updateUserId !== expectedUserId) ||
+            (update.expectedAuth !== undefined &&
+              (account.account_info.access_token.trim() !==
+                update.expectedAuth.accessToken.trim() ||
+                (account.sub2apiAuth?.refreshToken?.trim() ?? "") !==
+                  (update.expectedAuth.refreshToken?.trim() ?? "")))
           ) {
             return {
               result: {

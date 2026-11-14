@@ -5,24 +5,50 @@ import {
   handleWaitForTurnstileToken,
 } from "~/entrypoints/content/messageHandlers/handlers/turnstileGuard"
 
-const { loggerMocks, triggerCheckinPageActionMock, waitForTurnstileTokenMock } =
-  vi.hoisted(() => ({
-    loggerMocks: {
-      debug: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-    },
-    triggerCheckinPageActionMock: vi.fn(),
-    waitForTurnstileTokenMock: vi.fn(),
-  }))
+const {
+  loggerMocks,
+  triggerCheckinPageActionMock,
+  waitForTurnstileTokenMock,
+  sendRuntimeMessageMock,
+  showTurnstileManualAssistToastMock,
+} = vi.hoisted(() => ({
+  loggerMocks: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+  triggerCheckinPageActionMock: vi.fn(),
+  waitForTurnstileTokenMock: vi.fn(),
+  sendRuntimeMessageMock: vi.fn(),
+  showTurnstileManualAssistToastMock: vi.fn(),
+}))
 
 vi.mock("~/utils/core/logger", () => ({
   createLogger: () => loggerMocks,
 }))
 
+vi.mock("~/services/checkin/pageVerification", () => ({
+  capturePageVerificationWidgets: vi.fn(() => new Set()),
+  waitForPageVerification: vi.fn(async () => ({ status: "not_present" })),
+}))
+
+vi.mock("~/utils/browser/runtimeMessages", () => ({
+  sendRuntimeMessage: sendRuntimeMessageMock,
+}))
+
+vi.mock(
+  "~/entrypoints/content/shieldBypassAssist/utils/shieldBypassToasts",
+  () => ({
+    showTurnstileManualAssistToast: showTurnstileManualAssistToastMock,
+  }),
+)
+
 vi.mock("~/entrypoints/content/messageHandlers/utils/turnstileGuard", () => ({
   triggerCheckinPageAction: triggerCheckinPageActionMock,
+  // The handler waits for the trigger target before clicking, so the stand-in
+  // must resolve at once: target discovery is covered by its own suite.
+  waitForCheckinPageActionTarget: vi.fn(async () => {}),
   waitForTurnstileToken: waitForTurnstileTokenMock,
 }))
 
@@ -63,7 +89,10 @@ describe("content turnstile guard handler", () => {
       requestId: "req-turnstile",
       timeoutMs: 2500,
       preTrigger,
-      allowExtendedWait: false,
+      userAssist: expect.objectContaining({
+        requestAssist: expect.any(Function),
+        readPageToken: expect.any(Function),
+      }),
     })
     expect(loggerMocks.debug).toHaveBeenCalledWith(
       "Turnstile token wait completed",
@@ -79,35 +108,6 @@ describe("content turnstile guard handler", () => {
       success: true,
       ...result,
     })
-  })
-
-  it("forwards the extended-wait opt-in when the background foregrounded the page", async () => {
-    waitForTurnstileTokenMock.mockResolvedValue({
-      status: "timeout",
-      token: null,
-      detection: { hasTurnstile: true, reasons: [], score: 0 },
-    })
-
-    await new Promise<any>((resolve) => {
-      expect(
-        handleWaitForTurnstileToken(
-          {
-            requestId: "req-extended",
-            timeoutMs: 120_000,
-            allowExtendedWait: true,
-          },
-          resolve,
-        ),
-      ).toBe(true)
-    })
-
-    expect(waitForTurnstileTokenMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requestId: "req-extended",
-        timeoutMs: 120_000,
-        allowExtendedWait: true,
-      }),
-    )
   })
 
   it("returns an error response when the token wait rejects", async () => {
@@ -152,7 +152,10 @@ describe("content turnstile guard handler", () => {
       requestId: undefined,
       timeoutMs: 500,
       preTrigger: undefined,
-      allowExtendedWait: false,
+      userAssist: expect.objectContaining({
+        requestAssist: expect.any(Function),
+        readPageToken: expect.any(Function),
+      }),
     })
     expect(loggerMocks.debug).toHaveBeenCalledWith(
       "Turnstile token wait completed",
@@ -206,6 +209,7 @@ describe("content turnstile guard handler", () => {
     expect(response).toEqual({
       success: true,
       ...triggerResult,
+      verification: { status: "not_present" },
     })
   })
 
@@ -248,5 +252,90 @@ describe("content turnstile guard handler", () => {
       success: false,
       error: "click failed",
     })
+  })
+
+  it("handles userAssist requestAssist when presentation succeeds, fails, or throws", async () => {
+    let capturedAssist: any = null
+    waitForTurnstileTokenMock.mockImplementationOnce(({ userAssist }) => {
+      capturedAssist = userAssist
+      return Promise.resolve({
+        status: "found",
+        token: "cf-token",
+        detection: { hasTurnstile: true },
+      })
+    })
+
+    await new Promise<any>((resolve) => {
+      handleWaitForTurnstileToken({ requestId: "req-1" }, resolve)
+    })
+
+    expect(capturedAssist).not.toBeNull()
+
+    // 1. Success case
+    sendRuntimeMessageMock.mockResolvedValueOnce({ presented: true })
+    const successResult = await capturedAssist.requestAssist()
+    expect(successResult).toBe(true)
+    expect(showTurnstileManualAssistToastMock).toHaveBeenCalledOnce()
+
+    // 2. Failure case
+    sendRuntimeMessageMock.mockResolvedValueOnce({ presented: false })
+    const failResult = await capturedAssist.requestAssist()
+    expect(failResult).toBe(false)
+
+    // 3. Throw case
+    sendRuntimeMessageMock.mockRejectedValueOnce(new Error("runtime error"))
+    const throwResult = await capturedAssist.requestAssist()
+    expect(throwResult).toBe(false)
+  })
+
+  it("handles userAssist readPageToken for valid token, empty token, failure, or throw", async () => {
+    let capturedAssist: any = null
+    waitForTurnstileTokenMock.mockImplementationOnce(({ userAssist }) => {
+      capturedAssist = userAssist
+      return Promise.resolve({
+        status: "found",
+        token: "cf-token",
+        detection: { hasTurnstile: true },
+      })
+    })
+
+    await new Promise<any>((resolve) => {
+      handleWaitForTurnstileToken({ requestId: "req-2" }, resolve)
+    })
+
+    expect(capturedAssist).not.toBeNull()
+
+    // 1. Valid token with whitespace trimming
+    sendRuntimeMessageMock.mockResolvedValueOnce({
+      success: true,
+      token: "  valid-token  ",
+    })
+    expect(await capturedAssist.readPageToken({ allowExecute: true })).toBe(
+      "valid-token",
+    )
+
+    // 2. Empty string token
+    sendRuntimeMessageMock.mockResolvedValueOnce({
+      success: true,
+      token: "   ",
+    })
+    expect(
+      await capturedAssist.readPageToken({ allowExecute: false }),
+    ).toBeNull()
+
+    // 3. Success false
+    sendRuntimeMessageMock.mockResolvedValueOnce({
+      success: false,
+      token: "valid-token",
+    })
+    expect(
+      await capturedAssist.readPageToken({ allowExecute: false }),
+    ).toBeNull()
+
+    // 4. Runtime message throws
+    sendRuntimeMessageMock.mockRejectedValueOnce(new Error("runtime error"))
+    expect(
+      await capturedAssist.readPageToken({ allowExecute: false }),
+    ).toBeNull()
   })
 })

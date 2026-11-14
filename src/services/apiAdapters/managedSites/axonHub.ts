@@ -1,4 +1,6 @@
+import { AXON_HUB_CHANNEL_TYPE } from "~/constants/axonHub"
 import { SITE_TYPES } from "~/constants/siteType"
+import { MANAGED_RESOURCE_SEARCH_INVENTORY_MODES } from "~/services/apiAdapters/contracts/managedResourceMatching"
 import type { ManagedResourceMatchingCapability } from "~/services/apiAdapters/contracts/managedResourceMatching"
 import type { ManagedResourceRef } from "~/services/apiAdapters/contracts/managedResourceNative"
 import type {
@@ -6,11 +8,12 @@ import type {
   ManagedSiteChannelDraftsCapability,
   ManagedSiteConfigCapability,
 } from "~/services/apiAdapters/contracts/managedSiteCapabilities"
+import { createChannelVerificationProtocolResolver } from "~/services/apiAdapters/managedResources/shared/modelInputs"
 import {
   getAxonHubChannelSecretKey,
   listAxonHubChannelPage,
-} from "~/services/apiService/axonHub"
-import { sharePendingConfigRead } from "~/services/apiTransport/requestScheduling"
+} from "~/services/apiService/axonHub/channels"
+import { shareInventoryRead } from "~/services/apiTransport/inventoryReads"
 import {
   assertManagedResourceRefForSite,
   createManagedChannelResourceRef,
@@ -20,6 +23,7 @@ import {
   prepareChannelFormData,
 } from "~/services/managedSites/providers/axonHub"
 import { hasUsableManagedSiteChannelKey } from "~/services/managedSites/utils/channelKeys"
+import { API_TYPES } from "~/services/verification/aiApiVerification/types"
 import type { AxonHubConfig } from "~/types/axonHubConfig"
 import type { ManagedResourceMatchCandidate } from "~/types/managedResourceMatching"
 import { normalizeList } from "~/utils/core/string"
@@ -36,7 +40,9 @@ const axonHubManagedSiteChannelDrafts: ManagedSiteChannelDraftsCapability = {
   prepareFormData: prepareChannelFormData,
 }
 
-const readMatchingInventory = sharePendingConfigRead(
+const MATCHING_PAGE_SIZE = 100
+
+const readMatchingInventory = shareInventoryRead(
   async (config: AxonHubConfig, options) => {
     const items: ManagedResourceMatchCandidate[] = []
     const cursors = new Set<string>()
@@ -44,7 +50,7 @@ const readMatchingInventory = sharePendingConfigRead(
     do {
       const page = await listAxonHubChannelPage(
         config,
-        { cursor, limit: 100 },
+        { cursor, limit: MATCHING_PAGE_SIZE },
         options,
       )
       items.push(
@@ -74,6 +80,7 @@ const readMatchingInventory = sharePendingConfigRead(
 )
 
 const matching: ManagedResourceMatchingCapability<AxonHubConfig> = {
+  searchInventoryMode: MANAGED_RESOURCE_SEARCH_INVENTORY_MODES.FULL,
   search: (config, _keyword, options) => readMatchingInventory(config, options),
   fetchSecretKey,
   hydrateComparableKeys: async (config, candidates, options) => {
@@ -113,6 +120,26 @@ async function fetchSecretKey(
 export const axonHubManagedSiteCapabilities = {
   siteType: SITE_TYPES.AXON_HUB,
   matching,
+  models: {
+    resolveVerificationProtocol: createChannelVerificationProtocolResolver({
+      [AXON_HUB_CHANNEL_TYPE.OPENAI]: API_TYPES.OPENAI_COMPATIBLE,
+      [AXON_HUB_CHANNEL_TYPE.OPENAI_RESPONSES]: API_TYPES.OPENAI,
+      [AXON_HUB_CHANNEL_TYPE.GEMINI_OPENAI]: API_TYPES.OPENAI_COMPATIBLE,
+      [AXON_HUB_CHANNEL_TYPE.DEEPSEEK]: API_TYPES.OPENAI_COMPATIBLE,
+      [AXON_HUB_CHANNEL_TYPE.OPENROUTER]: API_TYPES.OPENAI_COMPATIBLE,
+      [AXON_HUB_CHANNEL_TYPE.XAI]: API_TYPES.OPENAI_COMPATIBLE,
+      [AXON_HUB_CHANNEL_TYPE.SILICONFLOW]: API_TYPES.OPENAI_COMPATIBLE,
+      [AXON_HUB_CHANNEL_TYPE.VOLCENGINE]: API_TYPES.OPENAI_COMPATIBLE,
+      [AXON_HUB_CHANNEL_TYPE.GITHUB_COPILOT]: API_TYPES.OPENAI_COMPATIBLE,
+      [AXON_HUB_CHANNEL_TYPE.NANOGPT]: API_TYPES.OPENAI_COMPATIBLE,
+      [AXON_HUB_CHANNEL_TYPE.ANTHROPIC]: API_TYPES.ANTHROPIC,
+      [AXON_HUB_CHANNEL_TYPE.ANTHROPIC_AWS]: API_TYPES.ANTHROPIC,
+      [AXON_HUB_CHANNEL_TYPE.ANTHROPIC_GCP]: API_TYPES.ANTHROPIC,
+      [AXON_HUB_CHANNEL_TYPE.DEEPSEEK_ANTHROPIC]: API_TYPES.ANTHROPIC,
+      [AXON_HUB_CHANNEL_TYPE.GEMINI]: API_TYPES.GOOGLE,
+      [AXON_HUB_CHANNEL_TYPE.GEMINI_VERTEX]: API_TYPES.GOOGLE,
+    }),
+  },
   config: axonHubManagedSiteConfig,
   channelDrafts: axonHubManagedSiteChannelDrafts,
 } satisfies ManagedSiteCapabilities<AxonHubConfig, typeof SITE_TYPES.AXON_HUB>

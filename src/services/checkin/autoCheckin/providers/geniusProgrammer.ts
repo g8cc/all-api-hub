@@ -2,11 +2,13 @@ import {
   CHECK_IN_METHOD_AVAILABILITIES,
   CHECK_IN_METHOD_TODAY_STATUSES,
 } from "~/constants/checkIn"
+import { isForeignCheckInContract } from "~/services/apiService/sub2api/checkin/foreignCheckInContract"
 import {
   fetchGeniusProgrammerDailyCheckInStatus,
   GENIUS_PROGRAMMER_DAILY_CHECK_IN_RESULT_KINDS,
   performGeniusProgrammerDailyCheckIn,
-} from "~/services/apiService/sub2api/geniusProgrammerCheckIn"
+} from "~/services/apiService/sub2api/checkin/geniusProgrammerCheckIn"
+import { getCheckInMethodUnknownReason } from "~/services/checkin/autoCheckin/errors"
 import { detectWithStatusReadback } from "~/services/checkin/autoCheckin/providers/detection"
 import { AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS } from "~/services/checkin/autoCheckin/providers/shared"
 import type { SiteAccount } from "~/types"
@@ -25,6 +27,7 @@ import {
   failedSub2ApiCheckIn,
   getSub2ApiCheckInReadiness,
   mapSub2ApiCheckInMutationError,
+  readUsdReward,
   toSub2ApiCheckInStatus,
 } from "./sub2apiShared"
 
@@ -41,7 +44,12 @@ export const geniusProgrammerProvider: AutoCheckinProvider = {
   getReadiness: getSub2ApiCheckInReadiness,
 
   detect(context) {
-    return detectWithStatusReadback(context, readStatus)
+    return detectWithStatusReadback(
+      context,
+      readStatus,
+      getCheckInMethodUnknownReason,
+      isForeignCheckInContract,
+    )
   },
 
   getStatus: readStatus,
@@ -58,6 +66,7 @@ export const geniusProgrammerProvider: AutoCheckinProvider = {
     try {
       const result = await performGeniusProgrammerDailyCheckIn(
         createSub2ApiCheckInMutationRequest(account as SiteAccount, context),
+        { beforeRecoveredMutation: context.beforeRecoveredMutation },
       )
       switch (result.kind) {
         case GENIUS_PROGRAMMER_DAILY_CHECK_IN_RESULT_KINDS.Applied:
@@ -65,6 +74,7 @@ export const geniusProgrammerProvider: AutoCheckinProvider = {
             status: CHECKIN_RESULT_STATUS.SUCCESS,
             messageKey:
               AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinSuccessful,
+            reward: readUsdReward(result.data.rewardAmount),
             data: result.data,
           }
         case GENIUS_PROGRAMMER_DAILY_CHECK_IN_RESULT_KINDS.AlreadyChecked:

@@ -1,6 +1,11 @@
+import type {
+  AccountLoginMethodId,
+  AccountPasswordIdentity,
+} from "~/constants/accountLogin"
 import type { AccountSiteProductProfileOverride } from "~/services/accounts/accountSiteProfile/contracts"
 
 import type { SiteType } from "./identifiers"
+import type { NewApiAccountLoginProtocolConfig } from "./loginProtocols/newApi"
 
 type AccountSitePagePath = `/${string}`
 
@@ -29,6 +34,7 @@ export const ACCOUNT_SITE_MANUAL_ADD_GUIDE_ANCHORS = {
   NewApi: "manual-new-api",
   Sub2Api: "manual-sub2api",
   OpenRouter: "manual-openrouter",
+  VercelAiGateway: "manual-vercel-ai-gateway",
 } as const
 
 export type AccountSiteManualAddGuideAnchor =
@@ -40,7 +46,25 @@ export const ACCOUNT_SITE_ADAPTER_FAMILIES = {
   VoApiV2: "voapiV2",
   Aihubmix: "aihubmix",
   SharedChat: "sharedchat",
+  FreeModel: "freemodel",
+  Dahl: "dahl",
+  FoxCode: "foxcode",
+  Xiaoen: "xiaoen",
+  Emrank: "emrank",
+  Krill: "krill",
+  Daya: "daya",
+  Pmapi: "pmapi",
+  Cubence: "cubence",
+  RightCode: "rightcode",
+  RelayFor: "relayfor",
+  Requesty: "requesty",
   OpenRouter: "openrouter",
+  KimiOpenPlatform: "kimiOpenPlatform",
+  Grsai: "grsai",
+  VercelAiGateway: "vercelAiGateway",
+  Novita: "novita",
+  AiMlApi: "aimlapi",
+  NanoGPT: "nanogpt",
   Unsupported: "unsupported",
 } as const
 
@@ -71,6 +95,9 @@ export type ManagedSiteLabelKey =
   | "settings:managedSite.axonHub"
   | "settings:managedSite.claudeCodeHub"
   | "settings:managedSite.sub2api"
+  | "settings:managedSite.omniroute"
+  | "settings:managedSite.gptLoad"
+  | "settings:managedSite.magpie"
 
 export type ManagedSiteMessagesKey =
   | "cliProxyApi"
@@ -81,8 +108,13 @@ export type ManagedSiteMessagesKey =
   | "axonhub"
   | "claudecodehub"
   | "sub2api"
+  | "omniroute"
+  | "gptLoad"
+  | "magpie"
 
 export interface ManagedResourceProductPolicy {
+  /** Whether native ids can identify released numeric channel-config records. */
+  legacyNumericChannelConfig: boolean
   /** Official upstream installation or quick-start guide. */
   getStartedUrl: `https://${string}`
   labelKey: ManagedSiteLabelKey
@@ -101,20 +133,87 @@ export interface ManagedResourceProductPolicy {
   }
 }
 
+/** Presentation choices for completing site-owned account credential verification. */
+export interface AccountSiteAccessTokenVerificationGuide {
+  copy:
+    | "security"
+    | "apiyi"
+    | "laozhang"
+    | "vercel"
+    | "novita"
+    | "aimlapi"
+    | "nanogpt"
+  showRotationWarning: boolean
+}
+
 export interface AccountSiteDefinitionOnboardingMetadata {
   displayName?: string
-  accountForm?: { fixedSiteUrl?: string; defaultSiteName?: string }
+  accountForm?: {
+    fixedSiteUrl?: string
+    defaultSiteName?: string
+    /** Detection supplies a provider rate default rather than remote settings. */
+    preserveUserExchangeRateOnDetection?: boolean
+    /** Provider-specific credential bundles must not become another site's token. */
+    clearAccessTokenOnSiteChange?: boolean
+    accessTokenLabelKey?:
+      | "form.openrouterManagementKey"
+      | "form.aimlApiManagementKey"
+      | "form.requestyManageKey"
+      | "form.vercelAccessToken"
+      | "form.novitaApiKey"
+      | "form.nanoGptApiKey"
+    accessTokenGuidanceTitleKey?:
+      | "form.openrouterManagementKeyGuidanceTitle"
+      | "form.aimlApiManagementKeyGuidanceTitle"
+      | "form.requestyManageKeyGuidanceTitle"
+      | "form.vercelAccessTokenGuidanceTitle"
+      | "form.novitaApiKeyGuidanceTitle"
+      | "form.nanoGptApiKeyGuidanceTitle"
+    accessTokenGuidanceKey?:
+      | "form.openrouterManagementKeyGuidance"
+      | "form.aimlApiManagementKeyGuidance"
+      | "form.requestyManageKeyGuidance"
+      | "form.vercelAccessTokenGuidance"
+      | "form.novitaApiKeyGuidance"
+      | "form.nanoGptApiKeyGuidance"
+    /**
+     * Opt-in automatic credential creation from the site's own console
+     * session. The action must degrade to the manual guidance path.
+     */
+    autoCreateAccessToken?: boolean
+  }
   detection?: AccountSiteDetectionMetadata
   routes: AccountSiteRouteConfig
   manualAddGuideAnchor?: AccountSiteManualAddGuideAnchor
+  accessTokenVerificationGuide?: AccountSiteAccessTokenVerificationGuide
+  /** Primary dashboard user store; absent keeps the compatible `user` store. */
+  browserUserStorage?: "apiyi" | "v-api"
+}
+
+/** Static login adoption; methods and their execution semantics belong to the registered adapter. */
+export interface AccountSiteLoginConfig {
+  /** Accepted identifier for the native password protocol, independent of its JSON field name. */
+  passwordIdentity?: AccountPasswordIdentity
+  methods: readonly AccountLoginMethodId[]
+  /** Explicit product adoption of recovery for failed account operations. */
+  supportsCredentialRecovery?: boolean
+  /** Only protocols needing per-site overrides declare options here. */
+  protocols?: {
+    newApi?: NewApiAccountLoginProtocolConfig
+  }
 }
 
 export interface AccountSiteDefinition {
   siteType: SiteType
+  /** Provider-owned wording for native monetary balance details. */
+  balanceDetailsCopy?: "novita"
+  /** Released account-token locators map to this native scope, independently of the current adapter family. */
+  legacyAccountTokenScope?: "account"
   scopes: readonly AccountSiteDefinitionScope[]
   adapterFamily: AccountSiteBackendFamily
   /** Token identity/auth formatting; absent means opaque keys with no prefix rewriting. */
   tokenKey?: { optionalSkPrefix: boolean }
+  accountLogin?: AccountSiteLoginConfig
   managedResource?: ManagedResourceProductPolicy
   onboarding?: AccountSiteDefinitionOnboardingMetadata
   productProfile?: AccountSiteProductProfileOverride

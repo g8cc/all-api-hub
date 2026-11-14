@@ -135,7 +135,7 @@
   "autoProvisionKeyOnAccountAdd": {
     "description": "アカウント追加後に、既定の API キーまたは利用可能なすべてのグループのキーを自動で作成します。",
     "manualHint": "保存済みアカウントは「キー管理 → {{actionLabel}}」で、利用可能なすべてのグループの不足しているキーを補えます。",
-    "modeDescription": "既定モードはキーがないアカウントにのみ 1 つ作成します。すべてのグループモードは、有効なキーがない各グループに 1 つ作成します。手動操作が必要なグループは通知されます。",
+    "modeDescription": "既定モードは有効なキーがない場合に1つ準備します。すべてのグループでは不足する各グループを補い、グループ要件のないサイトでは既定キーを1つ準備します。どちらも必要な入力や一度だけ表示されるキーの処理のためにダイアログを開く場合があります。",
     "modeLabel": "自動作成の範囲",
     "modes": {
       "allGroups": "利用可能なすべてのグループ",
@@ -170,16 +170,13 @@
       "description": "現在の設定でサイトに接続し、管理できるかを確認します。",
       "failed": "AxonHub 検証に失敗しました: {{error}}",
       "missingFields": "必須項目をすべて入力してください",
-      "success": "接続に成功しました",
-      "title": "接続を確認",
-      "validate": "接続を確認",
-      "validating": "確認中…"
+      "title": "接続を確認"
     }
   },
   "changelogOnUpdate": {
-    "description": "更新後に拡張機能 UI を初めて開いた際、「What's New」ダイアログを表示するかどうかを制御します。",
+    "description": "更新後に設定ページを初めて開いた際、「What's New」ダイアログを表示するかどうかを制御します。",
     "title": "更新ログ",
-    "toggleDesc": "有効にすると、更新後最初の UI 起動時に更新ログをインライン表示します（各バージョン 1 回のみ）。完全版の更新ログは手動でも開けます。",
+    "toggleDesc": "有効にすると、更新後に設定ページを初めて開いた際に更新ログをインライン表示します（各バージョン 1 回のみ）。完全版の更新ログは手動でも開けます。",
     "toggleLabel": "更新後に What's New を表示"
   },
   "claudeCodeHub": {
@@ -203,10 +200,7 @@
       "description": "現在の設定でサイトに接続し、管理できるかを確認します。",
       "failed": "Claude Code Hub 検証に失敗しました: {{error}}",
       "missingFields": "必須項目をすべて入力してください",
-      "success": "接続に成功しました",
-      "title": "接続を確認",
-      "validate": "接続を確認",
-      "validating": "確認中…"
+      "title": "接続を確認"
     }
   },
   "claudeCodeRouter": {
@@ -221,7 +215,6 @@
   },
   "cliProxyApi": {
     "baseUrlLabel": "Management API Base URL",
-    "checkConnectionAction": "接続を確認",
     "checkConnectionDesc": "現在の設定でサイトに接続し、管理できるかを確認します。",
     "checkConnectionLabel": "接続を確認",
     "description": "CLIProxyAPI Management API への接続を設定します",
@@ -289,10 +282,60 @@
     "toggleDesc": "同じサイトの同じユーザー ID が保存済みの場合に確認します。OpenRouter では同一の Management Key を確認します。",
     "toggleLabel": "重複追加前に警告する"
   },
+  "gptLoad": {
+    "description": "自己ホストの gpt-load インスタンスを管理します。軽量な Go 製 AI ゲートウェイで、リクエストをプロバイダのチャンネル間で負荷分散します。",
+    "fields": {
+      "baseUrlDesc": "gpt-load ダッシュボードのベース URL（例：https://gateway.example.com）。",
+      "baseUrlLabel": "ゲートウェイアドレス",
+      "baseUrlPlaceholder": "https://gateway.example.com",
+      "hideManagementKey": "管理キーを非表示",
+      "managementKeyDesc": "ゲートウェイのルート AUTH_KEY。管理 API へのベアラートークンとして使われ、ワークスペースのチャンネルキーと同等の権限を持ちます。",
+      "managementKeyLabel": "管理キー",
+      "managementKeyPlaceholder": "ゲートウェイ設定の AUTH_KEY",
+      "showManagementKey": "管理キーを表示"
+    },
+    "title": "gpt-load",
+    "validation": {
+      "description": "上記のキーで 1 回リクエストを送り、ゲートウェイに到達でき、キーが受け入れられることを確認します。",
+      "failed": "ゲートウェイに接続できませんでした: {{error}}",
+      "insufficientPrivilege": "管理キーの権限が不足しています: {{error}}",
+      "invalidCredential": "管理キーが拒否されました: {{error}}",
+      "missingFields": "先にゲートウェイアドレスと管理キーを入力してください",
+      "title": "接続を確認"
+    }
+  },
   "logging": {
-    "consoleEnabled": "コンソールログを有効化",
-    "consoleEnabledDesc": "無効にすると、All API Hub はエラーを含むすべてのレベルでコンソール出力を行いません。",
-    "description": "トラブルシューティングと診断のためのコンソールログを制御します。",
+    "consoleEnabled": "ログを有効にする",
+    "consoleEnabledDesc": "無効にすると、コンソール出力と新しいローカルログの記録が停止します。",
+    "description": "ログ出力と端末内の診断履歴を設定します。",
+    "history": {
+      "allContexts": "全発生元",
+      "allLevels": "全レベル",
+      "allTime": "保持されている全ログ",
+      "clearDescription": "この端末に保持されている全ログを削除します。",
+      "clearError": "ログの削除に失敗しました",
+      "clearTitle": "端末のログを削除",
+      "context": "発生元",
+      "copied": "ログをコピーしました",
+      "copy": "絞り込み結果をコピー",
+      "copyError": "ログのコピーに失敗しました",
+      "description": "過去 {{hours}} 時間のローカルログを最大 {{limit}} 件表示します。期限切れのログの整理は、ログの記録時または表示時に行われます。ログを有効にするとイベントが記録されます。詳細を記録するには、最低ログレベルをデバッグに設定してください。",
+      "details": "詳細",
+      "empty": "該当するログがありません。ログを有効にして問題を再現し、ここに戻ってください。",
+      "entryDescription": "拡張機能の各ページのログをリアルタイムで確認し、最近の履歴も表示します。",
+      "lastHour": "直近 1 時間",
+      "lastMinutes": "直近 5 分間",
+      "level": "ログレベル",
+      "loadError": "ログを読み込めませんでした。表示済みのログは保持されます。再試行してください。",
+      "more": "以前のログを読み込む",
+      "open": "ログを表示",
+      "pause": "更新を一時停止",
+      "period": "期間",
+      "resume": "リアルタイム更新を再開",
+      "search": "メッセージ、モジュール、リクエスト ID を検索",
+      "showing": "表示 {{visible}} / {{total}} 件",
+      "title": "最近のログ"
+    },
     "levels": {
       "debug": "デバッグ",
       "error": "エラー",
@@ -300,8 +343,29 @@
       "warn": "警告"
     },
     "minLevel": "最小ログレベル",
-    "minLevelDesc": "コンソールログ有効時、このレベル未満のログは抑制されます。",
+    "minLevelDesc": "選択したレベル未満のログは出力も保存もされません。",
     "title": "ログ"
+  },
+  "magpie": {
+    "description": "セルフホストした Magpie Web サーバーのプロバイダーを管理します。",
+    "fields": {
+      "baseUrlDesc": "magpie web（既定ポート 3430）を起動し、Web URL を入力してください。ポート 3425 の推論 URL とは異なります。",
+      "baseUrlLabel": "Web 管理 URL",
+      "baseUrlPlaceholder": "http://localhost:3430",
+      "hideWebKey": "管理キーを非表示",
+      "showWebKey": "管理キーを表示",
+      "webKeyDesc": "MAGPIE_WEB_KEY または起動リンクの k 値を使います。固定の MAGPIE_WEB_KEY は再起動後も使えます。それ以外は再起動後に更新してください。推論 API キーは管理には使えません。",
+      "webKeyLabel": "Web 管理キー",
+      "webKeyPlaceholder": "Web 管理キーを入力"
+    },
+    "title": "Magpie",
+    "validation": {
+      "description": "上記のキーで接続を確認し、プロバイダー一覧を取得できるか検証します。",
+      "failed": "Magpie に接続できません。Web URL とサーバーの起動状態を確認してください。",
+      "invalidCredential": "Web キーが拒否されました。MAGPIE_WEB_KEY または最新の起動キーを確認してください。",
+      "missingFields": "先にゲートウェイアドレスと管理キーを入力してください",
+      "title": "接続を確認"
+    }
   },
   "managedSite": {
     "axonHub": "AxonHub",
@@ -326,14 +390,31 @@
         "title": "セルフホスト AI ゲートウェイを設定"
       }
     },
+    "gptLoad": "gpt-load",
+    "magpie": "Magpie",
     "newApi": "New API",
     "octopus": "Octopus",
+    "omniroute": "OmniRoute",
     "popularityHint": "GitHub スター数のスナップショット順。",
     "siteTypeDesc": "チャネル管理とモデル同期に使用するプラットフォームを選択します",
     "siteTypeLabel": "ゲートウェイ種別",
     "sub2api": "Sub2API",
     "title": "セルフホスト AI ゲートウェイ設定",
     "veloera": "Veloera"
+  },
+  "managedSiteConnection": {
+    "check": "接続を確認",
+    "checkError": "設定を保存しましたが、接続確認に失敗しました。再試行してください。",
+    "checking": "確認中…",
+    "conflict": "別のページで設定が変更されました。入力は保持されています。最新の設定を確認して再試行するか、保存済み設定を再読み込みして入力を置き換えてください。",
+    "failed": "設定を保存しましたが、接続確認に失敗しました：{{reason}}",
+    "invalidField": "保存する前に{{field}}を確認してください",
+    "reload": "保存済み設定を再読み込み",
+    "saveError": "設定を保存できませんでした。入力は保持されています。再試行してください。",
+    "saveFailed": "設定を保存できませんでした：{{reason}}。入力は保持されています。再試行してください。",
+    "saving": "保存中…",
+    "success": "設定を保存しました。接続を確認しました。",
+    "unreachable": "サイトに接続できませんでした"
   },
   "messages": {
     "alreadyDefault": "すでに初期値です",
@@ -380,7 +461,6 @@
       "usernamePlaceholder": "admin"
     },
     "sessionTest": {
-      "action": "設定をテスト",
       "description": "入力したログインユーザー名、パスワード、TOTP シークレットが正しく利用可能かテストします。成功後はログインや 2FA を必要とする操作を続行できます。",
       "testing": "設定をテスト中...",
       "title": "ログインと 2FA 設定をテスト"
@@ -411,10 +491,36 @@
       "error": "検証中にエラーが発生しました",
       "failed": "設定検証に失敗しました。ユーザー名とパスワードを確認してください",
       "missingFields": "必須項目をすべて入力してください",
-      "success": "接続に成功しました",
-      "title": "接続を確認",
-      "validate": "接続を確認",
-      "validating": "確認中…"
+      "title": "接続を確認"
+    }
+  },
+  "omniroute": {
+    "accessTokens": {
+      "description": "ゲートウェイのダッシュボードでアクセストークンを管理し、この拡張機能が使うトークンはいつでも失効できます。",
+      "missingBaseUrl": "先にデプロイ先アドレスを入力すると、ゲートウェイのアクセストークン画面を開けます。",
+      "open": "アクセストークン画面を開く",
+      "title": "ゲートウェイのアクセストークン管理"
+    },
+    "description": "セルフホストの OmniRoute ゲートウェイへの接続情報を設定します。",
+    "fields": {
+      "baseUrlDesc": "ブラウザで OmniRoute のダッシュボードを開くときのアドレスを入力します。",
+      "baseUrlLabel": "デプロイ先アドレス",
+      "baseUrlPlaceholder": "http://localhost:20128",
+      "credentialDesc": "ゲートウェイの Settings → Access Tokens で admin スコープのアクセストークンを作成し、ここに貼り付けてください。",
+      "credentialLabel": "アクセストークン",
+      "credentialPlaceholder": "oma_…",
+      "hideCredential": "アクセストークンを非表示",
+      "showCredential": "アクセストークンを表示"
+    },
+    "title": "OmniRoute 統合設定",
+    "validation": {
+      "description": "現在の設定でサイトに接続して管理できるかを確認します。",
+      "failed": "OmniRoute の設定検証に失敗しました：{{error}}",
+      "insufficientScope": "トークンのスコープが不足しています：現在は {{have}}、必要は {{need}} です。ゲートウェイの Settings → Access Tokens で admin スコープのトークンを作り直してください。",
+      "invalidCredential": "アクセストークンが無効か、有効期限が切れています：{{error}}",
+      "missingFields": "デプロイ先アドレスとアクセストークンを入力してください",
+      "title": "接続を検証",
+      "unknownScope": "不明"
     }
   },
   "permissions": {
@@ -425,13 +531,35 @@
     },
     "description": "アカウントデータの更新、補助ツール、タスク通知、サイトのインポートに必要な任意権限を選んで許可できます。",
     "helper": "各権限は対応する機能でのみ使用され、いつでも取り消せます。許可していない機能は制限される場合がありますが、ほかの機能は引き続き利用できます。",
+    "incognito": {
+      "checking": "プライベートブラウジングの許可を確認中…",
+      "chromeInstructions": "Chrome の拡張機能の詳細で「シークレット モードでの実行を許可する」を有効にしてください。",
+      "denied": "プライベートブラウジングでの実行は許可されていません",
+      "details": "設定を開く",
+      "edgeInstructions": "Edge の拡張機能の詳細で「InPrivate での実行を許可する」を有効にしてください。",
+      "enabled": "プライベートブラウジングでの実行が許可されています",
+      "firefoxInstructions": "Firefox の「アドオンとテーマ」でこの拡張機能を選択し、プライベートウィンドウでの実行を許可してください。",
+      "firefoxMobileInstructions": "Firefox: ブラウザーのメニューから拡張機能管理を開き、この拡張機能のプライベートブラウジング設定を確認してください。メニューと対応状況はバージョンによって異なります。",
+      "genericInstructions": "ブラウザーの拡張機能管理でプライベートブラウジングの許可を確認してください。",
+      "manualSteps": "設定手順を見る",
+      "mobileInstructions": "ブラウザーのメニューから拡張機能管理を開き、この拡張機能のプライベートブラウジング設定を確認してください。メニューと対応状況はバージョンによって異なります。",
+      "openChromeSettings": "Chrome の設定へ",
+      "openEdgeSettings": "Edge の設定へ",
+      "recommended": "拡張機能のプライベートウィンドウでの実行を推奨します",
+      "reloadWarning": "この権限の変更により、拡張機能の再読み込み、拡張機能ページの終了、タスクの中断が起きる場合があります。編集中の内容を先に保存してください。",
+      "safariInstructions": "Safari の拡張機能設定でこの拡張機能を選び、プライベートブラウズでの実行を許可してください。選択肢は Safari のバージョンによって異なります。",
+      "settingsFailed": "設定を開けませんでした。ブラウザーの拡張機能管理画面からプライベートウィンドウでの実行を許可してください。",
+      "summary": "通常ウィンドウのログイン状態と分離し、アカウントの混同や既存のセッションへの影響を防ぎます。",
+      "title": "シークレット／プライベートウィンドウへのアクセス",
+      "unknown": "プライベートブラウジングの許可を確認できません"
+    },
     "items": {
       "bookmarks": {
         "description": "ブラウザのブックマークからサイトをインポートするときだけ、保存済み URL を読み取ります。",
         "title": "ブラウザのブックマーク"
       },
       "clipboardRead": {
-        "description": "関連する内容をコピーした後、引き換えアシスタントや AI API テストが引き換えコードや API 情報を認識するために使用します。",
+        "description": "関連する内容をコピーした後、引き換えアシスタントやウェブページの API テストが引き換えコードや API 情報を認識するために使用します。",
         "title": "クリップボード読み取り"
       },
       "cookies": {
@@ -484,7 +612,7 @@
       "cta": "GitHub でソースコードや最新の進捗を確認できます。問題の報告やアイデアの共有も歓迎します。",
       "getStartedCta": "はじめにを開く",
       "label": "ソースコード",
-      "starCta": "All API Hub が役に立ったら、GitHub で Star を付けてプロジェクトを応援"
+      "starCta": "GitHub の Star で継続的な改善を応援"
     },
     "reason": {
       "newPermissions": "新しい機能には追加の任意権限が必要です。各権限の用途を確認し、必要なものだけを許可してください。"
@@ -504,13 +632,14 @@
   },
   "refresh": {
     "autoRefresh": "自動更新",
-    "autoRefreshDesc": "アカウントデータを定期的に自動更新します",
+    "autoRefreshDesc": "アカウントデータを定期的に自動更新します（拡張機能画面を閉じた後もバックグラウンドで動作します）",
     "description": "更新間隔や起動時の挙動など、自動更新に関する設定を行います",
     "minRefreshInterval": "最小更新間隔",
     "minRefreshIntervalDesc": "リクエストの過剰発生を防ぐための最小更新間隔です（{{minSeconds}} 秒以上）",
     "minRefreshIntervalInvalid": "有効な最小更新間隔を入力してください（{{minSeconds}} 秒以上）。",
     "refreshInterval": "更新間隔",
     "refreshIntervalDesc": "自動更新の間隔を設定します（既定値 {{defaultInterval}} 秒。過剰なリクエストを避けるため短くしすぎないことを推奨します）",
+    "refreshIntervalHint": "アカウントが多い場合、頻繁な更新によりサイトのレート制限に達する可能性があります。{{minutes}} 分以上の間隔をおすすめします。",
     "refreshIntervalInvalid": "有効な更新間隔を入力してください（{{minSeconds}} 秒以上）。",
     "refreshOnOpen": "拡張機能を開いたときに自動更新",
     "refreshOnOpenDesc": "拡張機能のポップアップを開いたときにアカウントデータを自動更新します",
@@ -553,10 +682,15 @@
     "shieldDevTriggerPresetLabel": "再現する動作",
     "shieldDevTriggerPresetLdohSiteLookupRecovery": "サイト検索の復旧",
     "shieldDevTriggerPresetRedemptionAssistRecovery": "引き換え後の復旧",
+    "shieldDevTriggerPresetTurnstileAutomatic": "Turnstile：自動成功",
+    "shieldDevTriggerPresetTurnstileFailure": "Turnstile：認証失敗",
+    "shieldDevTriggerPresetTurnstileInteractive": "Turnstile：手動認証",
+    "shieldDevTriggerPresetTurnstileQueue": "Turnstile：3サイトの待機列",
     "shieldDevTriggerRunning": "実行中...",
     "shieldDevTriggerStart": "遅延後に実行",
     "shieldDevTriggerSuccess": "リクエストが完了しました（HTTP {{status}}）",
     "shieldDevTriggerTitle": "開発テスト",
+    "shieldDevTriggerTurnstileHint": "最初に pnpm dev:turnstile を実行してください。ローカルの公式テストコンポーネントを使い、実際のアカウントにはチェックインしません。画面内の通知を有効にし、各通知をクリックして認証を開きます。",
     "shieldDevTriggerUrlLabel": "対象 URL",
     "shieldEnabled": "自動タスクによる一時ページの表示を許可",
     "shieldEnabledDescTempWindowOnly": "有効にすると、自動更新やチェックインなどのタスクは、サイト認証が必要なときに一時ページを開けます。無効にしても、手動で開始した操作は以下の設定に従ってこの機能を利用できます。",
@@ -577,53 +711,76 @@
     "shieldPermissionWarningTitle": "Cookies、Web Request、Web Request Blocking の権限が必要です",
     "shieldPopupFirefoxNote": "Firefox では、拡張機能のポップアップからこの機能を開始するとポップアップが閉じるため、この入口は利用できません。サイドパネルまたは設定ページを使用してください。",
     "shieldTitle": "サイト認証の補助",
+    "shieldTurnstileAssistDesc": "Turnstile を自分で完了する必要があるときの知らせ方です。確認ウィンドウは完了するか時間切れになるまで開いたままです。",
+    "shieldTurnstileAssistNotify": "ブラウザー通知",
+    "shieldTurnstileAssistNotifyHint": "ローカルのブラウザー通知を送信します。クリックすると認証画面が開きます。通知の権限が必要です。",
+    "shieldTurnstileAssistPage": "画面内の通知",
+    "shieldTurnstileAssistPageHint": "現在のウェブページや拡張機能の画面に通知を表示します。クリックすると認証画面が開きます。",
+    "shieldTurnstileAssistQuietNotice": "すべてのリマインダーが無効です。検証はバックグラウンドウィンドウで続行されますが、通知は表示されません。",
+    "shieldTurnstileAssistTitle": "手動確認が必要なとき",
+    "shieldTurnstileSolverApiKey": "API キー",
+    "shieldTurnstileSolverCostNotice": "有料の第三者サービスです。1 回の依頼ごとにアカウントの額度を消費するため、必要なときだけ有効にしてください。",
+    "shieldTurnstileSolverDesc": "第三者サービスに Turnstile のトークンを取得させます。サービスが返すのはトークンのみで、画像認証・スライダー認証・第二段階の検証は対象外のため、それらのサイトは従来どおり手動完了が必要です。",
+    "shieldTurnstileSolverEnabled": "第三者解除サービスを利用する",
+    "shieldTurnstileSolverEndpoint": "サービス URL",
+    "shieldTurnstileSolverKeyMissing": "API キーが空のままならサービスは使われず、サインインは内蔵のフローのままです。",
+    "shieldTurnstileSolverModeApiFirst": "サービスを先に",
+    "shieldTurnstileSolverModeApiFirstHint": "ページを表示する前にサービスへ依頼します。Turnstile のみのサイトは操作不要で、検証ウィンドウが前面に表示されることもありません。",
+    "shieldTurnstileSolverModePageFirst": "ページを先に",
+    "shieldTurnstileSolverModePageFirstHint": "ページ側で静かに試行し、トークンを取得できなかった場合のみサービスへ依頼するので、額度を節約できます。",
+    "shieldTurnstileSolverModeTitle": "依頼する順序",
+    "shieldTurnstileSolverTimeout": "1 回あたりのタイムアウト（秒、5-120）",
+    "shieldTurnstileSolverTitle": "Turnstile 自動通過",
     "shieldWindowHeight": "高さ（px）",
     "shieldWindowSizeDesc": "幅と高さをピクセル単位で設定して保存します。次に開く認証ウィンドウに適用されます。既存のウィンドウとタブのサイズは変わりません。",
     "shieldWindowSizeReset": "既定値に戻す",
     "shieldWindowSizeTitle": "認証ウィンドウのサイズ",
     "shieldWindowWidth": "幅（px）",
-    "title": "更新設定"
+    "title": "更新設定",
+    "turnstileNotificationEnable": "システム通知を許可",
+    "turnstileNotificationManage": "通知権限を管理",
+    "turnstileNotificationPermissionTitle": "All API Hub のブラウザー通知を許可",
+    "turnstileNotificationStatus": {
+      "available": "システム通知：許可済みです。OS の集中モードやブラウザー設定により非表示になる場合があります。",
+      "blocked": "ブラウザーが通知をブロックしています。ブラウザーの通知設定を確認してから、ここに戻って再試行してください。",
+      "loading": "システム通知の権限を確認中…",
+      "permission_required": "システム通知：権限が必要です。ページ内の通知には不要です。",
+      "unavailable": "このブラウザーは通知に対応していません。画面内の通知は個別に有効にできます。",
+      "unknown": "通知が利用可能か確認できませんでした。権限を確認して再試行してください。"
+    }
   },
   "releaseUpdate": {
-    "checkNow": "今すぐ確認",
+    "changelog": "変更履歴",
+    "checkNow": "更新を確認",
     "downloadUpdate": "更新をダウンロード",
     "helpers": {
-      "checkFailed": "後でもう一度試すか、リリースページで最新バージョンを手動確認してください。",
+      "amoUpdate": "Firefox Add-ons に新しいバージョンがあります。ストアで更新するか、Firefox の自動更新をお待ちください。",
+      "checkFailed": "もう一度更新を確認してください。",
       "manualUpdate": "現在のインストールは手動更新です。リリースページから新しいバージョンを取得してください。",
       "manualUpdateGeneric": "現在のインストール経路で更新してください。必要ならリリースページから手動更新してください。",
-      "notChecked": "「今すぐ確認」を実行すると、現在のバージョンに更新が必要か確認できます。",
-      "openLatest": "リリースページで最新安定版と更新内容を確認できます。",
-      "storeUpdate": "このストア版はブラウザ経由で更新されます。GitHub が新しくてもストアで未提供の場合は、通常レビューまたは配信が進行中です。",
+      "selfUpdate": "このインストールは自動更新されます。ブラウザーがリリースページから新しいバージョンを取得するため、手動ダウンロードは不要です。",
+      "storeUpdate": "ストア版はブラウザーが自動更新します。ストアでの配信をお待ちください。",
       "storeUpdateReady": "ブラウザがストア更新を検出しました。拡張機能を再読み込みすると新しいバージョンを使用できます。",
-      "unavailable": "後でもう一度試すか、リリースページで最新安定版を直接確認してください。",
-      "upToDate": "必要ならリリースページでこのバージョンの変更内容を確認できます。"
+      "unavailable": "もう一度更新を確認してください。"
     },
-    "lastChecked": "最終確認: {{time}}",
-    "latestVersionPending": "最新安定版: 未確認",
-    "latestVersionUnavailable": "最新安定版: 取得不可",
-    "openLatest": "最新リリースを開く",
-    "reasons": {
-      "api-unavailable": "現在のブラウザ環境では自動検出を利用できません。必要なら最新安定版を手動で確認してください",
-      "chromium-development": "現在のインストール経路では最新安定版を確認できます。手動チェックでバージョン差分を確認してください",
-      "firefox-ambiguous": "Firefox では現在インストール経路を確実に判定できません。必要に応じて最新安定版を手動で確認してください",
-      "safari-unsupported": "Safari はまだ自動検出に対応していません。リリースページで最新安定版を確認してください",
-      "store-build": "現在はブラウザストア版です。ストア更新を確認し、GitHub の最新安定版と比較できます",
-      "unknown": "現在のインストール経路は自動検出に対応していません。必要に応じて最新安定版を手動で確認してください"
-    },
+    "latestAmoVersion": "Firefox Add-ons：v{{version}}",
+    "latestNightlyVersion": "最新 Nightly：{{version}}",
     "reloadToUpdate": "再読み込みして更新",
     "states": {
-      "checkFailed": "確認に失敗したため、最新安定版の情報を取得できませんでした",
+      "checkFailed": "更新を確認できませんでした",
       "notChecked": "最新安定版はまだ確認していません。手動チェックで比較できます",
-      "storeUpdatePending": "GitHub には新しいリリースがありますが、ストア更新はまだ利用できません",
-      "storeUpdateReady": "ストア更新を適用できます。再読み込みしてください",
-      "unavailable": "更新状態を取得できませんでした",
-      "updateAvailable": "アップグレード可能な新しいバージョンがあります",
-      "upToDate": "確認完了。現在のバージョンはすでに最新安定版です"
+      "selfUpdatePending": "新しいバージョンがあります。ブラウザーが自動的にインストールします",
+      "storeUpdatePending": "ストアでの更新を待っています",
+      "storeUpdateReady": "更新の準備ができました",
+      "unavailable": "更新状況を取得できません",
+      "updateAvailable": "更新があります",
+      "upToDate": "最新バージョンです"
     },
     "versionBadge": {
       "changelogAriaLabel": "バージョン {{version}} の更新履歴",
       "updateAvailableAriaLabel": "バージョン {{version}} に更新があります"
-    }
+    },
+    "viewReleaseNotes": "リリースノートを見る"
   },
   "siteAnnouncementNotifications": {
     "description": "有効なアカウントのサイト公告をバックグラウンドで定期取得するかどうかを制御します。",
@@ -686,10 +843,7 @@
       "description": "現在の設定でサイトに接続し、管理できるかを確認します。",
       "failed": "Sub2API の接続確認に失敗しました：{{error}}",
       "missingFields": "先にサイト URL と管理者 API キーを入力してください",
-      "success": "接続に成功しました",
-      "title": "接続を確認",
-      "validate": "接続を確認",
-      "validating": "確認中…"
+      "title": "接続を確認"
     }
   },
   "tabs": {
@@ -706,7 +860,7 @@
     "refresh": "データ更新",
     "select": "タブを選択",
     "siteAnnouncements": "サイト公告",
-    "webAiApiCheck": "AI API テスト"
+    "webAiApiCheck": "ウェブページの API テスト"
   },
   "taskNotifications": {
     "channels": {

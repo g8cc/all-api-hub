@@ -65,7 +65,7 @@ In the AI era, many of us keep multiple relay-site accounts to save money or try
 ### 🛠️ I am an advanced user (Key collector)
 
 - **Key management**: [Save standalone URL+Key pairs to the API Credential Library](./api-credential-profiles.md)
-- **Availability testing**: [Batch verify API and CLI compatibility](./web-ai-api-check.md)
+- **Availability testing**: [Web API Testing and client compatibility checks](./web-ai-api-check.md)
 - **Cross-device sync**: [Configure encrypted WebDAV backup](./webdav-sync.md)
 
 ### 👑 I am a site admin (operator area)
@@ -136,14 +136,14 @@ Thank you to all our sponsors for supporting the project's long-term feature dev
 
 <div class="readme-sponsor">
   <div class="readme-sponsor-logo">
-    <a href="https://www.packyapi.com/register?aff=all-api-hub">
+    <a href="https://www.packyapi.ai/register?aff=all-api-hub">
       <img src="../../../resources/partners/packycode.png" alt="PackyCode">
     </a>
   </div>
   <p class="readme-sponsor-copy">
     PackyCode is a reliable and efficient API relay service provider, offering relay services for Claude Code, Codex,
     Gemini, and more. PackyCode provides special discounts for our software users: register using
-    <a href="https://www.packyapi.com/register?aff=all-api-hub">this link</a> and enter the "all-api-hub" promo code during first recharge to get 10% off (<a href="./sponsor-guides/packycode.md">setup guide</a>).
+    <a href="https://www.packyapi.ai/register?aff=all-api-hub">this link</a> and enter the "all-api-hub" promo code during first recharge to get 10% off (<a href="./sponsor-guides/packycode.md">setup guide</a>).
   </p>
 </div>
 
@@ -164,32 +164,6 @@ Thank you to all our sponsors for supporting the project's long-term feature dev
 
 <div class="readme-sponsor">
   <div class="readme-sponsor-logo">
-    <a href="https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB">
-      <img src="../../../resources/partners/xuanshu-api.png" alt="XuanShu API">
-    </a>
-  </div>
-  <p class="readme-sponsor-copy">
-    XuanShu API is a next-generation AI model routing gateway for enterprises, technical teams, and individual developers. It provides one-stop API access to leading global models including Claude, GPT, and Grok with enterprise-grade reliability. Model pricing ranges from 10% to 60% of standard rates. Register through <a href="https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB">this link</a> to receive extra top-up bonuses, with more for your first top-up. Business customers can pay by corporate bank transfer and request invoices (<a href="./service-guides/xuanshuapi.md">setup guide</a>).
-  </p>
-</div>
-
-<hr class="readme-sponsor-divider">
-
-<div class="readme-sponsor">
-  <div class="readme-sponsor-logo">
-    <a href="https://www.aicodemirror.ai/register?invitecode=7IQNR8">
-      <img src="../../../resources/partners/aicodemirror.png" alt="AICodeMirror">
-    </a>
-  </div>
-  <p class="readme-sponsor-copy">
-    AICodeMirror provides official high-stability relay services for Claude Code / Codex / Gemini CLI, with enterprise-grade concurrency, fast invoicing, and 24/7 dedicated technical support. Claude Code / Codex / Gemini official channels are available from 38% / 2% / 9% of the original price, with extra discounts on top-ups. AICodeMirror offers special benefits for All API Hub users: register via <a href="https://www.aicodemirror.ai/register?invitecode=7IQNR8">this link</a> to enjoy 20% off your first top-up, and enterprise customers can get up to 25% off.
-  </p>
-</div>
-
-<hr class="readme-sponsor-divider">
-
-<div class="readme-sponsor">
-  <div class="readme-sponsor-logo">
     <a href="https://sui-xiang.com/">
       <img src="../../../resources/partners/suixiang.jpg" alt="Suixiang AI Relay">
     </a>
@@ -201,17 +175,27 @@ Thank you to all our sponsors for supporting the project's long-term feature dev
 
 <hr class="readme-sponsor-divider">
 
+<div class="readme-sponsor">
+  <div class="readme-sponsor-logo">
+    <a href="https://88api.ai/register?aff=XcTj">
+      <img src="../../../resources/partners/88api.jpg" alt="88API Token Aggregation Platform">
+    </a>
+  </div>
+  <p class="readme-sponsor-copy">
+    <strong>88API Token Aggregation Platform</strong> A one-stop multi-model API platform operated by a Hong Kong company for developers, creators, and AI application users. Its unified API connects text, image, speech, and video models for AI coding, translation, content creation, voiceovers, image generation, and video generation. Add and switch providers directly in CC Switch, with major international payment methods, invoicing, and stable enterprise services. <a href="https://88api.ai/register?aff=XcTj">Register through the dedicated link to receive bonus credits!</a>
+  </p>
+</div>
 
 <hr class="readme-sponsor-divider">
 
 <div class="readme-sponsor">
   <div class="readme-sponsor-logo">
-    <a href="https://go.apimart.ai/gh-all-api-hub">
-      <img src="../../../resources/partners/apimart.png" alt="APIMart">
+    <a href="https://dzhsmartai.com/">
+      <img class="readme-sponsor-logo-small" src="../../../resources/partners/ccccccapi.jpg" alt="ccccccapi">
     </a>
   </div>
   <p class="readme-sponsor-copy">
-    <strong>APIMart</strong> is a low-cost API platform for AI image & video generation — GPT-Image-2 from <strong>$0.006/image</strong>, 160+ images per dollar. One async API covers both image and video: submit a task, get an ID, then fetch results via polling or callback. Batch tens of thousands of images without timeouts, switch models without changing code. Pay-as-you-go with no monthly fee. Sign up through <a href="https://go.apimart.ai/gh-all-api-hub">this link</a> to get started.
+    <strong>ccccccapi</strong> Supports ChatGPT, Claude, Gemini, Deepseek, and more at the lowest prices online. Use AI without burning a hole in your wallet—<a href="https://dzhsmartai.com/">come grab a bargain!</a>
   </p>
 </div>
 

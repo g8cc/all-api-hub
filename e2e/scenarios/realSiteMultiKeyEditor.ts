@@ -1,13 +1,14 @@
 import type { Page } from "@playwright/test"
 
-import { CHANNEL_DIALOG_TEST_IDS } from "~/components/dialogs/ChannelDialog/testIds"
 import { OPTIONS_PAGE_PATH } from "~/constants/extensionPages"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { SITE_TYPES } from "~/constants/siteType"
+import { CHANNEL_DIALOG_TEST_IDS } from "~/features/ManagedSiteChannels/editor/ChannelDialog/testIds"
 import { expect } from "~~/e2e/fixtures/extensionTest"
 import { runManagedMultiKeyEditorScenario } from "~~/e2e/scenarios/managedMultiKeyEditor"
 import { cleanupManagedSiteChannelsByPrefix } from "~~/e2e/scenarios/managedSiteChannels"
 import { runScenarioWithCleanup } from "~~/e2e/utils/scenarioErrors"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 /** Create only run-owned channels, exercise the editor, and verify cleanup even on failure. */
 export async function runRealSiteMultiKeyEditorScenario(params: {
@@ -60,7 +61,7 @@ export async function runRealSiteMultiKeyEditorScenario(params: {
           name: `API Key ${index + 1}`,
           exact: true,
         })
-        await row.locator("input[type=password]").fill(keys[index])
+        await row.locator("input[type=password]").fill(atIndex(keys, index))
         const keyName = row.getByRole("textbox", {
           name: "Channel Name",
           exact: true,

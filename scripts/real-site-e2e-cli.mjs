@@ -4,9 +4,14 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import {
+  buildRealSiteE2eRuns,
   filterRealSiteE2eMatrix,
   normalizeRealSiteE2eCategory,
 } from "./real-site-e2e-matrix.mjs"
+import { loadLocalEnv } from "./utils/local-env.mjs"
+import { resolvePnpmInvocation } from "./utils/run-pnpm.mjs"
+
+loadLocalEnv()
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const firstArg = process.argv[2]
@@ -25,25 +30,31 @@ if (category === "--help" || category === "-h") {
 
 const normalizedCategory = normalizeRealSiteE2eCategory(category)
 const entries = filterRealSiteE2eMatrix(normalizedCategory)
-let shouldReuseBuild = false
+const builtVariants = new Set()
 
-for (const entry of entries) {
+for (const entry of buildRealSiteE2eRuns(entries)) {
+  const buildVariant = entry.build_variant ?? "default"
   console.log(`\n=== Real-site E2E: ${entry.label} ===`)
   runPnpm(
     [
       "exec",
       "playwright",
       "test",
-      entry.spec,
+      ...entry.specs,
       "--project=chromium",
       "--reporter=list",
-      ...buildEntryPlaywrightArgs(entry, extraPlaywrightArgs),
+      ...extraPlaywrightArgs,
     ],
-    buildEntryEnv(entry, { skipBuild: shouldReuseBuild }),
+    buildEntryEnv(entry, { skipBuild: builtVariants.has(buildVariant) }),
   )
-  shouldReuseBuild = true
+  builtVariants.add(buildVariant)
 }
 
+/**
+ * Separate the optional category from Playwright flags, including `--` arguments.
+ * @param args Command-line arguments after the script name.
+ * @returns Selected category and arguments passed through to Playwright.
+ */
 function parseArgs(args) {
   const separatorIndex = args.indexOf("--")
   const ownArgs = separatorIndex === -1 ? args : args.slice(0, separatorIndex)
@@ -61,33 +72,27 @@ function parseArgs(args) {
   }
 }
 
-function buildEntryPlaywrightArgs(entry, extraPlaywrightArgs) {
-  if (
-    entry.kind !== "managed-site" ||
-    hasPlaywrightArg(extraPlaywrightArgs, "--workers")
-  ) {
-    return extraPlaywrightArgs
-  }
-
-  return ["--workers=1", ...extraPlaywrightArgs]
-}
-
-function hasPlaywrightArg(args, name) {
-  return args.some((arg) => arg === name || arg.startsWith(`${name}=`))
-}
-
+/**
+ * Build the environment for one matrix entry's Playwright run.
+ * @param entry Real-site E2E matrix entry.
+ * @param options Build options for this entry.
+ * @returns Environment variables for the spawned Playwright process.
+ */
 function buildEntryEnv(entry, options = {}) {
   const env = {
     ...process.env,
     AAH_E2E_REAL_SITE_CATEGORY: entry.category,
+    AAH_E2E_BUILD_VARIANT: entry.build_variant ?? "default",
   }
 
   if (options.skipBuild) {
     env.AAH_SKIP_E2E_BUILD = "1"
   }
 
-  if (entry.kind === "managed-site" && entry.managed_site_target) {
-    env.AAH_E2E_MANAGED_SITE_TARGET = entry.managed_site_target
+  if (entry.kind === "managed-site") {
+    if (entry.managed_site_target)
+      env.AAH_E2E_MANAGED_SITE_TARGET = entry.managed_site_target
+    else delete env.AAH_E2E_MANAGED_SITE_TARGET
   }
 
   if (entry.kind === "webdav") {
@@ -99,19 +104,18 @@ function buildEntryEnv(entry, options = {}) {
   return env
 }
 
+/**
+ * Run pnpm with fixed, repository-owned arguments, propagating failures.
+ * @param args pnpm arguments, never user input or Git paths.
+ * @param env Environment for the spawned process.
+ */
 function runPnpm(args, env) {
-  const result =
-    typeof process.env.npm_execpath === "string" && process.env.npm_execpath
-      ? spawnSync(process.execPath, [process.env.npm_execpath, ...args], {
-          cwd: rootDir,
-          env,
-          stdio: "inherit",
-        })
-      : spawnSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", args, {
-          cwd: rootDir,
-          env,
-          stdio: "inherit",
-        })
+  const invocation = resolvePnpmInvocation(args)
+  const result = spawnSync(invocation.command, invocation.args, {
+    cwd: rootDir,
+    env,
+    stdio: "inherit",
+  })
 
   if (result.status !== 0) {
     if (result.error) {
@@ -121,6 +125,7 @@ function runPnpm(args, env) {
   }
 }
 
+/** Print the category commands and forwarding syntax without starting a run. */
 function printUsage() {
   console.log(`Usage:
   pnpm e2e:real-site

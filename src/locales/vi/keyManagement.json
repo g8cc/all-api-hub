@@ -16,20 +16,21 @@
     "detailsFor": "Xem chi tiết của {{name}}",
     "editKey": "Chỉnh sửa khóa",
     "expandAll": "Mở rộng tất cả",
+    "exportToAiToolbox": "Xuất sang AI Toolbox",
     "exportToCCSwitch": "Xuất sang CC Switch",
     "exportToCursorPlus": "Xuất cấu hình nhà cung cấp Cursor++",
     "exportToKiloCode": "Xuất cấu hình Kilo Code",
     "hideKey": "Ẩn khóa",
     "importToClaudeCodeRouter": "Nhập vào Claude Code Router",
     "importToManagedSite": "Nhập vào {{site}}",
-    "openApiProfiles": "Mở Hồ sơ API",
+    "openApiProfiles": "Mở thư viện thông tin xác thực API",
     "openSelectedAccountModels": "Xem mô hình tài khoản",
     "retryFailed": "Thử lại tài khoản thất bại",
     "saveToApiProfiles": "Lưu và liên kết với thông tin xác thực API",
     "showKey": "Hiển thị khóa",
     "useInCherry": "Sử dụng trong Cherry Studio",
-    "verifyApi": "Xác minh API",
-    "verifyCliSupport": "Xác minh tính tương thích CLI"
+    "verifyApi": "Kiểm tra API",
+    "verifyCliSupport": "Kiểm tra khả năng tương thích CLI"
   },
   "actionToolbar": {
     "apiCredential": "Thông tin xác thực API",
@@ -92,9 +93,32 @@
       "models": "Mô hình"
     },
     "gatewayDescription": "Thao tác này nhập key tài khoản làm kênh của AI gateway tự triển khai. Sau khi nhập, nhiều key có thể được client sử dụng thông qua một AI API.",
+    "importMode": {
+      "appendTo": "Thêm vào kênh hiện có: {{name}}",
+      "chooseTarget": "Chọn kênh cho các khóa này",
+      "createNew": "Tạo kênh mới",
+      "grouped": "Gộp khóa cùng trang vào một kênh mới",
+      "independent": "Tạo một kênh mới cho mỗi khóa",
+      "keyCount_other": "{{count}} khóa",
+      "label": "Cách nhập khóa",
+      "modelDifferences": "Danh sách mô hình của các khóa khác nhau. Tài nguyên gộp sử dụng hợp của các danh sách; cổng đích xử lý định tuyến.",
+      "models": "Mô hình: {{models}}",
+      "preserveSettings": "Giữ nguyên cấu hình và cài đặt mô hình của kênh. Chỉ thêm các khóa chưa được nhập.",
+      "resourceName": "Tên kênh mới",
+      "resultSummary": "Khóa: {{created}} đã nhập, {{failed}} thất bại, {{uncertain}} chưa xác định, {{skipped}} bỏ qua.",
+      "reuse": "Ưu tiên thêm vào kênh hiện có",
+      "reuseHelp": "Thêm khóa vào kênh có cùng địa chỉ. Nếu có nhiều kênh, hãy chọn đích; nếu không có, tạo một kênh gộp mới.",
+      "reuseSummary": "Đã chọn {{keyCount}} khóa: tạo {{createCount}} kênh và thêm vào {{appendCount}} kênh hiện có.",
+      "saveFailed": "Lựa chọn được áp dụng cho lần nhập này nhưng không thể lưu tùy chọn.",
+      "scheduling": "Cổng đích quyết định cách luân phiên các khóa. Hãy chọn theo nhu cầu của bạn.",
+      "summary": "Đã chọn {{keyCount}} khóa; sẽ tạo {{resourceCount}} kênh mới.",
+      "target": "Kênh để thêm khóa",
+      "unsupported": "Loại tài nguyên này không hỗ trợ gộp nhiều khóa và sẽ được tạo riêng."
+    },
     "loadingDescription": "Đang chuẩn bị bản xem trước cho {{selectedCount}} khóa đã chọn.",
     "messages": {
-      "completed": "Nhập hàng loạt hoàn tất: đã tạo {{created}}, thất bại {{failed}}, đã tồn tại {{skipped}}.",
+      "batchDuplicate": "Trùng với {{item}} trong lô này và đã được bỏ qua.",
+      "completed": "Khóa: {{created}} đã nhập, {{failed}} thất bại, {{uncertain}} chưa xác định, {{skipped}} bỏ qua.",
       "duplicate": "Đã có kênh khớp chính xác: {{channel}}. Kênh này sẽ không được tạo lại.",
       "executionFailed": "Thực thi nhập hàng loạt thất bại: {{error}}",
       "targetChanged": "Đích site được quản lý đã thay đổi. Hãy làm mới bản xem trước hoặc chọn lại đích trước khi nhập.",
@@ -104,22 +128,22 @@
       "loadFailed": "Tải bản xem trước thất bại: {{error}}",
       "loading": "Đang chuẩn bị xem trước kênh...",
       "selected_other": "Đã chọn {{count}} khóa",
-      "summary": "Xem trước: Có thể tạo {{ready}}, cảnh báo {{warning}}, đã tồn tại {{skipped}}, bị chặn {{blocked}}, tổng cộng {{total}}."
+      "summary": "Xem trước: Có thể tạo {{ready}}, cảnh báo {{warning}}, đã bỏ qua {{skipped}}, bị chặn {{blocked}}, tổng cộng {{total}}."
     },
     "repairTrusted": {
       "description": "Các key này vừa được tạo. Bản xem xét đơn giản bỏ qua kiểm tra trùng lặp và Key chính xác; bạn vẫn có thể dùng kiểm tra đầy đủ trước khi nhập.",
       "useCompleteChecks": "Dùng kiểm tra đầy đủ"
     },
     "results": {
-      "channelCreationFailed": "Tạo kênh thất bại.",
+      "channelCreationFailed": "Không thể nhập khóa.",
       "status": {
         "failed": "Thất bại",
         "notSelected": "Chưa chọn",
-        "skipped": "Đã tồn tại",
-        "success": "Đã tạo",
+        "skipped": "Đã bỏ qua",
+        "success": "Đã nhập",
         "uncertain": "Cần xem lại"
       },
-      "summary": "Kết quả: Đã tạo {{created}}, thất bại {{failed}}, đã tồn tại {{skipped}}, tổng cộng {{total}}."
+      "summary": "Khóa: {{created}} đã nhập, {{failed}} thất bại, {{uncertain}} chưa xác định, {{skipped}} bỏ qua."
     },
     "selection": {
       "accountGroup": "Chọn khóa hiện đang hiển thị của tài khoản {{name}}",
@@ -129,7 +153,7 @@
     "status": {
       "blocked": "Bị chặn",
       "ready": "Có thể tạo",
-      "skipped": "Đã tồn tại",
+      "skipped": "Đã bỏ qua",
       "warning": "Cần xác nhận"
     },
     "target": {
@@ -147,8 +171,13 @@
   },
   "batchSelection": {
     "accountUnavailableReason": "Tài khoản này không có khóa nào hỗ trợ thao tác hàng loạt.",
-    "eligibilityNotice_other": "Hiện có {{count}} khóa hỗ trợ thao tác hàng loạt; các khóa khác sẽ không được áp dụng.",
+    "eligibilityHint": "Thao tác hàng loạt chỉ chọn các khóa suy luận có thể xuất. Khóa quản lý và khóa không thể lấy được giá trị đầy đủ sẽ không được chọn.",
+    "helpLabel": "Về việc chọn hàng loạt",
     "unavailableReason": "Khóa này không hỗ trợ thao tác hàng loạt."
+  },
+  "createdKey": {
+    "subtitle": "Đã tạo {{name}}. Bạn có thể sao chép ngay hoặc hiển thị lại sau này.",
+    "title": "Đã tạo khóa"
   },
   "createFirstKey": "Tạo khóa đầu tiên",
   "credentialAssociation": {
@@ -187,6 +216,7 @@
     "ipLimits": "Giới hạn IP",
     "ipPlaceholder": "Để trống để không giới hạn, phân tách nhiều IP bằng dấu phẩy",
     "modelLimits": "Giới hạn mô hình",
+    "novitaConsoleRequired": "Tạo khóa cần xác thực bảng điều khiển. Sửa tài khoản này để lấy thông tin xác thực của cùng tài khoản Novita hoặc tạo khóa trên bảng điều khiển Novita.",
     "quotaPlaceholder": "Vui lòng nhập số tiền hạn ngạch (USD)",
     "quotaSettings": "Cài đặt hạn ngạch",
     "selectModels": "Chọn mô hình",
@@ -206,8 +236,10 @@
     }
   },
   "keyDetails": {
+    "channels": "Kênh",
     "createResponseOnlySecret": "Trang web này chỉ hiển thị khóa đầy đủ khi tạo. Nếu bạn chưa lưu khóa, hãy mở Quản lý khóa và tạo khóa thay thế.",
     "createTime": "Thời gian tạo:",
+    "defaultChannels": "Kênh mặc định của trang",
     "expireTime": "Thời gian hết hạn:",
     "followsAccountGroup": "Theo nhóm tài khoản",
     "group": "Nhóm:",
@@ -218,8 +250,11 @@
     "neverExpires": "Không bao giờ hết hạn",
     "note": "Ghi chú:",
     "remainingQuota": "Hạn ngạch còn lại:",
+    "tools": "Công cụ được phép",
+    "totalQuota": "Tổng hạn mức:",
     "ungrouped": "Chưa phân nhóm",
-    "usedQuota": "Hạn ngạch đã dùng:"
+    "usedQuota": "Hạn ngạch đã dùng:",
+    "websiteVerificationSecret": "API quản lý không cung cấp khóa đầy đủ. Truy cập trang API của NanoGPT và hoàn tất xác minh đăng nhập theo yêu cầu để xem hoặc sao chép lại khóa hiện có."
   },
   "knownTotalKeys_other": "Đã đọc {{count}} khóa",
   "linkedCleanup": {
@@ -309,23 +344,45 @@
     "batchSaveToApiProfilesPartialFailed": "Đã lưu {{savedCount}}/{{totalCount}} khóa đã chọn. {{failedCount}} khóa chưa được lưu.",
     "copyFailed": "Sao chép thất bại",
     "keyCopied": "Khóa {{name}} đã được sao chép vào clipboard",
+    "keyDeleted": "Khóa {{name}} đã bị xóa",
+    "keyDeletedSimple": "Khóa đã bị xóa",
+    "keySiteTypeMismatch": "Trang này tương ứng với {{suggestedType}}, nhưng tài khoản đang đặt là {{storedType}}. Hãy đổi Loại trang web thành {{suggestedType}} trong \"Chỉnh sửa tài khoản\" rồi thử lại.",
+    "keyUpdated": "Đã cập nhật khóa {{name}}",
+    "keyUpdatedSimple": "Đã cập nhật khóa",
     "loadFailed": "Tải danh sách khóa thất bại",
     "revealFailed": "Hiển thị khóa thất bại",
-    "savedToApiProfiles": "Đã lưu {{name}} vào Hồ sơ API",
+    "savedToApiProfiles": "Đã lưu {{name}} vào thư viện thông tin xác thực API",
     "savedToApiProfilesNeedsConfirmation": "Đã lưu thông tin xác thực. Hãy kiểm tra liên kết khóa trong thư viện thông tin xác thực API.",
-    "saveToApiProfilesFailed": "Lưu vào Hồ sơ API thất bại",
+    "saveToApiProfilesFailed": "Lưu vào thư viện thông tin xác thực API thất bại",
     "serviceCredentialCopied": "Đã sao chép khóa dịch vụ vào clipboard",
     "serviceCredentialRotated": "Đã đặt lại khóa dịch vụ",
     "serviceCredentialRotateFailed": "Đặt lại khóa dịch vụ thất bại",
-    "verifyApiFailed": "Không thể mở xác minh API",
-    "verifyCliSupportFailed": "Không thể mở xác minh tính tương thích CLI"
+    "verifyApiFailed": "Không thể mở kiểm tra API",
+    "verifyCliSupportFailed": "Không thể mở kiểm tra khả năng tương thích CLI"
   },
   "native": {
     "actions": {
       "delete": "Xóa khóa",
-      "edit": "Sửa khóa"
+      "disable": "Tắt khóa API",
+      "edit": "Sửa khóa",
+      "enable": "Bật khóa API",
+      "revoke": "Thu hồi khóa",
+      "rotate": "Luân chuyển khóa API"
+    },
+    "badges": {
+      "accountCredential": "Đang dùng cho tài khoản này",
+      "accountCredentialCandidate": "Có thể dùng để xác thực tài khoản",
+      "accountManagePermission": "Khóa quản lý của tài khoản hiện tại",
+      "managePermission": "Khóa quản lý"
+    },
+    "credentialRole": {
+      "badgeTitle": "All API Hub dùng khóa này để kết nối với tài khoản, đọc số dư và quản lý khóa. Nếu thay khóa, hãy cập nhật khóa trong phần cài đặt tài khoản.",
+      "candidateTitle": "Chỉ khớp theo khóa che một phần; chưa xác nhận."
     },
     "delete": {
+      "accountCredentialAcknowledge": "Tôi hiểu việc này có thể ảnh hưởng đến chức năng tài khoản dùng khóa này",
+      "accountCredentialWarningDescription": "Xóa khóa này có thể làm gián đoạn các chức năng tài khoản đang dùng khóa. Hãy cập nhật thông tin xác thực trước; không thể khôi phục khóa tại đây.",
+      "accountCredentialWarningTitle": "Xóa thông tin xác thực của tài khoản",
       "confirm": "Xóa khóa",
       "description": "Xóa vĩnh viễn khóa API {{name}}? Không thể hoàn tác thao tác này.",
       "feedback": {
@@ -335,6 +392,7 @@
         "unavailable": "Dịch vụ tạm thời không khả dụng. Hãy làm mới trước khi thử lại.",
         "uncertain": "Trạng thái khóa có thể đã thay đổi. Hãy làm mới khóa trước khi quyết định có thử lại hay không."
       },
+      "manageKeyWarning": "Khóa này có quyền quản lý. Các luồng phụ thuộc vào nó sẽ mất quyền quản lý sau khi xóa.",
       "refresh": "Làm mới khóa",
       "title": "Xóa khóa API?"
     },
@@ -344,15 +402,130 @@
         "cancel": "Hủy",
         "save": "Lưu khóa"
       },
+      "aimlapi": {
+        "allowedModels": "Mô hình được phép",
+        "allowedModelsHelp": "Tìm mô hình theo tên hoặc ID; để trống để cho phép tất cả.",
+        "allowedModelsPlaceholder": "Tìm mô hình",
+        "allowedTools": "Công cụ được phép",
+        "allowedToolsHelp": "Tìm công cụ; để trống để cho phép tất cả.",
+        "endpoint": {
+          "audio": "Âm thanh",
+          "chat": "Trò chuyện",
+          "embeddings": "Nhúng",
+          "image": "Hình ảnh",
+          "ocr": "Nhận dạng văn bản (OCR)",
+          "responses": "Responses",
+          "speech": "Giọng nói",
+          "video": "Video"
+        },
+        "expiryImmutable": "Chỉ có thể đặt thời hạn khi tạo khóa. Không thể thay đổi sau khi tạo.",
+        "limit": {
+          "limited": "Đặt giới hạn",
+          "unlimited": "Không giới hạn"
+        },
+        "maximum": "Tối đa: {{maximum}}",
+        "reset": {
+          "day": "Hằng ngày",
+          "month": "Hằng tháng",
+          "never": "Không đặt lại",
+          "week": "Hằng tuần"
+        },
+        "scopes": "Quyền truy cập điểm cuối",
+        "scopesPlaceholder": "Tất cả điểm cuối",
+        "spendLimit": "Hạn mức USD",
+        "spendLimitAmount": "Số tiền hạn mức",
+        "spendLimitReset": "Chu kỳ đặt lại"
+      },
+      "allowlistHelp": "Phân cách bằng dấu phẩy hoặc dòng mới. Để trống nếu không giới hạn.",
+      "allowWallet": "Cho phép dùng số dư",
+      "allowWalletHelp": "Giữ cho khóa này tiếp tục hoạt động bằng số dư tài khoản sau khi hết hạn ngạch gói.",
+      "budget5h": "Ngân sách 5 giờ (USD)",
+      "budgetDay": "Ngân sách hằng ngày (USD)",
+      "budgetMonth": "Ngân sách hằng tháng (USD)",
+      "budgetNextReset": "Đặt lại {{time}} (UTC+8)",
+      "budgetResetHelp": "0 là không giới hạn. Ngân sách 5 giờ dùng cửa sổ trượt; ngày, tuần và tháng đặt lại theo giờ Bắc Kinh, tuần bắt đầu từ thứ Hai.",
+      "budgetRolling": "Cửa sổ trượt",
+      "budgetsAndLimits": "Ngân sách và giới hạn truy cập",
+      "budgetUsage": "Đã dùng ${{used}} / ${{limit}} · còn ${{remaining}} · giữ chỗ ${{reserved}}",
+      "budgetWeek": "Ngân sách hằng tuần (USD)",
+      "channel": "Kênh",
+      "dahl": {
+        "allocate": "Phân bổ token",
+        "amountHelp": "Nhập số token nguyên hoặc dùng K/M. Khả dụng: {{max}} token.",
+        "amountInvalid": "Nhập số lượng hợp lệ trong số dư khả dụng.",
+        "amountPlaceholder": "ví dụ 2.5M hoặc 500K",
+        "create": "Tạo khóa",
+        "createdHelp": "Đã tạo {{name}} nhưng chưa cấp token. Sao chép khóa hoặc cấp token để bắt đầu sử dụng. Bạn vẫn có thể hiển thị lại khóa sau này.",
+        "createHelp": "Tạo khóa mới với 0 token. Có thể đặt tên, rồi sao chép khóa hoặc phân bổ token sau khi tạo.",
+        "createTitle": "Tạo khóa API",
+        "invalidAmount": "Số lượng phải là số nguyên dương và không vượt quá {{max}} token.",
+        "keyAfter": "Khóa sau khi chuyển",
+        "keyBalance": "Số dư khóa này (token)",
+        "manageTitle": "Quản lý khóa",
+        "max": "Tối đa",
+        "name": "Tên khóa",
+        "nameCached": "Đang hiển thị tên lưu trong bộ nhớ đệm cục bộ. Tên trên trang web sẽ được kiểm tra khi mở trang của cùng tài khoản.",
+        "nameHelp": "Tên được đồng bộ với trang web trong trình duyệt này khi mở trang của cùng tài khoản. Tải lại trang web để xem thay đổi.",
+        "nameInvalid": "Tên không được vượt quá 128 ký tự.",
+        "namePending": "Đã lưu cục bộ; đang chờ đồng bộ. Mở trang web với tài khoản này rồi làm mới danh sách khóa.",
+        "namePlaceholder": "Tên tùy chọn",
+        "nameSynced": "Tên đã đồng bộ với trang web. Tải lại trang web để xem thay đổi.",
+        "noKeyTokens": "Khóa này không có token để hoàn trả.",
+        "noPoolTokens": "Tài khoản không có token. Nạp trên trang web hoặc hoàn trả token từ khóa khác.",
+        "poolAfter": "Tài khoản sau khi chuyển",
+        "poolBalance": "Số dư tài khoản (token)",
+        "rename": "Đổi tên",
+        "return": "Hoàn trả token",
+        "revoke": "Thu hồi khóa",
+        "revokeDescription": "Thu hồi {{name}}? Khóa sẽ ngừng hoạt động, token còn lại sẽ được trả về tài khoản và trang web sẽ giữ bản ghi thu hồi. Không thể hoàn tác.",
+        "revokeTitle": "Thu hồi khóa API",
+        "saveName": "Lưu tên",
+        "transferAmount": "Số token cần chuyển"
+      },
+      "daya": {
+        "allowFast": "Cho phép chế độ Fast",
+        "allowFastHelp": "Cho phép yêu cầu OpenAI đề nghị chế độ Fast; dịch vụ quyết định có áp dụng Fast hay không. Khi tắt, mọi yêu cầu OpenAI, kể cả Flex, đều dùng chế độ và mức giá tiêu chuẩn.",
+        "budget7d": "Ngân sách 7 ngày (USD)",
+        "budgetHelp": "Giới hạn chi tiêu bằng USD cho mỗi khoảng thời gian. 0 nghĩa là không giới hạn.",
+        "customKey": "Khóa tùy chỉnh (không bắt buộc)",
+        "customKeyHelp": "Giữ nguyên để tạo khóa tự động. Khóa tùy chỉnh cần ít nhất 16 ký tự gồm chữ cái, chữ số, dấu gạch dưới hoặc gạch nối.",
+        "groupOrderHelp": "Thử các tuyến theo thứ tự này. Kéo hoặc dùng nút mũi tên để sắp xếp.",
+        "ipBlacklist": "Danh sách IP bị chặn",
+        "ipWhitelist": "Danh sách IP cho phép"
+      },
+      "description": "Mô tả (không bắt buộc)",
+      "emrank": {
+        "expiration": "Hạn sử dụng",
+        "expirationOptions": {
+          "custom": "Thời gian tùy chỉnh",
+          "day": "Một ngày",
+          "hour": "Một giờ",
+          "keep": "Giữ thời hạn hiện tại",
+          "month": "Một tháng (30 ngày)",
+          "never": "Không hết hạn"
+        },
+        "quotaHelp": "1 M = 1.000.000 Token, tối đa 6 chữ số thập phân.",
+        "quotaMToken": "Hạn mức (M Token)"
+      },
+      "excludeIps": "IP loại trừ",
+      "excludeIpsPlaceholder": "Mỗi dòng một mục (hỗ trợ CIDR)",
       "expiryDays": "Hết hạn sau (ngày)",
       "feedback": {
+        "adminOnlyKeySettings": "Trang này chỉ cho quản trị viên đặt các tùy chọn khóa nâng cao như danh sách IP; hãy xóa các trường đó rồi thử lại.",
         "authenticationFailed": "Đăng nhập lại hoặc cập nhật thông tin xác thực của tài khoản này, rồi thử lại.",
         "error": "Làm theo chi tiết lỗi rồi thử lại.",
         "permissionDenied": "Sử dụng thông tin xác thực có quyền xem và quản lý khóa, rồi thử lại.",
         "title": "Không thể lưu khóa",
         "unavailable": "Dịch vụ tạm thời không khả dụng. Hãy thử lại sau.",
-        "uncertain": "Dịch vụ có thể đã áp dụng thay đổi này. Hãy làm mới khóa để xác nhận trạng thái hiện tại trước khi quyết định có thử lại hay không."
+        "uncertain": "Dịch vụ có thể đã áp dụng thay đổi này. Hãy làm mới khóa để xác nhận trạng thái hiện tại trước khi quyết định có thử lại hay không.",
+        "unexpected": "Tiện ích không thể thực hiện thao tác này. Hãy cập nhật tiện ích hoặc báo cáo sự cố."
       },
+      "followAccountQuotaHelp": "-1 dùng hạn mức của tài khoản.",
+      "followsAccount": "Theo tài khoản",
+      "groupOnly": "Chỉ dùng nhóm đã chọn",
+      "groupOnlyHelp": "Giữ khóa ở nhóm đã chọn thay vì tự chuyển sang nhóm khác.",
+      "independentQuotaUsd": "Hạn mức riêng (USD)",
+      "ipCidrAllowlist": "Danh sách IP/CIDR được phép",
       "issues": {
         "inconsistentValue": "Kiểm tra giá trị này rồi thử lại.",
         "invalidValue": "Nhập giá trị hợp lệ.",
@@ -360,26 +533,165 @@
         "required": "Trường này là bắt buộc.",
         "unsupportedOption": "Chọn một tùy chọn có sẵn."
       },
+      "keyConcurrency": "Số yêu cầu đồng thời",
+      "keyRateHelp": "0 dùng giới hạn tài khoản.",
+      "keyRpm": "RPM của khóa",
+      "keyUnlimitedQuota": "Khóa không giới hạn hạn mức",
+      "keyUnlimitedQuotaHelp": "Vẫn chịu giới hạn số dư tài khoản hoặc hạn mức gói đăng ký.",
+      "krill": {
+        "allowAnyIp": "Cho phép mọi IP",
+        "allowAnyIpHelp": "Tắt danh sách IP được phép đã lưu. Yêu cầu từ mọi IP sẽ được cho phép.",
+        "channels": "Kênh",
+        "channelsHelp": "Các tuyến tính phí mà khóa này có thể dùng."
+      },
+      "laozhang": {
+        "activateOnFirstUse": "Kích hoạt khi sử dụng lần đầu",
+        "activationHelp": "0 nghĩa là không đặt thời hạn sau khi kích hoạt. Quy tắc của trang web vẫn quyết định thời điểm hết hạn tuyệt đối.",
+        "billingHybrid": "Tính phí kết hợp",
+        "billingRequest": "Theo yêu cầu",
+        "billingRequestPriority": "Ưu tiên theo yêu cầu",
+        "billingType": "Cách tính phí",
+        "billingUsage": "Theo mức sử dụng",
+        "billingUsagePriority": "Ưu tiên theo mức sử dụng",
+        "discordProxy": "URL proxy Discord",
+        "fallbackGroups": "Nhóm dự phòng (theo thứ tự)",
+        "fallbackHelp": "Các nhóm dự phòng được thử theo thứ tự chọn. Nhóm tự động không dùng nhóm dự phòng. Trang web quy định số nhóm tối đa.",
+        "mjApiKey": "Khóa API dịch MJ",
+        "mjBaseUrl": "URL API dịch MJ",
+        "mjModel": "Mô hình dịch MJ",
+        "mjTranslation": "Bật dịch MJ",
+        "rateLimitDuration": "Chu kỳ giới hạn (giây)",
+        "rateLimitEnabled": "Bật giới hạn yêu cầu",
+        "rateLimitMessage": "Thông báo vượt giới hạn",
+        "rateLimitNum": "Số yêu cầu mỗi chu kỳ",
+        "remark": "Ghi chú khóa",
+        "retryAuto": "Tự động (theo cài đặt chung)",
+        "retryBilling": "Giữ cách tính phí khi thử lại",
+        "retryOff": "Tắt",
+        "retryOn": "Bật",
+        "validDuration": "Thời hạn sau khi kích hoạt (ngày)"
+      },
+      "modelAllowlist": "Danh sách mô hình được phép",
+      "nanogpt": {
+        "anonymized": "Định tuyến ẩn danh",
+        "dailyRequests": "Giới hạn yêu cầu mỗi ngày",
+        "dailySpend": "Giới hạn chi tiêu mỗi ngày (USD)",
+        "dailySubscriptionTokens": "Hạn mức token gói mỗi ngày",
+        "dailyTokens": "Giới hạn token đầu vào mỗi ngày",
+        "legacyPolicy": "Chính sách định tuyến cũ",
+        "limitHelp": "Để trống là không giới hạn. Số 0 chặn hạn mức này; token gói có thể tính theo trọng số.",
+        "monthlyRequests": "Giới hạn yêu cầu mỗi tháng",
+        "monthlySpend": "Giới hạn chi tiêu mỗi tháng (USD)",
+        "monthlySubscriptionTokens": "Hạn mức token gói mỗi tháng",
+        "monthlyTokens": "Giới hạn token đầu vào mỗi tháng",
+        "weeklyRequests": "Giới hạn yêu cầu mỗi tuần",
+        "weeklySpend": "Giới hạn chi tiêu mỗi tuần (USD)",
+        "weeklySubscriptionTokens": "Hạn mức token gói mỗi tuần",
+        "weeklyTokens": "Giới hạn token đầu vào mỗi tuần",
+        "zdr": "Không lưu giữ dữ liệu",
+        "zdrPolicy": "Định tuyến quyền riêng tư"
+      },
+      "novita": {
+        "allEnabled": "Tất cả mô hình đã bật",
+        "allowedIps": "IP được phép",
+        "allowedIpsHelp": "Mỗi dòng một địa chỉ IPv4 hoặc CIDR, tối đa 100. Không cho phép 0.0.0.0/0.",
+        "allowedModels": "Mô hình được phép",
+        "days30": "30 ngày",
+        "days90": "90 ngày",
+        "excludedModels": "Mô hình bị loại trừ",
+        "hours24": "24 giờ",
+        "lifecycleHelp": "Không thể đổi thời hạn sau khi tạo.",
+        "modelAccess": "Quyền truy cập mô hình",
+        "modelChoicesHelp": "Chọn gợi ý hoặc nhập ID mô hình đầy đủ rồi nhấn Enter. Gợi ý từ danh mục công khai chỉ để tham khảo; kết quả lưu sẽ xác nhận chính sách có chấp nhận mô hình hay không.",
+        "permanent": "Vĩnh viễn",
+        "restrictIps": "Giới hạn IP nguồn",
+        "selected": "Chỉ mô hình được chọn"
+      },
       "opening": {
         "failed": "Không thể mở trình chỉnh sửa khóa",
         "loading": "Đang mở trình chỉnh sửa khóa...",
         "retry": "Thử lại"
       },
+      "pmapi": {
+        "rpm": "Yêu cầu mỗi phút",
+        "rpmHelp": "Số yêu cầu tối đa mỗi phút của token này; 0 nghĩa là không giới hạn."
+      },
+      "quotaCredits": "Tín dụng còn lại",
+      "quotaCreditsHelp": "Khóa sẽ ngừng hoạt động khi số tín dụng này hết.",
       "quotaUsd": "Hạn mức (USD)",
+      "remainingCount": "Số lượt còn lại",
+      "remainingCountPlaceholder": "Khóa này còn gọi được bao nhiêu lượt",
+      "requestyManagePermission": "Quyền quản lý",
+      "requestyManagePermissionHelp": "Khóa này có thể gọi các endpoint quản lý và quản lý các khóa khác.",
+      "requestyMonthlyLimit": "Hạn mức hàng tháng (USD)",
+      "requestyMonthlyLimitPlaceholder": "0 hoặc để trống nghĩa là không giới hạn",
+      "storageLocation": "Vị trí lưu trữ",
+      "storageLocationGlobal": "Nút toàn cầu",
+      "storageLocationHelp": "Nơi lưu nội dung do khóa này tạo ra.",
+      "storageLocationNone": "Không lưu trữ (dùng liên kết gốc)",
+      "storageLocationUnconfigured": "Mặc định của máy chủ",
       "title": {
         "create": "Tạo khóa API",
         "edit": "Chỉnh sửa khóa API"
       },
       "totalQuotaUsd": "Tổng hạn mức (USD)",
+      "unlimitedCount": "Không giới hạn lượt gọi",
+      "unlimitedCountHelp": "Khi tắt, khóa sẽ dừng khi hết số lượt còn lại; số lượt và số dư được tính riêng.",
       "unsaved": {
         "description": "Đóng sẽ hủy các thay đổi của bạn.",
         "discard": "Bỏ thay đổi",
         "keepEditing": "Tiếp tục chỉnh sửa",
         "title": "Bỏ thay đổi?"
+      },
+      "vercelAiGateway": {
+        "attribution": {
+          "team": "Nhóm",
+          "user": "Thành viên nhóm"
+        },
+        "budgetAlerts": "Gửi email cho người tạo khóa khi đạt các ngưỡng này",
+        "budgetEnabled": "Ngân sách chi tiêu",
+        "budgetHelp": "Đặt giới hạn bằng USD. Khi tắt, áp dụng ngân sách mặc định của nhóm nếu có. Ngân sách mới không tính chi tiêu BYOK.",
+        "budgetInactive": "Ngân sách chưa bật",
+        "budgetLimit": "Giới hạn chi tiêu (USD, tối thiểu $1)",
+        "budgetPeriod": "Chu kỳ làm mới ngân sách",
+        "budgetUnavailable": "Không thể đọc ngân sách. Hãy thử lại trước khi chỉnh sửa.",
+        "consoleFailed": "Không thể mở bảng điều khiển nhóm. Kiểm tra token truy cập rồi thử lại.",
+        "inheritedBudget": "Ngân sách mặc định của nhóm",
+        "noBudget": "Không có ngân sách riêng cho khóa",
+        "openConsole": "Mở bảng điều khiển Vercel",
+        "period": {
+          "daily": "Hằng ngày",
+          "monthly": "Hằng tháng",
+          "none": "Không làm mới",
+          "weekly": "Hằng tuần"
+        },
+        "spendAttribution": "Phân bổ chi tiêu",
+        "spendAttributionHelp": "Chọn ngân sách chịu chi tiêu của khóa. Chỉ chủ nhóm và người quản lý ngân sách AI Gateway có thể thay đổi."
       }
     },
     "heading": "Khóa API",
+    "lifecycle": {
+      "disableDescription": "Tạm tắt khóa. Bạn có thể bật lại sau.",
+      "enableDescription": "Bật lại khóa này với cài đặt hiện có.",
+      "rotateDescription": "Khóa cũ sẽ ngừng hoạt động ngay. Sao chép khóa mới và cập nhật ứng dụng khách. Các cài đặt khác được giữ nguyên."
+    },
     "missing": "Không khả dụng",
+    "permission": {
+      "accountManageBadgeTitle": "All API Hub dùng khóa này để đọc số dư tài khoản và quản lý khóa. Khóa này cũng có thể tạo và xóa các khóa khác trong tổ chức. Sau khi thay hoặc xóa khóa, hãy cập nhật khóa trong phần cài đặt tài khoản.",
+      "manage": "Quyền quản lý",
+      "manageBadgeTitle": "Khóa này có thể gọi các endpoint quản lý và quản lý các khóa khác trong tổ chức.",
+      "manageGranted": "Có thể quản lý khóa khác",
+      "manageNotGranted": "Chỉ suy luận"
+    },
+    "revoke": {
+      "description": "Thu hồi “{{name}}”? Khóa sẽ bị vô hiệu hóa vĩnh viễn. Bản ghi được giữ lại cho đến khi bạn xóa.",
+      "feedback": {
+        "error": "Không thể thu hồi khóa này. Hãy làm mới và thử lại."
+      },
+      "success": "Đã thu hồi khóa",
+      "title": "Thu hồi khóa",
+      "working": "Đang thu hồi..."
+    },
     "scope": {
       "empty": "Không có phạm vi khả dụng",
       "error": "Không thể tải phạm vi",
@@ -388,6 +700,7 @@
       "heading": "Phạm vi",
       "label": "Chọn phạm vi",
       "loading": "Đang tải phạm vi…",
+      "nanoGptManagementOptional": "Token quản lý là tùy chọn. Bạn vẫn có thể sao chép, xuất và xác minh khóa API suy luận đã lưu. Để liệt kê hoặc quản lý khóa từ xa, hãy thêm token quản lý trong phần chỉnh sửa tài khoản.",
       "partial": "Không thể tải một số phạm vi. Bạn vẫn có thể dùng các phạm vi đã tải.",
       "placeholder": "Chọn một phạm vi",
       "retry": "Tải lại phạm vi"
@@ -419,8 +732,8 @@
     "copy": "Sao chép khóa đầy đủ",
     "copyFailed": "Sao chép khóa đầy đủ thất bại",
     "keyLabel": "Khóa đầy đủ",
-    "subtitle": "Giá trị đầy đủ của khóa {{name}} sẽ chỉ hiển thị sau lần tạo này.",
-    "subtitleUnnamed": "Khóa đầy đủ sẽ chỉ hiển thị sau lần tạo này.",
+    "subtitle": "Giá trị đầy đủ của khóa {{name}} sẽ chỉ hiển thị sau thao tác này.",
+    "subtitleUnnamed": "Khóa đầy đủ sẽ chỉ hiển thị sau thao tác này.",
     "title": "Lưu khóa đầy đủ ngay lập tức",
     "warningDescription": "Sau khi đóng hộp thoại này, tiện ích sẽ không thể hiển thị lại khóa đầy đủ.",
     "warningTitle": "Khóa này chỉ có thể được xem một lần"
@@ -561,9 +874,35 @@
   },
   "pleaseAddAccount": "Vui lòng thêm tài khoản trước",
   "pleaseSelectAccount": "Vui lòng chọn tài khoản",
+  "provisioning": {
+    "actions": {
+      "allGroups": "Bổ sung tất cả nhóm còn thiếu",
+      "default": "Đảm bảo có khóa mặc định",
+      "hint": "Chỉ tạo khóa còn thiếu và giữ nguyên khóa hiện có.",
+      "title": "Bổ sung khóa còn thiếu"
+    },
+    "cancelled": "Đã dừng. Các khóa đã tạo được giữ lại.",
+    "completed": "Khóa tài khoản đã sẵn sàng: đã tạo {{created}}, đã có khóa cho {{covered}} mục.",
+    "continue": "Tiếp tục nhập thông tin",
+    "creating": "Đang bổ sung khóa tài khoản: đã tạo {{created}} / {{total}}…",
+    "input": "{{label}} · {{current}} / {{total}}. Hoàn tất mọi thông tin trước khi tạo khóa.",
+    "preparing": "Đang kiểm tra khóa tài khoản…",
+    "progress": "Đã tạo {{created}} / {{total}}; đã có: {{covered}}.",
+    "result": {
+      "cancelled": "Đã dừng bổ sung khóa",
+      "covered": "Đã có khóa",
+      "created": "Đã tạo",
+      "failed": "Không thể tạo một số khóa",
+      "next": "Bước tiếp theo",
+      "remaining": "Chưa xác nhận",
+      "resume": "Có thể bổ sung lại sau. Các khóa hiện có sẽ được bỏ qua.",
+      "retained": "Các khóa đã tạo và hiện có đều được giữ lại.",
+      "uncertain": "Một số khóa cần được xác minh"
+    }
+  },
   "refreshTokenList": "Làm mới danh sách khóa",
   "repairMissingKeys": {
-    "action": "Kiểm tra khóa",
+    "action": "Kiểm tra và sửa chữa",
     "actions": {
       "cancel": "Hủy kiểm tra",
       "rerun": "Kiểm tra lại",
@@ -575,7 +914,7 @@
       "more_other": "Và {{count}} mục khác",
       "title_other": "Xóa {{count}} khóa bất thường?"
     },
-    "description": "Kiểm tra tất cả nhóm khả dụng của tài khoản đã lưu và tạo khóa dùng được còn thiếu khi có hỗ trợ tạo tự động. Các vấn đề khác được liệt kê bên dưới.",
+    "description": "Kiểm tra tất cả nhóm khả dụng của các tài khoản đã chọn và tạo khóa còn thiếu khi hỗ trợ tạo tự động. Các vấn đề khác được liệt kê bên dưới.",
     "failureGuidance": {
       "aborted": "Thao tác đã bị hủy trước khi hoàn tất. Hãy chạy lại kiểm tra khi bạn sẵn sàng.",
       "authenticationFailed": "Đăng nhập lại hoặc cập nhật thông tin xác thực của tài khoản này, rồi thử lại.",
@@ -590,7 +929,7 @@
       "validationFailed": "Kiểm tra và sửa các thiết lập khóa bắt buộc, rồi thử lại."
     },
     "historyNote": "Đây là kết quả kiểm tra trước đó. Hiện không có tác vụ nào đang chạy và bạn có thể kiểm tra lại.",
-    "initialNotice": "Kiểm tra từng nhóm của tài khoản đã lưu và tạo khóa còn thiếu khi được hỗ trợ. Bỏ qua các nhóm đã có khóa dùng được.",
+    "initialNotice": "Kiểm tra từng nhóm của các tài khoản đã chọn và tạo khóa còn thiếu khi được hỗ trợ. Các nhóm đã có khóa dùng được sẽ được bỏ qua.",
     "invalidKeys": {
       "badge": "Bất thường",
       "deleteFailed": "Xóa khóa bất thường thất bại",
@@ -676,6 +1015,10 @@
     },
     "resultsTitle": "Kết quả",
     "runningNote": "Tác vụ đang chạy trong nền. Bạn có thể đóng hộp thoại này để kiểm tra sau hoặc hủy trong thẻ tiến trình.",
+    "scope": {
+      "allSelected": "Đã chọn tất cả tài khoản",
+      "label": "Tài khoản cần kiểm tra"
+    },
     "searchLabel": "Tìm kiếm",
     "searchPlaceholder": "Tìm tài khoản, tên khóa, nhóm, tên miền hoặc loại trang web...",
     "skipReasons": {
@@ -714,6 +1057,9 @@
   },
   "showingCount_other": "Đang hiển thị {{count}}",
   "title": "Quản lý khóa",
+  "tools": {
+    "title": "Công cụ khóa"
+  },
   "totalKeys_other": "Tổng cộng {{count}} key",
   "unifiedApiGuidance": {
     "headerBridge": "Nhập khóa vào cổng API tự triển khai hoặc xuất sang ứng dụng khách."

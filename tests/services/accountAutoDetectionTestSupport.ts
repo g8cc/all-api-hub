@@ -18,7 +18,7 @@ export const accountAutoDetectionMocks = {
   mockOpenRouterPageAction: vi.fn(),
   mockDiscoverCheckInMethods:
     vi.fn<
-      typeof import("~/services/checkin/autoCheckin/discovery").discoverCheckInMethods
+      typeof import("~/services/checkin/autoCheckin/discovery/discovery").discoverCheckInMethods
     >(),
   loggerMock: {
     debug: vi.fn(),
@@ -47,7 +47,9 @@ export const accountAutoDetectionModuleMocks = {
         : accountAutoDetectionMocks.otherLoggerMock,
   }),
   browserApi: async (importOriginal: ImportOriginal) => ({
-    ...(await importOriginal<typeof import("~/utils/browser/browserApi")>()),
+    ...(await importOriginal<
+      typeof import("~/utils/browser/runtimeMessages")
+    >()),
     sendRuntimeMessage: accountAutoDetectionMocks.mockSendRuntimeMessage,
   }),
   openRouterManagementKeyActionClient: () => ({

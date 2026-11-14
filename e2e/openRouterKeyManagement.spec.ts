@@ -26,8 +26,76 @@ import {
   installOpenRouterKeyManagementRoutes,
   OPENROUTER_KEY_MANAGEMENT_E2E,
 } from "~~/e2e/utils/mockedSite/openRouterKeyManagementRoutes"
+import { captureVisualViews } from "~~/e2e/utils/visualCapture"
+import {
+  openNativeKeyEditor,
+  submitNativeKeyEditor,
+} from "~~/scripts/flows/native-key-editor.mjs"
 
 const CLIPBOARD_WRITES_KEY = "__aah_e2e_openrouter_key_clipboard_writes__"
+
+test("keeps unlinked key header separators between controls and hides wrapped boundaries", async ({
+  context,
+  extensionId,
+  page,
+}, testInfo) => {
+  installExtensionPageGuards(page)
+  await forceExtensionLanguage(page, "en")
+  await stubLlmMetadataIndex(context)
+  await installOpenRouterKeyManagementRoutes(context)
+  await seedStoredAccounts(await getServiceWorker(context), [
+    createStoredAccount({
+      id: OPENROUTER_KEY_MANAGEMENT_E2E.accountId,
+      site_name: "Example OpenRouter account",
+      site_url: "https://openrouter.ai",
+      site_type: SITE_TYPES.OPENROUTER,
+      authType: AuthTypeEnum.AccessToken,
+      account_info: {
+        id: "user-example",
+        username: "Example user",
+        access_token: OPENROUTER_KEY_MANAGEMENT_E2E.managementKey,
+      },
+    }),
+  ])
+  await page.goto(
+    `chrome-extension://${extensionId}/${OPTIONS_PAGE_PATH}#${MENU_ITEM_IDS.KEYS}?accountId=${OPENROUTER_KEY_MANAGEMENT_E2E.accountId}&workspace=${OPENROUTER_KEY_MANAGEMENT_E2E.teamWorkspaceSlug}`,
+  )
+  await waitForExtensionRoot(page)
+  const row = page
+    .getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeKeyRow)
+    .filter({ hasText: "Paged active key 1" })
+    .first()
+  const management = row.getByRole("group", { name: "Management", exact: true })
+  const divider = management.locator(
+    "xpath=preceding-sibling::span[@aria-hidden='true']",
+  )
+  const details = row.getByRole("button", {
+    name: "View details for Paged active key 1",
+    exact: true,
+  })
+  await expect(divider).toBeVisible()
+  await row.screenshot({
+    path: testInfo.outputPath("unlinked-header-wide.png"),
+  })
+  const dividerBounds = (await divider.boundingBox())!
+  const detailsBounds = (await details.boundingBox())!
+  expect(dividerBounds.x).toBeGreaterThan(detailsBounds.x + detailsBounds.width)
+  expect(dividerBounds.x + dividerBounds.width).toBeLessThan(
+    (await management.boundingBox())!.x,
+  )
+  // Constrain the actual container without crossing a viewport breakpoint.
+  await management.evaluate((element) => {
+    element.parentElement!.parentElement!.style.width = `${element.getBoundingClientRect().width}px`
+  })
+  await expect(divider).not.toBeVisible()
+  await row.screenshot({
+    path: testInfo.outputPath("unlinked-header-wrapped.png"),
+  })
+  await management.evaluate((element) => {
+    element.parentElement!.parentElement!.style.width = ""
+  })
+  await expect(divider).toBeVisible()
+})
 
 async function installClipboardRecorder(page: Page) {
   await page.addInitScript((storageKey) => {
@@ -95,6 +163,108 @@ async function chooseOption(page: Page, trigger: Locator, optionText: string) {
   await option.click()
 }
 
+for (const status of [400, 409, 503]) {
+  test(`native key mutation handles ${status} through shared feedback`, async ({
+    context,
+    page,
+    extensionId,
+    extensionDir,
+  }) => {
+    installExtensionPageGuards(page, {
+      ignoreConsoleError: (message) =>
+        message.location().url === "https://openrouter.ai/api/v1/keys" &&
+        message
+          .text()
+          .startsWith(
+            `Failed to load resource: the server responded with a status of ${status} `,
+          ),
+    })
+    await forceExtensionLanguage(page, "en")
+    await stubLlmMetadataIndex(context)
+    const routeState = await installOpenRouterKeyManagementRoutes(context)
+    let writes = 0
+    await context.route("https://openrouter.ai/api/v1/keys", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback()
+      writes += 1
+      await route.fulfill({
+        status,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: { message: "Fixture key refusal", code: status },
+        }),
+      })
+    })
+    await seedStoredAccounts(await getServiceWorker(context), [
+      createStoredAccount({
+        id: OPENROUTER_KEY_MANAGEMENT_E2E.accountId,
+        site_name: "Example OpenRouter account",
+        site_url: "https://openrouter.ai",
+        site_type: SITE_TYPES.OPENROUTER,
+        authType: AuthTypeEnum.AccessToken,
+        account_info: {
+          id: "user-example",
+          username: "Example user",
+          access_token: OPENROUTER_KEY_MANAGEMENT_E2E.managementKey,
+        },
+      }),
+    ])
+    await page.goto(
+      `chrome-extension://${extensionId}/${OPTIONS_PAGE_PATH}#${MENU_ITEM_IDS.KEYS}?accountId=${OPENROUTER_KEY_MANAGEMENT_E2E.accountId}&workspace=${OPENROUTER_KEY_MANAGEMENT_E2E.teamWorkspaceSlug}`,
+    )
+    await waitForExtensionRoot(page)
+    await expectPermissionOnboardingHidden(page)
+    await expect(
+      page.getByText("Paged active key 1", { exact: true }),
+    ).toBeVisible()
+    const listReads = () =>
+      routeState
+        .getSafeRequests()
+        .filter((request) => request.operation === "list-keys").length
+    const initialReads = listReads()
+    await page.getByTestId(KEY_MANAGEMENT_TEST_IDS.addTokenButton).click()
+    const editor = page.getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeEditor)
+    await expect(editor).toBeVisible()
+    await editor.getByLabel("Key name").fill("Review failure")
+    await editor
+      .getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeEditorSubmitButton)
+      .click()
+    if (status < 500) {
+      await expect(editor.getByText(/Fixture key refusal/)).toBeVisible()
+      await expect(editor.getByLabel("Key name")).toHaveValue("Review failure")
+      expect(listReads()).toBe(initialReads)
+      await captureVisualViews({
+        page,
+        ready: editor,
+        id: `key-rejection-${status}`,
+        extensionDir,
+      })
+    } else {
+      await expect(editor).toBeHidden()
+      await expect.poll(listReads).toBeGreaterThan(initialReads)
+      const warning = page
+        .getByRole("status")
+        .filter({ hasText: "The service may have applied this change" })
+      await expect(warning).toBeVisible()
+      // A second user refresh must not clear the unresolved mutation warning.
+      const readsBeforeRefresh = listReads()
+      await page
+        .getByRole("button", { name: "Refresh Key List", exact: true })
+        .click()
+      await expect.poll(listReads).toBeGreaterThan(readsBeforeRefresh)
+      await expect(warning).toBeVisible()
+      await captureVisualViews({
+        page,
+        ready: warning,
+        id: "key-uncertain-after-refresh",
+        extensionDir,
+      })
+      await page.getByRole("button", { name: "Close", exact: true }).click()
+      await expect(warning).toBeHidden()
+    }
+    expect(writes).toBe(1)
+  })
+}
+
 test("manages an OpenRouter key through its native one-time-secret lifecycle", async ({
   context,
   extensionId,
@@ -160,9 +330,10 @@ test("manages an OpenRouter key through its native one-time-secret lifecycle", a
   })
   await expect(workspaceSelect).toContainText("Team workspace (team)")
 
-  await page.getByTestId(KEY_MANAGEMENT_TEST_IDS.addTokenButton).click()
-  let editor = page.getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeEditor)
-  await expect(editor).toBeVisible()
+  let editor = await openNativeKeyEditor(page, {
+    trigger: page.getByTestId(KEY_MANAGEMENT_TEST_IDS.addTokenButton),
+    readyField: "Key name",
+  })
   await editor.getByLabel("Key name").fill("Lifecycle key")
   await chooseOption(
     page,
@@ -190,9 +361,7 @@ test("manages an OpenRouter key through its native one-time-secret lifecycle", a
   )
   await expect(editorFooter).toBeVisible()
   await expect(editorFooter).toBeInViewport()
-  await editor
-    .getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeEditorSubmitButton)
-    .click()
+  await submitNativeKeyEditor(page)
 
   const secretInput = page.getByTestId(
     TOKEN_PROVISIONING_TEST_IDS.oneTimeKeyInput,
@@ -260,9 +429,10 @@ test("manages an OpenRouter key through its native one-time-secret lifecycle", a
     .click()
   await expect(lifecycleRow).toContainText("BYOK usage")
   await expect(lifecycleRow).toContainText("Include BYOK usage")
-  await lifecycleRow.getByRole("button", { name: "Edit key" }).click()
-  editor = page.getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeEditor)
-  await expect(editor).toBeVisible()
+  editor = await openNativeKeyEditor(page, {
+    trigger: lifecycleRow.getByRole("button", { name: "Edit key" }),
+    readyField: "Key name",
+  })
   await editor.getByLabel("Key name").fill("Lifecycle key edited")
   await editor.getByLabel("Limit", { exact: true }).fill("75")
   await chooseOption(page, editor.getByLabel("Reset cadence"), "Weekly")
@@ -274,9 +444,7 @@ test("manages an OpenRouter key through its native one-time-secret lifecycle", a
   const disabledSwitch = editor.getByRole("switch", { name: "Disable key" })
   await disabledSwitch.click()
   await expect(disabledSwitch).toBeChecked()
-  await editor
-    .getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeEditorSubmitButton)
-    .click()
+  await submitNativeKeyEditor(page)
 
   const statusFilter = page.getByTestId(
     KEY_MANAGEMENT_TEST_IDS.nativeStatusFilter,

@@ -8,6 +8,7 @@ import {
   extractCheckInSupport as extractVeloeraCheckInSupport,
   fetchSupportCheckIn as fetchVeloeraSupport,
 } from "~/services/apiService/newApiFamily/variants/veloeraCheckIn"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 
 const { requestData } = vi.hoisted(() => ({ requestData: vi.fn() }))
@@ -32,11 +33,34 @@ describe("site-native check-in support parsing", () => {
 
       requestData.mockResolvedValue(status)
       const request = {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://support.example.com",
         auth: { authType: AuthTypeEnum.None },
       }
       await expect(fetchNewApiSupport(request)).resolves.toBe(newApiSupport)
       await expect(fetchVeloeraSupport(request)).resolves.toBe(veloeraSupport)
+    },
+  )
+
+  it.each([
+    [{ enable_checkin: false }, false],
+    [{ enable_checkin: true }, true],
+    // The New API field keeps precedence when a deployment reports both.
+    [{ checkin_enabled: true, enable_checkin: false }, true],
+    [{ checkin_enabled: false, enable_checkin: true }, false],
+  ] as const)(
+    "reads the Rix API check-in switch from %j",
+    async (status, support) => {
+      expect(extractNewApiCheckInSupport(status)).toBe(support)
+
+      requestData.mockResolvedValue(status)
+      await expect(
+        fetchNewApiSupport({
+          directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
+          baseUrl: "https://support.example.com",
+          auth: { authType: AuthTypeEnum.None },
+        }),
+      ).resolves.toBe(support)
     },
   )
 })

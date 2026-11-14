@@ -5,39 +5,43 @@ import { useTranslation } from "react-i18next"
 import { ApiCredentialLibraryIcon } from "~/components/icons/productIcons"
 import { PageHeader } from "~/components/PageHeader"
 import { Button } from "~/components/ui"
+import { BASIC_SETTINGS_TAB_IDS } from "~/constants/basicSettingsTabs"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import type { ManagedSiteType } from "~/constants/siteType"
 import { useFeatureGuidanceContext } from "~/contexts/FeatureGuidanceContext"
 import { ProductAnalyticsScope } from "~/contexts/ProductAnalyticsScopeContext"
 import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
+import { useAccountData } from "~/features/AccountManagement/data/useAccountData"
+import { buildApiCredentialProfileAssociatedKeyStates } from "~/features/ApiCredentialProfiles/associations/apiCredentialProfileAssociatedKeyStates"
+import { useApiCredentialProfileLinks } from "~/features/ApiCredentialProfiles/associations/useApiCredentialProfileLinks"
+import { ApiCredentialProfilesListView } from "~/features/ApiCredentialProfiles/list/ApiCredentialProfilesListView"
+import { useApiCredentialProfilesController } from "~/features/ApiCredentialProfiles/workspace/useApiCredentialProfilesController"
 import {
   KEY_MANAGEMENT_GUIDED_IMPORT_TARGETS,
   KEY_MANAGEMENT_ROUTE_PARAMS,
 } from "~/features/KeyManagement/constants"
-import {
-  buildUnifiedApiGuidanceModel,
-  GatewayGuidanceDismissDialog,
-  UNIFIED_API_GUIDANCE_ACTION_KINDS,
-  UNIFIED_API_GUIDANCE_STATUSES,
-  useGatewayGuidanceDismissal,
-  type UnifiedApiGuidanceAction,
-  type UnifiedApiGuidanceModel,
-  type UnifiedApiGuidanceStatus,
-} from "~/features/UnifiedApiGuidance"
+import { GatewayGuidanceDismissDialog } from "~/features/UnifiedApiGuidance"
 import {
   GuidanceCardActionButton,
   GuidanceCardLayout,
   GuidanceCardNote,
 } from "~/features/UnifiedApiGuidance/components/GuidanceCardLayout"
-import { useAccountData } from "~/hooks/useAccountData"
-import { useApiCredentialProfileLinks } from "~/hooks/useApiCredentialProfileLinks"
+import {
+  buildUnifiedApiGuidanceModel,
+  UNIFIED_API_GUIDANCE_ACTION_KINDS,
+  UNIFIED_API_GUIDANCE_STATUSES,
+  type UnifiedApiGuidanceAction,
+  type UnifiedApiGuidanceModel,
+  type UnifiedApiGuidanceStatus,
+} from "~/features/UnifiedApiGuidance/model"
+import { useGatewayGuidanceDismissal } from "~/features/UnifiedApiGuidance/useGatewayGuidanceDismissal"
 import toast from "~/lib/notify"
-import { apiCredentialProfileLinks } from "~/services/apiCredentialProfiles/apiCredentialProfileLinks"
+import { apiCredentialProfileLinks } from "~/services/apiCredentialProfiles/links"
 import {
   GATEWAY_GUIDANCE_SURFACES,
   type FeatureGuidanceState,
 } from "~/services/featureGuidance/featureGuidanceState"
-import type { UserPreferences } from "~/services/preferences/userPreferences"
+import type { UserPreferences } from "~/services/preferences/preferencesSchema"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -48,20 +52,17 @@ import {
   API_CREDENTIAL_PROFILE_LINK_SOURCES,
   type ApiCredentialProfileLink,
 } from "~/types/apiCredentialProfiles"
+import { openSettingsTab } from "~/utils/navigation"
 import {
-  openSettingsTab,
   pushWithinOptionsPage,
   replaceWithinOptionsPage,
-} from "~/utils/navigation"
+} from "~/utils/navigation/optionsPage"
 
-import { ApiCredentialProfilesListView } from "./components/ApiCredentialProfilesListView"
 import {
   API_CREDENTIAL_PROFILE_ASSOCIATION_AVAILABILITY,
   type ApiCredentialProfileAssociatedKeyStateByProfileId,
 } from "./contracts"
-import { useApiCredentialProfilesController } from "./hooks/useApiCredentialProfilesController"
 import { API_CREDENTIAL_PROFILES_TEST_IDS } from "./testIds"
-import { buildApiCredentialProfileAssociatedKeyStates } from "./utils/apiCredentialProfileAssociatedKeyStates"
 
 /**
  * Options page for managing API credential profiles.
@@ -81,7 +82,8 @@ export default function ApiCredentialProfiles({
   ])
 
   const controller = useApiCredentialProfilesController()
-  const { displayData: localAccounts } = useAccountData()
+  const { displayData: localAccounts, isInitialLoad: isAccountInitialLoad } =
+    useAccountData()
   const {
     links: storedProfileLinks,
     isLoading: areProfileLinksLoading,
@@ -238,7 +240,16 @@ export default function ApiCredentialProfiles({
       featureId={PRODUCT_ANALYTICS_FEATURE_IDS.ApiCredentialProfiles}
       surfaceId={PRODUCT_ANALYTICS_SURFACE_IDS.OptionsApiCredentialProfilesPage}
     >
-      <div className="space-y-density-6 py-density-6 px-6">
+      <div
+        data-api-credential-page
+        className="space-y-density-6 py-density-4 sm:py-density-6 px-4 sm:px-6"
+        data-options-page-pending={
+          controller.isLoading ||
+          (areProfileLinksLoading && !associatedKeyStateByProfileId)
+            ? ""
+            : undefined
+        }
+      >
         <PageHeader
           icon={ApiCredentialLibraryIcon}
           title={t("title")}
@@ -269,7 +280,7 @@ export default function ApiCredentialProfiles({
                 action.kind ===
                 UNIFIED_API_GUIDANCE_ACTION_KINDS.ConfigureManagedSite
               ) {
-                void openSettingsTab("managedSite", {
+                void openSettingsTab(BASIC_SETTINGS_TAB_IDS.ManagedSite, {
                   preserveHistory: true,
                 })
                 return
@@ -320,6 +331,9 @@ export default function ApiCredentialProfiles({
           onRetryAssociatedKeys={() => void reloadProfileLinks()}
           onConfirmAssociatedKey={handleConfirmAssociatedKey}
           onUnlinkAssociatedKey={handleUnlinkAssociatedKey}
+          showKeyManagementImportHint={
+            !isAccountInitialLoad && localAccounts.length > 0
+          }
         />
       </div>
     </ProductAnalyticsScope>

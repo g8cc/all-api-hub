@@ -1,10 +1,10 @@
 import { isDeepStrictEqual } from "node:util"
 
-import { CHANNEL_DIALOG_TEST_IDS } from "~/components/dialogs/ChannelDialog/testIds"
 import { DoneHubChannelType } from "~/constants/doneHub"
 import { OPTIONS_PAGE_PATH } from "~/constants/extensionPages"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { SITE_TYPES } from "~/constants/siteType"
+import { CHANNEL_DIALOG_TEST_IDS } from "~/features/ManagedSiteChannels/editor/ChannelDialog/testIds"
 import { expect, test } from "~~/e2e/fixtures/extensionTest"
 import { openManagedSiteChannelRowActions } from "~~/e2e/scenarios/managedSiteChannels"
 import {
@@ -15,6 +15,7 @@ import {
 import { getServiceWorker } from "~~/e2e/utils/extensionState"
 import { resolveDoneHubManagedSiteConfig } from "~~/e2e/utils/realSite/managedSiteConfig"
 import { runScenarioWithCleanup } from "~~/e2e/utils/scenarioErrors"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const managedSite = resolveDoneHubManagedSiteConfig()
 
@@ -157,7 +158,7 @@ test("DoneHub advanced settings persist and clear on a real server", async ({
       })
       const channels = await findCreatedChannels()
       expect(channels).toHaveLength(1)
-      channelId = channels[0].id
+      channelId = atIndex(channels, 0).id
       const before = await read()
       expect(before.status, "Temporary channel must stay disabled").toBe(2)
       await forceExtensionLanguage(page, "en")

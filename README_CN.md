@@ -75,7 +75,7 @@
 ### 🚀 便捷录入与客户端集成
 
 - **网页快速录入**：从网页中识别 Base URL 与 API Key，直接测试并存入 API 凭据库，减少反复复制和切换页面。
-- **客户端一键导出**：将凭据快速导出至 CherryStudio、CC Switch、Claude Code Router、Kilo Code 等客户端，详见 [支持的工具](https://all-api-hub.qixing1217.top/supported-export-tools.html)。
+- **客户端一键导出**：将凭据快速导出至 CC Switch、Cherry Studio、Claude Code Router、Kilo Code、Roo Code、Kelivo、AI Toolbox、Cursor++ 等客户端与工具，详见 [支持的导出工具](https://all-api-hub.qixing1217.top/supported-export-tools.html)。
 
 ### 🧪 接口验证与故障排查
 
@@ -89,7 +89,7 @@
 
 ### 🛠️ 自建 AI 网关集成与管理
 
-- **主流 AI 网关统一管理**：CLIProxyAPI、New API、Sub2API、AxonHub、Claude Code Hub、Octopus、Veloera、DoneHub 网关都能直接在插件里管理渠道或提供商，不必逐个打开后台。
+- **主流 AI 网关统一管理**：OmniRoute、CLIProxyAPI、New API、Sub2API、Magpie、gpt-load、AxonHub、Claude Code Hub、Octopus、Veloera、DoneHub 网关都能直接在插件里管理渠道或提供商，不必逐个打开后台。
 - **快速创建网关渠道**：把已保存的站点账号或 API 凭据库中的凭据快速创建为自建 AI 网关渠道，之后便能通过网关统一调用各类模型，并在不同渠道间灵活切换。
 - **模型同步与重定向**：在支持的站点中，可手动或定时自动自定义同步渠道模型列表，及时跟进上游模型变化；支持自定义模型重定向规则，让客户端使用任何模型名称也能正常调用。
 
@@ -118,7 +118,7 @@
 | GitHub Stable  | [下载 Stable](https://github.com/qixing-jk/all-api-hub/releases/latest)       | 无法安装商店版，或需要临时手动安装已发布修复       |
 | Nightly 预发布 | [下载 Nightly](https://github.com/qixing-jk/all-api-hub/releases/tag/nightly) | 想抢先体验新功能并协助测试，可能不如商店稳定版稳定 |
 
-GitHub Stable 和 Nightly 属于手动安装通道，不会自动更新；可 Star / Watch 仓库接收新版本通知。更多说明见 [安装与更新说明](https://all-api-hub.qixing1217.top/extension-update-install.html)。
+GitHub Stable 和 Nightly 属于手动安装通道。必须从 GitHub 安装时，Chromium 用户推荐安装 `all-api-hub-chrome.crx`（Nightly 为 `all-api-hub-nightly-chrome.crx`），它会和商店版一样自动更新。更多说明见 [安装与更新说明](https://all-api-hub.qixing1217.top/extension-update-install.html) 与 [Chromium 自更新安装](https://all-api-hub.qixing1217.top/chromium-crx-self-update.html)。
 
 **其他环境支持：**
 
@@ -161,12 +161,12 @@ GitHub Stable 和 Nightly 属于手动安装通道，不会自动更新；可 St
 <hr>
 
 <div>
-  <a href="https://www.packyapi.com/register?aff=all-api-hub">
+  <a href="https://www.packyapi.ai/register?aff=all-api-hub">
     <img src="resources/partners/packycode.png" alt="PackyCode" width="128" align="left" hspace="10" vspace="4">
   </a>
   <p>
     PackyCode 是一家稳定、高效的API中转服务商，提供 Claude Code、Codex、Gemini 等多种中转服务。PackyCode
-    为本软件的用户提供了特别优惠，使用<a href="https://www.packyapi.com/register?aff=all-api-hub">此链接</a>注册并在充值时填写"all-api-hub"优惠码，首次充值可以享受9折优惠（<a href="https://all-api-hub.qixing1217.top/sponsor-guides/packycode.html">使用教程</a>）！
+    为本软件的用户提供了特别优惠，使用<a href="https://www.packyapi.ai/register?aff=all-api-hub">此链接</a>注册并在充值时填写"all-api-hub"优惠码，首次充值可以享受9折优惠（<a href="https://all-api-hub.qixing1217.top/sponsor-guides/packycode.html">使用教程</a>）！
   </p>
 </div>
 
@@ -184,29 +184,6 @@ GitHub Stable 和 Nightly 属于手动安装通道，不会自动更新；可 St
 <hr>
 
 <div>
-  <a href="https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB">
-    <img src="resources/partners/xuanshu-api.png" alt="玄枢API" width="180" align="left" hspace="10" vspace="4">
-  </a>
-  <p>
-    玄枢API是面向企业、技术团队和个人开发者的新一代 AI 模型路由网关，提供企业级稳定性的全球顶级模型（Claude, GPT, Grok等）一站式API 接入。模型一折到六折，通过<a href="https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB">此链接</a>注册，充值额外加赠，首充送更多！企业支持对公转账和开票（<a href="https://all-api-hub.qixing1217.top/service-guides/xuanshuapi.html">使用教程</a>）。
-  </p>
-</div>
-
-<hr>
-
-<div>
-  <a href="https://www.aicodemirror.ai/register?invitecode=7IQNR8">
-    <img src="resources/partners/aicodemirror.png" alt="AICodeMirror" width="128" align="left" hspace="10" vspace="4">
-  </a>
-  <p>
-    AICodeMirror 提供 Claude Code / Codex / Gemini CLI 官方高稳定中转服务，支持企业级高并发、极速开票、7×24 专属技术支持。Claude Code / Codex / Gemini 官方渠道低至 3.8 / 0.2 / 0.9 折，充值更有折上折！AICodeMirror
-    为 All API Hub 的用户提供了特别福利：通过<a href="https://www.aicodemirror.ai/register?invitecode=7IQNR8">此链接</a>注册，可享受首充 8 折，企业客户最高可享 7.5 折！
-  </p>
-</div>
-
-<hr>
-
-<div>
   <a href="https://sui-xiang.com/">
     <img src="resources/partners/suixiang.jpg" alt="随想AI中转站" width="128" align="left" hspace="10" vspace="4">
   </a>
@@ -218,11 +195,22 @@ GitHub Stable 和 Nightly 属于手动安装通道，不会自动更新；可 St
 <hr>
 
 <div>
-  <a href="https://go.apimart.ai/gh-all-api-hub">
-    <img src="resources/partners/apimart.png" alt="APIMart" width="180" align="left" hspace="10" vspace="4">
+  <a href="https://88api.ai/register?aff=XcTj">
+    <img src="resources/partners/88api.jpg" alt="88API Token聚合平台" width="180" align="left" hspace="10" vspace="4">
   </a>
   <p>
-    APIMart 是专注 AI 图片/视频生成的低价 API 平台，GPT-Image-2 低至 $0.006/张，1 美元可出图 160+ 张。图片、视频一套异步 API 通吃，提交任务拿 ID、回调取结果，跑批万张不超时、换模型不改代码。按量付费、无月费。欢迎通过<a href="https://go.apimart.ai/gh-all-api-hub">此链接</a>注册使用。
+    感谢 88API Token聚合平台赞助本项目！ 由香港企业运营的一站式多模型 API 平台，面向开发者、创作者与 AI 应用用户，通过统一接口接入文本、图片、语音和视频模型，覆盖 AI 编程、智能翻译、内容创作、配音、图像生成、视频生成等常见工作流。可直接在 CC Switch 中添加并切换 Provider，支持国际主流付款方式、发票与企业级稳定服务。 <a href="https://88api.ai/register?aff=XcTj">通过专属链接注册可获取赠送额度！</a>
+  </p>
+</div>
+
+<hr>
+
+<div>
+  <a href="https://dzhsmartai.com/">
+    <img src="resources/partners/ccccccapi.jpg" alt="ccccccapi" width="64" align="left" hspace="10" vspace="4">
+  </a>
+  <p>
+    ccccccapi 支持 ChatGPT、Claude、Gemini、Deepseek 等，全网最低价，用的不烧心，<a href="https://dzhsmartai.com/">是兄弟就来砍我！</a>
   </p>
 </div>
 
@@ -263,57 +251,100 @@ GitHub Stable 和 Nightly 属于手动安装通道，不会自动更新；可 St
 
 不论你用的是哪种架构，我们基本都支持：
 
-- **账号站点兼容架构**：[new-api](https://github.com/QuantumNous/new-api)、[one-api](https://github.com/songquanpeng/one-api)、[Sub2API](https://github.com/Wei-Shaw/sub2api)、[one-hub](https://github.com/MartialBE/one-hub)、[Veloera](https://github.com/Veloera/Veloera)、[done-hub](https://github.com/deanxv/done-hub) 等
-- **特色账号平台与兼容实现**：[AnyRouter](https://anyrouter.top/register?aff=tDKX)、[AgentRouter](https://agentrouter.org/register?aff=TUX6)、[AIHubMix](https://aihubmix.com/?aff=W3DN)、Super-API、v-api、Neo-API 等
-- **自建管理后台**：[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)、[New API](https://github.com/QuantumNous/new-api)、[Sub2API](https://github.com/Wei-Shaw/sub2api)、[AxonHub](https://github.com/looplj/axonhub)、[Claude Code Hub](https://github.com/ding113/claude-code-hub)、[Octopus](https://github.com/bestruirui/octopus)、[Veloera](https://github.com/Veloera/Veloera)、[DoneHub](https://github.com/deanxv/done-hub) 等，用于渠道或提供商管理，并按站点能力提供迁移和模型同步
-- **查看完整列表**：👉 [支持的站点](https://all-api-hub.qixing1217.top/supported-sites.html)
+- **账号站点兼容架构**：[New API](https://github.com/QuantumNous/new-api)、[Sub2API](https://github.com/Wei-Shaw/sub2api)、[One API](https://github.com/songquanpeng/one-api)、[one-hub](https://github.com/MartialBE/one-hub)、[Veloera](https://github.com/Veloera/Veloera)、[VoAPI / VoAPI v2](https://github.com/VoAPI/VoAPI)、[DoneHub](https://github.com/deanxv/done-hub)、[Super-API](https://github.com/SuperAI-Api/Super-API)、API易、ModelFlare、v-api 以及 Neo-API、RIX_API 等变体。
+- **独立账号平台与中转站**：[OpenRouter](https://openrouter.ai)、[Kimi 开放平台（国内/国际版）](https://platform.kimi.ai)、[AnyRouter](https://anyrouter.top/register?aff=tDKX)、[AgentRouter](https://agentrouter.org/register?aff=TUX6)、[AIHubMix](https://aihubmix.com/?aff=W3DN)、老张 API、Dahl、FoxCode、肖恩 AI、Cubence、RightCode、Grsai、FreeModel、SharedChat、WONG公益站、Krill AI、EMRank、RelayFor、Daya API、[Vercel AI Gateway](https://vercel.com/ai-gateway)、PM-API, [Requesty](https://app.requesty.ai)、Novita AI、AI/ML API、NanoGPT 等
+- **自建管理后台与 AI 网关**：[OmniRoute](https://github.com/diegosouzapw/OmniRoute)、[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)、[New API](https://github.com/QuantumNous/new-api)、[Sub2API](https://github.com/Wei-Shaw/sub2api)、[Magpie](https://github.com/yetone/magpie)、[gpt-load](https://github.com/tbphp/gpt-load)、[AxonHub](https://github.com/looplj/axonhub)、[Claude Code Hub](https://github.com/ding113/claude-code-hub)、[Octopus](https://github.com/bestruirui/octopus)、[Veloera](https://github.com/Veloera/Veloera)、[DoneHub](https://github.com/deanxv/done-hub) 等，用于渠道或提供商管理，并按站点能力提供迁移和模型同步
+  - 批量导入可将同站点密钥合并到 Magpie、New API、Octopus、gpt-load、AxonHub 普通 API key 渠道及 CLIProxyAPI OpenAI 兼容资源中，密钥调度由目标网关负责。 Magpie 还可将缺失密钥添加到同地址、同协议的已有渠道，并保留原有配置和模型设置。
+- **客户端与开发工具一键导出**：CC Switch、Cherry Studio、Claude Code Router、Kilo Code、Roo Code、Kelivo、AI Toolbox、Cursor++ 等，详见 [支持的导出工具](https://all-api-hub.qixing1217.top/supported-export-tools.html)
+- **查看完整列表**：👉 [支持的站点](https://all-api-hub.qixing1217.top/supported-sites.html) 与 [支持的导出工具](https://all-api-hub.qixing1217.top/supported-export-tools.html)
 
 <a id="ui-preview"></a>
 
 ## 🖼️ 界面预览
 
+<div align="center">
+  <img src="docs/docs/static/image/options-overview.png" alt="options-overview" style="width:100%; height:auto;"/>
+  <p><em>全功能主控制台与仪表盘：全局资产、待办事项、统一 API 配置与健康状态一览</em></p>
+</div>
+
+### 账号与 API 密钥
+
 <table>
   <tr>
-    <td align="center">
+    <td align="center" colspan="2" width="100%">
       <img src="docs/docs/static/image/account-manage.png" alt="account-manage" style="width:100%; height:auto;"/>
-      <div>账户管理总览</div>
-    </td>
-    <td align="center">
-      <img src="docs/docs/static/image/model-list.png" alt="model-list" style="width:100%; height:auto;"/>
-      <div>模型列表与价格</div>
+      <div><b>多中转站账户资产</b><br/>集中管理各平台余额、货币汇率与标签筛选</div>
     </td>
   </tr>
   <tr>
-    <td align="center">
+    <td align="center" width="50%">
       <img src="docs/docs/static/image/api-key-list.png" alt="api-key-list" style="width:100%; height:auto;"/>
-      <div>密钥列表与导出</div>
+      <div><b>统一密钥管理与导出</b><br/>跨站点额度查询、一键复制与客户端配置导出</div>
     </td>
-    <td align="center">
-      <img src="docs/docs/static/image/auto-check-in.png" alt="auto-check-in" style="width:100%; height:auto;"/>
-      <div>账号自动签到</div>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="docs/docs/static/image/account-model-usage-overview.png" alt="account-model-usage-overview" style="width:100%; height:auto;"/>
-      <div>账号模型使用情况</div>
-    </td>
-    <td align="center">
-      <img src="docs/docs/static/image/account-model-latency-overview.png" alt="account-model-latency-overview" style="width:100%; height:auto;"/>
-      <div>模型慢查询分析</div>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="docs/docs/static/image/new-api-channel-sync.png" alt="new-api-channel-sync" style="width:100%; height:auto;"/>
-      <div>New API 模型同步</div>
-    </td>
-    <td align="center">
-      <img src="docs/docs/static/image/new-api-channel-manage.png" alt="new-api-channel-manage" style="width:100%; height:auto;"/>
-      <div>New API 渠道管理</div>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/api-credential-profile-list.png" alt="api-credential-profile-list" style="width:100%; height:auto;"/>
+      <div><b>API 凭据配置集</b><br/>免登录纯 Key 托管、CLI 兼容性验证与快速调用</div>
     </td>
   </tr>
 </table>
+
+### 模型选择与调用验证
+
+<table>
+  <tr>
+    <td align="center" colspan="2" width="100%">
+      <img src="docs/docs/static/image/model-list.png" alt="model-list" style="width:100%; height:auto;"/>
+      <div><b>跨平台模型与价格对比</b><br/>按使用场景折算同一模型的跨站报价，显示最低价格</div>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/web-ai-api-check-trigger.png" alt="web-ai-api-check-trigger" style="width:100%; height:auto;"/>
+      <div><b>网页内快捷 API 测试</b><br/>复制网页中的 API 地址与密钥，识别后点击打开测试面板</div>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/web-ai-api-check-results.png" alt="web-ai-api-check-results" style="width:100%; height:auto;"/>
+      <div><b>直接在网页中测试 API</b><br/>模型列表、文本生成、工具调用、结构化输出与绘画等测试</div>
+    </td>
+  </tr>
+</table>
+
+### 签到、余额与用量
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/auto-check-in.png" alt="auto-check-in" style="width:100%; height:auto;"/>
+      <div><b>自动化每日签到</b><br/>多账号定时轮询、智能重试与领取收益明细</div>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/balance-history.png" alt="balance-history" style="width:100%; height:auto;"/>
+      <div><b>余额走势与收支趋势</b><br/>账户余额走势、消费分布与完整收支汇总</div>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/account-model-usage-overview.png" alt="account-model-usage-overview" style="width:100%; height:auto;"/>
+      <div><b>多维用量与消费占比</b><br/>Tokens 消耗透视、账号调用分布与费用统计</div>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/docs/static/image/account-model-latency-overview.png" alt="account-model-latency-overview" style="width:100%; height:auto;"/>
+      <div><b>响应时间与慢查询分析</b><br/>各模型延迟对比、长请求诊断与高耗时预警</div>
+    </td>
+  </tr>
+</table>
+
+### 自建网关与模型同步
+
+<div align="center">
+      <img src="docs/docs/static/image/new-api-channel-manage.png" alt="new-api-channel-manage" style="width:100%; height:auto;"/>
+      <div><b>自建网关渠道管理</b><br/>展示支持的网关平台，管理渠道状态、测试与跨站迁移</div>
+    </div>
+
+<div align="center">
+      <img src="docs/docs/static/image/new-api-channel-sync.png" alt="new-api-channel-sync" style="width:100%; height:auto;"/>
+      <div><b>上游模型自动同步</b><br/>按渠道模型自动抓取、差异对比与一键同步更新</div>
+    </div>
 
 <a id="development-guide"></a>
 

@@ -1,0 +1,77 @@
+import { useTranslation } from "react-i18next"
+
+import { CALCULATED_PRICE_KINDS } from "~/services/modelPricing/pricingConstants"
+import {
+  formatPrice,
+  projectTokenPrices,
+  resolvePriceAmount,
+  type CalculatedPrice,
+} from "~/services/models/utils/modelPricing"
+
+/** Shows the available flat token prices in USD and the account's display currency. */
+export function ModelItemTokenPricingDetails({
+  calculatedPrice,
+  exchangeRate,
+}: {
+  calculatedPrice: CalculatedPrice
+  exchangeRate: number
+}) {
+  const { t } = useTranslation("modelList")
+  const projected = calculatedPrice.perMillionTokens
+    ? projectTokenPrices(calculatedPrice.perMillionTokens)
+    : undefined
+  const prices =
+    projected?.prices ??
+    (calculatedPrice.kind === CALCULATED_PRICE_KINDS.TOKEN
+      ? calculatedPrice.usdPerMillionTokens
+      : {})
+  const sourceCurrency = projected?.currency ?? "USD"
+  const usdAmount = (value: number) =>
+    sourceCurrency === "CNY" ? value / exchangeRate : value
+  const details = [
+    { key: "input", label: t("input1MTokens"), amount: prices.input },
+    { key: "output", label: t("output1MTokens"), amount: prices.output },
+    {
+      key: "cache-read",
+      label: t("cacheRead1MTokens"),
+      amount: prices.cacheRead,
+    },
+    {
+      key: "cache-write",
+      label: t("cacheWrite1MTokens"),
+      amount: prices.cacheWrite,
+    },
+  ]
+
+  return (
+    <div className="gap-y-density-4 grid grid-cols-2 gap-x-4 text-xs">
+      {details.map((price) => (
+        <div key={price.key} className="space-y-density-1">
+          <div className="text-muted-foreground">{price.label}</div>
+          {price.amount === undefined ? (
+            <div className="text-muted-foreground">
+              {t("ui:billing.notProvided")}
+            </div>
+          ) : (
+            <>
+              <div className="text-foreground font-medium">
+                USD: {formatPrice(usdAmount(price.amount), "USD")}
+              </div>
+              <div className="text-foreground font-medium">
+                CNY:{" "}
+                {formatPrice(
+                  resolvePriceAmount(
+                    usdAmount(price.amount),
+                    "CNY",
+                    exchangeRate,
+                  ),
+                  "CNY",
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}

@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { cliProxyApiRef } from "~/services/apiAdapters/managedResources/cliProxyApi"
+import { cliProxyApiRef } from "~/services/apiAdapters/managedResources/cliProxyApi/nativeRuntime"
 import { cliProxyApiCapabilities } from "~/services/apiAdapters/managedSites/cliProxyApi"
 import type { CliProxyApiResource } from "~/services/apiService/cliProxyApi"
 import { API_TYPES } from "~/services/verification/aiApiVerification"
 import { createDeferred } from "~~/tests/test-utils/deferred"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -17,14 +18,14 @@ vi.mock("~/services/apiService/cliProxyApi", async (importOriginal) => ({
   >()),
   listAllCliProxyApiProviders: mocks.list,
 }))
-vi.mock("~/services/managedSites/runtimeConfig", () => ({
+vi.mock("~/services/managedSites/configuration/runtimeConfig", () => ({
   getManagedSiteRuntimeConfigForType: mocks.runtime,
 }))
 vi.mock(
-  "~/services/apiAdapters/managedResources/cliProxyApi",
+  "~/services/apiAdapters/managedResources/cliProxyApi/nativeRuntime",
   async (importOriginal) => ({
     ...(await importOriginal<
-      typeof import("~/services/apiAdapters/managedResources/cliProxyApi")
+      typeof import("~/services/apiAdapters/managedResources/cliProxyApi/nativeRuntime")
     >()),
     getCliProxyApiResource: mocks.resource,
   }),
@@ -92,7 +93,8 @@ describe("CLIProxyAPI configuration and credential matching", () => {
         signal: controller.signal,
       }),
     ])
-    const readSignal = mocks.list.mock.calls[0][1].signal as AbortSignal
+    const readSignal = atIndex(mocks.list.mock.calls, 0)[1]
+      .signal as AbortSignal
     controller.abort()
     expect(readSignal.aborted).toBe(true)
     expect(await firstOutcome).toEqual([
@@ -154,7 +156,7 @@ describe("CLIProxyAPI configuration and credential matching", () => {
       "other.example",
     )
     controller.abort()
-    const readOptions = mocks.list.mock.calls[0][1]
+    const readOptions = atIndex(mocks.list.mock.calls, 0)[1]
     expect(mocks.list).toHaveBeenCalledTimes(1)
     expect(readOptions.signal.aborted).toBe(false)
     expect(readOptions.requestScheduling.priority).toBe("foreground")

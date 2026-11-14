@@ -2,18 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ACCOUNT_BROWSER_SESSION_SOURCES } from "~/services/accountBrowserSession/types"
 import {
-  fetchSub2ApiProDailyCheckInStatus,
-  performSub2ApiProDailyCheckIn,
-} from "~/services/apiService/sub2api"
-import {
   SUB2API_AUTH_PERSISTENCE_STATUSES,
   type Sub2ApiAuthSessionRequest,
-} from "~/services/apiService/sub2api/authSession"
+} from "~/services/apiService/sub2api/auth/authSession"
 import {
   recoverSub2ApiBrowserAuth as resyncSub2ApiAuthToken,
   Sub2ApiAuthIdentityMismatchError,
-} from "~/services/apiService/sub2api/browserAuth"
+} from "~/services/apiService/sub2api/auth/browserAuth"
+import {
+  fetchSub2ApiProDailyCheckInStatus,
+  performSub2ApiProDailyCheckIn,
+} from "~/services/apiService/sub2api/checkin/proCheckInExecution"
 import { fetchApiResponse } from "~/services/apiTransport/request"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ApiTransportResponse } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 import { TEMP_WINDOW_REQUEST_SOURCES } from "~/types/tempWindowFetch"
@@ -28,17 +29,20 @@ vi.mock("~/services/apiTransport/request", async (importOriginal) => ({
   fetchApiResponse: vi.fn(),
 }))
 
-vi.mock("~/services/apiService/sub2api/browserAuth", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("~/services/apiService/sub2api/browserAuth")
-    >()
-  return {
-    ...actual,
-    findSub2ApiBrowserAuth: vi.fn(),
-    recoverSub2ApiBrowserAuth: vi.fn(),
-  }
-})
+vi.mock(
+  "~/services/apiService/sub2api/auth/browserAuth",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/apiService/sub2api/auth/browserAuth")
+      >()
+    return {
+      ...actual,
+      findSub2ApiBrowserAuth: vi.fn(),
+      recoverSub2ApiBrowserAuth: vi.fn(),
+    }
+  },
+)
 
 const response = (
   status: number,
@@ -73,6 +77,7 @@ const mutationBody = {
 }
 
 const createRequest = (): Sub2ApiAuthSessionRequest => ({
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://checkin.example.invalid",
   accountId: "account-1",
   auth: {
@@ -358,7 +363,10 @@ describe("Sub2API Pro daily check-in authenticated transport", () => {
 
     await expect(
       performSub2ApiProDailyCheckIn(createRequest(), {
-        beforeRecoveredMutation: async () => false,
+        beforeRecoveredMutation: vi
+          .fn()
+          .mockResolvedValueOnce(true)
+          .mockResolvedValue(false),
       }),
     ).resolves.toEqual({ kind: "recovery_precondition_failed" })
     expect(fetchApiResponse).toHaveBeenCalledTimes(2)

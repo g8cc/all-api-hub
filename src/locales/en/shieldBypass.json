@@ -129,13 +129,27 @@
     },
     "unexpectedContent": "The response had an unexpected format and may have been a site verification page."
   },
+  "notification": {
+    "loginAssistBody": "Sign-in is waiting. Open the login window to complete verification or two-factor authentication; the extension will then verify the account and task result.",
+    "loginSessionBody": "This window already has a signed-in session. To avoid signing out accounts in other windows, open the login window and sign out manually when ready; the extension will then sign in to the target account.",
+    "openLogin": "Open login window",
+    "openVerification": "Open verification window",
+    "reminderSettings": "Reminder settings",
+    "turnstileAssistBody": "The site is waiting for human verification. Select “Open verification window” to finish the captcha. The extension will then check the task result.",
+    "turnstileAssistTitle": "All API Hub · Verification reminder",
+    "turnstilePageBody": "The site is waiting for human verification. Select “Open verification window” to finish the captcha. The extension will then check the task result.",
+    "verificationEnded": "This verification has ended. No further action is needed."
+  },
   "titlePrefix": "All API Hub · Shield Bypass",
   "toast": {
     "actions": {
-      "dismiss": "Dismiss",
       "openSettings": "Open shield bypass settings"
     },
-    "body": "This page was opened automatically by All API Hub to pass protection pages (e.g., Cloudflare challenges) and obtain the required cookies/session.\n\nIt’s necessary so All API Hub can make successful requests and detect data on protected sites.\n\nIf a verification step appears, complete it in this window; once passed, All API Hub continues and this window may close automatically.",
-    "title": "All API Hub shielded bypass helper (temporary window)"
+    "body": "This page was opened automatically by All API Hub to pass protection pages (e.g., Cloudflare challenges) and obtain the required cookies/session.\nIt’s necessary so All API Hub can make successful requests and detect data on protected sites.\nIf a verification step appears, complete it in this window; once passed, All API Hub continues and this window may close automatically.",
+    "title": "Shield bypass helper",
+    "turnstile": {
+      "body": "Complete the site’s human verification in this window, such as checking “I am human” or selecting the requested images. The extension is waiting and will check the task result afterwards. If the page still shows you as not checked in, complete check-in there.",
+      "title": "Complete the human verification"
+    }
   }
 }

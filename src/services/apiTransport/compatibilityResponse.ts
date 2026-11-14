@@ -3,7 +3,10 @@ import { getErrorMessage } from "~/utils/core/error"
 import { t } from "~/utils/i18n/core"
 
 import { API_ERROR_CODES, ApiError, type ApiErrorCode } from "./errors"
-import { extractDataFromApiResponseBody } from "./response"
+import {
+  assertNotProtectionResponse,
+  extractDataFromApiResponseBody,
+} from "./response"
 import {
   extractHeuristicResponseErrorMessage,
   resolveResponseErrorDetails,
@@ -116,13 +119,23 @@ function createCompatibilityHttpError(
     getErrorMessage(heuristicMessage, fixedFallback),
   )
 
-  return new ApiError(
+  const error = new ApiError(
     message,
     response.status,
     context.endpoint,
     errorCode,
     decoded?.upstreamCode,
   )
+  // Only a decoded envelope is the site's own answer. Every other message here
+  // is either the transport's fixed fallback or text recovered from a body the
+  // site's protocol did not produce (an interceptor page, a proxy refusal, a
+  // login redirect). Content type cannot tell the two apart — a proxy may well
+  // answer in JSON — so attribution follows the source of the message.
+  if (!decoded?.message || decoded.unattributedMessage) {
+    error.unattributedMessage = true
+  }
+
+  return error
 }
 
 /** Applies the existing envelope and error behavior above raw HTTP transport. */
@@ -130,11 +143,31 @@ export function mapCompatibilityResponse<T>(
   response: CompatibilityTransportResponse<T>,
   context: CompatibilityResponseContext,
 ): T | ApiResponse<T> {
+  if (context.responseType === "json")
+    assertNotProtectionResponse(
+      response.body,
+      response.status,
+      context.endpoint,
+      response.headers,
+    )
   if (!response.ok) {
     throw createCompatibilityHttpError(response, context)
   }
 
   if (response.decodeError) throw response.decodeError
+
+  if (context.responseType === "json" && typeof response.body === "string") {
+    const contentType = response.headers["content-type"] || "unknown"
+    throw new ApiError(
+      t("messages:errors.api.nonJsonContent", {
+        contentType,
+        status: response.status,
+      }),
+      response.status,
+      context.endpoint,
+      API_ERROR_CODES.JSON_PARSE_ERROR,
+    )
+  }
 
   const providerBusinessError = createProviderBusinessError(response, context)
   if (providerBusinessError) throw providerBusinessError

@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
-import ResultsTable from "~/features/AutoCheckin/components/ResultsTable"
+import ResultsTable from "~/features/AutoCheckin/results/ResultsTable"
 import {
   CHECKIN_RESULT_STATUS,
   type CheckinAccountResult,
@@ -88,12 +88,12 @@ describe("AutoCheckin ResultsTable dev actions", () => {
       <ResultsTable
         results={[
           {
-            ...baseResult,
             accountId: "failed-account",
             accountName: "Failed Account",
             status: CHECKIN_RESULT_STATUS.FAILED,
             retryable: false,
-            accountStateDurability: undefined,
+            message: baseResult.message,
+            timestamp: baseResult.timestamp,
           },
         ]}
         onDisableAccount={vi.fn()}

@@ -10,6 +10,7 @@ import {
 } from "~/services/history/usageHistory/core"
 import { usageHistoryStorage } from "~/services/history/usageHistory/storage"
 import { formatPriceCompact } from "~/services/models/utils/modelPricing"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { act, render, screen, waitFor } from "~~/tests/test-utils/render"
 
 const { useUserPreferencesContextMock } = vi.hoisted(() => ({
@@ -204,9 +205,12 @@ describe("UsageAnalytics charts", () => {
 
     const user = userEvent.setup()
     await user.click(
-      screen.getAllByRole("button", {
-        name: "usageAnalytics:charts.common.chartType.histogram",
-      })[0],
+      atIndex(
+        screen.getAllByRole("button", {
+          name: "usageAnalytics:charts.common.chartType.histogram",
+        }),
+        0,
+      ),
     )
 
     const lastOption =
@@ -432,7 +436,11 @@ describe("UsageAnalytics charts", () => {
     await screen.findByText("usageAnalytics:charts.modelDistribution.title")
 
     await waitFor(() => {
-      expect(echartsInstances[1]).toBeDefined()
+      expect(echartsInstances[1]?.setOption.mock.lastCall?.[0]).toMatchObject({
+        series: [
+          { type: "pie", data: [expect.objectContaining({ name: "gpt-4" })] },
+        ],
+      })
     })
 
     const modelDistributionInstance = echartsInstances[1]!
@@ -441,9 +449,12 @@ describe("UsageAnalytics charts", () => {
 
     const user = userEvent.setup()
     await user.click(
-      screen.getAllByRole("button", {
-        name: "usageAnalytics:charts.common.chartType.pie",
-      })[0],
+      atIndex(
+        screen.getAllByRole("button", {
+          name: "usageAnalytics:charts.common.chartType.pie",
+        }),
+        0,
+      ),
     )
 
     expect(modelDistributionInstance.setOption.mock.calls).toHaveLength(
@@ -513,6 +524,51 @@ describe("UsageAnalytics charts", () => {
     expect(accountComparisonOption.series?.[0]?.type).toBe("bar")
     expect(slowModelsOption.series?.[0]?.type).toBe("bar")
     expect(slowTokensOption.series?.[0]?.type).toBe("bar")
+  })
+
+  const findTimeHeatmapOption = () =>
+    echartsInstances
+      .flatMap((instance) =>
+        instance.setOption.mock.calls.map((call) => call[0] as any),
+      )
+      .filter(
+        (option) =>
+          option?.series?.[0]?.type === "heatmap" &&
+          option?.xAxis?.data?.length === 24,
+      )
+      .at(-1)
+
+  it("plots hourly token totals on the usage-time heatmap", async () => {
+    vi.mocked(accountQueries.getAllAccounts).mockResolvedValue([
+      {
+        id: "a1",
+        site_name: "Site A",
+        exchange_rate: 7.2,
+        account_info: {
+          username: "User A",
+        },
+      },
+    ] as any)
+
+    const accountStore = createEmptyUsageHistoryAccountStore()
+    accountStore.daily["2026-01-01"] = createDailyAggregate(15, 3)
+    accountStore.hourly["2026-01-01"] = { "09": createDailyAggregate(15, 3) }
+    attachLatency(accountStore, "2026-01-01")
+
+    vi.mocked(usageHistoryStorage.getStore).mockResolvedValue({
+      schemaVersion: 2,
+      accounts: { a1: accountStore },
+    } as any)
+
+    render(<UsageAnalytics />)
+    await screen.findByText("usageAnalytics:charts.usageTimeHeatmap.title")
+
+    // 2026-01-01 is a Thursday, the fourth weekday label after Monday, at the "09" hour.
+    await waitFor(() => {
+      expect(findTimeHeatmapOption()?.series?.[0]?.data).toContainEqual([
+        9, 3, 15,
+      ])
+    })
   })
 
   it("focuses and unfocuses a clicked model across related charts", async () => {

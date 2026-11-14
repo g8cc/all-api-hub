@@ -1,15 +1,17 @@
 import type { ApiServiceRequest } from "~/services/apiTransport/type"
 import {
   type AccountIdentity,
+  type AccountNativeBalance,
   type AccountSubscriptionSummary,
   type AccountTodayStatsAvailability,
   type AccountUsageRecord,
   type AccountUsageSummary,
   type CheckInConfig,
+  type HealthStatusCode,
+  type KimiOpenPlatformAuthConfig,
   type SiteAccount,
   type SiteHealthStatus,
   type Sub2ApiAuthConfig,
-  type TempWindowHealthStatusCode,
 } from "~/types"
 
 export interface TodayUsageData {
@@ -38,6 +40,8 @@ export type TodayIncomeDataWithAvailability = TodayIncomeData & {
 
 export interface AccountData extends TodayStatsData {
   quota: number
+  balanceUnavailable?: boolean
+  nativeBalance?: AccountNativeBalance
   todayStatsAvailability?: AccountTodayStatsAvailability
   usage?: AccountUsageSummary
   subscription?: AccountSubscriptionSummary
@@ -79,6 +83,7 @@ type RefreshAuthUpdate = {
   userId?: AccountIdentity
   username?: string
   sub2apiAuth?: Sub2ApiAuthConfig
+  kimiOpenPlatformAuth?: KimiOpenPlatformAuthConfig
 }
 
 type RefreshAccountResultBase = {
@@ -109,5 +114,5 @@ export interface HealthCheckResult {
   /**
    * Optional machine-readable reason code for actionable UI.
    */
-  code?: TempWindowHealthStatusCode
+  code?: HealthStatusCode
 }

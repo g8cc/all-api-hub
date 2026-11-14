@@ -4,8 +4,29 @@ import type {
   ApiVerificationMode,
   ApiVerificationProbeId,
   ApiVerificationProbeResult,
+  ApiVerificationRequestProfile,
 } from "~/services/verification/aiApiVerification"
+import type { ContextCapacityResult } from "~/services/verification/modelQuality/contextCapacity"
+import type {
+  ContextCapacityRunResult,
+  RunContextCapacityParams,
+} from "~/services/verification/modelQuality/contextCapacityRun"
+import type {
+  NeedleResult,
+  RunNeedleParams,
+} from "~/services/verification/modelQuality/needleRun"
+import type {
+  PelicanExecutionMode,
+  PelicanTestResult,
+} from "~/services/verification/modelQuality/pelican"
+import type {
+  QuestionAnswerRequest,
+  QuestionAnswerResult,
+} from "~/services/verification/modelQuality/questionAnswer"
+import type { ContextHistoryRequest } from "~/services/verification/verificationResultHistory/contextCapacityHistory"
+import type { ContextCapacitySummary } from "~/services/verification/verificationResultHistory/types"
 import type { WebAiApiCheckBaseUrlSuggestion } from "~/services/verification/webAiApiCheck/baseUrlHistory"
+import { type CONTEXT_HISTORY_ACTIONS } from "~/services/verification/webAiApiCheck/constants"
 import type { Tag } from "~/types"
 
 /**
@@ -25,6 +46,8 @@ export type ApiCheckShouldPromptResponse =
       success: true
       shouldPrompt: boolean
       enhancedShouldPrompt?: boolean
+      siteAllowed?: boolean
+      autoDetectEnabled?: boolean
       apiKeyCleanupPatterns?: string[]
     }
   | {
@@ -142,6 +165,8 @@ export type ApiCheckFetchModelsResponse =
  * The returned result must never include secrets (apiKey), and error summaries must be sanitized.
  */
 export type ApiCheckRunProbeRequest = {
+  requestProfileEnhanced?: boolean
+  requestProfile?: ApiVerificationRequestProfile
   runId?: string
   apiType: ApiVerificationApiType
   mode?: ApiVerificationMode
@@ -150,6 +175,35 @@ export type ApiCheckRunProbeRequest = {
   modelId?: string
   probeId: ApiVerificationProbeId
 }
+
+/**
+ * Runtime data from content -> background to run the pelican drawing test.
+ *
+ * Kept as its own message because the drawing test returns SVG markup rather
+ * than a probe result, and the content script cannot call the provider directly.
+ */
+export type ApiCheckRunPelicanRequest = {
+  runId?: string
+  apiType: ApiVerificationApiType
+  mode?: ApiVerificationMode
+  baseUrl: string
+  apiKey: string
+  modelId?: string
+  prompt?: string
+  executionMode?: PelicanExecutionMode
+  requestProfile?: ApiVerificationRequestProfile
+  requestProfileEnhanced?: boolean
+}
+
+/**
+ * Runtime response for {@link ApiCheckRunPelicanRequest}.
+ */
+export type ApiCheckRunPelicanResponse =
+  | {
+      success: true
+      result: PelicanTestResult
+    }
+  | { success: false; error?: string }
 
 /**
  * Runtime response for {@link ApiCheckRunProbeRequest}.
@@ -192,6 +246,8 @@ export type ApiCheckSaveProfileRequest = {
   apiKey: string
   pageUrl?: string
   name?: string
+  /** Optional page the user found these credentials on, used for later revisits. */
+  sourceUrl?: string
   tagIds?: string[]
   notes?: string
   expiresAt?: number | null
@@ -215,3 +271,52 @@ export type ApiCheckSaveProfileResponse =
       error?: string
       errorCategory?: ProductAnalyticsErrorCategory
     }
+
+export type ApiCheckRunContextCapacityRequest = Omit<
+  RunContextCapacityParams,
+  "abortSignal" | "onProgress" | "onCheckpoint" | "requestHeaders"
+> & { runId: string; recoverOnly?: boolean }
+export type ApiCheckRunContextCapacityResponse =
+  | { success: true; result: ContextCapacityRunResult }
+  | { success: false; error?: string; checkpointLimitReached?: boolean }
+export type ApiCheckContextCapacityProgress = {
+  runId: string
+  result: ContextCapacityResult
+}
+
+export type ApiCheckContextHistoryRequest = {
+  request: ContextHistoryRequest
+  action: (typeof CONTEXT_HISTORY_ACTIONS)[keyof typeof CONTEXT_HISTORY_ACTIONS]
+  result?: ContextCapacityRunResult | null
+}
+export type ApiCheckContextHistoryResponse =
+  | {
+      success: true
+      summary: ContextCapacitySummary | null
+    }
+  | { success: false }
+
+export type ApiCheckRunNeedleRequest = Omit<
+  RunNeedleParams,
+  "abortSignal" | "onProgress" | "onCheckpoint" | "capacity" | "onControls"
+> & {
+  runId: string
+  recoverOnly?: boolean
+  historyTarget?: import("~/services/verification/verificationResultHistory/types").ApiVerificationHistoryTarget
+}
+export type ApiCheckRunNeedleResponse =
+  | { success: true; result: NeedleResult }
+  | {
+      success: false
+      error?: string
+      errorName?: string
+      checkpointLimitReached?: boolean
+    }
+
+export type ApiCheckQuestionAnswerRequest = Omit<
+  QuestionAnswerRequest,
+  "abortSignal"
+> & { runId: string }
+export type ApiCheckQuestionAnswerResponse =
+  | { success: true; result: QuestionAnswerResult }
+  | { success: false; error: string }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { runApiVerificationProbe } from "~/services/verification/aiApiVerification"
 import { server } from "~~/tests/msw/server"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 function textResponse(text: string) {
   return {
@@ -26,7 +27,7 @@ function textResponse(text: string) {
 
 function textResponseEvents(text: string) {
   const response = textResponse(text)
-  const message = response.output[0]
+  const message = atIndex(response.output, 0)
   return [
     {
       type: "response.created",
@@ -253,6 +254,25 @@ describe("OpenAI Responses verification HTTP behavior", () => {
   it("preserves sources returned by a streaming web-search test", async () => {
     const textEvents = textResponseEvents("AI SDK news")
     const requestBodies = requireStreamingResponses([
+      {
+        type: "response.output_item.added",
+        output_index: 1,
+        item: {
+          id: "search-test",
+          type: "web_search_call",
+          status: "in_progress",
+        },
+      },
+      {
+        type: "response.output_item.done",
+        output_index: 1,
+        item: {
+          id: "search-test",
+          type: "web_search_call",
+          status: "completed",
+          action: { type: "search", query: "AI SDK news" },
+        },
+      },
       ...textEvents.slice(0, -2),
       {
         type: "response.output_text.annotation.added",

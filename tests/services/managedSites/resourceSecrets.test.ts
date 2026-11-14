@@ -7,6 +7,15 @@ import {
 } from "~/services/managedSites/utils/resourceSecrets"
 
 describe("managed resource secrets", () => {
+  it("collects Magpie Web credentials for diagnostic redaction", () => {
+    expect(
+      collectManagedConfigSecrets({
+        baseUrl: "https://magpie.example.invalid",
+        webKey: "magpie-web-secret",
+      }),
+    ).toEqual(["magpie-web-secret"])
+  })
+
   it("merges secret collections immutably with dedupe and incomplete dominance", () => {
     const first = Object.freeze({
       knownSecrets: Object.freeze(["secret-a", "secret-b"]),
@@ -59,6 +68,15 @@ describe("managed resource secrets", () => {
         userId: "1",
       } as any),
     ).toEqual(["runtime-token", "admin-token"])
+  })
+
+  it("collects GPT-Load management credentials for diagnostic redaction", () => {
+    expect(
+      collectManagedConfigSecrets({
+        baseUrl: "https://gpt-load.example.invalid",
+        managementKey: "gpt-load-management-secret",
+      }),
+    ).toEqual(["gpt-load-management-secret"])
   })
 
   it("collects preserved Octopus header proxy and parameter override values", () => {

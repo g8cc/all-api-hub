@@ -1,7 +1,7 @@
 import { COOKIE_IMPORT_FAILURE_REASONS } from "~/constants/cookieImport"
 import { hasCookieInterceptorPermissions } from "~/services/permissions/permissionManager"
-import { containsPermissions } from "~/utils/browser/browserApi"
 import { mergeCookieHeaders } from "~/utils/browser/cookieString"
+import { containsPermissions } from "~/utils/browser/permissions"
 import { isProtectionBypassFirefoxEnv } from "~/utils/browser/protectionBypass"
 import { getErrorMessage } from "~/utils/core/error"
 import { createLogger } from "~/utils/core/logger"
@@ -112,6 +112,61 @@ export async function hasCookieReadPermissionForUrl(
   })
 }
 
+/**
+ * Includes partitioned cookies where supported. Older browsers reject the
+ * partitionKey filter, so retry only that schema error with the same URL/store.
+ */
+async function readCookiesForUrl(url: string, options: { storeId?: string }) {
+  const details = {
+    url,
+    ...(options.storeId ? { storeId: options.storeId } : {}),
+  }
+  try {
+    return await browser.cookies.getAll({ ...details, partitionKey: {} })
+  } catch (error) {
+    if (
+      !/Unexpected property:\s*['"]partitionKey['"]/i.test(
+        getErrorMessage(error),
+      )
+    ) {
+      throw error
+    }
+    return await browser.cookies.getAll(details)
+  }
+}
+
+/**
+ * Checks whether any non-expired cookie exists for the target URL.
+ *
+ * This is a cheap "has a usable session" proxy: a cookie-authenticated direct
+ * API request cannot succeed when the browser holds no cookie for the site, so
+ * callers can skip that doomed request without materializing a Cookie header.
+ * Missing permission or a read failure is treated as "no cookies" because the
+ * request could not have carried cookies in that case either.
+ */
+export async function hasCookiesForUrl(
+  url: string,
+  options: { storeId?: string } = {},
+): Promise<boolean> {
+  if (!(await hasCookieReadPermissionForUrl(url))) {
+    return false
+  }
+
+  try {
+    const cookies = await readCookiesForUrl(url, options)
+    const now = Date.now() / 1000
+    return cookies.some(
+      (cookie) => !(cookie.expirationDate && cookie.expirationDate < now),
+    )
+  } catch (error) {
+    logger.warn("检查站点 Cookie 失败", {
+      url,
+      error: getErrorMessage(error),
+    })
+    return false
+  }
+}
+
 // 拦截器注册状态
 let isInterceptorRegistered = false
 
@@ -159,11 +214,7 @@ export async function getCookieHeaderForUrlResult(
 
   try {
     // 读取 cookies
-    const cookies = await browser.cookies.getAll({
-      url,
-      partitionKey: {},
-      ...(options.storeId ? { storeId: options.storeId } : {}),
-    })
+    const cookies = await readCookiesForUrl(url, options)
 
     // 过滤并格式化
     const validCookies = cookies.filter((cookie) => {

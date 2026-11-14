@@ -34,11 +34,8 @@ vi.mock("~/contexts/ReleaseUpdateStatusContext", () => ({
   }),
 }))
 
-vi.mock("~/components/dialogs/UpdateLogDialog", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("~/components/dialogs/UpdateLogDialog")
-    >()
+vi.mock("~/features/UpdateLog", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/features/UpdateLog")>()
 
   return {
     ...actual,
@@ -58,9 +55,9 @@ vi.mock("~/utils/browser", async (importOriginal) => {
   }
 })
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/sidePanel", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+    await importOriginal<typeof import("~/utils/browser/sidePanel")>()
   return {
     ...actual,
     getSidePanelSupport: vi.fn().mockReturnValue({
@@ -70,7 +67,7 @@ vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
   }
 })
 
-vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
+vi.mock("~/features/AccountManagement/data/AccountDataContext", () => ({
   useAccountDataContext: () => ({
     isRefreshing: false,
     handleRefresh: vi.fn().mockResolvedValue({ success: 0, failed: 0 }),

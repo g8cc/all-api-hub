@@ -4,15 +4,17 @@
 
 ## Features at a Glance
 
+![Auto Check-in Dashboard & Results](../static/image/en/auto-check-in.png)
+
 - **Check-in status detection**: Adding or refreshing an account automatically detects whether its site has a check-in entry point. There is no manual "check-in detection" switch.
 - **Custom check-in entry point**: If the page is not at the standard path, enter an External Check-in Site URL under the account's Check-in Settings.
-- **Automatic scheduling**: Uses browser background scheduling for a regular **once-per-day** automatic check-in and optional same-day retries for **accounts that failed the daily run**.
+- **Automatic scheduling**: Uses browser background scheduling for a regular **once-per-day** automatic check-in and optional same-day retries for eligible failed or unconfirmed results.
 - **Execution result**: Saves the latest result with success, failure, skip reasons, last run time, and next schedule. This is not a multi-day history log.
 
 ## Requirements
 
 1. The account has been added in **Account Management** and completed at least one successful refresh or detection.
-2. Make sure the account has valid login credentials. With Automatic Selection, accounts without a selected method can run discovery during the daily task; check-in starts only after a usable method is confirmed. See Supported Sites and Authentication Requirements below.
+2. Make sure the account has valid login credentials. With Automatic Selection, accounts without a selected method can run discovery during the daily task; check-in starts only after a usable method is confirmed. See Supported Sites and Authentication below.
 3. Under **Account Management → Edit Account → Check-in Settings**, the **Enable Daily Auto Check-in** switch is visible. Only accounts with a built-in provider show it.
 4. The browser must support background scheduling. Exact timing is not guaranteed when the browser is closed, the device sleeps, or background policies change.
 
@@ -22,8 +24,9 @@
 
 - Open an account → **Edit Account** → Check-in Settings.
 - Accounts with a built-in provider show:
-  - **Check-in Method**: Automatic Selection re-detects as needed when no method is selected or the current method is confirmed unavailable. It selects or switches only when a suitable method can be uniquely determined. A manual choice stays fixed.
+  - **Check-in Method**: Automatic Selection re-detects as needed when no method is selected or the current method is confirmed unavailable. It selects or switches only when a suitable method can be uniquely determined. A manual choice stays fixed. If it still belongs to the current site but has no detection record, execution confirms only that method and keeps that choice whether the result matches, is unsupported, or is uncertain.
   - **Enable Daily Auto Check-in**: Enabled by default. When disabled, the account does not participate even if the global schedule is enabled.
+  - **Check-in API Path** (optional): Enter it when the site changed its built-in check-in endpoint (some New API forks do). Leave it empty to use the default path; **Re-detect Check-in Methods** tries to read it automatically first, and a successful read lets that same detection finish on the new path. Detection preserves manually entered paths and can relearn an automatically discovered path after it stops working. Clear the field and save to restore the default path.
   - **External Check-in Site URL** (optional): Enter it when the page is not at the standard path. Every account can configure an external entry point.
   - **Custom Recharge/Redemption Page URL** (optional) and "Open the recharge page when using external check-in".
 - The account form has no "check-in detection" switch. Status is read automatically during account refresh or detection.
@@ -42,7 +45,7 @@ Under **Settings → Check-in & Redemption → Automatic Check-in**:
 | **Window Start / End** | Allowed local-time range for the daily schedule. It can cross midnight. |
 | **Schedule Mode** | Selects a random time within the window, or choose Fixed Time. |
 | **Fixed Time** | Used only in Fixed Time mode. |
-| **Retry Strategy** | Enabled by default. Only eligible failures from the daily schedule are retried that day; manual Run Now does not create an automatic retry queue. |
+| **Retry Strategy** | Enabled by default. Failed or pending results from daily or manual runs are retried the same day when they meet the [retry conditions](#auto-checkin-retry-rules). |
 | **Retry Interval (minutes)** | Used only when retries are enabled. |
 | **Maximum Daily Attempts** | **Includes the initial daily run**, rather than counting only additional retries. |
 | **View Check-in History / Open Records** | Opens the Automatic Check-in results page. It stores latest status, not a multi-day archive. |
@@ -57,7 +60,7 @@ Settings take effect after saving, without restarting the extension. Upgrades pr
 - Click **Run Now** to run eligible accounts once, regardless of the global automatic check-in switch. Accounts must still be enabled and meet check-in requirements. To process one account, use **Quick Check-in** in its menu.
 - The Quick Check-in calendar icon at the top of the popup or side panel opens the check-in page and starts a manual batch.
 - Failed rows can offer Retry, Manual Check-in, External Check-in, or Open Site. Manual Check-in requires you to finish the action on the site.
-- For "Pending Confirmation" results, the **Verify Status** action is available. It only reads today's status and updates the account configuration; it does not resubmit the check-in. If login or authentication repair is required, open the site to complete sign-in first, then verify again.
+- "Pending confirmation" offers **Verify Status** only when the method can read today's status. Methods without that read offer **Try Again** instead of a verification action that cannot succeed. Automatic retries follow the [execution and retry rules](#auto-checkin-retry-rules) below. For methods that cannot safely repeat a claim, confirm the result on the site first.
 - To report a problem, choose check-in feedback or a support request in the account menu or result row. Review the report before copying it or opening it on GitHub to submit.
 
 ### 4. Handle Detection and Execution States
@@ -72,22 +75,17 @@ The account's check-in configuration retains your manual method choice and custo
 | Not Supported | No available built-in method was confirmed | Use an external check-in URL, check in manually, or request support |
 | Disabled | The site explicitly disabled this method | Keep the method, disable automatic check-in, or switch to manual |
 | Status Unreadable | The method still exists, but today's status cannot be read temporarily | Keep the selection and auto check-in switch, retry later or confirm manually |
-| Pending Confirmation | The request result cannot be reliably confirmed | Click Verify Status; if authentication is required, open the site to log in, and do not blindly retry |
+| Pending Confirmation | The request result cannot be reliably confirmed | Verify status first; if unavailable, check the result on the site before deciding whether to retry |
 
-## How It Works
+<a id="auto-checkin-retry-rules"></a>
 
-1. **Save configuration**: Saving local preferences immediately tells the background process to reschedule.
-2. **Initialize scheduling**: Extension startup registers browser alarm listeners:
-   - **Daily alarm**: Regular automatic check-in, at most once per day.
-   - **Retry alarm**: Created only when the regular daily run has failed accounts; retries only those accounts.
-3. **Execute**:
-   - The daily task first checks automatic selection for enabled accounts. When re-detection is needed and the cooldown has elapsed, it detects and saves the result before checking the selected method, credentials, and today's status. It does not arbitrarily pick a method when none applies, several remain possible, or detection is incomplete.
-   - Keep using an existing method while it remains supported. If the read-only check before execution confirms that it is unsupported, discovery may select a unique replacement when the cooldown allows. If a check-in request has already been sent and its result is uncertain, verify the result instead of submitting through another method.
-   - Call the site's built-in provider and record success, failure, pending confirmation, or a skip reason.
-   - Both "success" and "already checked in today" count as success. A newly successful check-in also refreshes account data.
-   - Only safely retryable failures enter the same-day queue when retries are enabled. Authentication failures, permission failures, and sites without check-in status readback are not retried automatically.
-   - Before an automatic retry submits another check-in, it confirms today's status. If status is temporarily unavailable, that attempt does not submit anything but remains eligible for another bounded retry up to Maximum Daily Attempts.
-4. **Reschedule**: After the regular daily run, schedule the **next day's** daily alarm. When same-day failures exist and retries are enabled, schedule a retry alarm.
+## Execution and Retry Rules
+
+- **Daily schedule**: One regular check-in is scheduled each day within the configured local time window, followed by the next day's schedule. Closing the browser or putting the device to sleep may delay execution; the extension cannot make up a previous day's check-in.
+- **Before execution**: The extension checks the method, credentials and today's status. It does not choose arbitrarily when no method applies, several candidates remain or discovery is incomplete. A method confirmed unavailable can be replaced with a unique alternative under the discovery rules. If a submitted request is pending confirmation, the result is checked before any further action; the extension does not switch methods and submit again.
+- **Completion**: Both Success and Already Checked In Today count as complete. A newly successful check-in also refreshes account data.
+- **Retry conditions**: When enabled, eligible failed and pending results are retried later the same day. Sign-in requirements, insufficient permissions, disabled or unsupported methods, an invalid execution environment, or missing account or credential prerequisites block automatic retries. Methods that cannot safely repeat a claim also skip automatic retries; confirm their result on the site first.
+- **Before retrying**: Methods that can read status check today's result first and skip submission if already complete. Methods without status readback retry directly. A single execution never immediately submits twice.
 
 ## Supported Sites and Authentication
 
@@ -101,17 +99,36 @@ The following sites have supported check-in methods. Availability still depends 
 | `anyrouter` | Yes | Cookie session or browser sign-in context, plus account ID |
 | `wong-gongyi` | Yes | Access Token or Cookie, plus account ID |
 | `voapi-v2` | Yes | Saved dashboard JWT (Access Token) |
-| `sub2api` | Yes | Valid login credentials for the detected Sub2API Pro or Denxio check-in method |
-| AgentRouter (`agentrouter.org`) | Yes | After login check-in is detected, select the matching GitHub or LinuxDo method in account check-in settings. Complete browser login or authorization as prompted and check the execution result. |
+| `sub2api` | Yes | Valid login credentials required by the detected check-in method |
+| `relayfor` | Yes | Access Token |
+| AgentRouter | Yes | After selecting login check-in, configure GitHub, Linux DO or a username and password under Account login below. Saving does not sign in; check-in uses this configuration when executed. Confirm the execution result. |
 
-### AgentRouter login check-in limits
+### Check-in differences between Sub2API sites
 
-AgentRouter grants the check-in benefit during a fresh OAuth login, and the browser signs in with the GitHub or Linux DO identity **already signed in to your browser** rather than with per-account credentials. As a result:
+Sub2API operators may add their own check-in features. Keep the account type as `sub2api`; availability depends on the detected method. Use the setup steps above to re-detect, save and enable automatic check-in.
 
-- **The login method must be selected explicitly.** When you add an account, the extension preselects the GitHub / Linux DO identity that account is bound to on the site. If the account is bound to both, or the deployment does not expose the binding, the method stays unselected. Check-in then fails with a request to choose a method; the extension never guesses a default for you.
-- **One login method belongs to one AgentRouter account with automatic check-in enabled.** Two accounts both using GitHub (or both using Linux DO) drive the same browser identity: the second one only gets an identity-mismatch error and disturbs the shared login session.
-- **What a conflict looks like**: in the account settings, a login method already owned by another account is greyed out with the reason; during a background run the non-owning account is skipped and the result explains why. Ownership follows real evidence: the account the browser last signed in as holds the method, an untried account comes next, and the lowest account ID is only the final tiebreak. If two accounts ever disputed one method, ownership therefore converges on the one that can actually sign in.
-- **How to release a method**: switch that account to the other method (for example, another account on Linux DO and this one on GitHub), set this account's login method to "Not selected" to clear it, or disable/delete the account that holds it. A greyed-out option is only a hint; it never blocks you from changing or clearing this account's own selection.
+| Situation | What it means for you |
+|-----------|-----------------------|
+| Rewards are separate from the account balance (such as ToolCode) | Points and expiring bonus credit are not shown as a balance reward amount. View their details on the site. |
+| Daily and extra rewards coexist (such as Hiyo Free) | The extension handles daily check-in only and does not collect consumption-based extra rewards. Uncertain claims are not retried automatically; confirm the result on the site first. |
+| Ordinary and lucky check-in coexist (such as DaiGua) | The extension performs ordinary check-in only, avoiding lucky bets that can reduce your balance. It attempts to obtain Turnstile verification; if that fails, complete check-in manually on the site. |
+| Check-in is gated behind an image captcha (such as NexaVlinks) | The extension opens the site's check-in page and clicks its button, stopping at the captcha it cannot answer. Once you solve it in that page, the extension reads back the status to confirm; if you do not finish inside the wait, it points you at the site to check in manually. |
+| A Turnstile shield gates the endpoint (some customized New API deployments) | The extension first obtains a Turnstile token in a temporary window and replays the check-in request. When the site refuses that token as unverified, it opens the site's own check-in page in a temporary window, lets the real widget satisfy the shield, and lets the site's own response settle the result. A concrete rejection (for example a daily quota that is used up) is not retried through the page, so nothing is submitted twice. To let a Turnstile-only site finish without any interaction from you, enter a third-party solver URL and API key under “Turnstile auto pass” in the [Cloudflare shield helper](./cloudflare-helper.md); that service only handles Turnstile, so image captchas still need you. |
+| Check-in chains two verification layers (Turnstile and then an image code, for example) | The extension observes the layers in order: once one finishes it keeps watching for the next one the page reveals, asks you for help layer by layer, and only reports completion after all of them are done. A single-layer page keeps the original single-layer result. |
+| The check-in button is below the fold, drawn by a component, or has no standard label | The extension looks for the entry point step by step: clickable elements, text inside the containing layer, accessible names, and shadow DOM. It also gives the page time to render before deciding. Icon buttons, `div`-drawn buttons, and buttons inside collapsed sections are all matched. |
+| The site requires human verification | Complete the verification on the site; when the extension has opened the page for you in a temporary window it waits for you and reads back the status, and only after the wait expires does it point you at the site. |
+| Daily check-in pays a cash amount or a blind box (such as 柏API) | The site also distinguishes streak bonuses, attendance rewards, blind-box opening, leaderboard rewards and makeup cards. The extension performs only that day's check-in; claim and open blind boxes on the site, and collect other rewards there. |
+
+### AgentRouter login check-in and account login
+
+AgentRouter checks in by signing in again. In the account editor, select login check-in under Check-in settings to reveal the separate Account login section below. The check-in section shows the configured method and links to it. Turning automatic check-in off does not hide it, because manual check-in also needs login. Selecting another check-in method hides it without clearing saved login settings.
+
+- **Username and password**: choose this method and enter the website login username and password for the account. Passwords are hidden by default, stored per account, and may be included in account backups and sync. They are not API keys and do not replace API access tokens. Saving updates configuration without signing in.
+- **Login flow and sessions**: password login opens the website’s password entry first, then fills and submits its native form. Recognized login agreement checkboxes are selected automatically; checked items stay checked, and optional items such as marketing subscriptions remain unchanged. CAPTCHA, two-factor authentication and pages requiring manual interaction use the extension’s existing assistance reminders in the same login window. API fallback is limited to cases with no identifiable native login controls before submission and no additional verification requirement. Unrecognized login screens remain open for you to operate, and uncertain submissions are not repeated. Login-based check-in requires a fresh login rather than reuse of an existing session. Allowing the extension in private windows helps separate regular-window sessions, although private windows can still share a session. An existing session is signed out automatically only in a private context with no other same-site tabs; otherwise, the extension asks you to confirm and sign out manually before continuing with the target account.
+- **GitHub / Linux DO**: these use the corresponding identity in your browser. Adding an account preselects a method only when the site reports a single bound identity. Multiple or missing bindings require an explicit choice. The extension does not guess or switch methods after a failure.
+- **Third-party identity conflicts**: each GitHub / Linux DO method can belong to only one account with automatic check-in enabled. Owned options are disabled for other accounts; background execution skips non-owners. This restriction does not apply to per-account passwords, but browser logins still execute sequentially.
+- **Change or clear**: change the method under Account login, or choose Not configured to clear it. Saving a switch to third-party login removes the password. Changing the site URL, site type or account ID also clears login configuration to avoid sending credentials to the wrong account.
+- **Verification and results**: login runs only when check-in is executed, and verifies the signed-in account. Complete CAPTCHA or two-factor verification on the website when required. A successful login counts as a successful check-in only with confirmation from the site. Uncertain login mutations are not replayed automatically. This configuration does not enable automatic reauthentication or credential renewal.
 
 ::: warning Deployment differences
 Even when the site type matches, a deployment can be customized: the expected endpoint may be missing and return 404/405, authentication may differ, or human verification may be required. Do not assume that every site "compatible with New API" has built-in automatic check-in.
@@ -132,15 +149,16 @@ If no available method is detected for another site, use an external check-in UR
 | Result | Meaning | Automatic retry |
 |------|------|:---:|
 | Success / Already checked in today | The run confirmed a completed check-in, or the site confirmed today's check-in was already done | No |
-| Failed | API, authentication, verification, network, or site response failed | Only for the daily schedule when retries are enabled and the failure is safe to retry |
-| Pending confirmation | The request may have been submitted, but the site result could not be confirmed reliably. The extension performs one read-only status check and does not directly resend the check-in | No, use Verify Status or open the site to fix authentication |
+| Failed | API, authentication, verification, network, or site response failed | Later the same day when retries are enabled and the [retry conditions](#auto-checkin-retry-rules) are met |
+| Pending confirmation | The request may have been submitted, but the site result could not be confirmed reliably | Verify status when available; automatic retries are subject to the [retry conditions](#auto-checkin-retry-rules) |
 | Skipped | Account disabled, not detected, account-level setting off, no provider, or insufficient credentials | No |
 
 | Problem | Troubleshooting |
 |------|----------|
-| "Not Scheduled / Disabled / No Pending Retries" | "Disabled": the global switch is off.<br/>"Retries Disabled": Retry Strategy is off.<br/>"No Pending Retries": retries are on, but no account currently failed.<br/>"Not Scheduled": enabled, but background scheduling is unsupported or the alarm has not been created/was cleared; save the settings again. |
+| "Not Scheduled / Disabled / No Pending Retries" | "Disabled": the global switch is off.<br/>"Retries Disabled": Retry Strategy is off.<br/>"No Pending Retries": retries are on, but nothing is currently waiting to retry.<br/>"Not Scheduled": enabled, but background scheduling is unsupported or the alarm has not been created/was cleared; save the settings again. |
 | An account fails every day or shows Skipped | Check its provider and skip reason under Account Detection Status. Confirm the account is enabled, refreshed/detected, enabled at account level, supported by a built-in provider, and has usable credentials. |
 | Access Token is invalid | Usually the Access Token expired or was revoked. Sign in to the site, then open Account Management → Edit Account and run Auto Detect / refresh the Access Token. If the site disables Tokens or no Token can be obtained, use Cookie authentication or disable automatic check-in for that account and use manual check-in. |
+| Execution result says the site type does not match | After a failed check-in the extension inferred, from the site's own signals, a type other than the one the account carries, and the hint names the type to switch to (for example: this site matches Veloera, while the account is set to new-api). Fix: in Account Management → Edit Account, set the Site Type to the named type, then run once more. The hint stops applying once the account's Site Type changes, or once a later reading finds the site agreeing with the stored type. |
 | New API returns 404/405 | The deployment does not provide the expected endpoint. This is not necessarily an extension failure. Automatic Selection re-detects as needed during subsequent daily tasks; if no suitable method is found, use Manual or External Check-in, or request check-in support. |
 | Sign-in or human verification is required | Open the site as prompted, complete verification, and retry. Do not assume the extension has already checked in. |
 | Multiple accounts check in repeatedly | Multiple devices can run while execution state is not shared. Enable the schedule on only one device. |

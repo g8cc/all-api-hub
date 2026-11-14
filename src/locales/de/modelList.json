@@ -35,13 +35,21 @@
     "keyForModel": "Schlüssel für dieses Modell",
     "openSelectedAccountKeys": "Kontoschlüssel verwalten",
     "openSite": "Website öffnen",
-    "verifyApi": "API überprüfen",
-    "verifyCliSupport": "Überprüfen Sie die CLI-Unterstützung"
+    "verifyApi": "API testen",
+    "verifyCliSupport": "CLI-Kompatibilitätstest"
   },
+  "allAccountGroups": "Alle Gruppen",
   "allAccounts": "Alle Konten",
   "allBillingModes": "Alle Abrechnungsmodi",
   "allGroups": "Alle Gruppen",
   "allProviders": "Alle Anbieter",
+  "availability": {
+    "details": "Zugriffsdetails anzeigen",
+    "restrictedHint": "Die Website kennzeichnet dieses Modell derzeit als nicht verfügbar.",
+    "unavailable": "Derzeit nicht verfügbar",
+    "unknown": "Verfügbarkeit unbestätigt",
+    "unknownHint": "Die Website hat die Verfügbarkeit dieses Modells nicht bestätigt."
+  },
   "batchVerify": {
     "actions": {
       "open": "Batch-Test",
@@ -114,12 +122,15 @@
     "actions": "Aktionen",
     "filters": "Filter"
   },
+  "convertedPrice": "Umgerechnet",
+  "convertedPriceTitle": "Anzeige zum aktuellen Wechselkurs; der Preis in der Originalwährung bleibt unverändert.",
   "copyAllNames": "Alle Modellnamen kopieren",
   "currentUsableGroups": "Aktuell nutzbare Gruppen",
   "description": "Modelle aus Konten und API-Zugangsdaten mit Preisen, Fähigkeiten und Verfügbarkeit durchsuchen.",
   "detailedPricing": "Detaillierte Preise",
   "diagnostics": {
     "all": "Alle Angebote",
+    "attention": "{{value}} prüfen",
     "byGroup": "Nach Abrechnungsgruppe",
     "byOrigin": "Nach Website-Origin",
     "clearSearch": "Suche löschen",
@@ -128,26 +139,42 @@
     "copy": "Vollständigen Diagnosebericht kopieren",
     "copyFailed": "Kopieren fehlgeschlagen. Erneut versuchen.",
     "copyFiltered": "Gefilterte Ergebnisse kopieren",
+    "copyRecord": "Eintrag kopieren",
     "empty": "Keine passenden Diagnosepunkte. Wechseln Sie zu allen Angeboten, um Preisregeln zu prüfen.",
     "filter": "Diagnosepunkte filtern",
     "flat": "Ohne Gruppierung",
     "groupBy": "Anzeige gruppieren",
     "inspect": "Diagnosedetails anzeigen",
+    "issueLabels": {
+      "requestCondition": "Anfragepreisbedingungen nicht unterstützt",
+      "sourceConflict": "Widersprüchliche offizielle Preisangaben",
+      "thresholdBasisUnverified": "Grundlage der Staffelwahl ungeprüft"
+    },
     "issuesOnly": "Zu prüfende Angebote",
     "locate": "Modell anzeigen",
-    "matched": "{{records}} passende Angebote · {{models}} unterschiedliche Modelle",
-    "more": "Mehr anzeigen",
+    "matched": "{{records}} Einträge · {{models}} Modelle",
     "noGroup": "Keine Abrechnungsgruppe",
     "noOrigin": "Unbekannter Origin",
-    "scope": "Prüft geladene, gefilterte Angebote ohne zusätzliche Website-Anfragen. Gezählt werden Angebote; ein Modell kann auf mehreren Websites vorkommen. Codes können fehlende Bedingungen anzeigen. Exporte enthalten keine Zugangsdaten oder vollständigen API-Antworten.",
+    "overview": "{{total}} Einträge · {{published}} veröffentlicht · {{quoted}} berechnet · {{attention}} prüfen",
+    "results": "Diagnoseergebnisse",
+    "scope": "Prüft geladene Preise und Berechnungen ohne zusätzliche Anfragen. Exporte enthalten keine Zugangsdaten.",
     "search": "Modell, Quelle oder Gruppe suchen",
     "searchHint": "Modell / Domain oder vollständige URL / Gruppe / Fehlercode; mit Leerzeichen kombinieren",
-    "shown": "{{shown}} / {{total}} Angebote angezeigt",
-    "summary": "Gesamt {{total}} · Vollständig {{complete}} · Teilweise {{partial}} · Nicht verfügbar {{unavailable}} · Nicht berechnet {{notQuoted}} · Prüfen {{attention}}",
-    "title": "[DEV] Preisdiagnose",
-    "units": "Abrechnungseinheiten"
+    "status": {
+      "complete": "Vollständige Berechnung",
+      "notQuoted": "Nicht berechnet",
+      "partial": "Teilberechnung",
+      "published": "Veröffentlichter Preis",
+      "reference": "Referenzpreis",
+      "unavailable": "Berechnung nicht verfügbar"
+    },
+    "title": "[DEV] Preisdiagnose"
   },
   "displayFacts": {
+    "accessReason": "Zugriffsbedingung",
+    "auditCharge": "Prüfgebühr bei Risikoablehnung",
+    "auditConsent": "Prüfungszustimmung erforderlich",
+    "baseContextTier": "Basistarif angezeigt; Preise hängen von der Kontextlänge ab",
     "benchmarkTable": {
       "arena": "Arena",
       "category": "Kategorie",
@@ -159,9 +186,21 @@
       "no": "Nein",
       "yes": "Ja"
     },
+    "callExamples": "Aufrufbeispiele",
+    "catalogOwner": "Kataloginhaber",
+    "catalogScope": "Katalogumfang",
+    "compactionCharge": "Remote-Komprimierung",
+    "consoleSettings": "Offizielle Einstellungen",
     "contextLimit": "Kontextlimit",
+    "defaultDimensions": "Standarddimensionen",
     "inputModalities": "Eingabemodalitäten",
     "maximumOutputTokens": "Maximale Ausgabe-Token",
+    "modelKind": "Modelltyp",
+    "modelKinds": {
+      "decision": "Entscheidung",
+      "embedding": "Embedding",
+      "reranker": "Reranker"
+    },
     "openRouter": {
       "architecture": {
         "instructType": "Anweisungsformat",
@@ -241,6 +280,7 @@
       }
     },
     "outputModalities": "Ausgabemodalitäten",
+    "planRestricted": "Dein aktueller Tarif unterstützt dieses Modell nicht",
     "priceConditions": {
       "minimumPromptTokens": "Mehr als {{formattedCount}} Eingabe-Token",
       "minimumPromptTokens_one": "Mehr als {{formattedCount}} Eingabe-Token",
@@ -263,17 +303,33 @@
       "request": "Anfrage",
       "webSearch": "Websuche"
     },
+    "pricingConditions": "Preisbedingungen",
+    "promptAudit": "Prompt-Prüfung aktiv",
+    "providerAvailable": "Auf der Website verfügbar",
+    "providerReferenceCatalog": "Vollständiger Katalog des Anbieters",
+    "releaseDate": "Veröffentlichungsdatum",
     "sections": {
       "specifications": "Spezifikationen"
     },
+    "subscriptionMultiplier": "Abo-Faktor",
+    "subscriptionPlan": "Abonnement",
+    "supportedDimensions": "Unterstützte Dimensionen",
+    "supportsImages": "Bildunterstützung",
     "tokenCount_one": "{{formattedCount}} Token",
-    "tokenCount_other": "{{formattedCount}} Token"
+    "tokenCount_other": "{{formattedCount}} Token",
+    "trainingChannels": "Trainingskanäle verfügbar",
+    "trainingConsent": "Trainingszustimmung erforderlich",
+    "vercelVerificationRequired": "Vor Anfragen die Kundenverifizierung in der Vercel AI Gateway Konsole abschließen",
+    "viewOnSite": "Auf Website anzeigen"
   },
   "displayOptions": "Anzeige",
   "endpointType": "Endpunkttyp",
   "endpointTypes": "Endpunkttypen",
+  "endpointTypesHint": "Die vom jeweiligen Modell unterstützten API-Endpunkttypen anzeigen.",
   "estimatedPrice": "Geschätzte",
-  "estimatedPriceTitle": "Geschätzt anhand der offiziellen Preistabelle und dem Gruppenpreis Sub2API dieses Schlüssels.",
+  "estimatedPriceTitle": "Aus Referenztarifen oder Preisannahmen berechnet; tatsächliche Kosten können abweichen.",
+  "expandAccountGroups": "Kontogruppen einzeln anzeigen",
+  "expandAccountGroupsHint": "Jede verfügbare Gruppe wird einzeln aufgeführt. Ein Konto kann mehrere Angebote für dasselbe Modell haben. Die Kontogruppenfilter bestimmen die verfügbaren Gruppen. Die Gruppenwahl auf einer Karte gilt für das Angebot dieses Modells.",
   "expandDetails": "Details erweitern",
   "fallbackSourceNotice": {
     "description": "Dieser Katalog wird derzeit über einen Kontoschlüssel-Fallback geladen und unterstützt daher nur die Modellerkennung und -überprüfung. „Daten aktualisieren“ wird die direkte Kontoroute erneut versuchen.",
@@ -282,6 +338,10 @@
   "groupRatioTooltip": "Gruppe {{group}} Verhältnis: {{ratio}}x",
   "groupRatioUnavailable": "Gruppenmultiplikator nicht verfügbar",
   "groupSelectionHint": "Lassen Sie dieses Feld leer, um einen Vergleich über alle Gruppen hinweg durchzuführen. Bei der Preissortierung wird der beste Preis innerhalb des ausgewählten Gruppensatzes verwendet",
+  "inferenceRouteFallbackNotice": {
+    "description": "Aktuelle Routeninformationen sind nicht verfügbar. Die Modellliste wurde über integrierte Adressen geladen, die veraltet sein können. Die Modelle stammen weiterhin aus aktuellen API-Antworten.",
+    "title": "Integrierte Routen werden verwendet"
+  },
   "input": "Eingabe:",
   "input1MTokens": "Eingabe (1 Mio. Token)",
   "keyDialog": {
@@ -366,6 +426,7 @@
     },
     "selectionHint": "Wenn mehrere Funktionen ausgewählt werden, müssen die Modelle allen ausgewählten Funktionen entsprechen."
   },
+  "modelGroupQuickSelect": "Modellgruppe",
   "noMatchingModels": "Keine passenden Modelle gefunden",
   "noSourcesDescription": "Fügen Sie ein Website-Konto oder API-Anmeldeinformationen hinzu, bevor Sie die Modellliste anzeigen.",
   "noSourcesTitle": "Noch keine Modellquellen",
@@ -432,9 +493,28 @@
   },
   "pricingDescription": "Die Preise stammen von der Website. Unterschiedliche Einheiten wie Millionen Tokens, Bilder, Sekunden und Anfragen werden getrennt verglichen. Beachten Sie die Einheit jedes Preises; die tatsächlichen Kosten bestimmt die Website.",
   "pricingNote": "Modellpreishinweis",
+  "pricingNotes": {
+    "allChannels": "Alle Kanäle",
+    "ambiguousCharges": "Mehrere Gebühren verwenden dieselbe Mengeneinheit, ihre Mengen oder Abrechnungsphasen lassen sich jedoch nicht trennen. Andere bekannte Preise bleiben erhalten.",
+    "ambiguousVariantCharges": "Die Quelle nennt Einzelgebühren und Variantenpreise, ohne zu erklären, ob sie addiert werden oder einander ersetzen.",
+    "dedicatedPrices": "Sonderpreise einschließlich Multiplikatoren",
+    "defaultRoute": "Standardroute",
+    "endpointSourceConflict": "Offizielle Endpunkte nennen für dieses Modell widersprüchliche Abrechnungsregeln; der gültige Preis ist nicht bestimmbar.",
+    "excludedCharges": "Bekannte Gebühren lassen sich schätzen; diese separaten Gebühren sind nicht enthalten: {{charges}}.",
+    "multiplier": "Multiplikator {{value}}",
+    "namedChannel": "Alle Kanäle ({{name}})",
+    "providerReportedEstimate": "Abrechnung nach den tatsächlichen Kosten des Anbieters; die Tokenpreise sind eine Schätzung des Endbetrags.",
+    "routingContext": "{{route}} · {{channel}} · {{price}}. Standardpreisansicht der Quelle; die Kosten hängen von Route und Kanal ab.",
+    "runtimeDependent": "Die Quelle rechnet laufzeitabhängig ab, ohne vollständige Vorabformel. Veröffentlichte Zahlen dienen nur als Referenz.",
+    "thresholdBasisUnverified": "Veröffentlichte Staffelpreise bleiben als Referenz erhalten. Mengenbasis, Cache-Behandlung und Grenzwerte sind noch nicht vollständig geprüft; eine automatische Staffelwahl ist nicht möglich.",
+    "thresholdSourceConflict": "Grundpreise und Preise ab Schwelle null widersprechen sich oder sind unvollständig; ein Referenzpreis ist nicht bestimmbar.",
+    "timeWindow": "{{label}} {{start}}–{{end}}: Eingabe ${{input}} · Ausgabe ${{output}} · Cache-Lesen ${{cacheRead}} / 1 Mio. Token",
+    "timeWindowTimezoneUnavailable": "Keine Zeitzone veröffentlicht; reguläre Preise werden angezeigt und zeitabhängige Rabatte nicht automatisch angewendet.",
+    "wholeRequestTier": "Die passende Kontextpreisstufe gilt für die gesamte Anfrage."
+  },
   "profileSourceNotice": {
     "description": "Gespeicherte API-Anmeldeinformationen ermöglichen nur die Modellerkennung und -überprüfung. Preise, Gruppenfilter, Kontozusammenfassungen und Schlüsselkompatibilität sind für diese Quelle nicht verfügbar.",
-    "title": "Profilgestützter Modellkatalog"
+    "title": "Modellkatalog aus Anmeldeinformationen"
   },
   "providerCatalogFallbackNotice": {
     "allAccountsDescription": "Der Modellzugriff für die folgenden Konten wurde nicht bestätigt. Die vollständigen Modellkataloge der Websites werden angezeigt; einige Modelle sind mit diesen Konten möglicherweise nicht aufrufbar. Prüfen Sie die Kontoberechtigungen und Verifizierungsergebnisse.",
@@ -442,13 +522,32 @@
     "description": "Der tatsächlich verfügbare Modellumfang dieses Kontos konnte nicht bestätigt werden, daher wird der vollständige Modellkatalog des Anbieters angezeigt. Einige Modelle können mit diesem Konto möglicherweise nicht aufgerufen werden. Maßgeblich sind die Kontoberechtigungen der Website und die tatsächlichen Verifizierungsergebnisse.",
     "title": "Zurück zum vollständigen Modellkatalog des Anbieters"
   },
+  "providerGroup": {
+    "action": "Routinggruppe auf der Website ändern",
+    "apply": "Auf der Website speichern",
+    "description": "Speichern ändert das Routing dieses Modells auf der Website und kann spätere Anfragen und Preise beeinflussen.",
+    "label": "Routinggruppe der Website",
+    "locked": "Eine aktive Sitzung sperrt diese Auswahl. Verwalte sie zuerst auf der Website.",
+    "refreshRequired": "{{error}}. Die Änderung kann übernommen worden sein. Lade die Liste vor einem erneuten Versuch neu.",
+    "saving": "Speichern…"
+  },
   "providerTabs": {
     "scrollLeft": "Anbieter-Tabs nach links scrollen",
     "scrollRight": "Anbieter-Tabs nach rechts scrollen",
     "unclassified": "Nicht klassifiziert",
     "unclassifiedDescription": "Der Anbieter konnte nicht identifiziert werden; Dies bedeutet nicht, dass das Modell nicht verfügbar ist."
   },
+  "quotaBilling": {
+    "adjustments": "Zusätzliche Abrechnungsfaktoren: {{names}}.",
+    "comparison": "{{amount}} pro Million modellierter Token.",
+    "invalid": "Kontingentpreise sind nicht verfügbar.",
+    "reference": "Nur Basisverbrauch; zusätzliche Multiplikatoren sind nicht enthalten.",
+    "sortAsc": "Kontingentverbrauch: aufsteigend",
+    "sortDesc": "Kontingentverbrauch: absteigend",
+    "source": "Abrechnungsregeln"
+  },
   "realAmount": "Echter Aufladebetrag",
+  "realAmountHint": "Preise mit dem für jedes Konto konfigurierten Umrechnungsfaktor umrechnen.",
   "refreshData": "Daten aktualisieren",
   "runtimeKeyFallbackSourceNotice": {
     "description": "Dieser Katalog wird über einen vorhandenen Schlüssel für dieses Konto geladen und unterstützt daher nur die Modellerkennung und -überprüfung. Dieses Konto kann hier keine neuen API-Schlüssel erstellen; mit „Daten aktualisieren“ wird der direkte Kontozugriff erneut versucht.",
@@ -456,6 +555,7 @@
   },
   "scenario": {
     "additionalChargesExcluded": "Andere ungeprüfte Abrechnungsposten sind in dieser Schätzung nicht enthalten.",
+    "annotatedDocument": "Ausgabe mit Anmerkungen",
     "appliedConversion": "Kostenumrechnung: 1 USD = {{value}} CNY",
     "appliedMultiplier": "Gruppenfaktor ×{{value}}",
     "audio": "Audiosekunden",
@@ -476,6 +576,7 @@
     "catalogExplanation": "Schätzung anhand der öffentlichen Website-Preise und Ihres aktuellen Szenarios; keine tatsächliche Kontobelastung.",
     "character": "Zeichen",
     "characters": "Zeichen pro Aufgabe",
+    "codeExecution": "Codeausführungen",
     "collected": "Preise erfasst: {{time}}",
     "compareEffect": "Wählen Sie einen passenden Anwendungsfall, um Einzelpreise zu vergleichen. Passen Sie bei Bedarf die Anteile an oder öffnen Sie die zugehörigen Abrechnungsbedingungen.",
     "conditional": "Bedingte Preise",
@@ -487,10 +588,12 @@
     "currentBaseTier": "Basispreisstufe gilt",
     "currentTier": "Aktive Preisstufe",
     "day": "Tag",
+    "documentAnnotation": "Dokumentanmerkungen",
     "effectiveRate": "Geltender Einzelpreis",
     "excludedCosts": "Nicht enthalten: {{meters}}. Diese Kosten können den tatsächlichen Betrag erhöhen.",
     "fixedPriceUnavailable": "Die Quelle liefert einen Platzhalter statt eines vergleichbaren Festpreises. Es fehlt keine Einstellung und der Preis ist nicht kostenlos. Prüfen Sie die Preisquelle für die tatsächlich verwendeten Modelle oder Dienste.",
     "freeQuantity": "Erste {{value}} Einheiten pro Aufgabe kostenlos",
+    "generationMode": "Generierungsvorgang",
     "groups": {
       "image": "Bildeinstellungen",
       "other": "Weitere Abrechnungsbedingungen",
@@ -499,6 +602,7 @@
     },
     "hour": "Stunde",
     "image": "Bilder",
+    "imageCache": "Zwischengespeicherte Bildtoken",
     "imageInput": "Bild-Eingabetoken",
     "imageMegapixels": "Bildfläche (Megapixel)",
     "imageOutput": "Bild-Ausgabetoken",
@@ -516,7 +620,8 @@
       "cacheRead": "Cache-Lesen",
       "cacheWrite": "Cache-Schreiben",
       "input": "Eingabe",
-      "output": "Ausgabe"
+      "output": "Ausgabe",
+      "request": "Preis pro Aufruf"
     },
     "minute": "Minute",
     "missingConversion": "Die CNY-Umrechnung ist nicht verfügbar. Deaktivieren Sie die Echtpreisanzeige, um USD-Listenpreise zu sehen.",
@@ -547,6 +652,7 @@
     "perMillionVideoTokens": "Million Videoausgabe-Tokens",
     "perRequest": "pro Anfrage",
     "perUnit": "pro Einheit",
+    "plainDocument": "Ausgabe ohne Anmerkungen",
     "pricingSourceUnavailable": "Die vollständigen Preisregeln konnten nicht geladen werden. Ein Vergleich ist vorübergehend nicht möglich. Aktualisieren Sie die Preise oder prüfen Sie die Preisquelle. Es fehlt keine Eingabeeinstellung.",
     "pricingTime": "Preise zu diesem Zeitpunkt vergleichen",
     "pricingTimeEffect": "Vergleichen Sie Preise zu verschiedenen Zeiten in der Ortszeit Ihres Geräts. Dies betrifft nur zeitabhängige Preise und ist nicht der Aktualisierungszeitpunkt der Preisdaten.",
@@ -554,8 +660,14 @@
     "publishedPrices": "Einzelpreise:",
     "rateChange": "{{meter}}: {{from}} → {{to}} / Million Tokens",
     "referenceImages": "Referenzbilder pro Aufgabe",
+    "referenceRate": "Referenzpreis",
+    "requestUnit": "Aufruf",
     "responseFormat": "Antwortformat für die Abrechnung",
     "search": "Suchvorgänge",
+    "searchContext": "Suchkontext",
+    "searchContextHigh": "Hoch",
+    "searchContextLow": "Niedrig",
+    "searchContextMedium": "Mittel",
     "searchUnit": "Sucheinheit",
     "searchUnits": "Sucheinheiten pro Aufgabe",
     "second": "Sekunde",
@@ -579,14 +691,20 @@
     "unspecified": "Nicht angegeben",
     "unsupportedRule": "Einige Abrechnungsregeln können derzeit nicht berechnet werden. Prüfen Sie die Preisangaben der Website.",
     "unverifiedCacheBasis": "Es ist unklar, ob die Eingabelänge für Preisstufen Cache-Tokens umfasst. Setze die Gewichtungen für Cache-Lesen und Cache-Schreiben auf 0, um ohne Cache zu vergleichen. Dadurch ändert sich die verglichene Nutzung. Alternativ kannst du die Preistabelle in den Berechnungsdetails oder die Preisquelle öffnen.",
+    "videoAudio": "Videoton",
     "videoComparisonHint": "Vergleichen Sie die Preise für Videoausgabe-Tokens unter den gewählten Referenzbedingungen. Die tatsächlichen Kosten hängen vom generierten Ergebnis ab.",
+    "videoDynamicRange": "Video-Dynamikbereich",
     "videoInput": "Videoreferenz",
+    "videoInputTokens": "Video-Eingabetoken",
+    "videoMode": "Videogenerierungsmodus",
     "videoOutput": "Videoausgabe",
     "videoPrice": "Geschätzter Videoausgabepreis",
     "videoQuality": "Videoqualität",
     "videoSeconds": "Videodauer pro Aufgabe (Sekunden)",
     "websiteRulesUnavailable": "Vollständige Abrechnungsregeln stehen für die Berechnung nicht zur Verfügung. Prüfen Sie die Preisdetails der Website.",
     "weekday": "Wochentag (0 = Sonntag)",
+    "withAudio": "Audio erzeugen",
+    "withoutAudio": "Ohne Audio",
     "withoutVideo": "Ohne Videoreferenz",
     "withVideo": "Mit Videoreferenz"
   },
@@ -596,6 +714,8 @@
   "selectSourceToContinue": "Wählen Sie oben eine Quelle aus, bevor Sie die Modellliste anzeigen.",
   "showing_one": "Zeigt {{count}} Modell",
   "showing_other": "Zeigt {{count}} Modelle",
+  "showingGroupQuotes_one": "{{count}} Angebot angezeigt",
+  "showingGroupQuotes_other": "{{count}} Angebote angezeigt",
   "showUnavailableModels": "Auch Modelle ohne Kontozugriff anzeigen",
   "siteDescription": "Website-Beschreibung:",
   "siteSupportedGroups": "Von der Website unterstützte Gruppen",
@@ -609,7 +729,7 @@
   },
   "sourceLabels": {
     "personalizedCatalogBadge": "{{account}} · Personalisierter Modellkatalog",
-    "profileBadge": "Profil: {{name}} · {{host}}",
+    "profileBadge": "Anmeldeinformation: {{name}} · {{host}}",
     "profileOption": "API-Anmeldeinformationen: {{name}} · {{host}}",
     "providerCatalogBadge": "{{provider}} · Modellkatalog des Anbieters"
   },
@@ -656,15 +776,15 @@
   "title": "Modellliste",
   "totalModels_one": "Gesamt {{count}} Modell",
   "totalModels_other": "Insgesamt {{count}} Modelle",
-  "unavailable": "Nicht verfügbar",
   "unavailableModelsHint": "Bereits geladene Modelle ohne nutzbare Gruppen für dieses Konto einbeziehen. Diese Modelle umgehen die Gruppenauswahl, unterliegen aber weiterhin anderen Filtern. Es werden keine zusätzlichen Modelle der gesamten Website abgerufen. Gilt nur für diese Seitensitzung.",
   "unavailablePriceReasons": {
     "groupRatioUnavailable": "Preise sind nicht verfügbar, da diese verwendbare Gruppe keinen Multiplikator hat.",
     "keyGroupUnknown": "Preise sind nicht verfügbar, weil die Sub2API-Gruppe dieses Schlüssels nicht ermittelt werden konnte.",
     "modelListOnly": "Modelle sind für diesen Schlüssel verfügbar. Preise sind nicht verfügbar.",
     "officialPriceInvalid": "Die offiziellen Preisdaten dieses Modells sind ungültig.",
-    "officialPriceMissing": "Dieses Modell ist nicht in der Preistabelle enthalten.",
-    "pricingSourceUnavailable": "Für diese Quelle sind keine Preisdaten verfügbar."
+    "officialPriceMissing": "Für dieses Modell wurde kein Preis gefunden.",
+    "pricingRulesUnavailable": "Die Abrechnungsregeln sind unvollständig; der veröffentlichte Referenzpreis wird angezeigt.",
+    "pricingSourceUnavailable": "Preisdaten konnten noch nicht abgerufen werden."
   },
   "userGroup": "Benutzergruppe",
   "verificationResults": {

@@ -3,8 +3,8 @@ import type { Page, Worker } from "@playwright/test"
 import { OPTIONS_PAGE_PATH } from "~/constants/extensionPages"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { SITE_TYPES } from "~/constants/siteType"
-import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/compatibilityConfig"
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
+import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/configuration/compatibilityConfig"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import {
   AUTO_CHECKIN_SCHEDULE_MODE,
   CHECKIN_RECONCILIATION_OUTCOME,
@@ -143,6 +143,16 @@ test("reconciles a persisted uncertain check-in on retry re-entry without a dupl
     },
   })
 
+  // A fresh worker schedules the daily alarm, then clears an empty retry
+  // queue. Wait for that final startup write before installing a persisted
+  // retry: the storage lock cannot prevent a later scheduling decision made
+  // from the pre-seed empty queue from clearing our new retry state.
+  await expect
+    .poll(
+      async () => (await readAutoCheckinStatus(serviceWorker))?.pendingRetry,
+    )
+    .toBe(false)
+
   await seedAutoCheckinStatus(serviceWorker, {
     lastDailyRunDay: today,
     lastRunAt: new Date(Date.now() - 60_000).toISOString(),
@@ -232,7 +242,8 @@ test("reconciles a persisted uncertain check-in on retry re-entry without a dupl
     )
 
   const finalStatus = await readAutoCheckinStatus(serviceWorker)
-  expect(finalStatus).not.toHaveProperty("retryState")
+  expect(finalStatus?.pendingRetry).toBe(false)
+  expect(finalStatus?.retryState?.pendingAccountIds).toEqual([])
   expect(statusReadCount).toBeGreaterThan(0)
   expect(mutationPostCount).toBe(0)
   expect(protocolRequestMethods[0]).toBe("GET")

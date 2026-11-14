@@ -4,8 +4,8 @@ import { useState } from "react"
 import { I18nextProvider } from "react-i18next"
 import { describe, expect, it, vi } from "vitest"
 
-import { ManagedResourceEditorBody } from "~/features/ManagedSiteChannels/presentation/ManagedResourceEditorBody"
-import { getManagedResourceFieldPolicy } from "~/features/ManagedSiteChannels/presentation/managedResourceFieldPolicy"
+import { ManagedResourceEditorBody } from "~/features/ManagedSiteChannels/editor/ManagedResourceEditorBody"
+import { getManagedResourceFieldPolicy } from "~/features/ManagedSiteChannels/editor/managedResourceFieldPolicy"
 import enChannelDialog from "~/locales/en/channelDialog.json"
 import enCommon from "~/locales/en/common.json"
 import enManagedSiteChannels from "~/locales/en/managedSiteChannels.json"
@@ -13,8 +13,8 @@ import type {
   EditableResourceProjection,
   ResourceFieldIssue,
 } from "~/services/apiAdapters/contracts/resourceNative"
-import { withNewApiAdvancedEditor } from "~/services/apiAdapters/managedResources/newApiAdvancedEditor"
-import { createNewApiEditEditor } from "~/services/apiAdapters/managedResources/newApiEditor"
+import { withNewApiAdvancedEditor } from "~/services/apiAdapters/managedResources/newApi/advancedEditor"
+import { createNewApiEditEditor } from "~/services/apiAdapters/managedResources/newApi/editor"
 import type { NewApiChannel } from "~/types/newApi"
 import { buildManagedSiteChannel } from "~~/tests/test-utils/factories"
 import { createResourceTestI18n } from "~~/tests/test-utils/i18n"

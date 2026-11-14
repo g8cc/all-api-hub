@@ -8,6 +8,57 @@
     "tokenBased": "トークン課金"
   },
   "dialog": {
+    "aiToolbox": {
+      "actions": {
+        "export": "エクスポート"
+      },
+      "appOptions": {
+        "claude": "Claude Code",
+        "claudedesktop": "Claude Desktop",
+        "codex": "Codex",
+        "dsh": "DeepSeek Harness",
+        "gemini": "Gemini CLI",
+        "grok": "Grok CLI",
+        "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "omp": "Oh My Pi",
+        "openclaw": "OpenClaw",
+        "opencode": "OpenCode",
+        "pi": "Pi"
+      },
+      "description": "このプロバイダー設定をディープリンク経由で AI Toolbox に直接送信します",
+      "descriptions": {
+        "apiFormat": "AI Toolbox は対象アプリ向けにプロバイダーを再構築します。このプロバイダーがアプリの既定プロトコルを使用しない場合のみ指定してください。",
+        "model": "利用可能な場合、/v1/models からモデルを読み込んで選択できます。カスタムモデル ID を直接入力することも可能です。"
+      },
+      "fields": {
+        "apiFormat": "API プロトコル",
+        "app": "対象アプリ",
+        "baseUrl": "API ベース URL",
+        "homepage": "ホームページ URL",
+        "model": "既定モデル（任意）",
+        "name": "プロバイダー名",
+        "notes": "メモ（任意）"
+      },
+      "formatOptions": {
+        "anthropicMessages": "Anthropic Messages",
+        "automatic": "自動（アプリの既定）",
+        "geminiNative": "Gemini Native",
+        "openAIChat": "OpenAI Chat Completions",
+        "openAIResponses": "OpenAI Responses"
+      },
+      "modelOptions": {
+        "none": "既定モデルなし"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com",
+        "homepage": "https://example.com",
+        "model": "例: claude-3-opus",
+        "name": "例: Acme Relay",
+        "notes": "インポートメモを追加"
+      },
+      "title": "AI Toolbox にエクスポート"
+    },
     "bookmarkAccountImport": {
       "actions": {
         "allowAndScan": "ブックマークを選んで一括インポートを開始",
@@ -18,21 +69,25 @@
         "collapseFolder": "フォルダーを折りたたむ",
         "expandAll": "すべて展開",
         "expandFolder": "フォルダーを展開",
-        "importSelected_other": "選択項目をインポート（{{count}}）",
+        "importSelected_other": "選択した項目を追加（{{count}}）",
         "invertSelected": "選択を反転",
-        "openAddAccount": "アカウント追加を開く",
+        "openAddAccount": "手動で完了",
+        "retryFailed": "未完了の項目を再試行",
         "scanSelected": "選択範囲をスキャン",
         "selectAll": "すべて選択"
       },
       "apiUnavailable": "このブラウザは拡張機能にネイティブブックマークを公開していません。",
+      "bestEffortHelp": "できるだけ自動で追加します。一部のサイトでは、ログイン、認証、情報の補足が必要になる場合があります。",
       "bookmarkCount_one": "{{count}} 件のブックマーク",
       "bookmarkCount_other": "{{count}} 件のブックマーク",
-      "description": "ブラウザのブックマーク URL を一括スキャンし、インポート前にアカウントサイト候補を確認します。",
+      "description": "ブックマークしたサイトのアカウントをまとめて追加できます。",
       "empty": "ブラウザのブックマークは返されませんでした。",
       "failures": {
-        "detection": "自動検出でこのサイトを読み取れませんでした。",
-        "save": "アカウントを保存できませんでした。",
-        "unknown": "インポートに失敗しました。"
+        "detection": "追加のアカウント情報が必要です。再試行するか、手動で補足してください。",
+        "login": "このサイトにログインしてから、追加を再試行してください。",
+        "save": "アカウント情報を確認・補足してから追加してください。",
+        "unknown": "追加はまだ完了していません。再試行するか、手動で完了してください。",
+        "verification": "このサイトでは認証が必要です。「手動で完了」から続けてください。"
       },
       "folderCount_one": "{{count}} 件のフォルダー",
       "folderCount_other": "{{count}} 件のフォルダー",
@@ -41,16 +96,17 @@
       "includeExisting": "保存済みアカウントがあるサイトも含める",
       "initialSteps": {
         "chooseScope": "ブックマークフォルダーを選択",
-        "review": "インポート候補を確認",
+        "review": "追加するサイトを確認",
         "skipExisting": "既存アカウントは既定でスキップ"
       },
-      "initialValue": "ブラウザのブックマークに保存していた中継サイトを一括スキャンし、アカウント候補にできます。先にブックマーク範囲を選び、インポート前に候補を確認でき、既存アカウントは既定でスキップされます。",
+      "initialValue": "中継サイトのブックマークを選び、一覧を確認してまとめて追加できます。既存のアカウントは既定でスキップされます。",
       "noCandidates": "インポート可能な Web ブックマーク URL は見つかりませんでした。",
       "permissionDenied": "ブックマーク権限が許可されませんでした。このダイアログを閉じずに再試行できます。",
       "permissionNeeded": "ブックマークアクセスは任意権限で、この一括インポート時にのみ要求されます。",
       "readFailed": "ブラウザのブックマークツリーを読み取れませんでした。",
+      "recoveryHelp": "残りのアカウントはログイン後に再試行するか、「手動で完了」から追加を続けてください。",
       "reloadFailed": "インポートは完了しましたが、アカウントデータを再読み込みできませんでした。新しいアカウントが表示されない場合は、アカウント一覧を更新して再試行してください。",
-      "resultSummary": "{{success}} 件をインポート、{{failed}} 件失敗、{{skipped}} 件スキップ。",
+      "resultSummary": "追加済み {{success}} 件、未完了 {{failed}} 件、スキップ {{skipped}} 件。",
       "scanning": "ブラウザのブックマークをスキャン中...",
       "scopeHelp": "スキャンは候補のプレビューを作るだけです。インポート前にここへ戻って選択を調整できます。",
       "searchEmpty": "一致するブックマーク範囲はありません",
@@ -61,7 +117,7 @@
       "status": {
         "duplicate_other": "既定ではスキップされます。保存済みアカウント一致数: {{count}}",
         "imported": "インポート済み",
-        "ready": "インポート可能"
+        "ready": "追加予定"
       },
       "title": "ブックマークからアカウントをインポート",
       "untitledFolder": "無題のフォルダー"
@@ -71,13 +127,20 @@
         "export": "エクスポート"
       },
       "appOptions": {
+        "agy": "Antigravity",
         "claude": "Claude",
+        "claudeDesktop": "Claude Desktop",
         "codex": "Codex",
+        "dsh": "DeepSeek Harness",
         "gemini": "Gemini",
         "grokbuild": "Grok CLI",
         "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "mcode": "MiniMax Code",
+        "omp": "Oh My Pi",
         "openclaw": "OpenClaw",
-        "opencode": "OpenCode"
+        "opencode": "OpenCode",
+        "pi": "Pi"
       },
       "description": "このプロバイダー設定をディープリンク経由で CC Switch に直接送信します",
       "descriptions": {
@@ -87,7 +150,7 @@
         "app": "対象アプリ",
         "endpoint": "API エンドポイント",
         "homepage": "ホームページ URL",
-        "model": "既定モデル（任意）",
+        "model": "既定のモデル",
         "name": "プロバイダー名",
         "notes": "メモ（任意）"
       },
@@ -95,7 +158,9 @@
         "none": "既定モデルなし"
       },
       "notices": {
+        "claudeDesktop": "CC Switch v4.0.26 以降が必要です。Anthropic API 形式を使用します。claude- で始まるモデル名、またはモデル未指定の場合は直接接続としてインポートされます。その他のモデル名は CC Switch のローカルルーターを使うモデルマッピングとしてインポートされます。",
         "hermes": "CC Switch は Hermes を Chat Completions プロトコルとしてインポートします。エクスポート時に、プロバイダー名は小文字、数字、ハイフンのみの有効な識別子に変換されます。Anthropic Messages や Codex Responses など別の形式を使用する場合は、インポート後に CC Switch 側で調整してください。",
+        "modelRequired": "CC Switch v4.0.26 以降が必要です。エクスポート前にモデルを選択または入力してください。OpenAI Chat Completions API 形式を使用します。",
         "openclaw": "CC Switch は現在、外部インポート経由で OpenClaw AI サービス API 形式を設定できません。必要に応じて、インポート後に CC Switch 側で調整してください。",
         "opencode": "CC Switch は現在、外部インポート経由で OpenCode AI サービス API 形式を設定できません。必要に応じて、インポート後に CC Switch 側で調整してください。"
       },
@@ -146,6 +211,7 @@
       "keyCopied": "キーをクリップボードにコピーしました",
       "loadFailed": "キー一覧の読み込みに失敗しました: {{error}}",
       "loading": "キー一覧を読み込み中...",
+      "managementConfigurationRequired": "サイトのキー一覧を読み込んで管理するには、管理トークンが必要です。保存済みの API キーは引き続き単独で使用できます。",
       "noKeyFoundAfterCreate": "作成後にキーが見つかりませんでした。再試行してください。",
       "noKeys": "まだキーデータがありません",
       "noKeysDescription": "既定キーをすばやく作成するか、詳細設定付きのカスタムキーを作成してください。",
@@ -280,11 +346,15 @@
     "expand": "展開",
     "firefox": {
       "confirm": "確認",
+      "howOpenOptions": "全画面ページで続行",
       "howOpenSidebar": "サイドバーの開き方",
       "limitation": "Firefox ブラウザの機能制限",
+      "openFailed": "サイドパネルまたは全画面ページを開けません。もう一度お試しください。",
+      "openOptions": "全画面ページで続行",
       "openSidebar": "サイドバーを開く",
-      "popupLimitation": "この機能は Firefox ブラウザのポップアップでは正常に利用できません。アカウント追加にはサイドバーモードを使用してください",
-      "sidebarInstruction": "ブラウザツールバーの拡張機能アイコンをクリックし、「サイドバー」オプションを選んでサイドバーモードを開いてください",
+      "optionsInstruction": "下のボタンで拡張機能のアカウント管理ページを開きます。",
+      "popupLimitation": "Firefox のポップアップは別のページを開くと閉じることがあります。サイドパネルまたは全画面ページでアカウントを追加してください。",
+      "sidebarInstruction": "下のボタンでサイドパネルに移動します。開けない場合は全画面ページを使用します。",
       "warningTitle": "機能制限のお知らせ"
     },
     "kelivo": {
@@ -413,27 +483,32 @@
       "titleWithCookieInterceptor": "自動更新にはサイト認証が必要です"
     },
     "updateLog": {
-      "autoOpenSetting": "更新ログの自動表示",
-      "disableAutoOpen": "更新後に表示しない",
-      "enableAutoOpen": "更新後の自動表示を再有効化",
       "loading": "更新ログを読み込み中…",
-      "missingSection": "v{{version}} の更新ログプレビューを読み込めませんでした。完全版の更新ログを開けます。",
-      "openFullChangelog": "完全な更新ログを開く",
-      "starPrompt": "All API Hub が役に立ったら、GitHub で Star を付けて最新動向をフォローしましょう",
+      "missingSection": "v{{version}} の変更履歴の読み込みに時間がかかっています。変更履歴を別のタブで開けます。",
+      "openFullChangelog": "変更履歴を見る",
+      "starPrompt": "GitHub の Star で継続的な改善を応援",
       "title": "新着情報",
       "updatedTo": "v{{version}} に更新しました"
     }
   },
   "feedback": {
     "bugReport": "不具合を報告",
+    "clickAnywhereToClose": "何もない場所をクリックして閉じる",
     "community": "コミュニティグループ",
+    "communityUnavailable": "コミュニティリンクを読み込めませんでした。最新の招待方法はコミュニティページをご確認ください。",
     "discussion": "ディスカッションを開始",
     "featureRequest": "機能要望を送る",
     "languageRequest": "新しい言語をリクエスト",
+    "openCommunityPage": "コミュニティページを開く",
     "siteSupportRequest": "サイト対応を依頼",
+    "sponsor": "スポンサー",
+    "sponsorTitle": "スポンサーと支援を確認",
     "starOnGithub": "GitHub で Star を付ける",
     "trigger": "フィードバック",
-    "triggerTooltip": "フィードバックショートカットを開く"
+    "triggerTooltip": "フィードバックショートカットを開く",
+    "wechat": "WeChat グループ",
+    "wechatHelp": "グループ招待の期限切れや満員の場合は、画像内の個人 QR コードから友だち追加して招待を依頼するか、コミュニティページをご確認ください。",
+    "wechatUnavailable": "QR コードを読み込めませんでした。"
   },
   "modelListInput": {
     "actions": {
@@ -485,6 +560,7 @@
     "basic": "設定",
     "batchCheckin": "一括チェックイン",
     "bookmark": "ブックマーク管理",
+    "browserApiLab": "ブラウザ API ラボ（開発用）",
     "categories": {
       "api": "API",
       "automation": "自動化",
@@ -540,10 +616,12 @@
   "popupInterruption": {
     "actions": {
       "keepPopup": "ポップアップを使い続ける",
-      "useSidepanel": "サイドバーを使う"
+      "useOptions": "全画面ページで続行",
+      "useSidepanel": "サイドパネルで続行"
     },
-    "description": "アカウントの自動検出中にポップアップが閉じました。より安定した追加フローにはサイドバーを使ってください。",
-    "settingName": "ツールバークリック時の動作",
+    "description": "アカウントの自動検出中にポップアップが閉じました。サイドパネルで追加を続けてください。開けない場合は全画面ページを使用します。",
+    "openFailed": "サイドパネルまたは全画面ページを開けません。もう一度お試しください。",
+    "optionsDescription": "アカウントの自動検出中にポップアップが閉じました。全画面ページで追加を続けてください。",
     "title": "自動検出が中断された可能性があります"
   },
   "repeatableInput": {
@@ -560,6 +638,12 @@
   },
   "searchableSelect": {
     "empty": "結果が見つかりません",
+    "fetchDetails": "エラー詳細",
+    "fetchEmpty": "リクエストは成功しましたが、モデル一覧は空でした。",
+    "fetchEmptyLabel": "一覧が空です",
+    "fetchFailed": "一覧の取得に失敗しました。",
+    "fetchSuccess_other": "{{count}} 個のモデルを取得しました。",
+    "manualInputHint": "モデル ID を直接入力できます。",
     "noOptions": "利用可能なオプションがありません",
     "noOptionsAllowCustom": "利用可能なオプションがありません。入力して作成してください",
     "searchPlaceholder": "検索...",
@@ -567,6 +651,7 @@
   },
   "secretList": {
     "add": "キーを追加",
+    "clearedState": "保存済みのキーを削除します",
     "collapse": "API Key {{number}} を折りたたむ",
     "configured": "設定済み",
     "enableKey": "このキーを有効にする",
@@ -574,6 +659,7 @@
     "hide": "キーを隠す",
     "keepPlaceholder": "空欄で保存済みキーを保持",
     "loadFailed": "キーを読み込めませんでした。再試行してください。",
+    "maskedOnly": "この保存済みキーはマスク表示のみで、元の値は取得できません。",
     "newPlaceholder": "API キーを入力",
     "newState": "新規・未保存",
     "previousDisableReason": "前回無効になった理由：{{reason}}",
@@ -586,6 +672,12 @@
     "show": "キーを表示",
     "title": "API キー"
   },
+  "sidebarFooter": {
+    "community": "コミュニティ",
+    "docs": "ドキュメント",
+    "github": "GitHub",
+    "sponsor": "スポンサー"
+  },
   "starPromotion": {
     "actions": {
       "alreadyStarred": "すでに Star 済みです",
@@ -594,7 +686,7 @@
       "star": "Star を付ける"
     },
     "cardDescription": "All API Hub は完全オープンソースで、対応サイトを増やしながら使い心地も磨き続けています。Star を付けると、継続的なメンテナンスを支えられ、必要としている人にも見つけてもらいやすくなります。",
-    "cardTitle": "使い心地はいかがですか？"
+    "cardTitle": "継続的な改善を応援"
   },
   "textEntries": {
     "add": "行を追加",

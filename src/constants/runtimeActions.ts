@@ -21,6 +21,7 @@ export const RuntimeActionPrefixes = {
   OpenSettings: "openSettings:",
   Permissions: "permissions:",
   RedemptionAssist: "redemptionAssist:",
+  TempContextDebug: "tempContextDebug:",
 } as const
 
 type RuntimeActionPrefix =
@@ -42,6 +43,19 @@ export const RuntimeMessageTypes = {
  * Values are part of the on-the-wire contract between extension contexts and MUST remain stable.
  */
 export const RuntimeActionIds = {
+  ContentSyncDahlKeyNames: "contentSyncDahlKeyNames",
+  ContentPrepareNewApiOAuth: "prepareNewApiOAuth",
+  ContentNewApiPasswordUi: "newApiPasswordUi",
+  ContentSub2ApiPasswordUi: "sub2ApiPasswordUi",
+  ContentNewApiPasswordLogin: "newApiPasswordLogin",
+  ContentClearNewApiPasswordLogin: "clearNewApiPasswordLogin",
+  ContentSub2ApiPasswordLogin: "sub2ApiPasswordLogin",
+  ContentClearSub2ApiPasswordLogin: "clearSub2ApiPasswordLogin",
+  ContentCompleteNewApiOAuth: "completeNewApiOAuth",
+  ContentClearNewApiOAuthEvidence: "clearNewApiOAuthEvidence",
+  ContentPrepareSub2ApiOAuth: "prepareSub2ApiOAuth",
+  ContentCompleteSub2ApiOAuth: "completeSub2ApiOAuth",
+  ContentClearSub2ApiOAuthEvidence: "clearSub2ApiOAuthEvidence",
   AccountBrowserIdentityGetCooldown: composeRuntimeAction(
     RuntimeActionPrefixes.AccountBrowserIdentity,
     "getCooldown",
@@ -54,6 +68,14 @@ export const RuntimeActionIds = {
   AccountDialogImportCookieAuthSessionCookie: composeRuntimeAction(
     RuntimeActionPrefixes.AccountDialog,
     "importCookieAuthSessionCookie",
+  ),
+  AccountDialogRecoverCookieSession: composeRuntimeAction(
+    RuntimeActionPrefixes.AccountDialog,
+    "recoverCookieSession",
+  ),
+  AccountDialogCancelCookieRecovery: composeRuntimeAction(
+    RuntimeActionPrefixes.AccountDialog,
+    "cancelCookieRecovery",
   ),
 
   AccountRefreshCompleted: composeRuntimeAction(
@@ -75,6 +97,7 @@ export const RuntimeActionIds = {
     "check",
   ),
   CloudflareGuardLog: "cloudflareGuardLog",
+  LogHistoryClear: "logHistory:clear",
 
   CloseTempWindow: "closeTempWindow",
   GetInternalTabIds: "getInternalTabIds",
@@ -105,6 +128,10 @@ export const RuntimeActionIds = {
     RuntimeActionPrefixes.OpenSettings,
     "shieldHistory",
   ),
+  OpenSettingsTurnstileAssist: composeRuntimeAction(
+    RuntimeActionPrefixes.OpenSettings,
+    "turnstileAssist",
+  ),
   OpenSettingsApiCredentialProfiles: composeRuntimeAction(
     RuntimeActionPrefixes.OpenSettings,
     "apiCredentialProfiles",
@@ -112,6 +139,18 @@ export const RuntimeActionIds = {
   OpenSettingsWebAiApiCheck: composeRuntimeAction(
     RuntimeActionPrefixes.OpenSettings,
     "webAiApiCheck",
+  ),
+  ContentCheckInFeedbackHint: composeRuntimeAction(
+    RuntimeActionPrefixes.Feedback,
+    "showCheckInHint",
+  ),
+  OpenCheckInFeedbackIssue: composeRuntimeAction(
+    RuntimeActionPrefixes.Feedback,
+    "openCheckInIssue",
+  ),
+  DismissCheckInFeedbackHint: composeRuntimeAction(
+    RuntimeActionPrefixes.Feedback,
+    "dismissCheckInHint",
   ),
   OpenFeedbackBugReport: composeRuntimeAction(
     RuntimeActionPrefixes.Feedback,
@@ -137,6 +176,25 @@ export const RuntimeActionIds = {
     "debugSeedEstimateSnapshots",
   ),
 
+  TempContextDebugCreateOrphan: composeRuntimeAction(
+    RuntimeActionPrefixes.TempContextDebug,
+    "createOrphan",
+  ),
+  TempContextDebugCreateTrackedContext: composeRuntimeAction(
+    RuntimeActionPrefixes.TempContextDebug,
+    "createTrackedContext",
+  ),
+  TempContextDebugListMarkers: composeRuntimeAction(
+    RuntimeActionPrefixes.TempContextDebug,
+    "listMarkers",
+  ),
+  TempContextDebugReclaimNow: composeRuntimeAction(
+    RuntimeActionPrefixes.TempContextDebug,
+    "reclaimNow",
+  ),
+
+  DevExecuteBrowserApi: "dev:executeBrowserApi",
+
   ContentGetLocalStorage: "getLocalStorage",
   ContentCompleteAgentRouterOAuth: "completeAgentRouterOAuth",
   ContentPrepareAgentRouterOAuth: "prepareAgentRouterOAuth",
@@ -146,15 +204,25 @@ export const RuntimeActionIds = {
   // Content-side protection guard checks used by temp-window fallback readiness gating.
   ContentCheckCapGuard: "checkCapGuard",
   ContentCheckCloudflareGuard: "checkCloudflareGuard",
+  ContentCheckAliyunGuard: "checkAliyunGuard",
   ContentWaitForTurnstileToken: "waitForTurnstileToken",
+  // Reads the public Turnstile site key so a solving service can be consulted.
+  ContentReadTurnstileSitekey: "readTurnstileSitekey",
+  TurnstileRequestUserAssist: "turnstileRequestUserAssist",
+  TurnstileReadPageApi: "turnstileReadPageApi",
+  TurnstileAssistPageNotice: "turnstileAssistPageNotice",
+  TurnstileAssistOpen: "turnstileAssistOpen",
+  ContentVerificationAssistOpened: "verificationAssistOpened",
   ContentTriggerCheckinPageAction: "triggerCheckinPageAction",
-  ContentRunBrowserCheckIn: "runBrowserCheckIn",
   ContentOpenRouterManagementKeyAction: "openRouterManagementKeyAction",
+  ContentRequestyManagementKeyAction: "requestyManagementKeyAction",
   ContentWaitAndGetUserInfo: "waitAndGetUserInfo",
   ContentPerformTempWindowFetch: "performTempWindowFetch",
+  ContentInspectCredentialPage: "inspectCredentialPage",
   ContentGetRenderedTitle: "getRenderedTitle",
   ContentShowShieldBypassUi: "showShieldBypassUi",
   ContentStarPromotionReport: "starPromotionReport",
+  StarPromotionOpenRepository: "starPromotionOpenRepository",
 } as const
 
 export type RuntimeActionId =

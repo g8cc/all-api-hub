@@ -17,11 +17,13 @@ import {
 import { PROTECTION_BYPASS_EXECUTION_VERSION } from "~/services/protectionBypass/contracts"
 import { buildSiteAccount } from "~~/tests/test-utils/factories"
 import { testI18n } from "~~/tests/test-utils/i18n"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { render, screen, waitFor, within } from "~~/tests/test-utils/render"
 
 const {
   ensurePermissionsDetailedMock,
   getBrowserBookmarkTreeMock,
+  isPermissionDeclaredMock,
   runBookmarkAccountImportMock,
   loadAccountDataMock,
   openAddAccountMock,
@@ -32,6 +34,7 @@ const {
 } = vi.hoisted(() => ({
   ensurePermissionsDetailedMock: vi.fn(),
   getBrowserBookmarkTreeMock: vi.fn(),
+  isPermissionDeclaredMock: vi.fn(),
   runBookmarkAccountImportMock: vi.fn(),
   loadAccountDataMock: vi.fn(),
   openAddAccountMock: vi.fn(),
@@ -48,14 +51,15 @@ vi.mock("~/services/permissions/permissionManager", async (importOriginal) => {
     >()
   return {
     ...actual,
+    isPermissionDeclared: () => isPermissionDeclaredMock(),
     ensurePermissionsDetailed: (...args: unknown[]) =>
       ensurePermissionsDetailedMock(...args),
   }
 })
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/bookmarks", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+    await importOriginal<typeof import("~/utils/browser/bookmarks")>()
   return {
     ...actual,
     getBrowserBookmarkTree: (...args: unknown[]) =>
@@ -78,15 +82,18 @@ vi.mock(
   },
 )
 
-vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
+vi.mock("~/features/AccountManagement/data/AccountDataContext", () => ({
   useAccountDataContext: () => ({
     accounts,
     loadAccountData: loadAccountDataMock,
   }),
 }))
 
-vi.mock("~/features/AccountManagement/hooks/DialogStateContext", () => ({
+vi.mock("~/features/AccountManagement/dialogs/useDialogStateContext", () => ({
   useDialogStateContext: () => ({
+    openAddAccount: openAddAccountMock,
+  }),
+  useAccountDialogActions: () => ({
     openAddAccount: openAddAccountMock,
   }),
 }))
@@ -248,6 +255,7 @@ function bookmarkTreeWithFolderOnlySearchMatch() {
 describe("BookmarkAccountImportDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    isPermissionDeclaredMock.mockReturnValue(true)
     accounts.splice(0)
     ensurePermissionsDetailedMock.mockResolvedValue({
       success: true,
@@ -293,6 +301,30 @@ describe("BookmarkAccountImportDialog", () => {
     )
   })
 
+  it("reports unsupported bookmark APIs without prompting for permission", async () => {
+    isPermissionDeclaredMock.mockReturnValue(false)
+    const user = userEvent.setup()
+    renderDialog()
+    await user.click(
+      await screen.findByTestId(
+        ACCOUNT_MANAGEMENT_TEST_IDS.bookmarkImportAllowScanButton,
+      ),
+    )
+    expect(ensurePermissionsDetailedMock).not.toHaveBeenCalled()
+    expect(getBrowserBookmarkTreeMock).not.toHaveBeenCalled()
+    expect(
+      await screen.findByText(
+        testI18n.t("ui:dialog.bookmarkAccountImport.apiUnavailable"),
+      ),
+    ).toBeVisible()
+    expect(completeProductAnalyticsActionMock).toHaveBeenCalledWith(
+      PRODUCT_ANALYTICS_RESULTS.Failure,
+      expect.objectContaining({
+        errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unsupported,
+      }),
+    )
+  })
+
   it("explains the batch-import workflow before requesting bookmark access", async () => {
     testI18n.addResourceBundle("en", "ui", enUiLocale, true, true)
 
@@ -301,11 +333,11 @@ describe("BookmarkAccountImportDialog", () => {
 
       expect(
         await screen.findByText(
-          /Batch scan browser bookmarks and turn saved relay sites into account candidates/,
+          /Choose your bookmarked relay sites, review the list/,
         ),
       ).toBeVisible()
       expect(screen.getByText("Choose bookmark folders")).toBeVisible()
-      expect(screen.getByText("Review import candidates")).toBeVisible()
+      expect(screen.getByText("Review sites to add")).toBeVisible()
       expect(
         screen.getByText("Skip existing accounts by default"),
       ).toBeVisible()
@@ -341,7 +373,7 @@ describe("BookmarkAccountImportDialog", () => {
       await allowBookmarksAndScanSelected(user)
 
       expect(
-        await screen.findByRole("button", { name: "Import selected (2)" }),
+        await screen.findByRole("button", { name: "Add selected (2)" }),
       ).toBeEnabled()
     } finally {
       testI18n.removeResourceBundle("en", "ui")
@@ -484,7 +516,7 @@ describe("BookmarkAccountImportDialog", () => {
       expect(await screen.findByText("Primary folder")).toBeVisible()
       expect(screen.getAllByText("1 bookmark")[0]).toBeVisible()
       await user.click(
-        screen.getAllByRole("button", { name: "Expand folder" })[0],
+        atIndex(screen.getAllByRole("button", { name: "Expand folder" }), 0),
       )
       const bookmarkTitle = screen.getByText("Primary bookmark")
       const bookmarkSource = screen.getByText(
@@ -755,7 +787,7 @@ describe("BookmarkAccountImportDialog", () => {
       expect(screen.queryByText("Work relay")).not.toBeInTheDocument()
 
       await user.click(
-        screen.getAllByRole("button", { name: "Expand folder" })[0],
+        atIndex(screen.getAllByRole("button", { name: "Expand folder" }), 0),
       )
       expect(await screen.findByText("Work relay")).toBeVisible()
     } finally {
@@ -985,7 +1017,7 @@ describe("BookmarkAccountImportDialog", () => {
       within(
         rows.find((row) =>
           row.textContent?.includes("https://existing.example.invalid"),
-        ) ?? rows[0],
+        ) ?? atIndex(rows, 0),
       ).getByText("ui:dialog.bookmarkAccountImport.status.duplicate"),
     ).toBeInTheDocument()
 
@@ -1004,7 +1036,9 @@ describe("BookmarkAccountImportDialog", () => {
       expect.any(String),
       expect.any(Function),
     )
-    expect(runBookmarkAccountImportMock.mock.calls[0][0].candidates).toEqual([
+    expect(
+      atIndex(runBookmarkAccountImportMock.mock.calls, 0)[0].candidates,
+    ).toEqual([
       expect.objectContaining({
         id: "bookmark-import:https://new.example.invalid",
         url: "https://new.example.invalid",
@@ -1012,7 +1046,8 @@ describe("BookmarkAccountImportDialog", () => {
       }),
     ])
     expect(
-      runBookmarkAccountImportMock.mock.calls[0][0].protectionBypassExecution,
+      atIndex(runBookmarkAccountImportMock.mock.calls, 0)[0]
+        .protectionBypassExecution,
     ).toEqual({
       version: PROTECTION_BYPASS_EXECUTION_VERSION,
       kind: "user_command",
@@ -1030,7 +1065,7 @@ describe("BookmarkAccountImportDialog", () => {
           selectedCount: 1,
           successCount: 1,
           failureCount: 0,
-          skippedCount: 0,
+          skippedCount: 1,
           readyCount: 1,
           blockedCount: 1,
         }),
@@ -1070,7 +1105,7 @@ describe("BookmarkAccountImportDialog", () => {
       expect(runBookmarkAccountImportMock).toHaveBeenCalledTimes(1)
     })
     expect(
-      runBookmarkAccountImportMock.mock.calls[0][0].candidates.map(
+      atIndex(runBookmarkAccountImportMock.mock.calls, 0)[0].candidates.map(
         (candidate: { url: string }) => candidate.url,
       ),
     ).toEqual([
@@ -1434,6 +1469,208 @@ describe("BookmarkAccountImportDialog", () => {
       source: "bookmark-import",
       siteUrl: "https://failed.example.invalid",
     })
+  })
+
+  it.each([false, true])(
+    "retries only incomplete candidates and keeps successful totals (reload fails: %s)",
+    async (reloadFails) => {
+      const user = userEvent.setup()
+      getBrowserBookmarkTreeMock.mockResolvedValueOnce({
+        success: true,
+        tree: bookmarkTreeWith([
+          "https://one.example/path",
+          "https://two.example/path",
+        ]),
+      })
+      runBookmarkAccountImportMock
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              candidateId: "bookmark-import:https://one.example",
+              url: "https://one.example",
+              status: "success",
+              accountId: "one",
+            },
+            {
+              candidateId: "bookmark-import:https://two.example",
+              url: "https://two.example",
+              status: "failed",
+              failureCategory: "detection",
+              safeMessageKey:
+                "ui:dialog.bookmarkAccountImport.failures.detection",
+              siteType: "new-api",
+              authType: "cookie",
+            },
+          ],
+          successCount: 1,
+          failureCount: 1,
+          skippedCount: 0,
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              candidateId: "bookmark-import:https://two.example",
+              url: "https://two.example",
+              status: "success",
+              accountId: "two",
+            },
+          ],
+          successCount: 1,
+          failureCount: 0,
+          skippedCount: 0,
+        })
+      renderDialog()
+      await allowBookmarksAndScanSelected(user)
+      await user.click(
+        screen.getByTestId(
+          ACCOUNT_MANAGEMENT_TEST_IDS.bookmarkImportImportButton,
+        ),
+      )
+      await user.click(
+        await screen.findByRole("button", {
+          name: "ui:dialog.bookmarkAccountImport.actions.openAddAccount",
+        }),
+      )
+      expect(openAddAccountMock).toHaveBeenCalledWith({
+        source: "bookmark-import",
+        siteUrl: "https://two.example",
+        siteType: "new-api",
+        authType: "cookie",
+      })
+      if (reloadFails) {
+        loadAccountDataMock.mockRejectedValueOnce(new Error("reload failed"))
+      }
+      await user.click(
+        screen.getByRole("button", {
+          name: "ui:dialog.bookmarkAccountImport.actions.retryFailed",
+        }),
+      )
+      await waitFor(() =>
+        expect(runBookmarkAccountImportMock).toHaveBeenCalledTimes(2),
+      )
+      expect(
+        runBookmarkAccountImportMock.mock.calls[1]?.[0].candidates.map(
+          (candidate: { url: string }) => candidate.url,
+        ),
+      ).toEqual(["https://two.example"])
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("button", {
+            name: "ui:dialog.bookmarkAccountImport.actions.retryFailed",
+          }),
+        ).not.toBeInTheDocument(),
+      )
+      expect(screen.getByText("https://one.example")).toBeVisible()
+      expect(screen.getByText("https://two.example")).toBeVisible()
+      expect(
+        screen.getAllByText("ui:dialog.bookmarkAccountImport.status.imported"),
+      ).toHaveLength(2)
+      expect(completeProductAnalyticsActionMock).toHaveBeenLastCalledWith(
+        reloadFails
+          ? PRODUCT_ANALYTICS_RESULTS.Failure
+          : PRODUCT_ANALYTICS_RESULTS.Success,
+        expect.objectContaining({
+          insights: expect.objectContaining({
+            selectedCount: 2,
+            successCount: 2,
+            failureCount: 0,
+            skippedCount: 0,
+          }),
+        }),
+      )
+    },
+  )
+
+  it("keeps prior results and recovery available when a retry cannot start", async () => {
+    const user = userEvent.setup()
+    getBrowserBookmarkTreeMock.mockResolvedValueOnce({
+      success: true,
+      tree: bookmarkTreeWith(["https://two.example/path"]),
+    })
+    runBookmarkAccountImportMock.mockResolvedValueOnce({
+      rows: [
+        {
+          candidateId: "bookmark-import:https://two.example",
+          url: "https://two.example",
+          status: "failed",
+          failureCategory: "detection",
+          safeMessageKey: "ui:dialog.bookmarkAccountImport.failures.detection",
+        },
+      ],
+      successCount: 0,
+      failureCount: 1,
+      skippedCount: 0,
+    })
+    renderDialog()
+    await allowBookmarksAndScanSelected(user)
+    await user.click(
+      screen.getByTestId(
+        ACCOUNT_MANAGEMENT_TEST_IDS.bookmarkImportImportButton,
+      ),
+    )
+    const retry = await screen.findByRole("button", {
+      name: "ui:dialog.bookmarkAccountImport.actions.retryFailed",
+    })
+    withProtectionBypassUserCommandMock.mockRejectedValueOnce(
+      new Error("cannot start"),
+    )
+    await user.click(retry)
+    expect(
+      await screen.findByText("ui:dialog.bookmarkAccountImport.importFailed"),
+    ).toBeVisible()
+    expect(screen.getByText("https://two.example")).toBeVisible()
+    expect(
+      screen.getByRole("button", {
+        name: "ui:dialog.bookmarkAccountImport.actions.openAddAccount",
+      }),
+    ).toBeEnabled()
+    expect(
+      screen.getByRole("button", {
+        name: "ui:dialog.bookmarkAccountImport.actions.retryFailed",
+      }),
+    ).toBeEnabled()
+    expect(runBookmarkAccountImportMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("includes unselected existing sites in the skipped result count", async () => {
+    const user = userEvent.setup()
+    accounts.push(
+      buildSiteAccount({ site_url: "https://existing.example.invalid" }),
+    )
+    testI18n.addResourceBundle(
+      "en",
+      "ui",
+      {
+        dialog: {
+          bookmarkAccountImport: {
+            resultSummary:
+              "Added={{success}} incomplete={{failed}} skipped={{skipped}}",
+          },
+        },
+      },
+      true,
+      true,
+    )
+    try {
+      renderDialog()
+      await allowBookmarksAndScanSelected(user)
+      await user.click(
+        screen.getByTestId(
+          ACCOUNT_MANAGEMENT_TEST_IDS.bookmarkImportImportButton,
+        ),
+      )
+      expect(
+        await screen.findByText("Added=1 incomplete=0 skipped=1"),
+      ).toBeVisible()
+      expect(completeProductAnalyticsActionMock).toHaveBeenLastCalledWith(
+        PRODUCT_ANALYTICS_RESULTS.Success,
+        expect.objectContaining({
+          insights: expect.objectContaining({ skippedCount: 1 }),
+        }),
+      )
+    } finally {
+      testI18n.removeResourceBundle("en", "ui")
+    }
   })
 
   it("starts bookmark import analytics with account management context", async () => {

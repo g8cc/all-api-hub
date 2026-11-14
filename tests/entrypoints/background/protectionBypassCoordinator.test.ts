@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   createProtectionBypassCoordinator,
-  getProtectionBypassDecisionErrorCode,
   resolveProtectionBypassExecution,
 } from "~/entrypoints/background/protectionBypassCoordinator"
 import { API_ERROR_CODES } from "~/services/apiTransport/errors"
@@ -19,9 +18,11 @@ import {
   type ProtectionBypassExecution,
   type TempContextTask,
 } from "~/services/protectionBypass/contracts"
+import { getProtectionBypassDecisionErrorCode } from "~/services/protectionBypass/decisionErrorCode"
 import { protectionBypassHistoryStorage } from "~/services/protectionBypass/historyStorage"
 import { userCommandExecution } from "~~/tests/services/protectionBypass/fixtures"
 import { createDeferred } from "~~/tests/test-utils/deferred"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const allowedPolicy = {
   automaticMasterEnabled: true,
@@ -311,7 +312,7 @@ describe("ProtectionBypassCoordinator", () => {
       }),
     ])
     expect(
-      (await protectionBypassHistoryStorage.list())[0].contextMode,
+      atIndex(await protectionBypassHistoryStorage.list(), 0).contextMode,
     ).toBeUndefined()
   })
 
@@ -1098,7 +1099,7 @@ describe("ProtectionBypassCoordinator", () => {
     const recordStarted = createDeferred<void>()
     const neverFinishes = new Promise<void>(() => undefined)
     const acquired = vi.fn()
-    const task = withExecution(allTaskKinds[6], verificationExecution)
+    const task = withExecution(atIndex(allTaskKinds, 6), verificationExecution)
     const coordinator = createDecisionCoordinator({
       executeAuthorizedTask: vi.fn(
         async (
@@ -1136,7 +1137,7 @@ describe("ProtectionBypassCoordinator", () => {
 
   it("records the actual acquired adapter instead of the policy preference", async () => {
     const recordDecision = vi.fn().mockResolvedValue(undefined)
-    const task = withExecution(allTaskKinds[6], verificationExecution)
+    const task = withExecution(atIndex(allTaskKinds, 6), verificationExecution)
 
     await createDecisionCoordinator({
       resolveCapability: vi.fn().mockResolvedValue({
@@ -1173,7 +1174,7 @@ describe("ProtectionBypassCoordinator", () => {
 
   it("records acquisition failure as one unavailable outcome without an adapter", async () => {
     const recordDecision = vi.fn().mockResolvedValue(undefined)
-    const task = withExecution(allTaskKinds[6], verificationExecution)
+    const task = withExecution(atIndex(allTaskKinds, 6), verificationExecution)
 
     await createDecisionCoordinator({
       resolveCapability: vi.fn().mockResolvedValue({

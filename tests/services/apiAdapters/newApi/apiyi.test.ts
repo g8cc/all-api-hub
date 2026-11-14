@@ -5,14 +5,15 @@ import { AUTO_DETECT_FAILURE_REASONS } from "~/constants/autoDetect"
 import { SITE_TYPES } from "~/constants/siteType"
 import type { AccountAutoDetectRecoveryData } from "~/services/accounts/autoDetect/recovery"
 import { completeAutoDetectedAccount } from "~/services/accounts/autoDetectCompletion/completion"
-import { getAccountKeyProductCapabilities } from "~/services/accounts/keyProductCapabilities"
-import { normalizeApiYiModelPricingResponse } from "~/services/apiAdapters/newApi/apiyiModelPricing"
+import { getAccountKeyProductCapabilities } from "~/services/accounts/keys/keyProductCapabilities"
+import { normalizeApiYiModelPricingResponse } from "~/services/apiAdapters/newApi/pricing/apiyiModelPricing"
 import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
 import {
   fetchAccountAvailableModels,
   fetchUserGroups,
 } from "~/services/apiService/newApiFamily/variants/apiyi"
-import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/compatibilityConfig"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
+import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/configuration/compatibilityConfig"
 import { PRICING_PURPOSES } from "~/services/modelPricing/pricingConstants"
 import { quoteCanonicalModelPrice } from "~/services/modelPricing/quoteCanonicalModelPrice"
 import { AuthTypeEnum } from "~/types"
@@ -22,6 +23,7 @@ import {
   apiyiPricingSample,
 } from "~~/tests/fixtures/apiyi/pricing.sample"
 import { server } from "~~/tests/msw/server"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 vi.mock("~/utils/browser/tempWindowFetch", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/utils/browser/tempWindowFetch")>()),
@@ -32,7 +34,7 @@ const baseUrl = "https://api.apiyi.com"
 const detected = {
   siteType: SITE_TYPES.APIYI,
   userId: "42",
-  user: { id: 42, username: "apiyi-user" },
+  user: { id: "42", username: "apiyi-user" },
 }
 
 describe("APIyi account capabilities", () => {
@@ -214,6 +216,7 @@ describe("APIyi account capabilities", () => {
 
       const account = getSiteTypeCapabilities(SITE_TYPES.APIYI).account!
       const result = await account.refresh!.refreshAccount({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl,
         siteType: SITE_TYPES.APIYI,
         auth: {
@@ -291,6 +294,7 @@ describe("APIyi account capabilities", () => {
     const account = getSiteTypeCapabilities(SITE_TYPES.APIYI).account!
     await expect(
       account.modelPricing!.fetchPricing({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl,
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -357,6 +361,7 @@ describe("APIyi account capabilities", () => {
 
     await expect(
       fetchAccountAvailableModels({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl,
         auth: { authType: AuthTypeEnum.Cookie, userId: "42" },
       }),
@@ -404,6 +409,7 @@ describe("APIyi account capabilities", () => {
     )
 
     const groups = await fetchUserGroups({
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl,
       auth: { authType: AuthTypeEnum.Cookie, userId: "42" },
     })
@@ -436,6 +442,7 @@ describe("APIyi account capabilities", () => {
 
       await expect(
         fetchUserGroups({
+          directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
           baseUrl,
           auth: { authType: AuthTypeEnum.Cookie, userId: "42" },
         }),
@@ -457,6 +464,7 @@ describe("APIyi account capabilities", () => {
 
       await expect(
         fetchUserGroups({
+          directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
           baseUrl,
           auth: { authType: AuthTypeEnum.Cookie, userId: "42" },
         }),
@@ -479,13 +487,14 @@ describe("APIyi account capabilities", () => {
     const pricing = await getSiteTypeCapabilities(
       SITE_TYPES.APIYI,
     ).account!.modelPricing!.fetchPricing({
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl,
       auth: { authType: AuthTypeEnum.Cookie, userId: "42" },
     })
 
-    expect(pricing.data[0].model_ratio).toBeCloseTo(0.054794520548, 10)
-    expect(pricing.data[0].completion_ratio).toBe(2.5)
-    expect(pricing.data[0].pricingPlan).toMatchObject({
+    expect(atIndex(pricing.data, 0).model_ratio).toBeCloseTo(0.054794520548, 10)
+    expect(atIndex(pricing.data, 0).completion_ratio).toBe(2.5)
+    expect(atIndex(pricing.data, 0).pricingPlan).toMatchObject({
       requiresRuleMatch: true,
       issues: [{ code: "unverified-axis" }],
       rules: [
@@ -523,6 +532,7 @@ describe("APIyi account capabilities", () => {
     const pricing = await getSiteTypeCapabilities(
       SITE_TYPES.APIYI,
     ).account!.modelPricing!.fetchPricing({
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl,
       auth: { authType: AuthTypeEnum.Cookie, userId: "42" },
     })
@@ -545,7 +555,10 @@ describe("APIyi account capabilities", () => {
       },
     })
     expect(
-      pricing.data[0].pricingPlan?.rules[1].conditions[0],
+      atIndex(
+        atIndex(atIndex(pricing.data, 0).pricingPlan?.rules, 1).conditions,
+        0,
+      ),
     ).not.toHaveProperty("maxExclusive")
   })
 
@@ -578,6 +591,7 @@ describe("APIyi account capabilities", () => {
       const pricing = await getSiteTypeCapabilities(
         SITE_TYPES.APIYI,
       ).account!.modelPricing!.fetchPricing({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl,
         auth: { authType: AuthTypeEnum.Cookie, userId: "42" },
       })
@@ -589,7 +603,7 @@ describe("APIyi account capabilities", () => {
           unavailable_reason: "pricing-source-unavailable",
         },
       })
-      expect(pricing.data[0].pricingPlan?.issues).toEqual([
+      expect(atIndex(pricing.data, 0).pricingPlan?.issues).toEqual([
         { code: "unsupported-rule" },
       ])
     },
@@ -612,6 +626,7 @@ describe("APIyi account capabilities", () => {
       getSiteTypeCapabilities(
         SITE_TYPES.APIYI,
       ).account!.modelPricing!.fetchPricing({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl,
         auth: { authType: AuthTypeEnum.Cookie, userId: "42" },
       }),

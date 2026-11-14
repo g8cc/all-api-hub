@@ -130,13 +130,27 @@
     },
     "unexpectedContent": "La respuesta tenía un formato inesperado y pudo haber sido una página de verificación del sitio."
   },
+  "notification": {
+    "loginAssistBody": "El inicio de sesión está pendiente. Abre la ventana de acceso para completar la verificación o la autenticación de dos factores; la extensión verificará la cuenta y el resultado de la tarea.",
+    "loginSessionBody": "Esta ventana ya tiene una sesión iniciada. Para evitar cerrar cuentas en otras ventanas, abre la ventana de acceso y cierra la sesión manualmente cuando lo hayas confirmado; la extensión iniciará sesión en la cuenta de destino.",
+    "openLogin": "Abrir ventana de acceso",
+    "openVerification": "Abrir ventana de verificación",
+    "reminderSettings": "Configuración de avisos",
+    "turnstileAssistBody": "El sitio espera una verificación humana. Abre la ventana de verificación para resolver el captcha. La extensión comprobará el resultado después.",
+    "turnstileAssistTitle": "All API Hub · Aviso de verificación",
+    "turnstilePageBody": "El sitio espera una verificación humana. Abre la ventana de verificación para resolver el captcha. La extensión comprobará el resultado después.",
+    "verificationEnded": "Esta verificación terminó. No se requiere ninguna acción."
+  },
   "titlePrefix": "All API Hub · Omisión de protección",
   "toast": {
     "actions": {
-      "dismiss": "Descartar",
       "openSettings": "Abrir ajustes de omisión de protección"
     },
-    "body": "All API Hub abrió esta página automáticamente para pasar páginas de protección (por ejemplo, desafíos de Cloudflare) y obtener las cookies/sesión necesarias.\n\nEsto es necesario para que All API Hub pueda realizar solicitudes correctamente y detectar datos en sitios protegidos.\n\nSi aparece un paso de verificación, complétalo en esta ventana; una vez aprobado, All API Hub continuará y esta ventana podría cerrarse automáticamente.",
-    "title": "Ayudante de omisión protegida de All API Hub (ventana temporal)"
+    "body": "All API Hub abrió esta página automáticamente para pasar páginas de protección (por ejemplo, desafíos de Cloudflare) y obtener las cookies/sesión necesarias.\nEsto es necesario para que All API Hub pueda realizar solicitudes correctamente y detectar datos en sitios protegidos.\nSi aparece un paso de verificación, complétalo en esta ventana; una vez aprobado, All API Hub continuará y esta ventana podría cerrarse automáticamente.",
+    "title": "Ayudante de omisión protegida",
+    "turnstile": {
+      "body": "Completa la verificación del sitio en esta ventana, por ejemplo marcando “Soy humano” o seleccionando las imágenes indicadas. La extensión está esperando y después comprobará el resultado. Si la página sigue mostrando el check-in pendiente, complétalo allí.",
+      "title": "Completa la verificación humana"
+    }
   }
 }

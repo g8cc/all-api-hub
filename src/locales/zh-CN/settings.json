@@ -135,7 +135,7 @@
   "autoProvisionKeyOnAccountAdd": {
     "description": "添加账号后自动准备 API 密钥，可选择默认密钥或所有可用分组。",
     "manualHint": "已保存的账号可在“密钥管理 → {{actionLabel}}”中手动补齐所有可用分组的密钥。",
-    "modeDescription": "默认模式仅在账号没有密钥时创建一个；所有分组模式为每个缺少可用密钥的分组创建一个。需要手动处理的分组会给出提示。",
+    "modeDescription": "默认模式在没有有效密钥时准备一个；全部分组模式补齐各个缺失分组，没有分组要求的站点则准备一个默认密钥。两种模式都可弹窗补充参数或处理一次性密钥。",
     "modeLabel": "自动创建范围",
     "modes": {
       "allGroups": "所有可用分组",
@@ -170,16 +170,13 @@
       "description": "检查当前配置能否正常连接并管理站点。",
       "failed": "AxonHub 配置验证失败：{{error}}",
       "missingFields": "请填写所有必填字段",
-      "success": "连接成功",
-      "title": "验证连接",
-      "validate": "验证连接",
-      "validating": "正在验证…"
+      "title": "验证连接"
     }
   },
   "changelogOnUpdate": {
-    "description": "控制插件更新完成后，首次打开插件界面时是否在插件内显示更新内容。",
+    "description": "控制插件更新完成后，首次打开设置页时是否在插件内显示更新内容。",
     "title": "更新日志",
-    "toggleDesc": "开启后，插件更新完成后首次打开插件界面时，会在插件内弹出更新内容（每个版本仅一次），并可手动打开完整更新日志页面。",
+    "toggleDesc": "开启后，插件更新完成后首次打开设置页时，会在插件内弹出更新内容（每个版本仅一次），并可手动打开完整更新日志页面。",
     "toggleLabel": "更新后自动显示更新内容"
   },
   "claudeCodeHub": {
@@ -203,10 +200,7 @@
       "description": "检查当前配置能否正常连接并管理站点。",
       "failed": "Claude Code Hub 配置验证失败：{{error}}",
       "missingFields": "请填写所有必填字段",
-      "success": "连接成功",
-      "title": "验证连接",
-      "validate": "验证连接",
-      "validating": "正在验证…"
+      "title": "验证连接"
     }
   },
   "claudeCodeRouter": {
@@ -221,7 +215,6 @@
   },
   "cliProxyApi": {
     "baseUrlLabel": "管理接口基础 URL",
-    "checkConnectionAction": "验证连接",
     "checkConnectionDesc": "检查当前配置能否正常连接并管理站点。",
     "checkConnectionLabel": "验证连接",
     "description": "配置到 CLIProxyAPI 管理接口的连接信息。",
@@ -289,10 +282,60 @@
     "toggleDesc": "同一站点的用户 ID 已保存时才提示确认。OpenRouter 按相同的 Management Key 判断重复。",
     "toggleLabel": "添加重复账号前提醒"
   },
+  "gptLoad": {
+    "description": "管理自托管的 gpt-load 实例：一款轻量 Go AI 网关，将在各渠道间对请求做负载均衡。",
+    "fields": {
+      "baseUrlDesc": "gpt-load 控制面板的基地址（例如 https://gateway.example.com）。",
+      "baseUrlLabel": "网关地址",
+      "baseUrlPlaceholder": "https://gateway.example.com",
+      "hideManagementKey": "隐藏管理密钥",
+      "managementKeyDesc": "网关的根 AUTH_KEY，作为 Bearer 令牌访问管理 API；它与工作区任一渠道密钥具有同等权限。",
+      "managementKeyLabel": "管理密钥",
+      "managementKeyPlaceholder": "网关配置中的 AUTH_KEY",
+      "showManagementKey": "显示管理密钥"
+    },
+    "title": "gpt-load",
+    "validation": {
+      "description": "使用上方密钥发送一次请求，验证网关可达且密钥有效。",
+      "failed": "无法连接网关：{{error}}",
+      "insufficientPrivilege": "管理密钥权限不足：{{error}}",
+      "invalidCredential": "管理密钥被拒绝：{{error}}",
+      "missingFields": "请先填写网关地址与管理密钥",
+      "title": "测试连接"
+    }
+  },
   "logging": {
-    "consoleEnabled": "启用控制台日志",
-    "consoleEnabledDesc": "关闭后，All API Hub 不会在浏览器控制台输出任何日志（包括错误）。",
-    "description": "控制是否在浏览器控制台输出日志，用于排查问题。",
+    "consoleEnabled": "启用日志",
+    "consoleEnabledDesc": "关闭后停止控制台输出和新日志记录。",
+    "description": "设置日志输出与本机历史记录。",
+    "history": {
+      "allContexts": "全部来源",
+      "allLevels": "全部级别",
+      "allTime": "全部保留的日志",
+      "clearDescription": "删除本机保留的全部日志记录。",
+      "clearError": "清空日志失败",
+      "clearTitle": "清空本机日志",
+      "context": "来源",
+      "copied": "日志已复制",
+      "copy": "复制筛选结果",
+      "copyError": "复制日志失败",
+      "description": "显示最近 {{hours}} 小时内最多 {{limit}} 条本机日志；记录或查看日志时清理过期条目。只记录启用日志后的事件；将最低日志级别设为调试可记录详细过程。",
+      "details": "详情",
+      "empty": "没有匹配的日志。启用日志后重现问题，再返回查看。",
+      "entryDescription": "实时查看各页面的日志，也可回看最近记录。",
+      "lastHour": "最近 1 小时",
+      "lastMinutes": "最近 5 分钟",
+      "level": "日志级别",
+      "loadError": "读取日志失败，保留上次显示的记录。请重试。",
+      "more": "加载更早的日志",
+      "open": "查看日志",
+      "pause": "暂停更新",
+      "period": "时间范围",
+      "resume": "恢复实时更新",
+      "search": "搜索消息、模块或请求编号",
+      "showing": "显示 {{visible}} / {{total}} 条",
+      "title": "最近日志"
+    },
     "levels": {
       "debug": "调试",
       "error": "错误",
@@ -300,8 +343,29 @@
       "warn": "警告"
     },
     "minLevel": "最小日志级别",
-    "minLevelDesc": "启用控制台日志后，仅输出不低于该级别的日志。",
+    "minLevelDesc": "低于所选级别的日志不会输出或保存。",
     "title": "日志"
+  },
+  "magpie": {
+    "description": "管理自建 Magpie Web 服务中的供应商。",
+    "fields": {
+      "baseUrlDesc": "先启动 magpie web（默认端口 3430），填写 Web 地址，而非端口 3425 的推理地址。",
+      "baseUrlLabel": "Web 管理地址",
+      "baseUrlPlaceholder": "http://localhost:3430",
+      "hideWebKey": "隐藏管理密钥",
+      "showWebKey": "显示管理密钥",
+      "webKeyDesc": "使用 MAGPIE_WEB_KEY 或启动链接中的 k 参数。固定的 MAGPIE_WEB_KEY 可跨重启使用；否则重启后需更新此处。推理 API Key 不能用于管理。",
+      "webKeyLabel": "Web 管理密钥",
+      "webKeyPlaceholder": "输入 Web 管理密钥"
+    },
+    "title": "Magpie",
+    "validation": {
+      "description": "使用上方密钥验证连接，并确认能够读取供应商列表。",
+      "failed": "无法连接 Magpie，请检查 Web 地址及服务是否已启动。",
+      "invalidCredential": "Web 管理密钥被拒绝，请检查 MAGPIE_WEB_KEY 或使用最新启动链接中的密钥。",
+      "missingFields": "请先填写网关地址与管理密钥",
+      "title": "测试连接"
+    }
   },
   "managedSite": {
     "axonHub": "AxonHub",
@@ -326,14 +390,31 @@
         "title": "配置自建 AI 网关"
       }
     },
+    "gptLoad": "gpt-load",
+    "magpie": "Magpie",
     "newApi": "New API",
     "octopus": "Octopus",
+    "omniroute": "OmniRoute",
     "popularityHint": "按 GitHub Star 数快照排序。",
     "siteTypeDesc": "选择用于渠道管理和模型同步的平台",
     "siteTypeLabel": "网关类型",
     "sub2api": "Sub2API",
     "title": "自建 AI 网关配置",
     "veloera": "Veloera"
+  },
+  "managedSiteConnection": {
+    "check": "检查连接",
+    "checkError": "配置已保存，但连接检查失败，请重试。",
+    "checking": "检查中…",
+    "conflict": "配置已在另一页面更新，当前输入已保留。请核对最新配置后重试，或重新加载已保存配置以替换当前输入。",
+    "failed": "配置已保存，但连接检查失败：{{reason}}",
+    "invalidField": "请检查{{field}}后再保存",
+    "reload": "重新加载已保存配置",
+    "saveError": "配置保存失败。当前输入已保留，请重试。",
+    "saveFailed": "配置保存失败：{{reason}}。当前输入已保留，请重试。",
+    "saving": "保存中…",
+    "success": "配置已保存，连接正常",
+    "unreachable": "无法连接到站点"
   },
   "messages": {
     "alreadyDefault": "已是默认值",
@@ -380,7 +461,6 @@
       "usernamePlaceholder": "admin"
     },
     "sessionTest": {
-      "action": "测试配置",
       "description": "测试已填写的登录用户名、密码和 TOTP 密钥是否正确可用。验证成功后，即可继续执行需要登录和两步验证的相关操作。",
       "testing": "正在测试配置...",
       "title": "测试登录与两步验证配置"
@@ -411,10 +491,36 @@
       "error": "验证过程中发生错误",
       "failed": "配置验证失败，请检查用户名和密码",
       "missingFields": "请填写所有必填字段",
-      "success": "连接成功",
+      "title": "验证连接"
+    }
+  },
+  "omniroute": {
+    "accessTokens": {
+      "description": "在网关面板里管理访问令牌，可随时撤销扩展使用的这一条。",
+      "missingBaseUrl": "先填写部署地址，才能打开网关的访问令牌页面。",
+      "open": "打开访问令牌页面",
+      "title": "管理网关访问令牌"
+    },
+    "description": "配置自建 OmniRoute 网关的连接信息。",
+    "fields": {
+      "baseUrlDesc": "填写你在浏览器里打开 OmniRoute 面板时使用的地址。",
+      "baseUrlLabel": "部署地址",
+      "baseUrlPlaceholder": "http://localhost:20128",
+      "credentialDesc": "在网关 Settings → Access Tokens 中生成 admin 作用域访问令牌，粘贴到此处。",
+      "credentialLabel": "访问令牌",
+      "credentialPlaceholder": "oma_…",
+      "hideCredential": "隐藏访问令牌",
+      "showCredential": "显示访问令牌"
+    },
+    "title": "OmniRoute 集成设置",
+    "validation": {
+      "description": "检查当前配置能否正常连接并管理站点。",
+      "failed": "OmniRoute 配置验证失败：{{error}}",
+      "insufficientScope": "令牌作用域不足：当前为 {{have}}，需要 {{need}}。请在网关 Settings → Access Tokens 重新生成一条 admin 作用域的令牌。",
+      "invalidCredential": "访问令牌不正确或已失效：{{error}}",
+      "missingFields": "请填写部署地址和访问令牌",
       "title": "验证连接",
-      "validate": "验证连接",
-      "validating": "正在验证…"
+      "unknownScope": "未知"
     }
   },
   "permissions": {
@@ -425,13 +531,35 @@
     },
     "description": "按需授予可选权限，用于账号数据更新、辅助工具、任务通知和站点导入等功能。",
     "helper": "每项权限只在对应功能需要时使用，并且可以随时撤销；未授权的功能可能受限，但不影响其他功能。",
+    "incognito": {
+      "checking": "正在检测无痕访问权限…",
+      "chromeInstructions": "在本扩展详情页开启「允许在无痕模式下使用」。",
+      "denied": "尚未允许在无痕／隐私窗口运行",
+      "details": "去设置",
+      "edgeInstructions": "在本扩展详情页开启「允许在 InPrivate 中使用」。",
+      "enabled": "已允许在无痕／隐私窗口运行",
+      "firefoxInstructions": "打开 Firefox「扩展和主题」，选择本扩展，将「在隐私窗口中运行」设为「允许」。",
+      "firefoxMobileInstructions": "Firefox: 请从浏览器菜单进入扩展管理，找到本扩展并查看是否支持无痕／隐私访问。菜单和支持情况因浏览器版本而异。",
+      "genericInstructions": "请在浏览器的扩展管理中查看本扩展的无痕／隐私访问设置。",
+      "manualSteps": "查看设置步骤",
+      "mobileInstructions": "请从浏览器菜单进入扩展管理，找到本扩展并查看是否支持无痕／隐私访问。菜单和支持情况因浏览器版本而异。",
+      "openChromeSettings": "前往 Chrome 设置",
+      "openEdgeSettings": "前往 Edge 设置",
+      "recommended": "建议允许扩展在无痕窗口运行",
+      "reloadWarning": "更改此权限可能重新加载扩展、关闭扩展页面或中断任务。请先保存未完成的编辑。",
+      "safariInstructions": "在 Safari 的扩展设置中选择本扩展，允许在无痕浏览中使用；具体选项取决于 Safari 版本。",
+      "settingsFailed": "无法打开设置页。请从浏览器菜单打开扩展管理，找到本扩展并允许在无痕窗口运行。",
+      "summary": "隔离常规窗口的登录态，避免密码登录时串号或影响已登录账号。",
+      "title": "无痕／隐私窗口访问",
+      "unknown": "无法检测无痕／隐私访问权限"
+    },
     "items": {
       "bookmarks": {
         "description": "仅在你选择从浏览器书签导入站点时，读取已保存的网址。",
         "title": "浏览器书签"
       },
       "clipboardRead": {
-        "description": "在你复制相关内容后，帮助兑换助手或 AI API 测试识别兑换码和 API 信息。",
+        "description": "在你复制相关内容后，帮助兑换助手或网页 API 测试识别兑换码和 API 信息。",
         "title": "读取剪贴板"
       },
       "cookies": {
@@ -484,7 +612,7 @@
       "cta": "来 GitHub 看看源码和最新进展，也欢迎反馈问题或分享想法。",
       "getStartedCta": "查看新手指引",
       "label": "源代码",
-      "starCta": "觉得 All API Hub 有帮助？点亮 Star 支持项目"
+      "starCta": "点个 Star，支持持续改进"
     },
     "reason": {
       "newPermissions": "新增功能需要新的可选权限。请查看具体用途，并按需授权。"
@@ -504,13 +632,14 @@
   },
   "refresh": {
     "autoRefresh": "自动刷新",
-    "autoRefreshDesc": "定期自动刷新账号数据",
+    "autoRefreshDesc": "定期自动刷新账号数据（关闭扩展界面后仍在后台运行）",
     "description": "配置自动数据刷新相关的设置，例如刷新间隔和启动时的行为。",
     "minRefreshInterval": "最小刷新间隔",
     "minRefreshIntervalDesc": "限制连续刷新最小间隔，避免频繁请求（至少 {{minSeconds}} 秒）",
     "minRefreshIntervalInvalid": "请输入有效的最小刷新间隔（至少 {{minSeconds}} 秒）。",
     "refreshInterval": "刷新间隔",
     "refreshIntervalDesc": "设置自动刷新的时间间隔（默认{{defaultInterval}}秒，建议不要设置过小以避免频繁请求）",
+    "refreshIntervalHint": "刷新较频繁，账号较多时可能触发站点限流，建议使用 {{minutes}} 分钟或更长间隔。",
     "refreshIntervalInvalid": "请输入有效的刷新间隔（至少 {{minSeconds}} 秒）。",
     "refreshOnOpen": "打开插件时自动刷新",
     "refreshOnOpenDesc": "当打开插件弹出窗口时自动刷新账号数据",
@@ -553,10 +682,15 @@
     "shieldDevTriggerPresetLabel": "模拟行为",
     "shieldDevTriggerPresetLdohSiteLookupRecovery": "站点列表后台恢复",
     "shieldDevTriggerPresetRedemptionAssistRecovery": "兑换后的后台恢复",
+    "shieldDevTriggerPresetTurnstileAutomatic": "Turnstile：自动通过",
+    "shieldDevTriggerPresetTurnstileFailure": "Turnstile：验证失败",
+    "shieldDevTriggerPresetTurnstileInteractive": "Turnstile：手动验证",
+    "shieldDevTriggerPresetTurnstileQueue": "Turnstile：三个站点排队",
     "shieldDevTriggerRunning": "正在触发...",
     "shieldDevTriggerStart": "延迟触发",
     "shieldDevTriggerSuccess": "请求已完成（HTTP {{status}}）",
     "shieldDevTriggerTitle": "开发测试",
+    "shieldDevTriggerTurnstileHint": "先运行 pnpm dev:turnstile。这些场景使用本地服务中的官方测试组件，不会向真实账号签到。开启界面内提醒后，点击各条提醒打开验证窗口。",
     "shieldDevTriggerUrlLabel": "目标 URL",
     "shieldEnabled": "允许自动任务打开临时页面",
     "shieldEnabledDescTempWindowOnly": "开启后，自动刷新、自动签到等任务遇到网站验证时，可以打开临时页面继续。关闭后，你主动发起的操作仍可按下方设置使用此功能。",
@@ -577,53 +711,76 @@
     "shieldPermissionWarningTitle": "需要 Cookies、Web Request 和 Web Request Blocking 权限",
     "shieldPopupFirefoxNote": "在 Firefox 中，从扩展弹窗启动此功能会导致弹窗关闭，因此该入口不可用。请改用侧边栏或设置页。",
     "shieldTitle": "网站验证辅助",
+    "shieldTurnstileAssistDesc": "Turnstile 必须由你亲手完成时，选择如何提醒。验证窗口会保持打开，直到完成或超时。",
+    "shieldTurnstileAssistNotify": "浏览器通知",
+    "shieldTurnstileAssistNotifyHint": "发送本地浏览器通知，点击后打开验证窗口；需要通知权限。",
+    "shieldTurnstileAssistPage": "界面内提醒",
+    "shieldTurnstileAssistPageHint": "在当前网页或插件界面显示提醒，点击后打开验证窗口。",
+    "shieldTurnstileAssistQuietNotice": "已关闭所有提醒。验证仍会在后台窗口进行，但不会主动提示。",
+    "shieldTurnstileAssistTitle": "需要手动验证时",
+    "shieldTurnstileSolverApiKey": "API Key",
+    "shieldTurnstileSolverCostNotice": "第三方付费服务：每次请求都会消耗账户额度，请按需开启。",
+    "shieldTurnstileSolverDesc": "让第三方服务替你拿到 Turnstile 的 token。服务只返回 token，不处理图形验证码、滑块或第二层验证，这些站点仍会请你人工完成。",
+    "shieldTurnstileSolverEnabled": "启用第三方求解服务",
+    "shieldTurnstileSolverEndpoint": "服务地址",
+    "shieldTurnstileSolverKeyMissing": "API Key 为空时该服务保持关闭，签到仍走内置流程。",
+    "shieldTurnstileSolverModeApiFirst": "服务优先",
+    "shieldTurnstileSolverModeApiFirstHint": "先问服务再展示页面：只有 Turnstile 的站点不用你动手，验证窗口也不会被切到前台。",
+    "shieldTurnstileSolverModePageFirst": "页面优先",
+    "shieldTurnstileSolverModePageFirstHint": "先让页面自己静默尝试，拿不到 token 才问服务，更省额度。",
+    "shieldTurnstileSolverModeTitle": "请求顺序",
+    "shieldTurnstileSolverTimeout": "单次请求超时（秒，5-120）",
+    "shieldTurnstileSolverTitle": "Turnstile 自动通过",
     "shieldWindowHeight": "高度（像素）",
     "shieldWindowSizeDesc": "设置宽度和高度（像素）后保存，下次新建验证窗口时生效；已有窗口和标签页保持原尺寸。",
     "shieldWindowSizeReset": "恢复默认值",
     "shieldWindowSizeTitle": "验证窗口尺寸",
     "shieldWindowWidth": "宽度（像素）",
-    "title": "刷新设置"
+    "title": "刷新设置",
+    "turnstileNotificationEnable": "授权系统通知",
+    "turnstileNotificationManage": "管理通知权限",
+    "turnstileNotificationPermissionTitle": "允许 All API Hub 发送浏览器通知",
+    "turnstileNotificationStatus": {
+      "available": "系统通知：权限可用。系统勿扰或浏览器设置仍可能隐藏通知。",
+      "blocked": "浏览器已阻止通知。请检查浏览器通知设置，返回后重试。",
+      "loading": "正在检查系统通知权限…",
+      "permission_required": "系统通知：尚未授权。页面内提醒无需此权限。",
+      "unavailable": "当前浏览器不支持通知，可单独开启界面内提醒。",
+      "unknown": "暂时无法确认通知是否可用，请检查权限后重试。"
+    }
   },
   "releaseUpdate": {
-    "checkNow": "立即检查",
+    "changelog": "查看更新日志",
+    "checkNow": "检查更新",
     "downloadUpdate": "下载更新",
     "helpers": {
-      "checkFailed": "可稍后重试，或前往发布页手动查看最新版本。",
+      "amoUpdate": "Firefox Add-ons 商店已发布新版，可前往商店更新，或等待 Firefox 自动更新。",
+      "checkFailed": "请重新检查更新。",
       "manualUpdate": "当前安装为手动更新渠道，请前往发布页获取新版本。",
       "manualUpdateGeneric": "请按当前安装渠道完成更新，必要时可前往发布页手动获取新版本。",
-      "notChecked": "点击“立即检查”后即可确认当前版本是否需要更新。",
-      "openLatest": "可前往发布页查看最新正式版与更新内容。",
-      "storeUpdate": "当前安装会随浏览器商店自动更新；如果 GitHub 已发布但商店暂未可用，通常是审核或分发仍在进行。",
+      "selfUpdate": "此安装包会自动更新。浏览器会从发布页获取新版本，无需手动下载。",
+      "storeUpdate": "商店版由浏览器自动更新，请等待商店推送。",
       "storeUpdateReady": "浏览器已发现可用的商店更新，重新加载扩展后即可使用新版本。",
-      "unavailable": "可稍后重试，或直接前往发布页查看最新正式版。",
-      "upToDate": "可前往发布页查看更新内容，确认本次版本包含的变更。"
+      "unavailable": "请重新检查更新。"
     },
-    "lastChecked": "最近检查：{{time}}",
-    "latestVersionPending": "最新正式版：待检查",
-    "latestVersionUnavailable": "最新正式版：暂未获取",
-    "openLatest": "查看最新版本",
-    "reasons": {
-      "api-unavailable": "当前浏览器环境不支持自动检测，可手动检查最新正式版",
-      "chromium-development": "当前安装渠道支持检查最新正式版，可手动发起检查",
-      "firefox-ambiguous": "Firefox 当前无法可靠判断安装渠道，建议按需手动检查最新正式版",
-      "safari-unsupported": "Safari 暂不支持自动检测，建议前往发布页查看最新正式版",
-      "store-build": "当前为浏览器商店版，可检查商店更新并对比 GitHub 最新正式版",
-      "unknown": "当前安装渠道暂不支持自动检测，可手动检查最新正式版"
-    },
+    "latestAmoVersion": "Firefox Add-ons 商店：v{{version}}",
+    "latestNightlyVersion": "最新 Nightly：{{version}}",
     "reloadToUpdate": "重新加载完成更新",
     "states": {
-      "checkFailed": "检查失败，暂未获取最新正式版信息",
+      "checkFailed": "检查更新失败",
       "notChecked": "尚未检查最新正式版，可手动检查",
-      "storeUpdatePending": "GitHub 已发布新版本，商店更新暂未可用",
-      "storeUpdateReady": "商店更新已可用，等待重新加载",
-      "unavailable": "暂时无法读取更新状态",
-      "updateAvailable": "发现可升级的新版本",
-      "upToDate": "已完成检查，当前版本已是最新正式版"
+      "selfUpdatePending": "发现新版本，浏览器将自动安装",
+      "storeUpdatePending": "等待商店推送更新",
+      "storeUpdateReady": "更新已就绪",
+      "unavailable": "暂时无法获取更新状态",
+      "updateAvailable": "发现新版本",
+      "upToDate": "已是最新版本"
     },
     "versionBadge": {
       "changelogAriaLabel": "版本 {{version}} 更新日志",
       "updateAvailableAriaLabel": "版本 {{version}} 有可用更新"
-    }
+    },
+    "viewReleaseNotes": "查看更新说明"
   },
   "siteAnnouncementNotifications": {
     "description": "控制是否在后台定时抓取已启用账号所属站点的网站公告。",
@@ -686,10 +843,7 @@
       "description": "检查当前配置能否正常连接并管理站点。",
       "failed": "Sub2API 连接验证失败：{{error}}",
       "missingFields": "请先填写站点地址和管理员 API Key",
-      "success": "连接成功",
-      "title": "验证连接",
-      "validate": "验证连接",
-      "validating": "正在验证…"
+      "title": "验证连接"
     }
   },
   "tabs": {
@@ -706,7 +860,7 @@
     "refresh": "数据刷新",
     "select": "选择一个分组",
     "siteAnnouncements": "网站公告",
-    "webAiApiCheck": "AI API 测试"
+    "webAiApiCheck": "网页 API 测试"
   },
   "taskNotifications": {
     "channels": {

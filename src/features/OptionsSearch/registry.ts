@@ -22,13 +22,9 @@ import {
   generalSearchSections,
 } from "~/features/BasicSettings/components/tabs/General/General.search"
 import {
-  cliProxyApiSearchControls,
-  cliProxyApiSearchSections,
-} from "~/features/BasicSettings/components/tabs/ManagedSite/CliProxyApi.search"
-import {
   managedSiteSearchControls,
   managedSiteSearchSections,
-} from "~/features/BasicSettings/components/tabs/ManagedSite/ManagedSite.search"
+} from "~/features/BasicSettings/components/tabs/ManagedSite/search/ManagedSite.search"
 import {
   notificationsSearchControls,
   notificationsSearchSections,
@@ -57,6 +53,7 @@ import {
   importExportSearchControls,
   importExportSearchSections,
 } from "~/features/ImportExport/ImportExport.search"
+import { modelSyncSearchSections } from "~/features/ManagedSiteModelSync/ManagedSiteModelSync.search"
 import { getMenuItemLabel } from "~/features/OptionsMenu/getMenuItemLabel"
 import { productTourSearchSections } from "~/features/ProductTour/ProductTour.search"
 
@@ -64,6 +61,7 @@ import { PAGE_DEFINITIONS, TAB_DEFINITIONS } from "./registryPages"
 
 export const OPTIONS_SEARCH_REGISTRY = [
   ...PAGE_DEFINITIONS,
+  ...modelSyncSearchSections,
   ...TAB_DEFINITIONS,
   ...generalSearchSections,
   ...siteAnnouncementsSearchSections,
@@ -75,7 +73,6 @@ export const OPTIONS_SEARCH_REGISTRY = [
   ...usageHistorySyncSearchSections,
   ...webAiApiCheckSearchSections,
   ...managedSiteSearchSections,
-  ...cliProxyApiSearchSections,
   ...claudeCodeRouterSearchSections,
   ...permissionsSearchSections,
   ...importExportSearchSections,
@@ -90,7 +87,6 @@ export const OPTIONS_SEARCH_REGISTRY = [
   ...usageHistorySyncSearchControls,
   ...webAiApiCheckSearchControls,
   ...managedSiteSearchControls,
-  ...cliProxyApiSearchControls,
   ...claudeCodeRouterSearchControls,
   ...permissionsSearchControls,
   ...importExportSearchControls,

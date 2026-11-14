@@ -39,6 +39,7 @@
     "modelManagement": "Danh sách mô hình",
     "openAllExternalCheckIn": "Mở điểm danh bên ngoài bằng một cú nhấp chuột",
     "openAllExternalCheckInHint": "Mặc định chỉ mở những mục chưa điểm danh; Ctrl/Cmd để mở tất cả; Shift để mở trong cửa sổ mới; Ctrl/Cmd+Shift để áp dụng đồng thời.",
+    "openSite": "Mở trang web",
     "pin": "Ghim tài khoản",
     "pinned": "Đã ghim",
     "quickCheckin": "Điểm danh nhanh",
@@ -58,7 +59,7 @@
   "addFirstAccount": "Thêm tài khoản trang web đầu tiên của bạn",
   "bulk": {
     "clearAll": "Bỏ chọn tất cả",
-    "clearVisible": "Hủy chọn kết quả hiện tại",
+    "clearVisible": "Bỏ chọn tất cả trong danh sách này",
     "copyInviteLinks": "Sao chép liên kết mời",
     "copyInviteLinksClipboardFailed": "Trình duyệt không thể ghi vào bộ nhớ tạm. Hãy sao chép thủ công các liên kết đã tạo.",
     "copyInviteLinksClipboardFailedWithReasons": "Trình duyệt không thể ghi vào bộ nhớ tạm. Hãy sao chép thủ công các liên kết đã tạo. Các tài khoản còn lại: {{reasonSummary}}.",
@@ -67,6 +68,10 @@
     "copyInviteLinksPartialSuccess": "Đã sao chép {{successCount}} liên kết mời. Các tài khoản còn lại: {{reasonSummary}}.",
     "copyInviteLinksSuccess_other": "Đã sao chép {{count}} liên kết mời.",
     "copyInviteLinksUnsupported": "Các tài khoản đã chọn hiện không hỗ trợ liên kết mời.",
+    "copySiteUrls": "Sao chép URL trang",
+    "copySiteUrlsClipboardFailed": "Trình duyệt không thể ghi vào bộ nhớ tạm. Vui lòng sao chép thủ công URL trang trong danh sách tài khoản.",
+    "copySiteUrlsNone": "Các tài khoản đã chọn không có URL trang để sao chép.",
+    "copySiteUrlsSuccess_other": "Đã sao chép {{count}} URL trang.",
     "deleteConfirmAction": "Xóa các tài khoản đã chọn",
     "deleteConfirmDescription_other": "Bạn sẽ xóa {{count}} tài khoản đã chọn. Vui lòng kiểm tra kỹ các lựa chọn này trước khi xác nhận.",
     "deleteConfirmTitle": "Xóa tài khoản đã chọn",
@@ -88,11 +93,13 @@
     "selectedSummary_other": "Đã chọn {{selected}}",
     "selectionEmpty": "Chưa chọn tài khoản",
     "selectionScope": "Phạm vi chọn",
-    "selectVisible": "Chọn kết quả hiện tại"
+    "selectVisible": "Chọn tất cả trong danh sách này"
   },
-  "currentLoginAdded": "⚠️Tài khoản đăng nhập hiện tại của {{siteName}} đã có trong danh sách",
-  "currentSiteAdded": "⚠️{{siteName}} đã có tài khoản",
-  "currentSiteAddedCount_other": "⚠️Trang hiện tại đã có {{count}} tài khoản",
+  "currentLoginAdded": "Tài khoản đăng nhập hiện tại của {{siteName}} đã có trong danh sách",
+  "currentSiteAdded": "{{siteName}} đã có tài khoản",
+  "currentSiteAddedCount_other": "Trang hiện tại đã có {{count}} tài khoản",
+  "currentSiteFilterAction": "Xem",
+  "currentSiteFilterHint": "Nhấp để lọc các tài khoản của trang web này trong danh sách",
   "description": "Quản lý tài khoản trang web và xem số dư, mức sử dụng cùng trạng thái hoạt động.",
   "emptyState": "Chưa có tài khoản trang web",
   "emptyStateDescription": "Thêm tài khoản để quản lý số dư, trạng thái, khóa API và mức sử dụng tại một nơi.",
@@ -100,10 +107,14 @@
     "checkIn": {
       "all": "Tất cả trạng thái điểm danh",
       "checked-in": "Đã điểm danh",
+      "configuration": "Cần cấu hình / phương thức không khả dụng",
+      "manual": "Không thể truy vấn",
       "not-checked-in": "Chưa điểm danh",
-      "outdated": "Trạng thái hết hạn",
+      "outdated": "Chờ cập nhật",
+      "pending": "Chưa truy vấn",
       "placeholder": "Trạng thái điểm danh",
-      "status-unavailable": "Không thể đọc trạng thái",
+      "query-failed": "Truy vấn thất bại",
+      "site-disabled": "Trang web đã tắt",
       "unsupported": "Không hỗ trợ"
     },
     "disabled": {
@@ -204,7 +215,21 @@
     "resetSort": "Đặt lại thứ tự mặc định",
     "site": {
       "checkedInToday": "Hôm nay đã điểm danh, nhấp vào tôi để xem",
-      "checkInStatusOutdated": "Trạng thái điểm danh không phải là kiểm tra hôm nay (lần kiểm tra cuối: {{time}}), nhấp vào tôi để làm mới",
+      "checkInAccountDisabled": "Tài khoản đã tắt; điểm danh tự động đang tạm dừng",
+      "checkInAutomationBlocked": "Không thể thực hiện điểm danh tự động: {{reason}}",
+      "checkInAutomationDisabled": "Điểm danh tự động của tài khoản đang tắt",
+      "checkInAutomationEnabled": "Điểm danh tự động của tài khoản đã bật",
+      "checkInAutomationGloballyDisabled": "Điểm danh tự động của tài khoản đã bật nhưng công tắc chung đang tắt",
+      "checkInLastKnownChecked": "Lần cuối xác nhận đã điểm danh: {{time}}",
+      "checkInLastKnownNotChecked": "Lần cuối xác nhận chưa điểm danh: {{time}}",
+      "checkInNeedsConfiguration": "Điểm danh tự động cần được cấu hình: {{reason}}. Nhấn để sửa tài khoản",
+      "checkInNeedsRedetection": "Cần phát hiện lại phương thức điểm danh: {{reason}}. Nhấn để phát hiện lại",
+      "checkInRefreshPartial": "Đã làm mới dữ liệu của {{accountName}} nhưng chưa cập nhật được trạng thái điểm danh. Vui lòng thử lại",
+      "checkInSiteDisabled": "Trang web đã tắt điểm danh. Nhấn để xem trang web",
+      "checkInStatusFailed": "Không thể cập nhật trạng thái điểm danh (lần thử: {{time}}). Nhấn để thử lại",
+      "checkInStatusManual": "Phương thức này không hỗ trợ truy vấn trạng thái. Nhấn để xem trên trang web",
+      "checkInStatusOutdated": "Trạng thái điểm danh cần cập nhật (xác nhận gần nhất: {{time}}). Nhấn để làm mới",
+      "checkInStatusPending": "Chưa truy vấn trạng thái điểm danh. Nhấn để làm mới",
       "currentSite": "Trang web hiện tại",
       "currentSiteBoostHint": "Khớp với tài khoản đang đăng nhập trên trang hiện tại và hiển thị trước các tài khoản khác. Tài khoản bị vô hiệu hóa vẫn ở cuối.",
       "currentSiteExists": "Giống với trang web ở tab hiện tại",
@@ -223,7 +248,11 @@
     "sortMenu": "Sắp xếp theo",
     "toggleSortOrder": "Đổi thứ tự sắp xếp"
   },
+  "popupOnboarding": {
+    "signInHint": "Đăng nhập vào trang API, sau đó thêm tài khoản bằng cách tự động nhận diện hoặc nhập thủ công."
+  },
   "refresh": {
+    "checkInStatusFailed_other": "Không thể cập nhật trạng thái điểm danh cho {{count}} tài khoản. Vui lòng thử lại",
     "refreshComplete": "Làm mới hoàn tất: {{success}} thành công, {{failed}} thất bại",
     "refreshDisabledComplete": "Khám phá tài khoản đã vô hiệu hóa hoàn tất: khôi phục {{restored}}, vẫn vô hiệu hóa {{stillDisabled}}",
     "refreshDisabledCompleteWithFailures": "Khám phá tài khoản đã vô hiệu hóa hoàn tất: khôi phục {{restored}}, vẫn vô hiệu hóa {{stillDisabled}}, thất bại {{failed}}",
@@ -249,6 +278,15 @@
       "description": "Đăng ký trên trang web của nhà cung cấp, sau đó làm theo hướng dẫn trên thẻ để thêm tài khoản, lưu thông tin xác thực API hoặc đánh dấu trang web.",
       "title": "Khám phá các nhà cung cấp khả dụng"
     },
+    "openWorkflowFailed": "Không thể mở quy trình thiết lập. Vui lòng thử lại.",
+    "popupApiCredentialProfiles": {
+      "description": "Cần API cho nhà phát triển hoặc gói Coding Plan? Tự động điền Base URL và nhận khóa nhanh chóng:",
+      "title": "Nhà cung cấp & gói đăng ký được đề xuất"
+    },
+    "popupBookmarks": {
+      "description": "Thêm vào dấu trang chỉ bằng một cú nhấp chuột để truy cập nhanh bất cứ lúc nào:",
+      "title": "Trang web nổi bật"
+    },
     "recommendedProviders": "Nhà cung cấp được đề xuất",
     "supportStatus": {
       "fallbackApiCredentialProfiles": "Có thể thêm làm thông tin xác thực",
@@ -259,17 +297,44 @@
     }
   },
   "stats": {
+    "allowanceExpiry": "Hết hạn: {{time}}",
+    "allowanceReset": "Đặt lại: {{time}}",
+    "allowances": "Chi tiết hạn mức",
+    "allowanceScope": "Nhóm hạn mức: {{scope}}",
     "completion": "Hoàn thành",
     "estimatedTodayIncome": "Thu nhập ước tính",
+    "groupAllowance": "Hạn mức nhóm",
+    "nativeCredits": "tín dụng",
+    "nativeCreditsDetail": "Vĩnh viễn {{permanent, number}} · Hôm nay {{daily, number}} (hết hạn mỗi ngày)",
+    "novitaBalance": {
+      "available": "Số dư khả dụng",
+      "cash": "Số dư nạp tiền",
+      "creditLimit": "Hạn mức tín dụng (nợ tối đa)",
+      "description": "Số dư khả dụng là giá trị do Novita trả về. Số dư nạp tiền là khoản tiền đã nạp còn lại; hạn mức tín dụng là số tiền nợ tối đa được phép. Hiện tiện ích không tính số dư Novita vào tổng số dư, lịch sử số dư và ước tính thu nhập.",
+      "title": "Chi tiết số dư"
+    },
+    "permanentAllowance": "Vĩnh viễn",
     "prompt": "Nhắc nhở",
-    "subscriptionInactive": "Chưa kích hoạt hoặc đã hết hạn",
+    "scopedAllowances": "Hạn mức nhóm và gói đăng ký có thể bị giới hạn sử dụng. Hạn mức gốc không được tính vào tổng số dư, lịch sử số dư và thu nhập ước tính.",
     "subscriptionRemainingCount": "Số lượt đăng ký còn lại",
+    "subscriptionRemainingTokens": "Token còn lại (quỹ và khóa); số dư đô la là giá trị quy đổi theo giá công bố, bao gồm token miễn phí.",
+    "subscriptionState": {
+      "active": "Gói đăng ký đang hoạt động",
+      "expired": "Gói đăng ký đã hết hạn",
+      "grace": "Gói đăng ký trong thời gian gia hạn",
+      "inactive": "Không có gói đăng ký đang hoạt động",
+      "unavailable": "Không thể lấy trạng thái gói đăng ký"
+    },
     "subscriptionStatus": "Trạng thái gói đăng ký",
     "subscriptionTitle": "Gói đăng ký",
+    "timedAllowance": "Hạn mức có thời hạn",
+    "timedDetailsUnavailable": "Không thể tải chi tiết hạn mức có thời hạn. Hãy làm mới tài khoản.",
     "todayConsumption": "Tiêu hao hôm nay",
     "todayIncome": "Thu nhập hôm nay",
+    "tokenCredit": "token",
     "totalBalance": "Tổng số dư",
     "trustedTodayIncome": "Thu nhập tin cậy",
+    "unlockedModels": "Mô hình đã mở khóa: {{models}}",
     "usageRequests": "Yêu cầu trong kỳ",
     "usageTokens": "Token trong kỳ"
   },

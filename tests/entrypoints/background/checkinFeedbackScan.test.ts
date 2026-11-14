@@ -1,25 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { resolveAccountSiteRouteUrl } from "~/services/accounts/utils/siteRouteResolver"
 import {
   cancelTempCheckinFeedbackScan,
   executeTempCheckinFeedbackScan,
-} from "~/entrypoints/background/checkinFeedbackScan"
-import { tempWindowBackgroundRuntime } from "~/entrypoints/background/tempWindowPool"
-import { resolveAccountSiteRouteUrl } from "~/services/accounts/utils/siteRouteResolver"
+} from "~/services/browsingContext/tempPage/checkinFeedbackScan"
+import { tempWindowBackgroundRuntime } from "~/services/browsingContext/tempPage/runtime"
 import { FEEDBACK_SCAN_SESSION_TIMEOUT_MS } from "~/services/checkin/feedback/scanTypes"
-import { sendTabMessageWithRetry } from "~/utils/browser/browserApi"
 import { removeTempWindowCookieRule } from "~/utils/browser/dnrCookieInjector"
+import { sendTabMessageWithRetry } from "~/utils/browser/runtimeMessages"
 
 afterEach(() => vi.useRealTimers())
 
-vi.mock("~/entrypoints/background/tempWindowPool", () => ({
+vi.mock("~/services/browsingContext/tempPage/runtime", () => ({
   tempWindowBackgroundRuntime: {
     run: vi.fn(async (_url, _options, task) => task()),
     acquire: vi.fn(),
     prepareFetchOptions: vi.fn(),
   },
 }))
-vi.mock("~/utils/browser/browserApi", () => ({
+vi.mock("~/utils/browser/runtimeMessages", () => ({
   sendTabMessageWithRetry: vi.fn(),
 }))
 vi.mock("~/utils/browser/dnrCookieInjector", () => ({
@@ -58,6 +58,41 @@ beforeEach(() => {
 })
 
 describe("temporary feedback scan ownership", () => {
+  it("prepares deployment-specific status options on the registered API origin", async () => {
+    const reply = vi.fn()
+    await executeTempCheckinFeedbackScan(
+      {
+        originUrl: "https://ai-router.dev",
+        requestId: "ai-router-status",
+        input: { baseUrl: "https://ai-router.dev", siteType: "sub2api" },
+      },
+      false,
+      authorize,
+      reply,
+    )
+    expect(
+      tempWindowBackgroundRuntime.prepareFetchOptions,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: expect.stringMatching(
+          /^https:\/\/api\.ai-router\.dev\/api\/v1\/user\/daily-checkin\?timezone=/,
+        ),
+        rawOptions: { credentials: "omit" },
+      }),
+    )
+    expect(sendTabMessageWithRetry).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        statusOptions: expect.objectContaining({
+          "/api/v1/user/daily-checkin": { credentials: "include" },
+        }),
+      }),
+    )
+    expect(reply).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true }),
+    )
+  })
+
   it("falls back after route lookup failure", async () => {
     vi.mocked(resolveAccountSiteRouteUrl).mockRejectedValueOnce(
       new Error("lookup failed"),

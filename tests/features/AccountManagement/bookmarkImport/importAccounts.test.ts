@@ -12,6 +12,94 @@ const createAutoDetectResponse = (
 ): AccountAutoDetectResponse => ({ kind: "detected", ...response })
 
 describe("runBookmarkAccountImport", () => {
+  it.each([
+    {
+      failureCategory: "verification",
+      failure: {
+        autoDetectFailureReason: "access_token_verification_required",
+      },
+    },
+    {
+      failureCategory: "login",
+      failure: {
+        detailedError: { type: "unauthorized", message: "private error" },
+      },
+    },
+  ])(
+    "keeps only safe recovery hints for $failureCategory failures",
+    async ({ failureCategory, failure }) => {
+      const result = await runBookmarkAccountImport({
+        candidates: [
+          {
+            id: "one",
+            url: "https://one.example",
+            normalizedOrigin: "https://one.example",
+            status: "ready",
+            selectedByDefault: true,
+            sourceBookmarkCount: 1,
+          },
+        ],
+        autoDetectAccount: vi.fn().mockResolvedValue({
+          kind: "detected",
+          success: false,
+          message: "private message",
+          ...failure,
+          recoveryData: {
+            siteType: SITE_TYPES.NEW_API,
+            authType: AuthTypeEnum.Cookie,
+            accessToken: "private-token",
+            userId: "private-id",
+          },
+        }),
+      })
+      expect(result.rows[0]).toMatchObject({
+        failureCategory,
+        siteType: SITE_TYPES.NEW_API,
+        authType: AuthTypeEnum.Cookie,
+      })
+      expect(JSON.stringify(result)).not.toContain("private")
+    },
+  )
+
+  it("preserves Kimi authentication when saving a detected account", async () => {
+    const kimiOpenPlatformAuth = {
+      refreshToken: "kimi-refresh",
+      organizationId: "organization",
+    }
+    const validateAndSaveAccount = vi
+      .fn()
+      .mockResolvedValue({ success: true, accountId: "one" })
+    await runBookmarkAccountImport({
+      candidates: [
+        {
+          id: "one",
+          url: "https://one.example",
+          normalizedOrigin: "https://one.example",
+          status: "ready",
+          selectedByDefault: true,
+          sourceBookmarkCount: 1,
+        },
+      ],
+      autoDetectAccount: vi.fn().mockResolvedValue({
+        kind: "detected",
+        success: true,
+        data: {
+          siteName: "Kimi",
+          username: "user",
+          accessToken: "token",
+          userId: "one",
+          exchangeRate: null,
+          kimiOpenPlatformAuth,
+        },
+      }),
+      validateAndSaveAccount,
+    })
+    expect(validateAndSaveAccount.mock.calls[0]?.[0]?.options).toEqual({
+      deferDataRefresh: true,
+      kimiOpenPlatformAuth,
+    })
+  })
+
   it("reuses one onboarding execution for every selected candidate", async () => {
     const protectionBypassExecution = {
       version: PROTECTION_BYPASS_EXECUTION_VERSION,
@@ -203,27 +291,27 @@ describe("runBookmarkAccountImport", () => {
       "https://alpha.example.invalid",
       "https://beta.example.invalid",
     ])
-    expect(validateAndSaveAccount).toHaveBeenCalledWith(
-      "https://alpha.example.invalid",
-      "Alpha",
-      "alpha-user",
-      "alpha-token",
-      "alpha-id",
-      "7",
-      "",
-      [],
-      draft.checkIn,
-      SITE_TYPES.NEW_API,
-      AuthTypeEnum.AccessToken,
-      "",
-      "",
-      false,
-      false,
-      undefined,
-      {
+    expect(validateAndSaveAccount).toHaveBeenCalledWith({
+      url: "https://alpha.example.invalid",
+      siteName: "Alpha",
+      username: "alpha-user",
+      accessToken: "alpha-token",
+      userId: "alpha-id",
+      exchangeRate: "7",
+      notes: "",
+      tagIds: [],
+      checkInConfig: draft.checkIn,
+      siteType: SITE_TYPES.NEW_API,
+      authType: AuthTypeEnum.AccessToken,
+      cookieAuthSessionCookie: "",
+      manualBalanceUsd: "",
+      excludeFromTotalBalance: false,
+      excludeFromTodayIncome: false,
+      sub2apiAuth: undefined,
+      options: {
         deferDataRefresh: true,
       },
-    )
+    })
     expect(onProgress).toHaveBeenCalledTimes(2)
     expect(onProgress.mock.calls.map(([progress]) => progress)).toEqual([
       {
@@ -373,27 +461,27 @@ describe("runBookmarkAccountImport", () => {
       validateAndSaveAccount,
     })
 
-    expect(validateAndSaveAccount).toHaveBeenCalledWith(
-      "https://fallback.example.invalid",
-      "Example",
-      "user",
-      "token",
-      "id",
-      "",
-      "",
-      [],
-      draft.checkIn,
-      SITE_TYPES.UNKNOWN,
-      AuthTypeEnum.AccessToken,
-      "",
-      "",
-      false,
-      false,
-      undefined,
-      {
+    expect(validateAndSaveAccount).toHaveBeenCalledWith({
+      url: "https://fallback.example.invalid",
+      siteName: "Example",
+      username: "user",
+      accessToken: "token",
+      userId: "id",
+      exchangeRate: "",
+      notes: "",
+      tagIds: [],
+      checkInConfig: draft.checkIn,
+      siteType: SITE_TYPES.UNKNOWN,
+      authType: AuthTypeEnum.AccessToken,
+      cookieAuthSessionCookie: "",
+      manualBalanceUsd: "",
+      excludeFromTotalBalance: false,
+      excludeFromTodayIncome: false,
+      sub2apiAuth: undefined,
+      options: {
         deferDataRefresh: true,
       },
-    )
+    })
     expect(result).toMatchObject({
       successCount: 1,
       failureCount: 1,

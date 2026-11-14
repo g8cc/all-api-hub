@@ -8,6 +8,57 @@
     "tokenBased": "Tokenbasierte Abrechnung"
   },
   "dialog": {
+    "aiToolbox": {
+      "actions": {
+        "export": "Exportieren"
+      },
+      "appOptions": {
+        "claude": "Claude Code",
+        "claudedesktop": "Claude Desktop",
+        "codex": "Codex",
+        "dsh": "DeepSeek Harness",
+        "gemini": "Gemini CLI",
+        "grok": "Grok CLI",
+        "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "omp": "Oh My Pi",
+        "openclaw": "OpenClaw",
+        "opencode": "OpenCode",
+        "pi": "Pi"
+      },
+      "description": "Senden Sie diese Anbieterkonfiguration per Deep Link direkt an AI Toolbox",
+      "descriptions": {
+        "apiFormat": "AI Toolbox baut den Anbieter für die Ziel-App neu auf. Wählen Sie ein Protokoll nur, wenn dieser Anbieter nicht den Standard der App verwendet.",
+        "model": "Wenn verfügbar, werden Modelle zur Auswahl aus /v1/models geladen. Sie können auch eine benutzerdefinierte Modell-ID eingeben."
+      },
+      "fields": {
+        "apiFormat": "API-Protokoll",
+        "app": "Ziel-App",
+        "baseUrl": "API-Basis-URL",
+        "homepage": "Homepage-URL",
+        "model": "Standardmodell (optional)",
+        "name": "Anbietername",
+        "notes": "Notizen (optional)"
+      },
+      "formatOptions": {
+        "anthropicMessages": "Anthropic Messages",
+        "automatic": "Automatisch (App-Standard)",
+        "geminiNative": "Gemini Native",
+        "openAIChat": "OpenAI Chat Completions",
+        "openAIResponses": "OpenAI Responses"
+      },
+      "modelOptions": {
+        "none": "Kein Standardmodell"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com",
+        "homepage": "https://example.com",
+        "model": "z. B. claude-3-opus",
+        "name": "z. B. Acme-Relais",
+        "notes": "Importnotizen hinzufügen"
+      },
+      "title": "In AI Toolbox exportieren"
+    },
     "bookmarkAccountImport": {
       "actions": {
         "allowAndScan": "Lesezeichen auswählen und Batch-Import starten",
@@ -18,22 +69,26 @@
         "collapseFolder": "Ordner einklappen",
         "expandAll": "Alles erweitern",
         "expandFolder": "Ordner erweitern",
-        "importSelected_one": "Ausgewählte importieren ({{count}})",
-        "importSelected_other": "Ausgewählte importieren ({{count}})",
+        "importSelected_one": "Ausgewählte hinzufügen ({{count}})",
+        "importSelected_other": "Ausgewählte hinzufügen ({{count}})",
         "invertSelected": "Ausgewählte umkehren",
-        "openAddAccount": "Konto hinzufügen öffnen",
+        "openAddAccount": "Manuell ergänzen",
+        "retryFailed": "Unvollständige Einträge erneut versuchen",
         "scanSelected": "Ausgewählten Bereich scannen",
         "selectAll": "Alles auswählen"
       },
       "apiUnavailable": "Dieser Browser stellt der Erweiterung keine nativen Lesezeichen zur Verfügung.",
+      "bestEffortHelp": "Wir versuchen, die Konten automatisch hinzuzufügen. Manche Seiten benötigen eine Anmeldung, Verifizierung oder ergänzende Angaben.",
       "bookmarkCount_one": "{{count}} Lesezeichen",
       "bookmarkCount_other": "{{count}} Lesezeichen",
-      "description": "Scannen Sie Browser-Lesezeichen-URLs stapelweise und prüfen Sie vor dem Import die Kandidaten für Kontoseiten.",
+      "description": "Füge Konten von deinen gespeicherten Seiten gesammelt hinzu.",
       "empty": "Es wurden keine Browser-Lesezeichen zurückgegeben.",
       "failures": {
-        "detection": "Die automatische Erkennung konnte diese Website nicht lesen.",
-        "save": "Das Konto konnte nicht gespeichert werden.",
-        "unknown": "Der Import ist fehlgeschlagen."
+        "detection": "Einige Kontodaten fehlen noch. Versuche es erneut oder ergänze sie manuell.",
+        "login": "Melde dich bei dieser Seite an und versuche das Hinzufügen erneut.",
+        "save": "Prüfe und ergänze die Kontodaten vor dem Hinzufügen.",
+        "unknown": "Das Hinzufügen ist noch nicht abgeschlossen. Versuche es erneut oder ergänze manuell.",
+        "verification": "Diese Seite benötigt eine Verifizierung. Wähle „Manuell ergänzen“, um fortzufahren."
       },
       "folderCount_one": "{{count}} Ordner",
       "folderCount_other": "{{count}} Ordner",
@@ -42,16 +97,17 @@
       "includeExisting": "Websites einbeziehen, die bereits über gespeicherte Konten verfügen",
       "initialSteps": {
         "chooseScope": "Lesezeichenordner auswählen",
-        "review": "Importkandidaten prüfen",
+        "review": "Seiten zum Hinzufügen prüfen",
         "skipExisting": "Bestehende Konten standardmäßig überspringen"
       },
-      "initialValue": "Scannen Sie Browser-Lesezeichen stapelweise und verwandeln Sie gespeicherte Relay-Websites in Kontokandidaten. Sie wählen zuerst die Lesezeichenordner aus, überprüfen die Kandidaten vor dem Import und vorhandene Konten werden standardmäßig übersprungen.",
+      "initialValue": "Wähle deine gespeicherten Relay-Seiten, prüfe die Liste und füge sie gemeinsam hinzu. Bestehende Konten werden standardmäßig übersprungen.",
       "noCandidates": "Es wurden keine importierbaren Web-Lesezeichen-URLs gefunden.",
       "permissionDenied": "Die Lesezeichenberechtigung wurde nicht erteilt. Sie können es erneut versuchen, ohne dieses Dialogfeld zu schließen.",
       "permissionNeeded": "Der Zugriff auf Lesezeichen ist optional und wird nur für diesen Batch-Import angefordert.",
       "readFailed": "Der Browser-Lesezeichenbaum konnte nicht gelesen werden.",
+      "recoveryHelp": "Melde dich für die übrigen Konten an und versuche es erneut oder wähle „Manuell ergänzen“.",
       "reloadFailed": "Der Import wurde abgeschlossen, aber die Kontodaten konnten nicht neu geladen werden. Aktualisieren Sie die Kontoliste und versuchen Sie es erneut, wenn die neuen Konten nicht sichtbar sind.",
-      "resultSummary": "Importiert {{success}}, fehlgeschlagen {{failed}}, übersprungen {{skipped}}.",
+      "resultSummary": "Hinzugefügt: {{success}}, unvollständig: {{failed}}, übersprungen: {{skipped}}.",
       "scanning": "Browser-Lesezeichen scannen...",
       "scopeHelp": "Beim Scannen wird nur eine Vorschau erstellt. Sie können hierher zurückkehren, um die Auswahl vor dem Import anzupassen.",
       "searchEmpty": "Keine passenden Lesezeichenbereiche",
@@ -63,7 +119,7 @@
         "duplicate_one": "Standardmäßig übersprungen. Anzahl vorhandener Übereinstimmungen mit gespeicherten Konten: {{count}}",
         "duplicate_other": "Standardmäßig übersprungen. Anzahl vorhandener Übereinstimmungen mit gespeicherten Konten: {{count}}",
         "imported": "Importiert",
-        "ready": "Bereit zum Import"
+        "ready": "Zum Hinzufügen"
       },
       "title": "Konten aus Lesezeichen importieren",
       "untitledFolder": "Unbenannter Ordner"
@@ -73,13 +129,20 @@
         "export": "Exportieren"
       },
       "appOptions": {
+        "agy": "Antigravity",
         "claude": "Claude",
+        "claudeDesktop": "Claude Desktop",
         "codex": "Codex",
+        "dsh": "DeepSeek Harness",
         "gemini": "Gemini",
         "grokbuild": "Grok CLI",
         "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "mcode": "MiniMax Code",
+        "omp": "Oh My Pi",
         "openclaw": "OpenClaw",
-        "opencode": "OpenCode"
+        "opencode": "OpenCode",
+        "pi": "Pi"
       },
       "description": "Senden Sie diese Anbieterkonfiguration per Deep Link direkt an CC Switch",
       "descriptions": {
@@ -89,7 +152,7 @@
         "app": "Ziel-App",
         "endpoint": "API-Endpunkt",
         "homepage": "Homepage-URL",
-        "model": "Standardmodell (optional)",
+        "model": "Standardmodell",
         "name": "Anbietername",
         "notes": "Notizen (optional)"
       },
@@ -97,7 +160,9 @@
         "none": "Kein Standardmodell"
       },
       "notices": {
+        "claudeDesktop": "Erfordert CC Switch v4.0.26 oder neuer. Verwendet das Anthropic-API-Format. Modellnamen mit claude- oder ohne Modell werden als direkte Verbindung importiert; andere Modellnamen als Modellzuordnungen über den lokalen Router von CC Switch.",
         "hermes": "CC Switch importiert Hermes mithilfe des Chat Completions-Protokolls. Beim Export wird der Anbietername in eine gültige Kennung umgewandelt, die nur Kleinbuchstaben, Zahlen und Bindestriche enthält. Um ein anderes Format zu verwenden, z. B. Anthropic Messages oder Codex Responses, passen Sie es nach dem Import in CC Switch an.",
+        "modelRequired": "Erfordert CC Switch v4.0.26 oder neuer. Vor dem Export ein Modell auswählen oder eingeben. Verwendet das OpenAI Chat Completions API-Format.",
         "openclaw": "CC Switch unterstützt derzeit nicht die Konfiguration von OpenClaw AI-Service-API-Formaten durch externen Import. Passen Sie es bei Bedarf nach dem Import in CC Switch an.",
         "opencode": "CC Switch unterstützt derzeit nicht die Konfiguration von OpenCode AI-Service-API-Formaten durch externen Import. Passen Sie es bei Bedarf nach dem Import in CC Switch an."
       },
@@ -148,6 +213,7 @@
       "keyCopied": "Schlüssel in Zwischenablage kopiert",
       "loadFailed": "Schlüsselliste konnte nicht geladen werden: {{error}}",
       "loading": "Schlüsselliste wird geladen...",
+      "managementConfigurationRequired": "Zum Laden und Verwalten der Schlüsselliste der Website ist ein Verwaltungstoken erforderlich. Gespeicherte API-Schlüssel können weiterhin unabhängig davon verwendet werden.",
       "noKeyFoundAfterCreate": "Nach der Erstellung wurde kein Schlüssel gefunden. Bitte versuchen Sie es erneut.",
       "noKeys": "Noch keine Schlüsseldaten",
       "noKeysDescription": "Erstellen Sie schnell einen Standardschlüssel oder einen benutzerdefinierten Schlüssel mit erweiterten Einstellungen.",
@@ -286,11 +352,15 @@
     "expand": "Erweitern",
     "firefox": {
       "confirm": "Bestätigen",
+      "howOpenOptions": "Auf der vollständigen Seite fortfahren",
       "howOpenSidebar": "So öffnen Sie die Seitenleiste",
       "limitation": "Firefox Browser-Funktionseinschränkung",
+      "openFailed": "Die Seitenleiste oder vollständige Seite konnte nicht geöffnet werden. Bitte erneut versuchen.",
+      "openOptions": "Auf der vollständigen Seite fortfahren",
       "openSidebar": "Seitenleiste öffnen",
-      "popupLimitation": "Diese Funktion kann im Firefox-Popup nicht zuverlässig verwendet werden. Verwenden Sie zum Hinzufügen von Konten bitte die Seitenleiste.",
-      "sidebarInstruction": "Klicken Sie auf das Erweiterungssymbol in der Browser-Symbolleiste und wählen Sie dann die Option „Seitenleiste“, um den Seitenleistenmodus zu öffnen",
+      "optionsInstruction": "Mit der Schaltfläche unten öffnen Sie die vollständige Kontoverwaltung der Erweiterung.",
+      "popupLimitation": "Das Firefox-Popup kann sich beim Öffnen einer anderen Seite schließen. Fügen Sie Konten in der Seitenleiste oder auf der vollständigen Seite hinzu.",
+      "sidebarInstruction": "Mit der Schaltfläche unten öffnen Sie die Seitenleiste. Falls das fehlschlägt, wird die vollständige Seite geöffnet.",
       "warningTitle": "Erinnerung an Funktionseinschränkungen"
     },
     "kelivo": {
@@ -420,27 +490,32 @@
       "titleWithCookieInterceptor": "Automatische Aktualisierung erfordert Website-Überprüfung"
     },
     "updateLog": {
-      "autoOpenSetting": "Automatisches Öffnen des Protokolls aktualisieren",
-      "disableAutoOpen": "Nach Updates nicht anzeigen",
-      "enableAutoOpen": "Nach Updates wieder aktivieren",
       "loading": "Änderungsprotokoll wird geladen…",
-      "missingSection": "Die Änderungsprotokollvorschau für v{{version}} konnte nicht geladen werden. Sie können das vollständige Änderungsprotokoll öffnen.",
-      "openFullChangelog": "Vollständiges Änderungsprotokoll öffnen",
-      "starPrompt": "Finden Sie All API Hub nützlich? Vergeben Sie einen Stern, um die täglichen Updates zu verfolgen",
+      "missingSection": "Das Änderungsprotokoll für v{{version}} lädt langsam. Du kannst es in einem neuen Tab öffnen.",
+      "openFullChangelog": "Änderungsprotokoll ansehen",
+      "starPrompt": "Unterstütze weitere Verbesserungen mit einem Stern auf GitHub",
       "title": "Was ist neu",
       "updatedTo": "Aktualisiert auf v{{version}}"
     }
   },
   "feedback": {
     "bugReport": "Einen Fehler melden",
+    "clickAnywhereToClose": "Zum Schließen ins Leere klicken",
     "community": "Community-Gruppen",
+    "communityUnavailable": "Die Community-Links konnten nicht geladen werden. Aktuelle Einladungen finden Sie auf der Community-Seite.",
     "discussion": "Starten Sie eine Diskussion",
     "featureRequest": "Fordern Sie eine Funktion an",
     "languageRequest": "Fordern Sie eine neue Sprache an",
+    "openCommunityPage": "Community-Seite öffnen",
     "siteSupportRequest": "Website-Unterstützung anfordern",
+    "sponsor": "Sponsoren",
+    "sponsorTitle": "Sponsoren und Unterstützung ansehen",
     "starOnGithub": "Stern auf GitHub vergeben",
     "trigger": "Feedback",
-    "triggerTooltip": "Feedback-Verknüpfungen öffnen"
+    "triggerTooltip": "Feedback-Verknüpfungen öffnen",
+    "wechat": "WeChat-Gruppe",
+    "wechatHelp": "Gruppeneinladung abgelaufen oder Gruppe voll? Scannen Sie den persönlichen QR-Code im Bild, um den Kontakt hinzuzufügen und um eine Einladung zu bitten, oder besuchen Sie die Community-Seite.",
+    "wechatUnavailable": "Der QR-Code konnte nicht geladen werden."
   },
   "modelListInput": {
     "actions": {
@@ -492,6 +567,7 @@
     "basic": "Einstellungen",
     "batchCheckin": "Batch-Check-in",
     "bookmark": "Lesezeichenverwaltung",
+    "browserApiLab": "Browser-API-Labor (Entwickler)",
     "categories": {
       "api": "API",
       "automation": "Automatisierung",
@@ -547,10 +623,12 @@
   "popupInterruption": {
     "actions": {
       "keepPopup": "Popup geöffnet lassen",
-      "useSidepanel": "Seitenleiste verwenden"
+      "useOptions": "Auf der vollständigen Seite fortfahren",
+      "useSidepanel": "In der Seitenleiste fortfahren"
     },
-    "description": "Das Popup wurde geschlossen, während die automatische Kontoerkennung ausgeführt wurde. Verwenden Sie die Seitenleiste für einen gleichmäßigeren Ablauf beim Hinzufügen von Konten.",
-    "settingName": "Klickverhalten der Symbolleiste",
+    "description": "Das Popup wurde während der automatischen Kontoerkennung geschlossen. Fahren Sie in der Seitenleiste fort. Falls sie sich nicht öffnen lässt, wird die vollständige Seite geöffnet.",
+    "openFailed": "Die Seitenleiste oder vollständige Seite konnte nicht geöffnet werden. Bitte erneut versuchen.",
+    "optionsDescription": "Das Popup wurde während der automatischen Kontoerkennung geschlossen. Fahren Sie auf der vollständigen Seite fort.",
     "title": "Die automatische Erkennung wurde möglicherweise unterbrochen"
   },
   "repeatableInput": {
@@ -568,6 +646,13 @@
   },
   "searchableSelect": {
     "empty": "Keine Ergebnisse gefunden",
+    "fetchDetails": "Fehlerdetails",
+    "fetchEmpty": "Die Anfrage war erfolgreich, hat aber keine Modelle geliefert.",
+    "fetchEmptyLabel": "Liste leer",
+    "fetchFailed": "Liste konnte nicht abgerufen werden.",
+    "fetchSuccess_one": "{{count}} Modell abgerufen.",
+    "fetchSuccess_other": "{{count}} Modelle abgerufen.",
+    "manualInputHint": "Sie können eine Modell-ID direkt eingeben.",
     "noOptions": "Keine Optionen verfügbar",
     "noOptionsAllowCustom": "Keine Optionen verfügbar. Geben Sie einen Wert ein, um einen zu erstellen.",
     "searchPlaceholder": "Suchen...",
@@ -575,6 +660,7 @@
   },
   "secretList": {
     "add": "Schlüssel hinzufügen",
+    "clearedState": "Der gespeicherte Schlüssel wird gelöscht",
     "collapse": "API Key {{number}} zuklappen",
     "configured": "Konfiguriert",
     "enableKey": "Diesen Schlüssel aktivieren",
@@ -582,6 +668,7 @@
     "hide": "Schlüssel verbergen",
     "keepPlaceholder": "Leer lassen, um den gespeicherten Schlüssel zu behalten",
     "loadFailed": "Schlüssel konnte nicht geladen werden. Erneut versuchen.",
+    "maskedOnly": "Für diesen gespeicherten Schlüssel ist nur der maskierte Wert verfügbar.",
     "newPlaceholder": "API-Schlüssel eingeben",
     "newState": "Neu, noch nicht gespeichert",
     "previousDisableReason": "Grund der vorherigen Deaktivierung: {{reason}}",
@@ -594,6 +681,12 @@
     "show": "Schlüssel anzeigen",
     "title": "API-Schlüssel"
   },
+  "sidebarFooter": {
+    "community": "Community",
+    "docs": "Doku",
+    "github": "GitHub",
+    "sponsor": "Sponsor"
+  },
   "starPromotion": {
     "actions": {
       "alreadyStarred": "Schon markiert",
@@ -602,7 +695,7 @@
       "star": "Stern vergeben"
     },
     "cardDescription": "All API Hub ist vollständig Open Source und unterstützt laufend mehr Seiten, während die Bedienung weiter verfeinert wird. Ein Stern trägt die laufende Pflege mit und hilft mehr Menschen, es zu finden.",
-    "cardTitle": "Hilft Ihnen All API Hub?"
+    "cardTitle": "Unterstütze weitere Verbesserungen"
   },
   "textEntries": {
     "add": "Zeile hinzufügen",

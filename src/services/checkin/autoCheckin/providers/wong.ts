@@ -20,6 +20,8 @@ import type {
   WongCheckinApiResponse,
   WongCheckinStatusData,
 } from "~/services/apiService/wong"
+import { bindApiTransportRequest } from "~/services/apiTransport/recovery"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type {
   AutoCheckinProvider,
   AutoCheckinProviderContext,
@@ -32,9 +34,10 @@ import {
   getEffectiveAuthType,
   isAlreadyCheckedMessage,
   normalizeCheckinMessage,
+  readQuotaReward,
   resolveProviderErrorResult,
 } from "~/services/checkin/autoCheckin/providers/shared"
-import type { AutoCheckinProviderResult } from "~/services/checkin/autoCheckin/providers/types"
+import type { AutoCheckinProviderOutcome } from "~/services/checkin/autoCheckin/providers/types"
 import type { SiteAccount } from "~/types"
 import { AuthTypeEnum } from "~/types"
 import {
@@ -67,19 +70,22 @@ async function performCheckin(
   const { site_url, account_info } = account
 
   return await newApiFamilyRequests.envelope<WongCheckinStatusData | undefined>(
-    {
-      baseUrl: site_url,
-      accountId: account.id,
-      cookieAuthSessionCookie: account.cookieAuth?.sessionCookie,
-      auth: {
-        authType: getEffectiveAuthType(account),
-        userId: account_info.id,
-        accessToken: account_info.access_token,
+    bindApiTransportRequest(
+      {
+        baseUrl: site_url,
+        accountId: account.id,
+        cookieAuthSessionCookie: account.cookieAuth?.sessionCookie,
+        auth: {
+          authType: getEffectiveAuthType(account),
+          userId: account_info.id,
+          accessToken: account_info.access_token,
+        },
+        tempWindowRequestSource,
+        ...(protectionBypassExecution ? { protectionBypassExecution } : {}),
+        ...(mutationLifecycle ? { observer: mutationLifecycle } : {}),
       },
-      tempWindowRequestSource,
-      ...(protectionBypassExecution ? { protectionBypassExecution } : {}),
-      ...(mutationLifecycle ? { observer: mutationLifecycle } : {}),
-    },
+      API_DIRECT_REQUEST_REASONS.CallerManaged,
+    ),
     {
       endpoint: ENDPOINT,
       options: {
@@ -96,7 +102,7 @@ async function performCheckin(
 async function checkinWongGongyi(
   account: SiteAccount,
   context: AutoCheckinProviderContext,
-): Promise<AutoCheckinProviderResult> {
+): Promise<AutoCheckinProviderOutcome> {
   const tempWindowRequestSource = normalizeTempWindowRequestSource(
     context.tempWindowRequestSource,
   )
@@ -145,6 +151,9 @@ async function checkinWongGongyi(
         messageKey: responseMessage
           ? undefined
           : AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinSuccessful,
+        // The deployment answers with the day's awarded quota; its own console
+        // renders it as "恭喜获得额度：{quota}".
+        reward: readQuotaReward(checkinResponse.data?.quota),
         data: checkinResponse.data,
       }
     }
@@ -199,6 +208,7 @@ const getStatus: NonNullable<AutoCheckinProvider["getStatus"]> = async ({
     request ??
     (account
       ? {
+          directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
           baseUrl: account.site_url,
           accountId: account.id,
           cookieAuthSessionCookie: account.cookieAuth?.sessionCookie,

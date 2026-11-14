@@ -3,20 +3,34 @@ import {
   POPUP_PAGE_PATH,
   SIDEPANEL_PAGE_PATH,
 } from "~/constants/extensionPages"
-import { getExtensionURL } from "~/utils/browser/browserApi"
-
-import { getDeviceTypeInfo, isDesktopDevice, isMobileDevice } from "./device"
+import { getExtensionURL } from "~/utils/browser/runtime"
 
 export { detectBrowserFamily } from "./userAgent"
 
 export type ExtensionStoreId = "chrome" | "edge" | "firefox"
-export { getDeviceTypeInfo, isDesktopDevice, isMobileDevice }
+export {
+  getDeviceTypeInfo,
+  isDesktopDevice,
+  shouldSeedCompactPageWidth,
+} from "./device"
 /**
  * Checks whether the current extension runtime is Firefox.
  * Relies on the moz-extension protocol prefix exposed by WebExtensions.
  */
 export function isFirefox(): boolean {
   return getRuntimeBaseUrl().startsWith("moz-extension://")
+}
+
+/**
+ * Identifies Chromium's extension runtime independently of brand, UA or build
+ * target. This is not a DNR capability/permission check. Runtime lookup errors
+ * propagate so transport callers cannot silently bypass required preparation.
+ * https://github.com/chromium/chromium/blob/main/extensions/common/constants.h
+ */
+export function isChromium(): boolean {
+  return getRuntimeBaseUrl({ throwOnError: true }).startsWith(
+    "chrome-extension://",
+  )
 }
 
 /**
@@ -32,12 +46,14 @@ export function isEdgeByUA(userAgent?: string): boolean {
 
 /**
  * Retrieves the base URL of the extension runtime.
+ * @param options Whether callers require runtime lookup errors to propagate.
  * @returns The runtime base URL or an empty string if unavailable.
  */
-function getRuntimeBaseUrl(): string {
+function getRuntimeBaseUrl(options?: { throwOnError?: boolean }): string {
   try {
     return getExtensionURL("")
-  } catch {
+  } catch (error) {
+    if (options?.throwOnError) throw error
     return ""
   }
 }

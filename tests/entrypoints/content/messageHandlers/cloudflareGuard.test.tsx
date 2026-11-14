@@ -7,6 +7,7 @@ import {
   detectCloudflareChallengePage,
   logCloudflareGuard,
 } from "~/entrypoints/content/messageHandlers/utils/cloudflareGuard"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const {
   oauthHandlers,
@@ -56,14 +57,11 @@ vi.mock("~/utils/core/logger", () => ({
   createLogger: () => loggerMocks,
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
 
-  return {
-    ...actual,
-    sendRuntimeMessage: sendRuntimeMessageMock,
-  }
+  return { ...actual, sendRuntimeMessage: sendRuntimeMessageMock }
 })
 
 vi.mock("~/entrypoints/content/messageHandlers/handlers", () => ({
@@ -140,6 +138,25 @@ describe("cloudflare guard utilities and handlers", () => {
       event: "heartbeat",
       details: null,
     })
+  })
+
+  it("does not block an ordinary app page that loads the Cloudflare precursor script", () => {
+    document.title = "Check-in - DaiGua"
+    document.body.innerHTML =
+      '<main><button>Normal check-in</button></main><script src="/cdn-cgi/challenge-platform/scripts/precursor/main.js"></script>'
+    expect(detectCloudflareChallengePage().isChallenge).toBe(false)
+  })
+
+  it("still blocks a challenge form when the precursor script is also present", () => {
+    document.body.innerHTML =
+      '<script src="/cdn-cgi/challenge-platform/scripts/precursor/main.js"></script><form id="challenge-form"></form>'
+    expect(detectCloudflareChallengePage().isChallenge).toBe(true)
+  })
+
+  it("still blocks a challenge platform script alongside the precursor script", () => {
+    document.body.innerHTML =
+      '<script src="/cdn-cgi/challenge-platform/scripts/precursor/main.js"></script><script src="/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1"></script>'
+    expect(detectCloudflareChallengePage().isChallenge).toBe(true)
   })
 
   it("detects strong and support Cloudflare challenge markers", () => {
@@ -301,7 +318,7 @@ describe("cloudflare guard utilities and handlers", () => {
     setupContentMessageHandlers()
 
     expect(addListenerMock).toHaveBeenCalledTimes(1)
-    const listener = addListenerMock.mock.calls[0][0] as (
+    const listener = atIndex(addListenerMock.mock.calls, 0)[0] as (
       request: { action: string },
       sender: unknown,
       sendResponse: (value?: unknown) => void,

@@ -1,5 +1,11 @@
 import { execFileSync, spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -9,6 +15,7 @@ import {
   compareColorTokenBaseline,
   findColorTokenViolations,
 } from "~~/scripts/utils/color-tokens.mjs"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const guardPath = fileURLToPath(
   new URL("../../scripts/check-color-tokens.mjs", import.meta.url),
@@ -22,8 +29,10 @@ function createGuardRepository(baseline = {}) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key)),
   )
-  const directory = mkdtempSync(
-    path.join(os.tmpdir(), "all-api-hub-color-guard-"),
+  // Git and node report canonical paths; on macOS os.tmpdir() sits behind the
+  // /var → /private/var symlink, so compare in canonical form.
+  const directory = realpathSync(
+    mkdtempSync(path.join(os.tmpdir(), "all-api-hub-color-guard-")),
   )
   temporaryRepos.push(directory)
   mkdirSync(path.join(directory, "src"))
@@ -189,10 +198,12 @@ describe("color token guard", () => {
     "color(display-p3 1 0 0)",
     "color(srgb-linear 0.1 0.2 0.3)",
   ])("finds modern color literal %s in JSX and CSS", (color) => {
-    for (const [file, source] of [
+    for (const indexedEntry of [
       ["src/example.tsx", `<div style={{ color: "${color}" }} />`],
       ["src/example.css", `.label { color: ${color}; }`],
     ]) {
+      const file = atIndex(indexedEntry, 0)
+      const source = atIndex(indexedEntry, 1)
       expect(
         findColorTokenViolations(file, source).map((item) => item.token),
       ).toEqual([color])

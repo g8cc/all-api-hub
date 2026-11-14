@@ -6,7 +6,13 @@ import {
   redeemService,
   REDEMPTION_RESULT_CODES,
 } from "~/services/redemption/redeemService"
+import { AuthTypeEnum } from "~/types"
+import i18n from "~/utils/i18n/core"
 import { accountStorageTestSurface as accountStorage } from "~~/tests/test-utils/accountStorageTestSurface"
+import {
+  buildDisplaySiteData,
+  buildSiteAccount,
+} from "~~/tests/test-utils/factories"
 
 vi.mock("~/services/accounts/accountStorage/accountQueries", () => ({
   accountQueries: { getAccountById: vi.fn() },
@@ -100,8 +106,12 @@ describe("redeemService.redeemCodeForAccount", () => {
     expect(getSiteTypeCapabilities).toHaveBeenCalledWith("new-api")
     expect(redeem).toHaveBeenCalledWith({
       request: {
+        directRequestReason: "caller_managed" as const,
+        allowAccountCredentialRecovery: true,
         baseUrl: "https://example.com",
+        managementApiBaseUrl: "https://example.com",
         accountId: "account-1",
+        siteType: "new-api",
         auth: {
           authType: "bearer",
           userId: "user-1",
@@ -119,6 +129,31 @@ describe("redeemService.redeemCodeForAccount", () => {
       creditedAmount: 12345,
       account: displayData,
     })
+  })
+
+  it("preserves confirmed non-cash RelayFor benefits in shared redemption feedback", async () => {
+    const benefits = { message: "Monthly subscription · expires 2099-01-01" }
+    vi.mocked(accountStorage.getAccountById).mockResolvedValueOnce({
+      id: "relayfor",
+      site_type: SITE_TYPES.RELAYFOR,
+      site_url: "https://relayfor.xyz",
+      account_info: { id: "1", access_token: "test-token" },
+    } as any)
+    vi.mocked(accountStorage.getDisplayDataById).mockResolvedValueOnce({
+      id: "relayfor",
+    } as any)
+    vi.mocked(getSiteTypeCapabilities).mockReturnValue({
+      account: {
+        redemption: { redeem: vi.fn().mockResolvedValue(benefits) },
+      },
+    } as any)
+    const result = await redeemService.redeemCodeForAccount(
+      "relayfor",
+      "SUBSCRIPTION",
+    )
+    expect(result.success).toBe(true)
+    expect(result.message).toBe(benefits.message)
+    expect(result.creditedAmount).toEqual(benefits)
   })
 
   it("falls back to converted display data and supports non-numeric credited amounts", async () => {
@@ -162,8 +197,12 @@ describe("redeemService.redeemCodeForAccount", () => {
 
     expect(redeem).toHaveBeenCalledWith({
       request: {
+        directRequestReason: "caller_managed" as const,
+        allowAccountCredentialRecovery: true,
         baseUrl: "https://one-api.example.com",
+        managementApiBaseUrl: "https://one-api.example.com",
         accountId: "account-2",
+        siteType: "one-api",
         auth: {
           authType: "token",
           userId: "user-2",
@@ -315,4 +354,46 @@ describe("redeemService.redeemCodeForAccount", () => {
       message: "redemptionAssist:messages.unsupportedSiteType",
     })
   })
+})
+
+it("shows a redeemed native asset in its own units rather than the monetary quota scale", async () => {
+  i18n.addResourceBundle("en", "redemptionAssist", {
+    messages: { redeemSuccess: "Credited: {{amount}}" },
+  })
+  try {
+    vi.mocked(accountStorage.getAccountById).mockResolvedValueOnce(
+      buildSiteAccount({
+        id: "points",
+        site_type: SITE_TYPES.EMRANK,
+        site_url: "https://emrank.tech",
+        account_info: { ...buildSiteAccount().account_info, id: "6088" },
+        authType: AuthTypeEnum.Cookie,
+      }),
+    )
+    vi.mocked(accountStorage.getDisplayDataById).mockResolvedValueOnce(
+      buildDisplaySiteData({ id: "points" }),
+    )
+    vi.mocked(getSiteTypeCapabilities).mockReturnValue({
+      siteType: SITE_TYPES.EMRANK,
+      account: {
+        redemption: {
+          quotaAsset: {
+            id: "test:points",
+            label: "Points",
+            displayScale: 1000,
+            displayLabel: "K Points",
+          },
+          redeem: vi.fn().mockResolvedValue(2000),
+        },
+      },
+    })
+    const result = await redeemService.redeemCodeForAccount("points", "CODE")
+    expect(result).toMatchObject({
+      success: true,
+      creditedAmount: 2000,
+      message: "Credited: 2 K Points",
+    })
+  } finally {
+    i18n.removeResourceBundle("en", "redemptionAssist")
+  }
 })

@@ -6,7 +6,6 @@ import { RuntimeActionIds } from "~/constants/runtimeActions"
 type ShieldBypassPromptToastProps = {
   onDismiss: () => void
   onOpenSettings: () => Promise<void> | void
-  onOpenHistory: () => Promise<void> | void
 }
 
 const {
@@ -36,17 +35,14 @@ vi.mock("~/entrypoints/content/shared/uiRoot", () => ({
   ensureRedemptionToastUi: ensureRedemptionToastUiMock,
 }))
 
-vi.mock("~/services/productAnalytics/shieldBypassSummary", () => ({
+vi.mock("~/services/productAnalytics/facts/shieldBypassSummary", () => ({
   recordShieldBypassPromptShown: recordPromptShownMock,
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
-  return {
-    ...actual,
-    sendRuntimeMessage: sendRuntimeMessageMock,
-  }
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
+  return { ...actual, sendRuntimeMessage: sendRuntimeMessageMock }
 })
 
 vi.mock("~/utils/core/logger", () => ({
@@ -72,7 +68,7 @@ describe("shieldBypassToasts", () => {
     document.title = originalTitle
   })
 
-  it("renders the shield-bypass prompt toast with a fixed id and wires dismiss/settings/history actions", async () => {
+  it("renders the shield-bypass prompt toast with a fixed id and wires dismiss/settings actions", async () => {
     toastCustomMock.mockReturnValue("shield-toast-id")
     sendRuntimeMessageMock.mockResolvedValue({ success: true })
 
@@ -104,11 +100,6 @@ describe("shieldBypassToasts", () => {
     expect(sendRuntimeMessageMock).toHaveBeenCalledWith({
       action: RuntimeActionIds.OpenSettingsShieldBypass,
     })
-    await props.onOpenHistory()
-
-    expect(sendRuntimeMessageMock).toHaveBeenLastCalledWith({
-      action: RuntimeActionIds.OpenSettingsShieldHistory,
-    })
     expect(loggerErrorMock).not.toHaveBeenCalled()
   })
 
@@ -131,24 +122,6 @@ describe("shieldBypassToasts", () => {
     expect(analyticsPayloads).not.toContain("Private Challenge Title")
   })
 
-  it("propagates unsuccessful history navigation so the prompt can show feedback", async () => {
-    sendRuntimeMessageMock.mockResolvedValue({
-      success: false,
-      error: "navigation failed",
-    })
-    const { showShieldBypassPromptToast } = await import(
-      "~/entrypoints/content/shieldBypassAssist/utils/shieldBypassToasts"
-    )
-
-    await showShieldBypassPromptToast()
-
-    const renderer = toastCustomMock.mock
-      .calls[0]?.[0] as () => React.ReactElement<ShieldBypassPromptToastProps>
-    await expect(renderer().props.onOpenHistory()).rejects.toThrow(
-      "navigation failed",
-    )
-  })
-
   it("logs a settings-open failure without throwing from the toast action", async () => {
     sendRuntimeMessageMock.mockRejectedValue(new Error("settings failed"))
 
@@ -168,5 +141,43 @@ describe("shieldBypassToasts", () => {
       "Failed to open settings page",
       expect.any(Error),
     )
+  })
+
+  it("shows turnstile manual assist toast and handles dismiss", async () => {
+    toastCustomMock.mockReturnValue("manual-assist-toast-id")
+
+    const { showTurnstileManualAssistToast } = await import(
+      "~/entrypoints/content/shieldBypassAssist/utils/shieldBypassToasts"
+    )
+
+    await showTurnstileManualAssistToast()
+
+    expect(toastDismissMock).toHaveBeenCalledWith("shield-bypass-helper")
+
+    expect(ensureRedemptionToastUiMock).toHaveBeenCalledOnce()
+    expect(toastCustomMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        id: "turnstile-manual-assist",
+        duration: Infinity,
+      }),
+    )
+
+    const renderer = toastCustomMock.mock
+      .calls[0]?.[0] as () => React.ReactElement<any>
+    const element = renderer()
+    element.props.onDismiss()
+    expect(toastDismissMock).toHaveBeenCalledWith("turnstile-manual-assist")
+  })
+
+  it("does not restore the generic window explanation after manual verification starts", async () => {
+    const { showTurnstileManualAssistToast, showShieldBypassPromptToast } =
+      await import(
+        "~/entrypoints/content/shieldBypassAssist/utils/shieldBypassToasts"
+      )
+    await showTurnstileManualAssistToast()
+    toastCustomMock.mockClear()
+    await showShieldBypassPromptToast()
+    expect(toastCustomMock).not.toHaveBeenCalled()
   })
 })

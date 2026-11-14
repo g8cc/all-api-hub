@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { buildManagedSiteChannelDraftSource } from "~/services/managedSites/channelDraftSource"
-import { getManagedSiteRuntimeConfigForType } from "~/services/managedSites/runtimeConfig"
+import { buildManagedSiteChannelDraftSource } from "~/services/managedSites/configuration/channelDraftSource"
+import { getManagedSiteRuntimeConfigForType } from "~/services/managedSites/configuration/runtimeConfig"
 import {
   OctopusAutoGroupType,
   OctopusOutboundType,
@@ -60,16 +60,18 @@ vi.mock("~/services/preferences/userPreferences", () => ({
   },
 }))
 
-vi.mock("~/services/apiService/octopus", () => ({
+vi.mock("~/services/apiService/octopus/channels", () => ({
   listChannels: mockListChannels,
   searchChannels: mockSearchChannels,
   createChannel: mockCreateChannelApi,
   updateChannel: mockUpdateChannelApi,
   deleteChannel: mockDeleteChannelApi,
+  usesChannelProtocolPaths: mockUsesChannelProtocolPaths,
+}))
+vi.mock("~/services/apiService/octopus/models", () => ({
   fetchGroups: mockFetchGroups,
   fetchAvailableModels: mockFetchOctopusAvailableModels,
   fetchRemoteModels: vi.fn(),
-  usesChannelProtocolPaths: mockUsesChannelProtocolPaths,
 }))
 
 vi.mock("~/services/managedSites/utils/fetchManagedSiteImportModels", () => ({

@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
 import { RuntimeKeyDetails } from "~/features/AccountManagement/components/CopyKeyDialog/RuntimeKeyDetails"
-import { buildServiceCredentialRuntimeKey } from "~/services/accounts/accountRuntimeKeys"
+import { buildServiceCredentialRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
 import { AuthTypeEnum, SiteHealthStatus, type DisplaySiteData } from "~/types"
 import { buildCompleteTodayStatsAvailability } from "~~/tests/test-utils/accountTodayStats"
 import { buildCheckInConfig } from "~~/tests/test-utils/checkIn"
 import { RuntimeKeyHeaderHarness as RuntimeKeyHeader } from "~~/tests/test-utils/keyManagement/RuntimeKeyHeaderHarness"
 import { render, screen } from "~~/tests/test-utils/render"
 
-vi.mock("~/components/dialogs/ChannelDialog", () => {
+vi.mock("~/features/ManagedSiteChannels/editor/ChannelDialog", () => {
   return {
     ChannelDialogProvider: ({ children }: { children: ReactNode }) => children,
     useChannelDialog: () => ({

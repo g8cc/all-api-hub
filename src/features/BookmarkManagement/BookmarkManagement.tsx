@@ -5,12 +5,12 @@ import { useTranslation } from "react-i18next"
 import { PageHeader } from "~/components/PageHeader"
 import { Button } from "~/components/ui"
 import { ProductAnalyticsScope } from "~/contexts/ProductAnalyticsScopeContext"
-import { AccountDataProvider } from "~/features/AccountManagement/hooks/AccountDataContext"
-import BookmarksList from "~/features/SiteBookmarks/components/BookmarksList"
+import { AccountDataProvider } from "~/features/AccountManagement/data/AccountDataContext"
 import {
   BookmarkDialogStateProvider,
   useBookmarkDialogContext,
-} from "~/features/SiteBookmarks/hooks/BookmarkDialogStateContext"
+} from "~/features/SiteBookmarks/editor/BookmarkDialogStateContext"
+import BookmarksList from "~/features/SiteBookmarks/list/BookmarksList"
 import { SITE_BOOKMARKS_TEST_IDS } from "~/features/SiteBookmarks/testIds"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
@@ -54,7 +54,7 @@ function BookmarkManagementContent({
   }, [createPrefill, openAddBookmark])
 
   return (
-    <div className="bg-card py-density-6 flex flex-col px-6">
+    <div className="py-density-4 sm:py-density-6 flex flex-col px-4 sm:px-6">
       <ProductAnalyticsScope
         entrypoint={PRODUCT_ANALYTICS_ENTRYPOINTS.Options}
         featureId={PRODUCT_ANALYTICS_FEATURE_IDS.BookmarkManagement}
@@ -79,9 +79,7 @@ function BookmarkManagementContent({
         />
       </ProductAnalyticsScope>
 
-      <div className="bg-card flex flex-col">
-        <BookmarksList initialSearchQuery={searchQuery} />
-      </div>
+      <BookmarksList initialSearchQuery={searchQuery} />
     </div>
   )
 }

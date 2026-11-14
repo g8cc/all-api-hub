@@ -1,5 +1,6 @@
 import type { AccountSiteType } from "~/constants/siteType"
-import type { BrowserBookmarkTreeNode } from "~/utils/browser/browserApi"
+import type { AuthTypeEnum } from "~/types"
+import type { BrowserBookmarkTreeNode } from "~/utils/browser/bookmarks"
 
 export type BookmarkAccountImportCandidateStatus = "ready" | "duplicate"
 
@@ -43,6 +44,8 @@ export type NativeBookmarkTreeNode = Pick<
 
 export type BookmarkAccountImportFailureCategory =
   | "detection"
+  | "login"
+  | "verification"
   | "save"
   | "unknown"
 
@@ -69,6 +72,8 @@ export type BookmarkAccountImportRowResult =
       status: "failed"
       failureCategory: BookmarkAccountImportFailureCategory
       safeMessageKey: BookmarkAccountImportFailureMessageKey
+      siteType?: AccountSiteType
+      authType?: AuthTypeEnum
     }
 
 export interface BookmarkAccountImportRunResult {

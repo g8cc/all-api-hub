@@ -32,13 +32,21 @@
     "keyForModel": "Khóa tương ứng với mô hình",
     "openSelectedAccountKeys": "Quản lý khóa tài khoản",
     "openSite": "Mở trang",
-    "verifyApi": "Xác minh API",
-    "verifyCliSupport": "Xác minh khả năng tương thích CLI"
+    "verifyApi": "Kiểm tra API",
+    "verifyCliSupport": "Kiểm tra khả năng tương thích CLI"
   },
+  "allAccountGroups": "Tất cả nhóm",
   "allAccounts": "Tất cả tài khoản",
   "allBillingModes": "Tất cả phương thức tính phí",
   "allGroups": "Tất cả các nhóm",
   "allProviders": "Tất cả nhà cung cấp",
+  "availability": {
+    "details": "Xem chi tiết quyền truy cập",
+    "restrictedHint": "Trang web hiện đánh dấu mô hình này là không khả dụng.",
+    "unavailable": "Hiện không khả dụng",
+    "unknown": "Chưa xác nhận tính khả dụng",
+    "unknownHint": "Trang web chưa xác nhận mô hình này có khả dụng hay không."
+  },
   "batchVerify": {
     "actions": {
       "open": "Kiểm tra hàng loạt",
@@ -107,12 +115,15 @@
     "actions": "Thao tác",
     "filters": "Bộ lọc"
   },
+  "convertedPrice": "Đã quy đổi",
+  "convertedPriceTitle": "Hiển thị theo tỷ giá hiện tại; giá bằng tiền tệ gốc không thay đổi.",
   "copyAllNames": "Sao chép tất cả tên mô hình",
   "currentUsableGroups": "Nhóm tài khoản hiện tại có thể dùng",
   "description": "Xem mô hình từ tài khoản và thông tin xác thực API, cùng giá, khả năng và tình trạng khả dụng.",
   "detailedPricing": "Định giá chi tiết",
   "diagnostics": {
     "all": "Tất cả báo giá",
+    "attention": "Kiểm tra {{value}}",
     "byGroup": "Theo nhóm tính phí",
     "byOrigin": "Theo origin của trang",
     "clearSearch": "Xóa tìm kiếm",
@@ -121,26 +132,42 @@
     "copy": "Sao chép báo cáo đầy đủ",
     "copyFailed": "Sao chép thất bại. Hãy thử lại.",
     "copyFiltered": "Sao chép kết quả đã lọc",
+    "copyRecord": "Sao chép mục",
     "empty": "Không có mục chẩn đoán phù hợp. Chuyển sang tất cả báo giá để kiểm tra quy tắc giá.",
     "filter": "Lọc mục chẩn đoán",
     "flat": "Không nhóm",
     "groupBy": "Nhóm hiển thị",
     "inspect": "Xem chi tiết chẩn đoán",
+    "issueLabels": {
+      "requestCondition": "Chưa hỗ trợ điều kiện tính phí yêu cầu",
+      "sourceConflict": "Các bản ghi giá chính thức mâu thuẫn",
+      "thresholdBasisUnverified": "Chưa xác minh cơ sở chọn bậc giá"
+    },
     "issuesOnly": "Báo giá cần kiểm tra",
     "locate": "Tìm mô hình",
-    "matched": "{{records}} báo giá phù hợp · {{models}} mô hình khác nhau",
-    "more": "Hiển thị thêm",
+    "matched": "{{records}} mục · {{models}} mô hình",
     "noGroup": "Không có nhóm tính phí",
     "noOrigin": "Không rõ origin",
-    "scope": "Chỉ kiểm tra báo giá đã tải và đã lọc, không gửi thêm yêu cầu. Số lượng là số bản ghi báo giá; một mô hình có thể xuất hiện ở nhiều trang. Mã lỗi cũng có thể chỉ điều kiện còn thiếu. Bản xuất không chứa thông tin xác thực và phản hồi API đầy đủ.",
+    "overview": "{{total}} mục · {{published}} đã công bố · {{quoted}} đã tính · {{attention}} cần kiểm tra",
+    "results": "Kết quả chẩn đoán",
+    "scope": "Kiểm tra giá và báo giá đã tải, không gửi thêm yêu cầu. Bản xuất không chứa thông tin xác thực.",
     "search": "Tìm mô hình, nguồn hoặc nhóm",
     "searchHint": "Mô hình / tên miền hoặc URL đầy đủ / nhóm / mã lỗi; kết hợp bằng dấu cách",
-    "shown": "Hiển thị {{shown}} / {{total}} báo giá",
-    "summary": "Tổng {{total}} · Đầy đủ {{complete}} · Một phần {{partial}} · Không khả dụng {{unavailable}} · Chưa tính {{notQuoted}} · Cần kiểm tra {{attention}}",
-    "title": "[DEV] Chẩn đoán giá",
-    "units": "Phân bố đơn vị tính phí"
+    "status": {
+      "complete": "Báo giá đầy đủ",
+      "notQuoted": "Chưa tính",
+      "partial": "Báo giá một phần",
+      "published": "Giá công bố",
+      "reference": "Giá tham khảo",
+      "unavailable": "Không thể báo giá"
+    },
+    "title": "[DEV] Chẩn đoán giá"
   },
   "displayFacts": {
+    "accessReason": "Điều kiện truy cập",
+    "auditCharge": "Phí kiểm tra khi từ chối rủi ro",
+    "auditConsent": "Cần đồng ý kiểm tra",
+    "baseContextTier": "Đang hiển thị mức cơ bản; giá thay đổi theo độ dài ngữ cảnh",
     "benchmarkTable": {
       "arena": "Đấu trường",
       "category": "Danh mục",
@@ -152,9 +179,21 @@
       "no": "Không",
       "yes": "Có"
     },
+    "callExamples": "Ví dụ gọi API",
+    "catalogOwner": "Chủ sở hữu danh mục",
+    "catalogScope": "Phạm vi danh mục",
+    "compactionCharge": "Nén từ xa",
+    "consoleSettings": "Cài đặt chính thức",
     "contextLimit": "Giới hạn ngữ cảnh",
+    "defaultDimensions": "Số chiều mặc định",
     "inputModalities": "Phương thức đầu vào",
     "maximumOutputTokens": "Số token đầu ra tối đa",
+    "modelKind": "Loại mô hình",
+    "modelKinds": {
+      "decision": "Quyết định",
+      "embedding": "Nhúng",
+      "reranker": "Xếp hạng lại"
+    },
     "openRouter": {
       "architecture": {
         "instructType": "Định dạng hướng dẫn",
@@ -234,6 +273,7 @@
       }
     },
     "outputModalities": "Phương thức đầu ra",
+    "planRestricted": "Gói hiện tại của bạn không hỗ trợ mô hình này",
     "priceConditions": {
       "minimumPromptTokens": "Hơn {{formattedCount}} token đầu vào",
       "minimumPromptTokens_other": "Hơn {{formattedCount}} token đầu vào",
@@ -255,16 +295,32 @@
       "request": "yêu cầu",
       "webSearch": "lần tìm kiếm web"
     },
+    "pricingConditions": "Điều kiện tính giá",
+    "promptAudit": "Đã bật kiểm tra prompt",
+    "providerAvailable": "Có sẵn trên trang",
+    "providerReferenceCatalog": "Danh mục đầy đủ của trang web",
+    "releaseDate": "Ngày phát hành",
     "sections": {
       "specifications": "Thông số kỹ thuật"
     },
-    "tokenCount_other": "{{formattedCount}} token"
+    "subscriptionMultiplier": "Hệ số gói",
+    "subscriptionPlan": "Gói đăng ký",
+    "supportedDimensions": "Số chiều hỗ trợ",
+    "supportsImages": "Hỗ trợ hình ảnh",
+    "tokenCount_other": "{{formattedCount}} token",
+    "trainingChannels": "Có kênh huấn luyện",
+    "trainingConsent": "Cần đồng ý huấn luyện",
+    "vercelVerificationRequired": "Hoàn tất xác minh khách hàng trong bảng điều khiển Vercel AI Gateway trước khi gửi yêu cầu",
+    "viewOnSite": "Xem trên trang"
   },
   "displayOptions": "Hiển thị",
   "endpointType": "Loại endpoint",
   "endpointTypes": "Loại endpoint",
+  "endpointTypesHint": "Hiển thị các loại điểm cuối API mà mỗi mô hình hỗ trợ.",
   "estimatedPrice": "Ước tính",
-  "estimatedPriceTitle": "Ước tính từ bảng giá chính thức và tỷ lệ nhóm Sub2API của khóa này.",
+  "estimatedPriceTitle": "Tính từ mức giá tham khảo hoặc giả định về giá; phí thực tế có thể khác.",
+  "expandAccountGroups": "Mở rộng nhóm tài khoản",
+  "expandAccountGroupsHint": "Liệt kê riêng từng nhóm khả dụng. Một tài khoản có thể có nhiều báo giá cho cùng mô hình. Bộ lọc nhóm tài khoản xác định các nhóm khả dụng. Lựa chọn nhóm trên thẻ chỉ áp dụng cho báo giá của mô hình đó.",
   "expandDetails": "Mở rộng chi tiết",
   "fallbackSourceNotice": {
     "description": "Thư mục mô hình hiện tại được tải dự phòng thông qua khóa tài khoản, chỉ hỗ trợ phát hiện và xác minh mô hình. Nhấp vào làm mới dữ liệu sẽ thử lại API của tài khoản.",
@@ -273,6 +329,10 @@
   "groupRatioTooltip": "Tỷ lệ nhóm {{group}}: {{ratio}}x",
   "groupRatioUnavailable": "Không có hệ số nhóm",
   "groupSelectionHint": "Để trống biểu thị tất cả các nhóm; việc sắp xếp giá sẽ tự động lấy mức giá tốt nhất trong phạm vi các nhóm đã chọn",
+  "inferenceRouteFallbackNotice": {
+    "description": "Không thể lấy thông tin tuyến mới nhất. Danh sách mô hình được lấy qua địa chỉ tích hợp, có thể đã lỗi thời. Mô hình vẫn đến từ phản hồi API trực tiếp.",
+    "title": "Đang dùng tuyến tích hợp"
+  },
   "input": "Đầu vào:",
   "input1MTokens": "Đầu vào (1M tokens)",
   "keyDialog": {
@@ -357,6 +417,7 @@
     },
     "selectionHint": "Khi chọn nhiều năng lực, mô hình phải khớp với tất cả năng lực đã chọn."
   },
+  "modelGroupQuickSelect": "Nhóm mô hình",
   "noMatchingModels": "Không tìm thấy mô hình nào phù hợp",
   "noSourcesDescription": "Vui lòng thêm tài khoản trang web hoặc thông tin xác thực API trước, sau đó xem danh sách mô hình.",
   "noSourcesTitle": "Hiện chưa có nguồn dữ liệu khả dụng",
@@ -423,6 +484,25 @@
   },
   "pricingDescription": "Giá được lấy từ trang web. Các đơn vị tính phí khác nhau như triệu token, ảnh, giây và yêu cầu được so sánh riêng. Hãy xem đơn vị cạnh mỗi báo giá; phí thực tế do trang web quyết định.",
   "pricingNote": "Ghi chú định giá mô hình",
+  "pricingNotes": {
+    "allChannels": "Tất cả kênh",
+    "ambiguousCharges": "Nhiều khoản phí dùng chung một thước đo nhưng chưa thể tách lượng sử dụng hoặc giai đoạn tính phí. Các mức giá khác đã biết được giữ lại.",
+    "ambiguousVariantCharges": "Nguồn công bố cả phí theo đơn vị và theo biến thể nhưng chưa xác định các khoản này được cộng thêm hay thay thế nhau.",
+    "dedicatedPrices": "Giá riêng đã bao gồm hệ số",
+    "defaultRoute": "Tuyến mặc định",
+    "endpointSourceConflict": "Các endpoint chính thức công bố quy tắc tính phí không nhất quán cho mô hình này; chưa thể xác định giá áp dụng.",
+    "excludedCharges": "Có thể ước tính các khoản phí đã biết; chưa bao gồm các khoản phí độc lập sau: {{charges}}.",
+    "multiplier": "Hệ số {{value}}",
+    "namedChannel": "Tất cả kênh ({{name}})",
+    "providerReportedEstimate": "Tính phí theo chi phí thực tế của nhà cung cấp; giá token niêm yết chỉ là ước tính khoản phí cuối cùng.",
+    "routingContext": "{{route}} · {{channel}} · {{price}}. Chế độ giá mặc định của trang gốc; chi phí phụ thuộc tuyến và kênh yêu cầu.",
+    "runtimeDependent": "Nguồn tính phí theo tác vụ thực tế nhưng chưa có công thức tính trước đầy đủ; số liệu công bố chỉ để tham khảo.",
+    "thresholdBasisUnverified": "Giữ lại giá theo bậc để tham khảo. Chưa xác minh đầy đủ cơ sở tính lượng sử dụng, cách tính bộ nhớ đệm và ranh giới nên không thể tự động chọn bậc.",
+    "thresholdSourceConflict": "Giá cơ bản và giá tại ngưỡng 0 bị mâu thuẫn hoặc chưa đầy đủ; chưa thể xác định giá tham khảo.",
+    "timeWindow": "{{label}} {{start}}–{{end}}: đầu vào ${{input}} · đầu ra ${{output}} · đọc bộ nhớ đệm ${{cacheRead}} / 1 triệu token",
+    "timeWindowTimezoneUnavailable": "Chưa công bố múi giờ; hiển thị giá thông thường và không tự áp dụng ưu đãi theo khung giờ.",
+    "wholeRequestTier": "Bậc giá ngữ cảnh phù hợp áp dụng cho toàn bộ yêu cầu."
+  },
   "profileSourceNotice": {
     "description": "Thông tin xác thực API đã lưu chỉ hỗ trợ phát hiện và xác minh mô hình, không cung cấp định giá, bộ lọc nhóm, tổng quan tài khoản hoặc khả năng tương thích của khóa.",
     "title": "Thư mục mô hình thông tin xác thực API"
@@ -433,13 +513,32 @@
     "description": "Chưa thể xác nhận phạm vi mô hình thực sự khả dụng của tài khoản này, nên toàn bộ danh mục mô hình của nhà cung cấp đang được hiển thị. Một số mô hình có thể không gọi được bằng tài khoản này; hãy lấy quyền của tài khoản trên trang và kết quả xác minh thực tế làm nguồn xác thực cuối cùng.",
     "title": "Đã chuyển về toàn bộ danh mục mô hình của nhà cung cấp"
   },
+  "providerGroup": {
+    "action": "Đổi nhóm định tuyến trên trang chính thức",
+    "apply": "Lưu lên trang chính thức",
+    "description": "Việc lưu sẽ thay đổi định tuyến của mô hình này trên trang chính thức và có thể ảnh hưởng đến các yêu cầu và giá sau đó.",
+    "label": "Nhóm định tuyến trên trang chính thức",
+    "locked": "Phiên đang hoạt động khóa tùy chọn này. Hãy quản lý phiên trên trang chính thức trước.",
+    "refreshRequired": "{{error}}. Thay đổi có thể đã áp dụng. Hãy làm mới danh sách trước khi thử lại.",
+    "saving": "Đang lưu…"
+  },
   "providerTabs": {
     "scrollLeft": "Cuộn thẻ hãng sang trái",
     "scrollRight": "Cuộn thẻ hãng sang phải",
     "unclassified": "Chưa phân loại",
     "unclassifiedDescription": "Không thể xác định nhà cung cấp; điều này không có nghĩa là mô hình không khả dụng."
   },
+  "quotaBilling": {
+    "adjustments": "Các yếu tố tính phí bổ sung: {{names}}.",
+    "comparison": "{{amount}} trên một triệu token mô phỏng.",
+    "invalid": "Giá hạn mức hiện không khả dụng.",
+    "reference": "Chỉ gồm mức dùng cơ bản, chưa tính các hệ số bổ sung.",
+    "sortAsc": "Mức dùng hạn mức: tăng dần",
+    "sortDesc": "Mức dùng hạn mức: giảm dần",
+    "source": "Quy tắc tính phí"
+  },
   "realAmount": "Số tiền nạp thực tế",
+  "realAmountHint": "Quy đổi giá theo tỷ lệ quy đổi đã cấu hình cho từng tài khoản.",
   "refreshData": "Làm mới dữ liệu",
   "runtimeKeyFallbackSourceNotice": {
     "description": "Danh mục mô hình hiện tại được tải bằng khóa hiện có của tài khoản này, chỉ hỗ trợ phát hiện và xác minh mô hình. Tài khoản này không thể tạo khóa API mới tại đây; nhấp vào làm mới dữ liệu sẽ thử lại API của tài khoản.",
@@ -447,6 +546,7 @@
   },
   "scenario": {
     "additionalChargesExcluded": "Ước tính này không bao gồm các khoản tính phí khác chưa được xác minh.",
+    "annotatedDocument": "Đầu ra có chú thích",
     "appliedConversion": "Quy đổi: 1 USD = {{value}} CNY",
     "appliedMultiplier": "Hệ số nhóm ×{{value}}",
     "audio": "Số giây âm thanh",
@@ -467,6 +567,7 @@
     "catalogExplanation": "Ước tính theo giá công khai của trang web và kịch bản hiện tại; không phải khoản phí thực tế của tài khoản.",
     "character": "ký tự",
     "characters": "Số ký tự mỗi tác vụ",
+    "codeExecution": "Số lần thực thi mã",
     "collected": "Thời gian lấy giá: {{time}}",
     "compareEffect": "Chọn trường hợp sử dụng gần với nhu cầu của bạn để so sánh đơn giá. Điều chỉnh tỷ lệ hoặc mở các điều kiện tính phí liên quan khi cần.",
     "conditional": "Giá theo điều kiện",
@@ -478,10 +579,12 @@
     "currentBaseTier": "Áp dụng bậc giá cơ bản",
     "currentTier": "Bậc giá đang áp dụng",
     "day": "Ngày",
+    "documentAnnotation": "Chú thích tài liệu",
     "effectiveRate": "Đơn giá áp dụng",
     "excludedCosts": "Chưa bao gồm: {{meters}}. Các chi phí này có thể làm tăng số tiền thực tế.",
     "fixedPriceUnavailable": "Nguồn trả về giá trị giữ chỗ thay vì đơn giá cố định có thể so sánh. Đây không phải là thiếu cài đặt hay miễn phí. Hãy xem nguồn giá để xác nhận chi phí của các mô hình hoặc dịch vụ thực tế được sử dụng.",
     "freeQuantity": "Miễn phí {{value}} đơn vị đầu mỗi tác vụ",
+    "generationMode": "Thao tác tạo",
     "groups": {
       "image": "Cài đặt hình ảnh",
       "other": "Điều kiện tính phí khác",
@@ -490,6 +593,7 @@
     },
     "hour": "Giờ",
     "image": "Hình ảnh",
+    "imageCache": "Token ảnh lưu đệm",
     "imageInput": "Token ảnh đầu vào",
     "imageMegapixels": "Diện tích ảnh (megapixel)",
     "imageOutput": "Token ảnh đầu ra",
@@ -507,7 +611,8 @@
       "cacheRead": "Đọc bộ nhớ đệm",
       "cacheWrite": "Ghi bộ nhớ đệm",
       "input": "Đầu vào",
-      "output": "Đầu ra"
+      "output": "Đầu ra",
+      "request": "Giá mỗi lượt gọi"
     },
     "minute": "Phút",
     "missingConversion": "Chưa có cơ sở quy đổi sang CNY. Tắt hiển thị giá thực để xem giá niêm yết USD.",
@@ -538,6 +643,7 @@
     "perMillionVideoTokens": "triệu token đầu ra video",
     "perRequest": "mỗi yêu cầu",
     "perUnit": "mỗi đơn vị",
+    "plainDocument": "Đầu ra không chú thích",
     "pricingSourceUnavailable": "Không thể tải đầy đủ quy tắc giá nên tạm thời chưa thể so sánh. Hãy làm mới giá để thử lại hoặc xem nguồn giá. Đây không phải là thiếu điều kiện đầu vào.",
     "pricingTime": "So sánh giá tại thời điểm",
     "pricingTimeEffect": "So sánh giá ở các thời điểm khác nhau theo giờ địa phương của thiết bị. Chỉ ảnh hưởng đến mô hình có giá theo thời gian; đây không phải thời điểm cập nhật dữ liệu giá.",
@@ -545,8 +651,14 @@
     "publishedPrices": "Đơn giá tham khảo:",
     "rateChange": "{{meter}}: {{from}} → {{to}} / triệu token",
     "referenceImages": "Số ảnh tham chiếu mỗi tác vụ",
+    "referenceRate": "Giá tham khảo",
+    "requestUnit": "lượt gọi",
     "responseFormat": "Định dạng phản hồi tính phí",
     "search": "Lượt tìm kiếm",
+    "searchContext": "Ngữ cảnh tìm kiếm",
+    "searchContextHigh": "Cao",
+    "searchContextLow": "Thấp",
+    "searchContextMedium": "Trung bình",
     "searchUnit": "đơn vị tìm kiếm",
     "searchUnits": "Đơn vị tìm kiếm mỗi tác vụ",
     "second": "giây",
@@ -570,14 +682,20 @@
     "unspecified": "Chưa chỉ định",
     "unsupportedRule": "Hiện chưa thể tính một số quy tắc tính phí. Hãy xem chi tiết giá trên trang web.",
     "unverifiedCacheBasis": "Trang web không nêu rõ độ dài đầu vào dùng để chọn bậc giá có bao gồm token bộ nhớ đệm hay không. Đặt cả trọng số đọc và ghi bộ nhớ đệm thành 0 để so sánh không có bộ nhớ đệm; thao tác này thay đổi lượng sử dụng được so sánh. Bạn cũng có thể xem bảng giá trong chi tiết tính toán hoặc mở nguồn giá.",
+    "videoAudio": "Âm thanh video",
     "videoComparisonHint": "So sánh đơn giá token đầu ra video theo điều kiện tham chiếu đã chọn. Phí thực tế phụ thuộc vào kết quả tạo ra.",
+    "videoDynamicRange": "Dải động video",
     "videoInput": "Video tham chiếu",
+    "videoInputTokens": "Token video đầu vào",
+    "videoMode": "Chế độ tạo video",
     "videoOutput": "Đầu ra video",
     "videoPrice": "Đơn giá đầu ra video ước tính",
     "videoQuality": "Chất lượng video",
     "videoSeconds": "Thời lượng video mỗi tác vụ (giây)",
     "websiteRulesUnavailable": "Chưa có đầy đủ quy tắc tính phí để tính toán. Hãy xem chi tiết giá trên trang web.",
     "weekday": "Thứ (0 = Chủ nhật)",
+    "withAudio": "Tạo âm thanh",
+    "withoutAudio": "Không có âm thanh",
     "withoutVideo": "Không có video tham chiếu",
     "withVideo": "Có video tham chiếu"
   },
@@ -586,6 +704,7 @@
   "selectSource": "Chọn nguồn dữ liệu",
   "selectSourceToContinue": "Vui lòng chọn một nguồn dữ liệu ở trên trước, sau đó xem danh sách mô hình.",
   "showing_other": "Đang hiển thị {{count}} mô hình",
+  "showingGroupQuotes_other": "Đang hiển thị {{count}} báo giá",
   "showUnavailableModels": "Hiển thị cả mô hình tài khoản không có quyền sử dụng",
   "siteDescription": "Mô tả từ trang web:",
   "siteSupportedGroups": "Nhóm được trang hỗ trợ",
@@ -645,15 +764,15 @@
   },
   "title": "Danh sách mô hình",
   "totalModels_other": "Tổng cộng {{count}} mô hình",
-  "unavailable": "Không khả dụng",
   "unavailableModelsHint": "Bao gồm các mô hình đã tải không có nhóm sử dụng được cho tài khoản này. Các mô hình này bỏ qua lựa chọn nhóm nhưng vẫn tuân theo các bộ lọc khác. Không tải thêm mô hình trên toàn trang web. Chỉ áp dụng trong phiên trang hiện tại.",
   "unavailablePriceReasons": {
     "groupRatioUnavailable": "Không thể hiển thị giá vì nhóm dùng được này không có hệ số.",
     "keyGroupUnknown": "Không có giá vì không thể xác định nhóm Sub2API của khóa này.",
     "modelListOnly": "Các mô hình này khả dụng cho khóa này. Không có dữ liệu giá.",
     "officialPriceInvalid": "Dữ liệu giá chính thức của mô hình này không hợp lệ.",
-    "officialPriceMissing": "Mô hình này không có trong bảng giá.",
-    "pricingSourceUnavailable": "Dữ liệu giá không khả dụng cho nguồn này."
+    "officialPriceMissing": "Không tìm thấy giá cho mô hình này.",
+    "pricingRulesUnavailable": "Quy tắc tính phí chưa đầy đủ; hiển thị mức giá tham khảo đã công bố.",
+    "pricingSourceUnavailable": "Chưa lấy được dữ liệu giá."
   },
   "userGroup": "Nhóm người dùng",
   "verificationResults": {

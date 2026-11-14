@@ -1,12 +1,12 @@
-import { getDefaultAccountKeyName } from "~/services/accounts/accountKeyNames"
-import type { AccountKeyResourceEditorDefinition } from "~/services/apiAdapters/accountKeyResources/factory"
+import { getDefaultAccountKeyName } from "~/services/accounts/keys/accountKeyNames"
+import type { AccountKeyResourceEditorDefinition } from "~/services/apiAdapters/accountKeyResources/definition"
 import { resolveKeyCreationGroupIntent } from "~/services/apiAdapters/accountKeyResources/groupCreationIntent"
 import type { AccountKeyCreationIntent } from "~/services/apiAdapters/contracts/accountKeyResource"
 import {
   RESOURCE_FIELD_TYPES,
   type ResourceFieldIssue,
 } from "~/services/apiAdapters/contracts/resourceNative"
-import { fetchVoApiV2KeyGroupDescriptors } from "~/services/apiService/voapiV2"
+import { fetchVoApiV2KeyGroupDescriptors } from "~/services/apiService/voapiV2/keyGroups"
 import type {
   VoApiV2Key,
   VoApiV2KeyWrite,
@@ -49,11 +49,20 @@ export function createVoApiV2KeyEditor(
   key?: VoApiV2Key,
   intent?: AccountKeyCreationIntent,
   groups?: Awaited<ReturnType<typeof fetchVoApiV2KeyGroupDescriptors>>,
+  provisioningGroupId?: number,
 ): AccountKeyResourceEditorDefinition<VoApiV2KeyEditCommand> {
-  const { allowedIds, preferred } = resolveKeyCreationGroupIntent(
+  const resolved = resolveKeyCreationGroupIntent(
     groups,
     key ? undefined : intent,
   )
+  const preferred =
+    provisioningGroupId === undefined
+      ? resolved.preferred
+      : groups?.find((group) => group.id === provisioningGroupId)
+  const allowedIds =
+    provisioningGroupId === undefined
+      ? resolved.allowedIds
+      : new Set([String(provisioningGroupId)])
   const baseline: VoApiV2KeyWrite = key
     ? toVoApiV2KeyWrite(key)
     : {
@@ -63,7 +72,7 @@ export function createVoApiV2KeyEditor(
         groups: preferred ? [preferred.id] : [],
         enable: true,
         expireTime: -1,
-        boundlessAmount: false,
+        boundlessAmount: true,
         amount: "0",
         used: "0",
         note: "",
@@ -153,11 +162,13 @@ export function createVoApiV2KeyEditor(
     },
     async loadOptions(fieldId, _values, options) {
       if (fieldId !== field.Groups) return []
-      const groups = await fetchVoApiV2KeyGroupDescriptors({
-        ...request,
-        ...(options?.signal ? { abortSignal: options.signal } : {}),
-      })
-      return groups
+      const availableGroups =
+        groups ??
+        (await fetchVoApiV2KeyGroupDescriptors({
+          ...request,
+          ...(options?.signal ? { abortSignal: options.signal } : {}),
+        }))
+      return availableGroups
         .filter((group) => !allowedIds || allowedIds.has(String(group.id)))
         .map((group) => ({
           value: String(group.id),

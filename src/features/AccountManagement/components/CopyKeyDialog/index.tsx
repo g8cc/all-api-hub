@@ -1,17 +1,28 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { CCSwitchExportDialog } from "~/components/CCSwitchExportDialog"
 import { Alert, Modal } from "~/components/ui"
 import { useCopyKeyDialog } from "~/features/AccountManagement/components/CopyKeyDialog/hooks/useCopyKeyDialog"
 import { ACCOUNT_MANAGEMENT_TEST_IDS } from "~/features/AccountManagement/testIds"
-import AddTokenDialog from "~/features/TokenProvisioning/components/AddTokenDialog"
-import { DefaultTokenGroupSelectionDialog } from "~/features/TokenProvisioning/components/DefaultTokenGroupSelectionDialog"
-import { OneTimeSecretDialog } from "~/features/TokenProvisioning/components/OneTimeSecretDialog"
-import { useDefaultTokenQuickCreate } from "~/features/TokenProvisioning/hooks/useDefaultTokenQuickCreate"
-import { buildOneTimeApiKeyProfileSaveAction } from "~/features/TokenProvisioning/utils/apiCredentialProfileSaveAction"
-import type { AccountKeyCreationResult } from "~/services/accounts/accountKeyCreation"
-import { supportsRecoverableAccountRuntimeKeySecrets } from "~/services/accounts/keyProductCapabilities"
+import { useApiCredentialProfileLinks } from "~/features/ApiCredentialProfiles/associations/useApiCredentialProfileLinks"
+import { useApiCredentialProfiles } from "~/features/ApiCredentialProfiles/workspace/useApiCredentialProfiles"
+import {
+  DeeplinkExportDialog,
+  type DeeplinkExportRequest,
+  type DeeplinkExportTarget,
+} from "~/features/CredentialExport/DeeplinkExportDialog"
+import { getCredentialProfileForLocator } from "~/features/KeyManagement/associations/credentialAssociations"
+import type { NativeKeyManagementRow } from "~/features/KeyManagement/types"
+import AddTokenDialog from "~/features/TokenProvisioning/creation/AddTokenDialog"
+import { DefaultTokenGroupSelectionDialog } from "~/features/TokenProvisioning/creation/DefaultTokenGroupSelectionDialog"
+import { useDefaultTokenQuickCreate } from "~/features/TokenProvisioning/creation/useDefaultTokenQuickCreate"
+import { buildOneTimeApiKeyProfileSaveAction } from "~/features/TokenProvisioning/secretDelivery/apiCredentialProfileSaveAction"
+import { OneTimeSecretDialog } from "~/features/TokenProvisioning/secretDelivery/OneTimeSecretDialog"
+import type { AccountKeyCreationResult } from "~/services/accounts/keys/accountKeyCreation"
+import { ACCOUNT_RUNTIME_KEY_SOURCES } from "~/services/accounts/keys/accountRuntimeKeys"
+import { supportsRecoverableAccountRuntimeKeySecrets } from "~/services/accounts/keys/keyProductCapabilities"
+import { INVENTORY_SECRET_AVAILABILITIES } from "~/services/apiAdapters/contracts/inventorySecret"
+import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
 import type { CredentialExportSource } from "~/services/integrations/credentialExport"
 import type { DisplaySiteData } from "~/types"
 import { createLogger } from "~/utils/core/logger"
@@ -20,7 +31,7 @@ import { openKeysPage } from "~/utils/navigation"
 import { DialogFooter } from "./DialogFooter"
 import { DialogHeader } from "./DialogHeader"
 import { ErrorDisplay } from "./ErrorDisplay"
-import { KeyInventoryList } from "./KeyInventoryList"
+import { KeyInventoryList, type KeyEditorAction } from "./KeyInventoryList"
 import { LoadingIndicator } from "./LoadingIndicator"
 
 interface CopyKeyDialogProps {
@@ -38,14 +49,26 @@ export default function CopyKeyDialog({
   account,
 }: CopyKeyDialogProps) {
   const keyManagementT = useTranslation("keyManagement").t
-  const [isAddTokenDialogOpen, setIsAddTokenDialogOpen] = useState(false)
-  const [ccSwitchSource, setCCSwitchSource] =
-    useState<CredentialExportSource | null>(null)
+  const { t } = useTranslation("ui")
+  const { profiles, isLoading: profilesLoading } = useApiCredentialProfiles()
+  const {
+    links,
+    isLoading: linksLoading,
+    error: linksError,
+  } = useApiCredentialProfileLinks()
+  const [createEditorAction, setCreateEditorAction] =
+    useState<KeyEditorAction | null>(null)
+  const isAddTokenDialogOpen = createEditorAction !== null
+  const [isCreateEditorReady, setIsCreateEditorReady] = useState(false)
+  const [deeplinkExportRequest, setDeeplinkExportRequest] =
+    useState<DeeplinkExportRequest | null>(null)
   const {
     runtimeKeys,
     nativeKeyRows,
     isLoading,
     error,
+    authenticationFailed,
+    managementConfigurationRequired,
     postCreateError,
     oneTimeSecret,
     copiedRuntimeKeyId,
@@ -63,7 +86,10 @@ export default function CopyKeyDialog({
     account,
     canCreate: canCreateDefaultKey,
     onCreated: refreshRuntimeKeysAfterCreate,
-    onInputRequired: () => setIsAddTokenDialogOpen(true),
+    onInputRequired: () => {
+      setIsCreateEditorReady(false)
+      setCreateEditorAction("default")
+    },
   })
   const {
     selection: defaultTokenGroupSelection,
@@ -80,16 +106,34 @@ export default function CopyKeyDialog({
           source: "CopyKeyDialog",
         })
       : undefined
+  const getCredentialProfile = (row: NativeKeyManagementRow) => {
+    if (profilesLoading || linksLoading || linksError) return undefined
+    return getCredentialProfileForLocator(links, profiles, {
+      source: ACCOUNT_RUNTIME_KEY_SOURCES.AccountKeyResource,
+      ref: row.facts.ref,
+    })
+  }
   const showCreateResponseOnlyWarning =
     account !== null &&
-    !supportsRecoverableAccountRuntimeKeySecrets(account.siteType)
+    !isLoading &&
+    !error &&
+    !managementConfigurationRequired &&
+    getSiteTypeCapabilities(account.siteType).account?.keyResourceManagement
+      ?.inventorySecretAvailability ===
+      INVENTORY_SECRET_AVAILABILITIES.CreateResponseOnly &&
+    !supportsRecoverableAccountRuntimeKeySecrets(account.siteType) &&
+    (nativeKeyRows.length === 0 ||
+      nativeKeyRows.some((row) => !getCredentialProfile(row)?.apiKey.trim()))
+  const isOpeningCreateEditor = isAddTokenDialogOpen && !isCreateEditorReady
 
   const handleOpenAddTokenDialog = () => {
     defaultTokenQuickCreate.reset()
-    setIsAddTokenDialogOpen(true)
+    setIsCreateEditorReady(false)
+    setCreateEditorAction("custom")
   }
   const handleCloseAddTokenDialog = () => {
-    setIsAddTokenDialogOpen(false)
+    setCreateEditorAction(null)
+    setIsCreateEditorReady(false)
   }
   const handleAddTokenSuccess = (createdToken: AccountKeyCreationResult) => {
     return refreshRuntimeKeysAfterCreate(createdToken)
@@ -97,15 +141,19 @@ export default function CopyKeyDialog({
 
   useEffect(() => {
     if (!isOpen || !account) {
-      setIsAddTokenDialogOpen(false)
+      setCreateEditorAction(null)
+      setIsCreateEditorReady(false)
     }
   }, [account, isOpen])
 
-  const handleOpenCCSwitchDialog = (source: CredentialExportSource) => {
-    setCCSwitchSource(source)
+  const handleOpenDeeplinkExport = (
+    target: DeeplinkExportTarget,
+    source: CredentialExportSource,
+  ) => {
+    setDeeplinkExportRequest({ target, source })
   }
 
-  const handleCloseCCSwitchDialog = () => setCCSwitchSource(null)
+  const handleCloseDeeplinkExport = () => setDeeplinkExportRequest(null)
 
   const handleOpenKeyManagement = () => {
     if (!account) return
@@ -117,24 +165,41 @@ export default function CopyKeyDialog({
     if (isLoading) {
       return <LoadingIndicator />
     }
-    if (error) {
-      return <ErrorDisplay error={error} onRetry={fetchKeyInventory} />
+    if (error && runtimeKeys.length === 0 && nativeKeyRows.length === 0) {
+      return (
+        <ErrorDisplay
+          error={error}
+          onRetry={fetchKeyInventory}
+          account={account}
+          authenticationFailed={authenticationFailed}
+          onNavigate={onClose}
+        />
+      )
     }
     if (!account) {
+      return null
+    }
+    if (
+      managementConfigurationRequired &&
+      runtimeKeys.length === 0 &&
+      nativeKeyRows.length === 0
+    ) {
       return null
     }
     return (
       <KeyInventoryList
         runtimeKeys={runtimeKeys}
         nativeKeyRows={nativeKeyRows}
+        getCredentialProfile={getCredentialProfile}
         expandedRuntimeKeys={expandedRuntimeKeys}
         copiedRuntimeKeyId={copiedRuntimeKeyId}
         onToggleRuntimeKey={toggleRuntimeKeyExpansion}
         onCopyKey={copyKey}
         account={account}
-        onOpenCCSwitchDialog={handleOpenCCSwitchDialog}
+        onOpenDeeplinkExport={handleOpenDeeplinkExport}
         canCreateDefaultKey={canCreateDefaultKey}
         isCreating={isDefaultTokenQuickCreateBusy}
+        openingEditorAction={isOpeningCreateEditor ? createEditorAction : null}
         createError={
           defaultTokenGroupSelection
             ? null
@@ -153,6 +218,7 @@ export default function CopyKeyDialog({
         isOpen={isOpen}
         onClose={onClose}
         size="lg"
+        focusFallbackKey={isAddTokenDialogOpen ? undefined : account?.id}
         panelClassName="max-h-[85vh] overflow-hidden flex flex-col"
         footerTestId={ACCOUNT_MANAGEMENT_TEST_IDS.copyKeyDialogFooter}
         header={<DialogHeader account={account} />}
@@ -164,7 +230,23 @@ export default function CopyKeyDialog({
           />
         }
       >
-        <div className="space-y-density-3 flex-1 overflow-y-auto">
+        <div className="space-y-density-3">
+          {managementConfigurationRequired ? (
+            <Alert
+              compact
+              variant="info"
+              description={t("dialog.copyKey.managementConfigurationRequired")}
+            />
+          ) : null}
+          {error && (runtimeKeys.length > 0 || nativeKeyRows.length > 0) ? (
+            <ErrorDisplay
+              error={error}
+              onRetry={fetchKeyInventory}
+              account={account}
+              authenticationFailed={authenticationFailed}
+              onNavigate={onClose}
+            />
+          ) : null}
           {showCreateResponseOnlyWarning ? (
             <Alert
               compact
@@ -177,11 +259,10 @@ export default function CopyKeyDialog({
           {renderContent()}
         </div>
       </Modal>
-      {ccSwitchSource && (
-        <CCSwitchExportDialog
-          isOpen={true}
-          onClose={handleCloseCCSwitchDialog}
-          source={ccSwitchSource}
+      {deeplinkExportRequest && (
+        <DeeplinkExportDialog
+          request={deeplinkExportRequest}
+          onClose={handleCloseDeeplinkExport}
         />
       )}
       {account ? (
@@ -191,6 +272,7 @@ export default function CopyKeyDialog({
           availableAccounts={[account]}
           preSelectedAccountId={account.id}
           onSuccess={handleAddTokenSuccess}
+          onEditorReady={() => setIsCreateEditorReady(true)}
           showOneTimeKeyDialog={false}
         />
       ) : null}

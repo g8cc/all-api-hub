@@ -17,14 +17,30 @@
     "oneTimeKeyPromptCancelled": "Tài khoản đã được lưu. Bạn có thể tạo thủ công AIHubMix API Key trong phần quản lý khóa sau.",
     "oneTimeKeyUnavailableAfterCreate": "Tài khoản đã được lưu, nhưng không thể lấy toàn bộ AIHubMix API Key. Khóa AIHubMix chỉ hiển thị một lần khi tạo, vui lòng tạo lại trong phần quản lý khóa và lưu lại toàn bộ khóa ngay lập tức."
   },
+  "aimlapi": {
+    "credentialInvalid": "Khóa AI/ML API không hợp lệ hoặc đã hết hạn.",
+    "credentialScopeDenied": "Thông tin xác thực AI/ML API này không thể thực hiện thao tác đó. Quản lý khóa cần khóa quản trị; số dư và hóa đơn cần khóa API thường.",
+    "malformedResponse": "AI/ML API trả về phản hồi mà ứng dụng này không đọc được.",
+    "managementKeyRequired": "AI/ML API cần khóa quản trị. Hãy tạo trong \"Management keys\" và dán vào đây.",
+    "networkFallback": "Không kết nối được AI/ML API. Hãy kiểm tra mạng và thử lại."
+  },
+  "aiToolbox": {
+    "attemptingRedirect": "Đang thử chuyển hướng đến AI Toolbox",
+    "invalidApp": "Ứng dụng mục tiêu AI Toolbox không được hỗ trợ",
+    "invalidBaseUrl": "URL cơ sở API không hợp lệ hoặc chưa được điền",
+    "invalidHomepage": "Địa chỉ trang chủ không hợp lệ hoặc chưa được điền",
+    "missingCredentials": "Thiếu thông tin tài khoản hoặc khóa cần thiết",
+    "unableToOpen": "Không thể mở AI Toolbox, vui lòng đảm bảo đã cài đặt"
+  },
   "autodetect": {
-    "currentTabNeedsReload": "Trang hiện tại có thể đã được mở trước khi cài đặt hoặc cập nhật tiện ích, plugin tạm thời không thể đọc thông tin của thẻ này. Vui lòng làm mới trang hiện tại rồi thử lại tính năng nhận dạng tự động.",
+    "currentTabNeedsReload": "Tiện ích không thể kết nối với tập lệnh nhận dạng của trang này. Hãy tải lại trang rồi thử nhận dạng tự động lần nữa. Nếu vẫn thất bại, hãy kiểm tra xem tiện ích có quyền truy cập trang web này hay không.",
     "failed": "Nhận dạng tự động thất bại: {{error}}",
     "forbidden": "Truy cập bị từ chối. Vui lòng kiểm tra xem tường lửa của trang web có chặn các yêu cầu liên quan hay không.",
     "loginThisSite": "Đăng nhập vào trang web này",
     "networkError": "Kết nối mạng thất bại, vui lòng kiểm tra lại kết nối mạng và thử lại.",
     "notFound": "Không thể tự động nhận dạng trang web này. Hãy kiểm tra địa chỉ có đúng không, hoặc đăng nhập vào trang web đích rồi thử lại.",
     "notLoggedIn": "Bạn chưa đăng nhập vào trang web hiện tại hoặc thông tin đăng nhập đã hết hạn, không thể thêm tự động. Vui lòng đăng nhập trước hoặc xem tài liệu hướng dẫn.",
+    "rateLimited": "Quá nhiều yêu cầu. Vui lòng thử lại sau.",
     "serverError": "Lỗi máy chủ, vui lòng thử lại sau.",
     "timeout": "Nhận dạng tự động quá thời gian, vui lòng thử thêm thủ công.",
     "unexpectedData": "Nhận dạng tự động thất bại, dữ liệu trang web trả về không như mong đợi. Vui lòng nhập thông tin thủ công hoặc đảm bảo đã đăng nhập vào trang web mục tiêu."
@@ -67,7 +83,6 @@
     "updateSuccess": "Đã cập nhật thành công nhà cung cấp Claude Code Router {{name}}"
   },
   "cliProxyApi": {
-    "managementApiConnectionSuccess": "Kết nối thành công",
     "managementApiForbidden": "CLIProxyAPI đã từ chối yêu cầu hiện tại. Vui lòng kiểm tra xem khóa quản lý có bị nhập sai nhiều lần hay không, hoặc truy cập hiện tại có bị máy chủ giới hạn hay không.",
     "managementApiHttpError": "CLIProxyAPI Management API trả về mã trạng thái bất thường (HTTP {{status}})",
     "managementApiInvalidKey": "Khóa quản lý (Management Key) của CLIProxyAPI không hợp lệ, vui lòng kiểm tra xem khóa quản lý trong phần cài đặt có chính xác không.",
@@ -78,6 +93,12 @@
     "userInfoNotFound": "Không tìm thấy thông tin người dùng, vui lòng đảm bảo đã đăng nhập",
     "waitUserInfoTimeout": "Đợi thông tin người dùng quá thời gian, vui lòng đảm bảo đã đăng nhập"
   },
+  "cookieTransport": {
+    "permissionRequired": "Trình duyệt này không thể gửi yêu cầu bằng Cookie của tài khoản này. Hãy kiểm tra quyền của tiện ích hoặc cập nhật trình duyệt rồi thử lại.",
+    "requestUnavailable": "Không thể chuẩn bị yêu cầu. Hãy thử lại; nếu vẫn lỗi, hãy tải lại tiện ích.",
+    "scopeUnavailable": "Yêu cầu này không thể dùng phạm vi Cookie đã chọn. Hãy nhập Cookie của tài khoản mong muốn hoặc dùng phiên trình duyệt thông thường của tài khoản đó.",
+    "sessionUnavailable": "Phiên đăng nhập không khả dụng. Hãy đăng nhập lại cùng tài khoản; nếu dùng Cookie đã nhập, hãy nhập lại."
+  },
   "donehub": {
     "configMissing": "Vui lòng cấu hình địa chỉ Done Hub, token quản trị viên và ID người dùng trong phần Cài đặt trước",
     "noChannelsToSync": "Không có kênh nào để đồng bộ"
@@ -85,14 +106,20 @@
   "errors": {
     "api": {
       "invalidResponseFormat": "Định dạng dữ liệu phản hồi không hợp lệ",
+      "missingRecoveryPolicy": "Tiện ích không thể chuẩn bị yêu cầu này. Hãy cập nhật tiện ích hoặc báo cáo sự cố.",
+      "nonJsonContent": "trả về {{contentType}} thay vì JSON (HTTP {{status}})",
       "onlyJsonSupported": "Chỉ hỗ trợ dữ liệu phản hồi JSON",
-      "requestFailed": "Yêu cầu thất bại: {{status}}"
+      "requestFailed": "Yêu cầu thất bại: {{status}}",
+      "verificationRequired": "Trang web trả về trang xác minh. Hãy hoàn tất xác minh trên trang web rồi thử lại."
     },
+    "dayaRedemptionUnconfirmed": "Kiểm tra kết quả trong bảng điều khiển chính thức. Xác nhận việc cấp quyền lợi hoặc hoàn tất áp dụng mã giảm giá trước khi thử lại.",
     "operation": {
       "accountDataFetchTimeout": "Lấy dữ liệu tài khoản quá thời gian ({{seconds}} giây)",
       "failed": "Thao tác thất bại: {{error}}",
       "saveFailed": "Lưu thất bại: {{error}}"
     },
+    "relayForRedemptionUnconfirmed": "Chưa xác nhận kết quả đổi mã. Hãy kiểm tra bảng điều khiển chính thức trước khi thử lại.",
+    "relayForVerificationRequired": "Thao tác này cần mã xác minh. Hoàn tất trên bảng điều khiển chính thức rồi làm mới tại đây.",
     "unknown": "Lỗi không xác định",
     "validation": {
       "bookmarkNameRequired": "Tên dấu trang không được để trống",
@@ -104,6 +131,14 @@
       "userIdNumeric": "ID người dùng phải là số"
     }
   },
+  "gptLoad": {
+    "configMissing": "Configure the gpt-load deployment address and management key in settings first",
+    "noChannelsToSync": "No channels to sync"
+  },
+  "grsai": {
+    "openApiTokenRejected": "Đây là Token hiển thị trên trang thông tin người dùng của Grsai. Nó dành cho API mở của nền tảng và bảng điều khiển không chấp nhận nó. Hãy dùng tự động nhận diện để đọc phiên bảng điều khiển đã đăng nhập, hoặc dán token phiên bảng điều khiển.",
+    "sessionExpired": "Phiên bảng điều khiển Grsai đã lưu đã hết hạn (một phiên kéo dài khoảng 30 ngày). Hãy đăng nhập lại vào bảng điều khiển Grsai rồi thêm tài khoản bằng tự động nhận diện."
+  },
   "kelivo": {
     "copied": "Đã sao chép mã nhập Kelivo di động. Hãy dán mã vào phần nhập nhà cung cấp của Kelivo di động.",
     "copyFailed": "Không thể sao chép mã nhập Kelivo. Hãy kiểm tra quyền truy cập bảng nhớ tạm rồi thử lại.",
@@ -112,6 +147,10 @@
     "missingCredentials": "Cần có tên nhà cung cấp và khóa API đầy đủ.",
     "unsupportedApiType": "Không thể xuất giao thức API này sang Kelivo."
   },
+  "magpie": {
+    "configMissing": "Trước tiên hãy cấu hình địa chỉ Magpie Web và khóa quản trị Web trong cài đặt.",
+    "noChannelsToSync": "Không có kênh nào để đồng bộ"
+  },
   "managedSite": {
     "unsupportedModelSync": "Phiên bản hiện tại không hỗ trợ đồng bộ mô hình trạm quản lý {{siteName}}"
   },
@@ -119,9 +158,22 @@
     "configMissing": "Vui lòng cấu hình địa chỉ New API, token quản trị viên và ID người dùng trong phần Cài đặt trước",
     "noChannelsToSync": "Không có kênh nào để đồng bộ"
   },
+  "novita": {
+    "apiKeyRequired": "Nhập API Key Novita đầy đủ hoặc đăng nhập cùng tài khoản để lấy thông tin xác thực bảng điều khiển. Có thể lưu cả hai.",
+    "consoleAcquisitionFailed": "Không lấy được token bảng điều khiển. Đăng nhập tài khoản này trên Novita, tải lại trang rồi thử lại hoặc dán token trực tiếp. API Key đã nhập được giữ lại.",
+    "consoleCredentialRequired": "Thao tác này cần xác thực bảng điều khiển. Sửa tài khoản và lấy thông tin xác thực của cùng tài khoản Novita.",
+    "credentialInvalid": "Thông tin xác thực Novita không hợp lệ hoặc đã hết hạn. Với phiên bảng điều khiển, đăng nhập và nhận diện lại; nếu không, hãy thay API Key.",
+    "keyChanged": "Khóa đã thay đổi trên Novita. Hãy mở lại trình chỉnh sửa.",
+    "malformedResponse": "Novita trả về phản hồi không mong đợi. Vui lòng thử lại sau.",
+    "networkFallback": "Không thể kết nối với Novita. Vui lòng kiểm tra kết nối mạng và thử lại."
+  },
   "octopus": {
     "configMissing": "Vui lòng cấu hình địa chỉ Octopus, tên người dùng và mật khẩu trong phần Cài đặt trước",
     "corsError": "Đây có thể là vấn đề cấu hình CORS. Vui lòng kiểm tra cấu hình danh sách trắng CORS trong phần cài đặt Octopus.",
+    "noChannelsToSync": "Không có kênh nào để đồng bộ"
+  },
+  "omniroute": {
+    "configMissing": "Hãy cấu hình địa chỉ triển khai và token truy cập OmniRoute trong cài đặt trước",
     "noChannelsToSync": "Không có kênh nào để đồng bộ"
   },
   "openrouter": {
@@ -144,12 +196,13 @@
   },
   "operations": {
     "detection": {
+      "cookieSessionRejected": "Trang web đã từ chối phiên cookie. Hãy đăng nhập lại.",
       "failed": "Phát hiện tự động thất bại, vui lòng nhập thông tin thủ công hoặc đảm bảo đã đăng nhập vào trang web mục tiêu",
       "getAccessTokenFailedDetailed": "Đã phát hiện tài khoản, nhưng không thể lấy token truy cập. Hãy xác nhận tài khoản có quyền tạo hoặc xem API token, hoặc nhập thủ công.",
       "getInfoFailed": "Không thể lấy tên người dùng hoặc token truy cập",
       "getSiteStatusFailedDetailed": "Đã phát hiện tài khoản, nhưng không thể đọc trạng thái trang web. Hãy thử lại sau; nếu vẫn lỗi, hãy lưu tài khoản thủ công trước.",
       "getUserIdFailed": "Không thể lấy ID người dùng",
-      "getUserIdFailedDetailed": "Đã kết nối tới trang web, nhưng không thể đọc ID người dùng. Hãy đảm bảo bạn đã đăng nhập vào trang web mục tiêu rồi thử lại.",
+      "getUserIdFailedDetailed": "Không thể xác nhận tài khoản đang đăng nhập. Mở trang web đích trong trình duyệt này, đảm bảo bạn đã đăng nhập rồi thử lại. Nếu vẫn thất bại, hãy bổ sung thông tin tài khoản theo cách thủ công.",
       "getUsernameFailedDetailed": "Đã phát hiện tài khoản, nhưng trang web không trả về tên người dùng. Hãy đảm bảo bạn đã đăng nhập, hoặc nhập tài khoản thủ công."
     }
   },
@@ -219,6 +272,9 @@
     "configMissing": "Vui lòng cấu hình địa chỉ Veloera, token quản trị viên và ID người dùng trong phần Cài đặt trước",
     "noChannelsToSync": "Không có kênh nào để đồng bộ"
   },
+  "vercelAiGateway": {
+    "accessTokenRequired": "Vercel AI Gateway cần mã truy cập Vercel của nhóm sở hữu gateway."
+  },
   "warnings": {
     "accountSavedWithoutDataRefresh": "Tài khoản đã được lưu, nhưng không thể lấy số dư, hạn mức và lượng sử dụng hôm nay, các giá trị hiển thị hiện tại có thể là giá trị giữ chỗ. Vui lòng làm mới trong danh sách tài khoản sau.",
     "accountUpdatedWithoutDataRefresh": "Cấu hình tài khoản đã được lưu, nhưng không thể làm mới số dư, hạn mức và lượng sử dụng hôm nay mới nhất, dữ liệu hiển thị hiện tại có thể vẫn là dữ liệu cũ. Vui lòng làm mới trong danh sách tài khoản sau."
@@ -233,10 +289,10 @@
     "encryptFailedNoPassword": "Đã bật mã hóa, nhưng chưa thiết lập mật khẩu",
     "fileNotFound": "Tệp sao lưu từ xa không tồn tại",
     "invalidBackupJson": "Tệp sao lưu trên đám mây không đầy đủ nên không thể dùng để đồng bộ. Lần đồng bộ này đã dừng để tránh hợp nhất dữ liệu bị hỏng. Nếu dữ liệu cục bộ trên thiết bị này đầy đủ, hãy dùng Tải lên WebDAV để tạo lại bản sao lưu trên đám mây. Nếu không, hãy tải lên từ một thiết bị khác có dữ liệu đầy đủ hoặc nhập một tệp sao lưu hoàn chỉnh trước.",
-    "safeCommitFailed": "Dịch vụ WebDAV này không thể lưu bản sao lưu một cách an toàn. Bản sao lưu đám mây hiện có vẫn được giữ lại. Vui lòng thử lại sau hoặc dùng dịch vụ WebDAV hỗ trợ di chuyển hoặc đổi tên tệp.",
+    "safeCommitFailed": "Không thể xác nhận bản sao lưu đã được lưu trên đám mây. Hãy kiểm tra kết nối và quyền đọc/ghi rồi thử lại.",
     "syncDataSelectionRequired": "Vui lòng chọn ít nhất một loại dữ liệu để đồng bộ",
     "uploadFailed": "Tải lên thất bại, mã trạng thái: {{status}}",
-    "uploadStillProcessing": "Dịch vụ đám mây vẫn đang xử lý bản sao lưu vừa tải lên nên chưa thể hoàn tất xác minh. Bản sao lưu đám mây hiện có chưa bị thay thế. Vui lòng thử lại sau.",
-    "uploadVerificationFailed": "Xác minh bản sao lưu sau khi tải lên thất bại. Dịch vụ đám mây có thể chưa lưu đầy đủ tệp. Bản sao lưu đám mây hiện có vẫn được giữ lại."
+    "uploadStillProcessing": "Dịch vụ đám mây vẫn đang xử lý bản sao lưu vừa tải lên nên chưa thể hoàn tất xác minh. Vui lòng thử lại sau.",
+    "uploadVerificationFailed": "Xác minh bản sao lưu sau khi tải lên thất bại. Tệp trên đám mây có thể chưa đầy đủ. Hãy thử đồng bộ lại hoặc khôi phục từ bản sao lưu cục bộ nếu cần."
   }
 }

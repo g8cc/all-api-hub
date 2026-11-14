@@ -2,7 +2,7 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import ModelKeyDialog from "~/features/ModelList/components/ModelKeyDialog"
+import ModelKeyDialog from "~/features/ModelList/keySelection"
 import { MODEL_LIST_TEST_IDS } from "~/features/ModelList/testIds"
 import { AuthTypeEnum } from "~/types"
 import { buildCheckInConfig } from "~~/tests/test-utils/checkIn"
@@ -21,7 +21,7 @@ vi.mock("~/services/apiAdapters/registry", () => ({
   }),
 }))
 
-vi.mock("~/features/TokenProvisioning/components/AddTokenDialog", () => ({
+vi.mock("~/features/TokenProvisioning/creation/AddTokenDialog", () => ({
   default: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="add-token-dialog" /> : null,
 }))

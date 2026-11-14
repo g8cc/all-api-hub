@@ -1,16 +1,25 @@
 import type { TFunction } from "i18next"
-import { Bookmark, Plus } from "lucide-react"
+import { Bookmark } from "lucide-react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { ApiCredentialLibraryIcon } from "~/components/icons/productIcons"
-import { WorkflowTransitionIcon } from "~/components/icons/WorkflowTransitionIcon"
 import { Badge, IconButton } from "~/components/ui"
+import { useProductAnalyticsScope } from "~/contexts/ProductAnalyticsScopeContext"
 import {
   SPONSOR_RECOMMENDATION_ACTION_KINDS,
   trackSponsorRecommendationClick,
   type SponsorRecommendationActionKind,
 } from "~/features/AccountManagement/sponsors/analytics"
-import { type SponsorRecommendationSurface } from "~/features/AccountManagement/sponsors/constants"
+import {
+  SPONSOR_RECOMMENDATION_SURFACES,
+  SPONSOR_WORKFLOW_KINDS,
+  type SponsorRecommendationSurface,
+} from "~/features/AccountManagement/sponsors/constants"
+import {
+  SPONSOR_BRAND_ICON_SIZES,
+  SponsorBrandIcon,
+} from "~/features/AccountManagement/sponsors/SponsorBrandIcon"
 import {
   SPONSOR_SUPPORT_STATUS,
   type AddAccountPrefill,
@@ -20,8 +29,17 @@ import {
 } from "~/features/AccountManagement/sponsors/types"
 import { ACCOUNT_MANAGEMENT_TEST_IDS } from "~/features/AccountManagement/testIds"
 import { cn } from "~/lib/utils"
+import { PRODUCT_ANALYTICS_ENTRYPOINTS } from "~/services/productAnalytics/contracts"
+import { isExtensionPopup, isExtensionSidePanel } from "~/utils/browser"
+import { createTab } from "~/utils/browser/tabs"
+
+import type {
+  SponsorWorkflowIntent,
+  SponsorWorkflowStarter,
+} from "./sponsorWorkflowIntent"
 
 interface SponsorRecommendationCardProps {
+  onStartWorkflow?: SponsorWorkflowStarter
   item: SponsorRecommendation
   itemCount: number
   surface: SponsorRecommendationSurface
@@ -82,7 +100,20 @@ function getSupportBadgeVariant(
 }
 
 /** Picks the compact row action, preferring plugin workflows over a plain visit. */
-function getMainActionKind(item: SponsorRecommendation): SponsorMainActionKind {
+function getMainActionKind(
+  item: SponsorRecommendation,
+  surface?: SponsorRecommendationSurface,
+): SponsorMainActionKind {
+  if (surface === SPONSOR_RECOMMENDATION_SURFACES.PopupApiCredentialProfiles) {
+    if (item.actions.apiCredentialProfileFallback) {
+      return SPONSOR_MAIN_ACTION_KINDS.ApiCredentialProfilesFallback
+    }
+  }
+
+  if (surface === SPONSOR_RECOMMENDATION_SURFACES.PopupBookmarks) {
+    return SPONSOR_MAIN_ACTION_KINDS.BookmarkFallback
+  }
+
   if (item.actions.addAccount) {
     return SPONSOR_MAIN_ACTION_KINDS.ContinueAddAccount
   }
@@ -116,25 +147,6 @@ function getMainActionLabel(
   }
 }
 
-/** Renders the compact row icon that matches its current action. */
-function renderMainActionIcon(actionKind: SponsorMainActionKind) {
-  switch (actionKind) {
-    case SPONSOR_MAIN_ACTION_KINDS.ContinueAddAccount:
-      return <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-    case SPONSOR_MAIN_ACTION_KINDS.BookmarkFallback:
-      return <Bookmark aria-hidden="true" className="h-3.5 w-3.5" />
-    case SPONSOR_MAIN_ACTION_KINDS.ApiCredentialProfilesFallback:
-      return (
-        <ApiCredentialLibraryIcon aria-hidden="true" className="h-3.5 w-3.5" />
-      )
-    case SPONSOR_MAIN_ACTION_KINDS.VisitProvider:
-    default:
-      return (
-        <WorkflowTransitionIcon aria-hidden="true" className="h-3.5 w-3.5" />
-      )
-  }
-}
-
 /** Returns the stable test id for the compact row action currently promoted. */
 function getMainActionTestId(actionKind: SponsorMainActionKind) {
   switch (actionKind) {
@@ -158,8 +170,18 @@ export function SponsorRecommendationCard({
   onContinueAddAccount,
   onOpenBookmarkManager,
   onOpenApiCredentialProfiles,
+  onStartWorkflow,
 }: SponsorRecommendationCardProps) {
+  const [isOpening, setIsOpening] = useState(false)
   const { t } = useTranslation("account")
+  const scope = useProductAnalyticsScope()
+  const entrypoint =
+    scope.entrypoint ??
+    (isExtensionSidePanel()
+      ? PRODUCT_ANALYTICS_ENTRYPOINTS.Sidepanel
+      : isExtensionPopup()
+        ? PRODUCT_ANALYTICS_ENTRYPOINTS.Popup
+        : PRODUCT_ANALYTICS_ENTRYPOINTS.Options)
 
   const trackClick = (actionKind: SponsorRecommendationActionKind) => {
     trackSponsorRecommendationClick({
@@ -167,12 +189,28 @@ export function SponsorRecommendationCard({
       item,
       itemCount,
       surface,
+      entrypoint,
     })
   }
 
   const handlePrimaryClick = () => {
     trackClick(SPONSOR_RECOMMENDATION_ACTION_KINDS.VisitProvider)
     window.open(item.links.primary, "_blank", "noopener,noreferrer")
+  }
+
+  const startWorkflow = (intent: SponsorWorkflowIntent, local: () => void) => {
+    if (isOpening) return
+    const visit = async () => {
+      const tab = await createTab(item.links.primary, false)
+      return tab ? { ...tab, url: item.links.primary } : undefined
+    }
+    if (onStartWorkflow) {
+      setIsOpening(true)
+      void onStartWorkflow(intent, visit).finally(() => setIsOpening(false))
+    } else {
+      local()
+      window.open(item.links.primary, "_blank", "noopener,noreferrer")
+    }
   }
 
   const handleContinueAddAccount = () => {
@@ -183,7 +221,7 @@ export function SponsorRecommendationCard({
     }
 
     trackClick(SPONSOR_RECOMMENDATION_ACTION_KINDS.ContinueAddAccount)
-    onContinueAddAccount({
+    const prefill: AddAccountPrefill = {
       siteUrl: addAccountAction.siteUrl,
       siteType: addAccountAction.siteType,
       ...(addAccountAction.authType
@@ -191,23 +229,28 @@ export function SponsorRecommendationCard({
         : {}),
       source: "sponsor",
       sponsorId: item.id,
-    })
-    window.open(item.links.primary, "_blank", "noopener,noreferrer")
+    }
+    startWorkflow({ kind: SPONSOR_WORKFLOW_KINDS.Account, prefill }, () =>
+      onContinueAddAccount(prefill),
+    )
   }
 
   const handleOpenBookmarkManager = () => {
     const bookmarkFallback = item.actions.bookmarkFallback
+    const targetUrl = bookmarkFallback?.url || item.links.primary
 
-    if (!bookmarkFallback) {
+    if (!targetUrl) {
       return
     }
 
     trackClick(SPONSOR_RECOMMENDATION_ACTION_KINDS.BookmarkFallback)
-    window.open(item.links.primary, "_blank", "noopener,noreferrer")
-    onOpenBookmarkManager({
+    const prefill = {
       name: item.name,
-      url: bookmarkFallback.url,
-    })
+      url: targetUrl,
+    }
+    startWorkflow({ kind: SPONSOR_WORKFLOW_KINDS.Bookmark, prefill }, () =>
+      onOpenBookmarkManager(prefill),
+    )
   }
 
   const handleOpenApiCredentialProfiles = () => {
@@ -220,16 +263,18 @@ export function SponsorRecommendationCard({
     trackClick(
       SPONSOR_RECOMMENDATION_ACTION_KINDS.ApiCredentialProfilesFallback,
     )
-    window.open(item.links.primary, "_blank", "noopener,noreferrer")
-    onOpenApiCredentialProfiles({
+    const prefill = {
       name: item.name,
       baseUrl: apiCredentialFallback.baseUrl,
       apiKeyCreateUrl: apiCredentialFallback.apiKeyCreateUrl,
       apiKeyCreateHint: apiCredentialFallback.apiKeyCreateHint,
-    })
+    }
+    startWorkflow({ kind: SPONSOR_WORKFLOW_KINDS.ApiCredential, prefill }, () =>
+      onOpenApiCredentialProfiles(prefill),
+    )
   }
 
-  const mainActionKind = getMainActionKind(item)
+  const mainActionKind = getMainActionKind(item, surface)
   const mainActionLabel = getMainActionLabel(t, mainActionKind)
   const hasAddAccountAction = Boolean(item.actions.addAccount)
   const isIntegratedMainAction =
@@ -263,25 +308,23 @@ export function SponsorRecommendationCard({
       <button
         type="button"
         className={cn(
-          "focus-visible:ring-ring/50 gap-y-density-2 py-density-1-5 flex min-h-(--density-control) min-w-0 flex-1 items-center gap-x-2 rounded-[var(--corner-inner-radius)] px-2.5 text-left transition-colors outline-none focus-visible:ring-[3px]",
+          "focus-visible:ring-ring/50 gap-y-density-2 py-density-1-5 flex min-h-(--density-control) min-w-0 flex-1 items-center gap-x-2.5 rounded-[var(--corner-inner-radius)] px-2.5 text-left transition-colors outline-none focus-visible:ring-[3px]",
           isIntegratedMainAction
             ? "text-theme-700 hover:bg-theme-100/70 dark:text-theme-300 dark:hover:bg-theme-900/30"
             : "dark:text-foreground dark:hover:bg-secondary/70 text-secondary-foreground hover:bg-muted",
         )}
         onClick={handleMainAction}
+        disabled={isOpening}
+        aria-busy={isOpening}
         aria-label={`${mainActionLabel}: ${item.name}`}
         data-testid={getMainActionTestId(mainActionKind)}
       >
-        <span
-          className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-xs",
-            isIntegratedMainAction
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "dark:bg-secondary dark:text-secondary-foreground bg-muted text-muted-foreground",
-          )}
-        >
-          {renderMainActionIcon(mainActionKind)}
-        </span>
+        <SponsorBrandIcon
+          sponsorId={item.id}
+          name={item.name}
+          iconUrl={item.iconUrl}
+          size={SPONSOR_BRAND_ICON_SIZES.Sm}
+        />
         <span className="min-w-0 flex-1">
           <span className="gap-y-density-1-5 flex min-w-0 items-center gap-x-1.5">
             <span className="truncate text-sm leading-5 font-medium">
@@ -314,6 +357,7 @@ export function SponsorRecommendationCard({
               aria-label={t("sponsor.actions.openBookmarkManagerFallback")}
               title={t("sponsor.actions.openBookmarkManagerFallback")}
               onClick={handleOpenBookmarkManager}
+              disabled={isOpening}
               data-testid={
                 ACCOUNT_MANAGEMENT_TEST_IDS.sponsorFallbackBookmarkAction
               }
@@ -331,6 +375,7 @@ export function SponsorRecommendationCard({
               )}
               title={t("sponsor.actions.openApiCredentialProfilesFallback")}
               onClick={handleOpenApiCredentialProfiles}
+              disabled={isOpening}
               data-testid={
                 ACCOUNT_MANAGEMENT_TEST_IDS.sponsorFallbackApiCredentialProfilesAction
               }

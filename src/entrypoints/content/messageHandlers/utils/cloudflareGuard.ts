@@ -1,5 +1,4 @@
-import { RuntimeActionIds } from "~/constants/runtimeActions"
-import { sendRuntimeMessage } from "~/utils/browser/browserApi"
+import { relayContentLog } from "~/utils/browser/contentLogRelay"
 import { createLogger } from "~/utils/core/logger"
 
 const logger = createLogger("CloudflareGuard")
@@ -18,15 +17,7 @@ export function logCloudflareGuard(
     logger.debug(message, details)
   }
 
-  try {
-    void sendRuntimeMessage({
-      action: RuntimeActionIds.CloudflareGuardLog,
-      event,
-      details: details ?? null,
-    }).catch(() => {})
-  } catch {
-    // ignore relay errors
-  }
+  relayContentLog(event, details)
 }
 
 type CloudflareChallengeDetection = {
@@ -90,9 +81,16 @@ export function detectCloudflareChallengePage(): CloudflareChallengeDetection {
 
   const hasChallengePlatformScript = (() => {
     try {
-      return Boolean(
-        document.querySelector('script[src*="/cdn-cgi/challenge-platform/"]'),
-      )
+      return Array.from(
+        document.querySelectorAll<HTMLScriptElement>(
+          'script[src*="/cdn-cgi/challenge-platform/"]',
+        ),
+      ).some((script) => {
+        // This background script also appears on fully loaded application pages.
+        // It does not establish that a challenge interstitial is being shown.
+        const path = new URL(script.src, window.location.href).pathname
+        return path !== "/cdn-cgi/challenge-platform/scripts/precursor/main.js"
+      })
     } catch {
       return false
     }

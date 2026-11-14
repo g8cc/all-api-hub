@@ -1,5 +1,5 @@
-import type { AccountKeyCreationResult } from "~/services/accounts/accountKeyCreation"
-import { createAccountKeyResourceCreatedRuntimeSecret } from "~/services/accounts/createdRuntimeSecret"
+import type { AccountKeyCreationResult } from "~/services/accounts/keys/accountKeyCreation"
+import { createAccountKeyResourceCreatedRuntimeSecret } from "~/services/accounts/keys/createdRuntimeSecret"
 import { buildNewApiKeyCreationResult } from "~~/tests/test-utils/accountKeyFixtures"
 
 import "./copyKeyDialogMocks"
@@ -66,7 +66,7 @@ async function renderExpandedDetails() {
 const { manualCreation } = vi.hoisted(() => ({
   manualCreation: { current: null as AccountKeyCreationResult | null },
 }))
-vi.mock("~/features/TokenProvisioning/components/AddTokenDialog", () => ({
+vi.mock("~/features/TokenProvisioning/creation/AddTokenDialog", () => ({
   default: ({
     isOpen,
     onSuccess,
@@ -375,7 +375,7 @@ describe("CopyKeyDialog exports and service credentials", () => {
     expect(
       screen.getByRole("button", { name: "common:actions.export" }),
     ).toBeInTheDocument()
-    expect(screen.getByText("sk-servi****************cret")).toBeInTheDocument()
+    expect(screen.getByText("sk-s••••••cret")).toBeInTheDocument()
     expect(
       screen.queryByText("sk-service-credential-secret"),
     ).not.toBeInTheDocument()
@@ -405,7 +405,7 @@ describe("CopyKeyDialog exports and service credentials", () => {
     await waitFor(() => {
       expect(openInCherryStudioMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseUrl: "https://api.example.invalid/v1",
+          baseUrl: "https://api.example.invalid",
           providerName: "SharedChat - Codex service key",
           apiKey: "sk-service-credential-secret",
         }),
@@ -417,7 +417,7 @@ describe("CopyKeyDialog exports and service credentials", () => {
       expect(ccSwitchDialogMock).toHaveBeenCalledWith(
         expect.objectContaining({
           source: expect.objectContaining({
-            baseUrl: "https://api.example.invalid/v1",
+            baseUrl: "https://api.example.invalid",
             providerName: "SharedChat - Codex service key",
             resolveApiKey: expect.any(Function),
           }),
@@ -436,7 +436,7 @@ describe("CopyKeyDialog exports and service credentials", () => {
       expect(claudeCodeRouterDialogMock).toHaveBeenCalledWith(
         expect.objectContaining({
           source: expect.objectContaining({
-            baseUrl: "https://api.example.invalid/v1",
+            baseUrl: "https://api.example.invalid",
             providerName: "SharedChat - Codex service key",
             resolveApiKey: expect.any(Function),
           }),
@@ -577,6 +577,7 @@ describe("CopyKeyDialog exports and service credentials", () => {
     expect(resolveApiTokenKeyMock).toHaveBeenCalledTimes(1)
 
     await selectExportAction(user, "keyManagement:actions.exportToKiloCode")
+    await act(async () => vi.dynamicImportSettled())
     await waitFor(() => {
       expect(kiloCodeExportDialogMock).toHaveBeenCalledWith(
         expect.objectContaining({

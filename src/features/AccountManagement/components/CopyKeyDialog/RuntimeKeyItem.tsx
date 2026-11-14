@@ -3,10 +3,11 @@ import { useTranslation } from "react-i18next"
 
 import { Badge, Card, CardContent, IconButton } from "~/components/ui"
 import { getCopyKeyDialogRuntimeKeyItemTestId } from "~/features/AccountManagement/testIds"
+import type { DeeplinkExportTarget } from "~/features/CredentialExport/DeeplinkExportDialog"
 import {
   ACCOUNT_RUNTIME_KEY_STATUSES,
   type AccountRuntimeKey,
-} from "~/services/accounts/accountRuntimeKeys"
+} from "~/services/accounts/keys/accountRuntimeKeys"
 import type { CredentialExportSource } from "~/services/integrations/credentialExport"
 import type { DisplaySiteData } from "~/types"
 
@@ -19,7 +20,10 @@ interface RuntimeKeyItemProps {
   onToggle: () => void
   onCopyKey: (runtimeKey: AccountRuntimeKey) => void
   account: DisplaySiteData
-  onOpenCCSwitchDialog?: (source: CredentialExportSource) => void
+  onOpenDeeplinkExport?: (
+    target: DeeplinkExportTarget,
+    source: CredentialExportSource,
+  ) => void
 }
 
 /**
@@ -32,7 +36,7 @@ export function RuntimeKeyItem({
   onToggle,
   onCopyKey,
   account,
-  onOpenCCSwitchDialog,
+  onOpenDeeplinkExport,
 }: RuntimeKeyItemProps) {
   const { t } = useTranslation("ui")
 
@@ -90,7 +94,7 @@ export function RuntimeKeyItem({
           copiedRuntimeKeyId={copiedRuntimeKeyId}
           onCopyKey={onCopyKey}
           account={account}
-          onOpenCCSwitchDialog={onOpenCCSwitchDialog}
+          onOpenDeeplinkExport={onOpenDeeplinkExport}
         />
       )}
     </Card>

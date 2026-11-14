@@ -3,90 +3,92 @@ import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { SITE_TYPES } from "~/constants/siteType"
 import enCheckin from "~/locales/en/autoCheckin.json" with { type: "json" }
 import zhCheckin from "~/locales/zh-CN/autoCheckin.json" with { type: "json" }
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
-import type { CheckinAccountResult } from "~/types/autoCheckin"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import { expect, test } from "~~/e2e/fixtures/extensionTest"
 import {
   createStoredAccount,
   forceExtensionLanguage,
   installExtensionPageGuards,
+  seedAutoCheckinStatus,
   seedStoredAccounts,
   seedUserPreferences,
   stubLlmMetadataIndex,
+  type AutoCheckinAccountResultFixture,
 } from "~~/e2e/utils/commonUserFlows"
 import {
   getPlasmoStorageJsonValue,
   getServiceWorker,
-  setPlasmoStorageValue,
 } from "~~/e2e/utils/extensionState"
 import { waitForExtensionRoot } from "~~/e2e/utils/lazyLoading"
 
-const RESULT_CASES: { name: string; result: Partial<CheckinAccountResult> }[] =
-  [
-    {
-      name: "Action Account",
-      result: { status: "skipped", reasonCode: "authentication_required" },
+const RESULT_CASES: {
+  name: string
+  result: AutoCheckinAccountResultFixture
+}[] = [
+  {
+    name: "Action Account",
+    result: { status: "skipped", reasonCode: "authentication_required" },
+  },
+  {
+    name: "Credentials Account",
+    result: { status: "skipped", reasonCode: "credentials_missing" },
+  },
+  {
+    name: "Routine Account",
+    result: { status: "skipped", reasonCode: "already_checked_today" },
+  },
+  {
+    name: "Waiting Account",
+    result: { status: "skipped", reasonCode: "network_error" },
+  },
+  {
+    name: "Disabled Account",
+    result: { status: "skipped", reasonCode: "account_disabled" },
+  },
+  {
+    name: "Detection Off Account",
+    result: { status: "skipped", reasonCode: "detection_disabled" },
+  },
+  {
+    name: "Method Off Account",
+    result: { status: "skipped", reasonCode: "method_disabled" },
+  },
+  // Failures and uncertain results persist the same reason vocabulary as
+  // skips, so they take part in the second-level filtering too.
+  { name: "Failed Account", result: { status: "failed" } },
+  {
+    name: "Failed Turnstile Account",
+    result: {
+      status: "failed",
+      reasonCode: "manual_verification_required",
+      messageKey: "autoCheckin:providerFallback.nativePageVerificationRequired",
+      messageParams: { checkInUrl: "https://example.invalid/check-in" },
     },
-    {
-      name: "Credentials Account",
-      result: { status: "skipped", reasonCode: "credentials_missing" },
+  },
+  {
+    name: "Failed Timeout Account",
+    result: { status: "failed", reasonCode: "timeout" },
+  },
+  {
+    name: "Failed Network Account",
+    result: { status: "failed", reasonCode: "network_error" },
+  },
+  {
+    name: "Uncertain Account",
+    result: {
+      status: "uncertain",
+      reconciliation: "unknown",
+      reasonCode: "account_unavailable",
     },
-    {
-      name: "Routine Account",
-      result: { status: "skipped", reasonCode: "already_checked_today" },
+  },
+  {
+    name: "Success Account",
+    result: {
+      status: "success",
+      messageKey: "autoCheckin:providerFallback.checkinSuccessful",
     },
-    {
-      name: "Waiting Account",
-      result: { status: "skipped", reasonCode: "network_error" },
-    },
-    {
-      name: "Disabled Account",
-      result: { status: "skipped", reasonCode: "account_disabled" },
-    },
-    {
-      name: "Detection Off Account",
-      result: { status: "skipped", reasonCode: "detection_disabled" },
-    },
-    {
-      name: "Method Off Account",
-      result: { status: "skipped", reasonCode: "method_disabled" },
-    },
-    // Failures and uncertain results persist the same reason vocabulary as
-    // skips, so they take part in the second-level filtering too.
-    { name: "Failed Account", result: { status: "failed" } },
-    {
-      name: "Failed Turnstile Account",
-      result: {
-        status: "failed",
-        reasonCode: "manual_verification_required",
-        messageKey: "autoCheckin:providerFallback.turnstileManualRequired",
-        messageParams: { checkInUrl: "https://example.invalid/check-in" },
-      },
-    },
-    {
-      name: "Failed Timeout Account",
-      result: { status: "failed", reasonCode: "timeout" },
-    },
-    {
-      name: "Failed Network Account",
-      result: { status: "failed", reasonCode: "network_error" },
-    },
-    {
-      name: "Uncertain Account",
-      result: {
-        status: "uncertain",
-        reconciliation: "unknown",
-        reasonCode: "account_unavailable",
-      },
-    },
-    {
-      name: "Success Account",
-      result: {
-        status: "success",
-        messageKey: "autoCheckin:providerFallback.checkinSuccessful",
-      },
-    },
-  ]
+  },
+]
 
 /** Fills an i18next copy string for the seeded run. */
 function fillCopy(
@@ -106,8 +108,8 @@ for (const language of ["en", "zh-CN"] as const) {
     page,
   }, testInfo) => {
     const copy = language === "en" ? enCheckin : zhCheckin
-    const filters: Record<string, string> = copy.execution.filters
-    const skipReasons: Record<string, string> = copy.skipReasons
+    const filters = copy.execution.filters
+    const skipReasons = copy.skipReasons
     const serviceWorker = await getServiceWorker(context)
     await stubLlmMetadataIndex(context)
     // Keep the scheduled run off so the seeded status stays authoritative.
@@ -134,7 +136,7 @@ for (const language of ["en", "zh-CN"] as const) {
         getPlasmoStorageJsonValue(serviceWorker, "autoCheckin_status"),
       )
       .toBeTruthy()
-    await setPlasmoStorageValue(serviceWorker, "autoCheckin_status", {
+    await seedAutoCheckinStatus(serviceWorker, {
       lastRunAt: new Date().toISOString(),
       lastRunResult: "partial",
       perAccount: Object.fromEntries(
@@ -319,7 +321,9 @@ for (const language of ["en", "zh-CN"] as const) {
     await page.keyboard.press("Escape")
     await expect(reasonTrigger()).toHaveAccessibleName(
       `${filters.reasonLabel}: ${fillCopy(
-        filters.selectedReasons_one ?? filters.selectedReasons,
+        "selectedReasons_one" in filters
+          ? filters.selectedReasons_one
+          : filters.selectedReasons,
         { count: 1 },
       )}`,
     )
@@ -437,7 +441,9 @@ for (const language of ["en", "zh-CN"] as const) {
     await page.keyboard.press("Escape")
     await expect(reasonTrigger()).toHaveAccessibleName(
       `${filters.reasonLabel}: ${fillCopy(
-        filters.selectedReasons_one ?? filters.selectedReasons,
+        "selectedReasons_one" in filters
+          ? filters.selectedReasons_one
+          : filters.selectedReasons,
         { count: 1 },
       )}`,
     )

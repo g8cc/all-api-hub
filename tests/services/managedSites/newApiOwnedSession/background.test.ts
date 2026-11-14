@@ -12,8 +12,7 @@ import { AuthTypeEnum } from "~/types"
 
 const mocks = vi.hoisted(() => ({
   alarmListener: undefined as
-    | ((alarm: { name: string }) => void | Promise<void>)
-    | undefined,
+    ((alarm: { name: string }) => void | Promise<void>) | undefined,
   clearAlarm: vi.fn(async () => true),
   createAlarm: vi.fn(async () => {}),
   getSessionStorageValues: vi.fn(async () => ({})),
@@ -26,17 +25,19 @@ vi.mock("~/services/apiTransport/request", () => ({
   fetchApiResponse: vi.fn(),
 }))
 
-vi.mock("~/utils/browser/browserApi", () => ({
+vi.mock("~/utils/browser/alarms", () => ({
   clearAlarm: mocks.clearAlarm,
   createAlarm: mocks.createAlarm,
-  getSessionStorageValues: mocks.getSessionStorageValues,
-  hasSessionStorageArea: mocks.hasSessionStorageArea,
   onAlarm: vi.fn(
     (listener: (alarm: { name: string }) => void | Promise<void>) => {
       mocks.alarmListener = listener
       return () => {}
     },
   ),
+}))
+vi.mock("~/utils/browser/storage", () => ({
+  getSessionStorageValues: mocks.getSessionStorageValues,
+  hasSessionStorageArea: mocks.hasSessionStorageArea,
   setSessionStorageValues: mocks.setSessionStorageValues,
 }))
 
@@ -77,6 +78,7 @@ describe("revokeNewApiOwnedSession", () => {
     })
     expect(fetchApiResponse).toHaveBeenCalledWith(
       {
+        directRequestReason: "passive" as const,
         baseUrl: receipt.origin,
         accountId: `managed-site:new-api-owned-session:${receipt.origin}`,
         auth: {

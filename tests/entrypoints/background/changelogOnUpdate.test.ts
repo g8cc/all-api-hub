@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest"
 
 type InstalledListener = (details: {
   reason: string
@@ -26,22 +34,21 @@ describe("background onInstalled changelog opening", () => {
   let onStartupListener: (() => void | Promise<void>) | undefined
   let onSuspendListener: (() => void | Promise<void>) | undefined
 
-  let createTabMock: ReturnType<typeof vi.fn>
-  let getDocsChangelogUrlMock: ReturnType<typeof vi.fn>
-  let getManifestMock: ReturnType<typeof vi.fn>
-  let getPreferencesMock: ReturnType<typeof vi.fn>
-  let getPreferencesStrictMock: ReturnType<typeof vi.fn>
-  let hasPermissionsMock: ReturnType<typeof vi.fn>
-  let hasNewOptionalPermissionsMock: ReturnType<typeof vi.fn>
-  let openOrFocusOptionsMenuItemMock: ReturnType<typeof vi.fn>
+  let createTabMock: Mock
+  let getDocsChangelogUrlMock: Mock
+  let getManifestMock: Mock
+  let getPreferencesMock: Mock
+  let getPreferencesStrictMock: Mock
+  let hasPermissionsMock: Mock
+  let hasNewOptionalPermissionsMock: Mock
+  let openOrFocusOptionsMenuItemMock: Mock
   let optionalPermissions: string[]
-  let setPendingVersionMock: ReturnType<typeof vi.fn>
-  let setLastSeenOptionalPermissionsMock: ReturnType<typeof vi.fn>
-  let shouldAutoOpenChangelogForUpdateMock: ReturnType<typeof vi.fn>
+  let setPendingVersionMock: Mock
+  let setLastSeenOptionalPermissionsMock: Mock
   let triggerStartupSponsorRecommendationsDailySummaryMock: ReturnType<
     typeof vi.fn
   >
-  let isTestModeMock: ReturnType<typeof vi.fn>
+  let isTestModeMock: Mock
 
   beforeEach(() => {
     onInstalledListener = undefined
@@ -69,7 +76,6 @@ describe("background onInstalled changelog opening", () => {
     optionalPermissions = []
     setPendingVersionMock = vi.fn().mockResolvedValue(undefined)
     setLastSeenOptionalPermissionsMock = vi.fn().mockResolvedValue(undefined)
-    shouldAutoOpenChangelogForUpdateMock = vi.fn().mockResolvedValue(true)
     triggerStartupSponsorRecommendationsDailySummaryMock = vi.fn()
     isTestModeMock = vi.fn().mockReturnValue(true)
     applyActionClickBehaviorMock.mockReset().mockResolvedValue(undefined)
@@ -79,12 +85,16 @@ describe("background onInstalled changelog opening", () => {
     ;(globalThis as any).defineBackground = (factory: () => unknown) =>
       factory()
 
-    vi.doMock("~/utils/browser/browserApi", async (importOriginal) => {
+    vi.doMock("~/utils/browser/tabs", async (importOriginal) => {
       const actual =
-        await importOriginal<typeof import("~/utils/browser/browserApi")>()
+        await importOriginal<typeof import("~/utils/browser/tabs")>()
+      return { ...actual, createTab: createTabMock }
+    })
+    vi.doMock("~/utils/browser/runtime", async (importOriginal) => {
+      const actual =
+        await importOriginal<typeof import("~/utils/browser/runtime")>()
       return {
         ...actual,
-        createTab: createTabMock,
         getExtensionVersion: vi.fn(
           (fallback = "0.0.0") => getManifestMock().version?.trim() || fallback,
         ),
@@ -118,20 +128,24 @@ describe("background onInstalled changelog opening", () => {
       },
     }))
 
-    vi.doMock("~/services/updates/changelogIndex", () => ({
-      shouldAutoOpenChangelogForUpdate: shouldAutoOpenChangelogForUpdateMock,
-    }))
-
     // Avoid heavy side effects from the background entrypoint; only the update
     // flow under test needs to run.
     vi.doMock("~/entrypoints/background/runtimeMessages", () => ({
       setupRuntimeMessageListeners: vi.fn(),
     }))
-    vi.doMock("~/entrypoints/background/tempWindowPool", () => ({
+    vi.doMock("~/services/browsingContext/tempPage/runtime", () => ({
       cleanupTempContextsOnSuspend: vi.fn().mockResolvedValue(undefined),
       setupTempWindowListeners: vi.fn(),
     }))
-    vi.doMock("~/entrypoints/background/contextMenus", () => ({
+    vi.doMock("~/entrypoints/background/tempContextReclamation", () => ({
+      reclaimOrphanedTempPages: vi.fn().mockResolvedValue({
+        outcomes: [],
+        reclaimedCount: 0,
+      }),
+      rotateTempPageBrowserSession: vi.fn(),
+      setupTempPageReclaimRetryListener: vi.fn(),
+    }))
+    vi.doMock("~/services/preferences/runtime/contextMenus", () => ({
       setupContextMenus: vi.fn(),
     }))
     vi.doMock("~/entrypoints/background/cookieInterceptor", () => ({
@@ -144,11 +158,11 @@ describe("background onInstalled changelog opening", () => {
     vi.doMock("~/entrypoints/background/servicesInit", () => ({
       initializeServices: vi.fn().mockResolvedValue(undefined),
     }))
-    vi.doMock("~/entrypoints/background/actionClickBehavior", () => ({
+    vi.doMock("~/services/preferences/runtime/actionClickBehavior", () => ({
       applyActionClickBehavior: applyActionClickBehaviorMock,
       setupActionClickBehaviorListener: setupActionClickBehaviorListenerMock,
     }))
-    vi.doMock("~/services/productAnalytics/runtime", () => ({
+    vi.doMock("~/services/productAnalytics/runtime/runtime", () => ({
       setupProductAnalyticsAccountChangeListener: vi.fn(),
       setupProductAnalyticsPreferencesChangeListener: vi.fn(),
       triggerStartupSettingsSnapshot: vi.fn(),
@@ -193,7 +207,7 @@ describe("background onInstalled changelog opening", () => {
         isTestMode: isTestModeMock,
       }
     })
-    vi.doMock("~/utils/navigation", () => ({
+    vi.doMock("~/utils/navigation/optionsPage", () => ({
       openOrFocusOptionsMenuItem: openOrFocusOptionsMenuItemMock,
     }))
   })
@@ -201,19 +215,32 @@ describe("background onInstalled changelog opening", () => {
   afterEach(() => {
     delete (globalThis as any).defineBackground
 
-    vi.doUnmock("~/utils/browser/browserApi")
+    vi.doUnmock("~/utils/browser/extensionStorage")
+    vi.doUnmock("~/utils/browser/tabs")
+    vi.doUnmock("~/utils/browser/windows")
+    vi.doUnmock("~/utils/browser/runtimeMessages")
+    vi.doUnmock("~/utils/browser/runtime")
+    vi.doUnmock("~/utils/browser/bookmarks")
+    vi.doUnmock("~/utils/browser/storage")
+    vi.doUnmock("~/utils/browser/sidePanel")
+    vi.doUnmock("~/utils/browser/alarms")
+    vi.doUnmock("~/utils/browser/notifications")
+    vi.doUnmock("~/utils/browser/contextMenus")
+    vi.doUnmock("~/utils/browser/cookies")
+    vi.doUnmock("~/utils/browser/action")
+    vi.doUnmock("~/utils/browser/permissions")
     vi.doUnmock("~/utils/navigation/docsLinks")
     vi.doUnmock("~/services/updates/changelogOnUpdateState")
     vi.doUnmock("~/services/updates/changelogIndex")
     vi.doUnmock("~/services/preferences/userPreferences")
     vi.doUnmock("~/entrypoints/background/runtimeMessages")
-    vi.doUnmock("~/entrypoints/background/tempWindowPool")
-    vi.doUnmock("~/entrypoints/background/contextMenus")
+    vi.doUnmock("~/services/browsingContext/tempPage/runtime")
+    vi.doUnmock("~/services/preferences/runtime/contextMenus")
     vi.doUnmock("~/entrypoints/background/cookieInterceptor")
     vi.doUnmock("~/entrypoints/background/devActionBranding")
     vi.doUnmock("~/entrypoints/background/servicesInit")
-    vi.doUnmock("~/entrypoints/background/actionClickBehavior")
-    vi.doUnmock("~/services/productAnalytics/runtime")
+    vi.doUnmock("~/services/preferences/runtime/actionClickBehavior")
+    vi.doUnmock("~/services/productAnalytics/runtime/runtime")
     vi.doUnmock("~/services/tags/tagStorage")
     vi.doUnmock("~/services/accounts/accountStorage/accountQueries")
     vi.doUnmock("~/services/accounts/accountStorage/accountDataTransfer")
@@ -221,7 +248,7 @@ describe("background onInstalled changelog opening", () => {
     vi.doUnmock("~/services/permissions/permissionManager")
     vi.doUnmock("~/services/permissions/optionalPermissionState")
     vi.doUnmock("~/utils/core/environment")
-    vi.doUnmock("~/utils/navigation")
+    vi.doUnmock("~/utils/navigation/optionsPage")
 
     vi.resetModules()
     vi.restoreAllMocks()
@@ -252,7 +279,23 @@ describe("background onInstalled changelog opening", () => {
     ).toHaveBeenCalledTimes(1)
   })
 
-  it("passes current and previous versions to the changelog index gate", async () => {
+  it.each(["2.39.0", "2.40.0"])(
+    "does not schedule same-version reloads or rollbacks from %s",
+    async (previousVersion) => {
+      await import("~/entrypoints/background/index")
+
+      expect(onInstalledListener).toBeTypeOf("function")
+      await onInstalledListener?.({
+        reason: "update",
+        previousVersion,
+      })
+      await flushPromises()
+
+      expect(setPendingVersionMock).not.toHaveBeenCalled()
+    },
+  )
+
+  it("records pending updates even when their changelog has not been published", async () => {
     await import("~/entrypoints/background/index")
 
     expect(onInstalledListener).toBeTypeOf("function")
@@ -262,30 +305,7 @@ describe("background onInstalled changelog opening", () => {
     })
     await flushPromises()
 
-    expect(shouldAutoOpenChangelogForUpdateMock).toHaveBeenCalledWith({
-      currentVersion: "2.39.0",
-      previousVersion: "2.38.0",
-    })
     expect(setPendingVersionMock).toHaveBeenCalledWith("2.39.0")
-  })
-
-  it("skips pending-version state when the changelog index gate rejects the version", async () => {
-    shouldAutoOpenChangelogForUpdateMock.mockResolvedValue(false)
-
-    await import("~/entrypoints/background/index")
-
-    expect(onInstalledListener).toBeTypeOf("function")
-    await onInstalledListener?.({
-      reason: "update",
-      previousVersion: "2.40.0",
-    })
-    await flushPromises()
-
-    expect(shouldAutoOpenChangelogForUpdateMock).toHaveBeenCalledWith({
-      currentVersion: "2.39.0",
-      previousVersion: "2.40.0",
-    })
-    expect(setPendingVersionMock).not.toHaveBeenCalled()
   })
 
   it("marks pending version even when openChangelogOnUpdate is disabled", async () => {

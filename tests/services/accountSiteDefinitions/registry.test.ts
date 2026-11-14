@@ -14,6 +14,7 @@ import { getAccountSiteProductProfile } from "~/services/accounts/accountSitePro
 import {
   ACCOUNT_SITE_CREATED_TOKEN_SECRET_HANDLING,
   ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES,
+  ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS,
   ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES,
   ACCOUNT_SITE_SUPPLEMENTAL_AUTH_KINDS,
   ACCOUNT_SITE_TOKEN_FORM_NETWORK_LIMIT_POLICIES,
@@ -35,6 +36,8 @@ import {
   getManagedSiteTypeValues,
   MANAGED_RESOURCE_KINDS,
   MANAGED_SITE_TYPES,
+  NOVITA_HOSTNAMES,
+  NOVITA_WEB_ORIGIN,
   OPENROUTER_HOSTNAMES,
   OPENROUTER_WEB_ORIGIN,
   SHAREDCHAT_HOSTNAMES,
@@ -52,10 +55,84 @@ import {
   MANAGED_SITE_TYPE_ORDER,
   SITE_TYPE_DEFINITIONS,
 } from "~/services/accountSiteDefinitions/definitions"
+import {
+  RELAYFOR_HOSTNAMES,
+  RIGHTCODE_HOSTNAMES,
+} from "~/services/accountSiteDefinitions/identifiers"
 import type { SiteType } from "~/services/accountSiteDefinitions/identifiers"
 import { getManagedResourceRegistration } from "~/services/apiAdapters/managedResources/registry"
 import { AuthTypeEnum } from "~/types"
 import { ACCOUNT_TODAY_METRIC_REASONS } from "~/types/accountTodayStats"
+
+it("admits only AnyRouter and Sub2API to account credential recovery", () => {
+  expect(
+    getAccountSiteDefinitions()
+      .filter(
+        (definition) => definition.accountLogin?.supportsCredentialRecovery,
+      )
+      .map((definition) => definition.siteType),
+  ).toEqual([SITE_TYPES.ANYROUTER, SITE_TYPES.SUB2API])
+})
+
+it("routes Daya manual redemption to the current purchase form", () => {
+  expect(
+    getAccountSiteDefinition(SITE_TYPES.DAYA)?.onboarding?.routes.redeemPath,
+  ).toBe("/purchase")
+})
+
+describe("access-token verification guide metadata", () => {
+  it.each([
+    [SITE_TYPES.NEW_API, "security", true],
+    [SITE_TYPES.APIYI, "apiyi", false],
+    [SITE_TYPES.LAOZHANG, "laozhang", false],
+  ])(
+    "declares the existing guide presentation for %s",
+    (siteType, copy, showRotationWarning) => {
+      expect(
+        getAccountSiteDefinition(siteType)?.onboarding
+          ?.accessTokenVerificationGuide,
+      ).toEqual({
+        copy,
+        showRotationWarning,
+      })
+    },
+  )
+
+  it("returns independent verification guide configuration in both projections", () => {
+    const definition = getAccountSiteDefinition(SITE_TYPES.NEW_API)!
+    const projection = getAccountSiteOnboardingDefinitions().find(
+      (row) => row.siteType === SITE_TYPES.NEW_API,
+    )!
+    definition.onboarding!.accessTokenVerificationGuide!.showRotationWarning =
+      false
+    projection.accessTokenVerificationGuide!.copy = "apiyi"
+
+    expect(
+      getAccountSiteDefinition(SITE_TYPES.NEW_API)?.onboarding
+        ?.accessTokenVerificationGuide,
+    ).toEqual({
+      copy: "security",
+      showRotationWarning: true,
+    })
+  })
+})
+
+it.each([
+  [SITE_TYPES.APIYI, "apiyi"],
+  [SITE_TYPES.LAOZHANG, "apiyi"],
+  [SITE_TYPES.V_API, "v-api"],
+])("declares the shared browser user storage for %s", (siteType, storage) => {
+  expect(
+    getAccountSiteDefinition(siteType)?.onboarding?.browserUserStorage,
+  ).toBe(storage)
+})
+
+it("does not expose an unsupported Grsai announcements route", () => {
+  expect(
+    getAccountSiteDefinition(SITE_TYPES.GRSAI)?.onboarding?.routes
+      ?.siteAnnouncementsPath,
+  ).toBeNull()
+})
 
 type ExpectExact<T, Expected> = [T] extends [Expected]
   ? [Expected] extends [T]
@@ -67,6 +144,7 @@ type ExpectedAccountSiteType =
   | typeof SITE_TYPES.ONE_API
   | typeof SITE_TYPES.NEW_API
   | typeof SITE_TYPES.APIYI
+  | typeof SITE_TYPES.LAOZHANG
   | typeof SITE_TYPES.MODELFLARE
   | typeof SITE_TYPES.ANYROUTER
   | typeof SITE_TYPES.VELOERA
@@ -82,7 +160,26 @@ type ExpectedAccountSiteType =
   | typeof SITE_TYPES.SUB2API
   | typeof SITE_TYPES.AIHUBMIX
   | typeof SITE_TYPES.SHAREDCHAT
+  | typeof SITE_TYPES.FREEMODEL
+  | typeof SITE_TYPES.DAHL
+  | typeof SITE_TYPES.FOXCODE
+  | typeof SITE_TYPES.XIAOEN
+  | typeof SITE_TYPES.EMRANK
+  | typeof SITE_TYPES.KRILL
+  | typeof SITE_TYPES.DAYA
+  | typeof SITE_TYPES.PMAPI
+  | typeof SITE_TYPES.CUBENCE
+  | typeof SITE_TYPES.RIGHT_CODE
   | typeof SITE_TYPES.OPENROUTER
+  | typeof SITE_TYPES.KIMI
+  | typeof SITE_TYPES.KIMI_GLOBAL
+  | typeof SITE_TYPES.GRSAI
+  | typeof SITE_TYPES.AIMLAPI
+  | typeof SITE_TYPES.RELAYFOR
+  | typeof SITE_TYPES.REQUESTY
+  | typeof SITE_TYPES.VERCEL_AI_GATEWAY
+  | typeof SITE_TYPES.NOVITA
+  | typeof SITE_TYPES.NANOGPT
   | typeof SITE_TYPES.UNKNOWN
 
 type ExpectedManagedSiteType =
@@ -94,6 +191,9 @@ type ExpectedManagedSiteType =
   | typeof SITE_TYPES.AXON_HUB
   | typeof SITE_TYPES.CLAUDE_CODE_HUB
   | typeof SITE_TYPES.SUB2API
+  | typeof SITE_TYPES.OMNIROUTE
+  | typeof SITE_TYPES.GPT_LOAD
+  | typeof SITE_TYPES.MAGPIE
 
 const accountSiteTypeIsExact: ExpectExact<
   AccountSiteType,
@@ -219,6 +319,15 @@ describe("account site definition registry", () => {
     )
   })
 
+  it("explicitly declares legacy numeric-channel compatibility for every managed site", () => {
+    for (const siteType of MANAGED_SITE_TYPES) {
+      expect(
+        getAccountSiteDefinition(siteType)?.managedResource
+          ?.legacyNumericChannelConfig,
+      ).toBe(siteType !== SITE_TYPES.AXON_HUB && siteType !== SITE_TYPES.MAGPIE)
+    }
+  })
+
   it("matches current legacy site-type surfaces", () => {
     expect(ACCOUNT_SITE_TYPES).toEqual(LEGACY_ACCOUNT_SITE_TYPES)
     expect(ACCOUNT_SITE_TYPE_VALUES).toEqual(LEGACY_ACCOUNT_SITE_TYPE_VALUES)
@@ -248,6 +357,132 @@ describe("account site definition registry", () => {
         getAccountSiteDefinition(siteType)?.onboarding?.routes,
       )
     }
+  })
+
+  it("registers RightCode as an account-only site with its verified console routes", () => {
+    const definition = getAccountSiteDefinition(SITE_TYPES.RIGHT_CODE)
+
+    expect(definition).toMatchObject({
+      scopes: [ACCOUNT_SITE_DEFINITION_SCOPES.Account],
+      adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.RightCode,
+      onboarding: {
+        displayName: "RightCode",
+        detection: { hostnames: RIGHTCODE_HOSTNAMES },
+        routes: {
+          loginPath: "/login",
+          usagePath: "/use-logs",
+          adminCredentialsPath: "/api-keys",
+          siteAnnouncementsPath: "/dashboard",
+          pricingPath: "/models",
+          // Right Code runs no check-in flow and its activation-code
+          // redemption contract is unverified, so neither page is offered.
+          checkInPath: null,
+          redeemPath: null,
+          accessTokenPath: null,
+        },
+      },
+    })
+    // Keys arrive already prefixed with `sk-`, so the One/New API style
+    // optional-prefix rewriting must stay off.
+    expect(definition?.tokenKey).toBeUndefined()
+  })
+
+  it("keeps RightCode's token-only auth and plan for unaided manual adds", () => {
+    const profile = getAccountSiteProductProfile(SITE_TYPES.RIGHT_CODE)
+
+    expect(profile.auth.allowedAuthTypes).toEqual([AuthTypeEnum.AccessToken])
+    expect(profile.auth.defaultAuthType).toBe(AuthTypeEnum.AccessToken)
+    expect(profile.identity.usernameRequired).toBe(true)
+    // The console never exposes the numeric account id.
+    expect(profile.identity.userIdRequired).toBe(false)
+    expect(profile.modelList.groupSemantics).toBe(
+      ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+    )
+  })
+
+  it("registers RelayFor as an account-only site with its verified console routes", () => {
+    const definition = getAccountSiteDefinition(SITE_TYPES.RELAYFOR)
+
+    expect(definition).toMatchObject({
+      scopes: [ACCOUNT_SITE_DEFINITION_SCOPES.Account],
+      adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.RelayFor,
+      onboarding: {
+        displayName: "RelayFor",
+        detection: { hostnames: RELAYFOR_HOSTNAMES },
+        routes: {
+          loginPath: "/auth/?mode=login",
+          usagePath: "/console/#usage",
+          adminCredentialsPath: "/console/#tokens",
+          siteAnnouncementsPath: "/console/#overview",
+          pricingPath: "/console/#models",
+          checkInPath: "/console/#overview",
+          redeemPath: "/console/#redeem",
+          accessTokenPath: null,
+        },
+      },
+    })
+    expect(definition?.tokenKey).toBeUndefined()
+  })
+
+  it("keeps RelayFor's token-only auth and plan for unaided manual adds", () => {
+    const profile = getAccountSiteProductProfile(SITE_TYPES.RELAYFOR)
+
+    expect(profile.auth.allowedAuthTypes).toEqual([AuthTypeEnum.AccessToken])
+    expect(profile.auth.defaultAuthType).toBe(AuthTypeEnum.AccessToken)
+    expect(profile.identity.usernameRequired).toBe(true)
+    expect(profile.identity.userIdRequired).toBe(false)
+    expect(profile.modelList.groupSemantics).toBe(
+      ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+    )
+  })
+
+  it("registers Novita as an account-only site with its verified console routes", () => {
+    const definition = getAccountSiteDefinition(SITE_TYPES.NOVITA)
+
+    expect(definition).toMatchObject({
+      scopes: [ACCOUNT_SITE_DEFINITION_SCOPES.Account],
+      adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Novita,
+      onboarding: {
+        displayName: "Novita AI",
+        accountForm: {
+          fixedSiteUrl: NOVITA_WEB_ORIGIN,
+          defaultSiteName: "Novita AI",
+          accessTokenLabelKey: "form.novitaApiKey",
+          accessTokenGuidanceTitleKey: "form.novitaApiKeyGuidanceTitle",
+          accessTokenGuidanceKey: "form.novitaApiKeyGuidance",
+        },
+        detection: { hostnames: NOVITA_HOSTNAMES },
+        routes: {
+          loginPath: "/console",
+          usagePath: "/console",
+          adminCredentialsPath: "/settings/key-management",
+          pricingPath: "/pricing",
+          checkInPath: null,
+          accessTokenPath: "/settings/key-management",
+          redeemPath: null,
+          siteAnnouncementsPath: null,
+        },
+      },
+    })
+    expect(definition?.tokenKey).toBeUndefined()
+  })
+
+  it("keeps Novita's API-key auth and origins for manual adds", () => {
+    const profile = getAccountSiteProductProfile(SITE_TYPES.NOVITA)
+
+    expect(profile.auth.allowedAuthTypes).toEqual([AuthTypeEnum.AccessToken])
+    expect(profile.auth.defaultAuthType).toBe(AuthTypeEnum.AccessToken)
+    expect(profile.identity.usernameRequired).toBe(false)
+    expect(profile.identity.userIdRequired).toBe(false)
+    expect(profile.urls).toMatchObject({
+      recognizedHostnames: NOVITA_HOSTNAMES,
+      storageOrigin: NOVITA_WEB_ORIGIN,
+      duplicateOrigin: NOVITA_WEB_ORIGIN,
+      inferenceApiBaseUrls: {
+        openAiCompatible: "https://api.novita.ai/openai/v1",
+        anthropic: "https://api.novita.ai/anthropic",
+      },
+    })
   })
 
   it("matches current product-profile behavior for overridden sites", () => {
@@ -290,6 +525,7 @@ describe("account site definition registry", () => {
       SITE_TYPES.ONE_API,
       SITE_TYPES.NEW_API,
       SITE_TYPES.APIYI,
+      SITE_TYPES.LAOZHANG,
       SITE_TYPES.MODELFLARE,
       SITE_TYPES.ANYROUTER,
       SITE_TYPES.VELOERA,
@@ -305,7 +541,26 @@ describe("account site definition registry", () => {
       SITE_TYPES.SUB2API,
       SITE_TYPES.AIHUBMIX,
       SITE_TYPES.SHAREDCHAT,
+      SITE_TYPES.FREEMODEL,
+      SITE_TYPES.DAHL,
+      SITE_TYPES.FOXCODE,
+      SITE_TYPES.XIAOEN,
+      SITE_TYPES.EMRANK,
+      SITE_TYPES.KRILL,
+      SITE_TYPES.DAYA,
+      SITE_TYPES.PMAPI,
+      SITE_TYPES.CUBENCE,
+      SITE_TYPES.RIGHT_CODE,
+      SITE_TYPES.RELAYFOR,
+      SITE_TYPES.REQUESTY,
       SITE_TYPES.OPENROUTER,
+      SITE_TYPES.KIMI,
+      SITE_TYPES.KIMI_GLOBAL,
+      SITE_TYPES.GRSAI,
+      SITE_TYPES.VERCEL_AI_GATEWAY,
+      SITE_TYPES.NOVITA,
+      SITE_TYPES.AIMLAPI,
+      SITE_TYPES.NANOGPT,
       SITE_TYPES.UNKNOWN,
     ])
   })
@@ -313,9 +568,12 @@ describe("account site definition registry", () => {
   it("projects managed site types in the public order", () => {
     expect(getManagedSiteTypeValues()).toEqual(MANAGED_SITE_TYPES)
     expect(getManagedSiteTypeValues()).toEqual([
+      SITE_TYPES.OMNIROUTE,
       SITE_TYPES.CLI_PROXY_API,
       SITE_TYPES.NEW_API,
       SITE_TYPES.SUB2API,
+      SITE_TYPES.MAGPIE,
+      SITE_TYPES.GPT_LOAD,
       SITE_TYPES.AXON_HUB,
       SITE_TYPES.CLAUDE_CODE_HUB,
       SITE_TYPES.OCTOPUS,
@@ -531,6 +789,19 @@ describe("account site definition registry", () => {
     })
   })
 
+  it("accepts a username identity for Rix API deployments without a numeric id", () => {
+    // Rix API 6.x omits `id` from its self DTO while keeping `username`, so the
+    // manual-add flow must not demand a numeric id. `id` stays first so older
+    // deployments that still expose it keep resolving to the same identity.
+    const profile = getAccountSiteProductProfile(SITE_TYPES.RIX_API)
+
+    expect(profile.identity).toMatchObject({
+      usernameRequired: true,
+      userIdRequired: false,
+      storedUserIdentityFields: ["id", "username"],
+    })
+  })
+
   it("defines VoAPI v2 before old VoAPI with account-only policy", () => {
     const voApiV2 = getAccountSiteDefinition(SITE_TYPES.VO_API_V2)
 
@@ -611,6 +882,10 @@ describe("account site definition registry", () => {
         siteType: SITE_TYPES.OPENROUTER,
         anchor: "manual-openrouter",
       },
+      {
+        siteType: SITE_TYPES.VERCEL_AI_GATEWAY,
+        anchor: "manual-vercel-ai-gateway",
+      },
     ])
   })
 
@@ -647,6 +922,31 @@ describe("account site definition registry", () => {
         (definition) => definition.siteType === SITE_TYPES.AIHUBMIX,
       )?.adapterFamily,
     ).toBe(ACCOUNT_SITE_ADAPTER_FAMILIES.Aihubmix)
+  })
+
+  it("isolates login configuration and nested arrays between callers and site types", () => {
+    const first = getAccountSiteDefinition(SITE_TYPES.NEW_API)!.accountLogin!
+    first.protocols!.newApi!.userIdHeader = "Changed-User"
+    ;(first.methods as string[]).pop()
+    ;(first.protocols!.newApi!.completionPaths as string[]).push("/changed")
+
+    const second = getAccountSiteDefinition(SITE_TYPES.NEW_API)!.accountLogin!
+    expect(second.protocols!.newApi!.userIdHeader).toBe("New-Api-User")
+    expect(second.methods).toContain("oidc")
+    expect(second.protocols!.newApi!.completionPaths).not.toContain("/changed")
+
+    const compatible = getAccountSiteDefinition(
+      SITE_TYPES.SUPER_API,
+    )!.accountLogin!
+    ;(compatible.methods as string[]).pop()
+    ;(compatible.protocols!.newApi!.completionPaths as string[]).push(
+      "/changed",
+    )
+    const other = getAccountSiteDefinition(
+      SITE_TYPES.WONG_GONGYI,
+    )!.accountLogin!
+    expect(other.methods).toContain("linuxdo")
+    expect(other.protocols!.newApi!.completionPaths).not.toContain("/changed")
   })
 
   it("returns defensive RegExp copies for onboarding detection", () => {

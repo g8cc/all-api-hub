@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  AUTO_CHECKIN_METHOD_IDS,
   CHECK_IN_METHOD_AVAILABILITIES,
   CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES,
   CHECK_IN_METHOD_STATUS_OUTCOMES,
@@ -9,16 +10,16 @@ import {
 } from "~/constants/checkIn"
 import { SITE_TYPES, type AccountSiteType } from "~/constants/siteType"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
-import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/compatibilityConfig"
+import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/configuration/compatibilityConfig"
 import {
   discoverCheckInMethods,
   setCheckInSelection,
-} from "~/services/checkin/autoCheckin/discovery"
+} from "~/services/checkin/autoCheckin/discovery/discovery"
 import {
   getSelectedCheckInStatus,
   isAutomaticCheckInConfiguredForAccount,
   resolveSelectedCheckInMethod,
-} from "~/services/checkin/autoCheckin/inspection"
+} from "~/services/checkin/autoCheckin/discovery/inspection"
 import {
   executeSelectedCheckIn,
   inspectSelectedCheckInCompatibility,
@@ -28,20 +29,23 @@ import {
   createAutoCheckinMethodRegistry,
   getLegacyAutoCheckinMethodIds,
 } from "~/services/checkin/autoCheckin/providers/registry"
-import { refreshSelectedStatus } from "~/services/checkin/autoCheckin/refresh"
+import { refreshSelectedStatus } from "~/services/checkin/autoCheckin/scheduling/refresh"
 import {
   markCheckInMethodExecuted,
   mergeCompatibilityCheckInStatus,
   mergeDiscoveredCheckInDraft,
   mergeRefreshedCheckInStatus,
   mergeUserOwnedCheckInDraft,
+  replaceCheckInMethodStatus,
 } from "~/services/checkin/autoCheckin/state"
 import { PROTECTION_BYPASS_USER_COMMANDS } from "~/services/protectionBypass/contracts"
 import { AuthTypeEnum } from "~/types"
+import { AUTO_CHECKIN_SKIP_REASON } from "~/types/autoCheckin"
 import type { CheckInConfig } from "~/types/checkIn"
 import { TEMP_WINDOW_REQUEST_SOURCES } from "~/types/tempWindowFetch"
 import { userCommandExecution } from "~~/tests/services/protectionBypass/fixtures"
 import { buildSiteAccount } from "~~/tests/test-utils/factories"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 function markSelectedCheckInExecuted(input: {
   config: CheckInConfig
@@ -81,6 +85,33 @@ describe("check-in methods compatibility activation", () => {
         automaticExecutionEnabled: true,
       }),
     })
+
+  const createUnrecordedMethodAccount = (
+    mode: "manual" | "automatic" = "manual",
+  ) =>
+    buildSiteAccount({
+      site_type: SITE_TYPES.NEW_API,
+      checkIn: {
+        automaticExecutionEnabled: true,
+        methodKnowledge: { methods: {} },
+        selection: { mode, methodId: "new-api:daily-checkin" },
+      },
+    })
+
+  const createMergingRevalidate = (
+    original: ReturnType<typeof buildSiteAccount>,
+  ) => {
+    let latest = original.checkIn
+    return {
+      revalidateAccount: vi.fn(async (refreshed?: CheckInConfig) => {
+        latest = refreshed
+          ? mergeRefreshedCheckInStatus({ latest, refreshed })
+          : latest
+        return { ...original, checkIn: latest }
+      }),
+      currentConfig: () => latest,
+    }
+  }
 
   const createExecutionContext = () => ({
     tempWindowRequestSource: TEMP_WINDOW_REQUEST_SOURCES.Background,
@@ -248,6 +279,40 @@ describe("check-in methods compatibility activation", () => {
     expect(updated).not.toBe(config)
   })
 
+  it("preserves the verification metadata recorded by the last probe when an execution completes", () => {
+    const config = createCompatibilityCheckInConfig({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+      automaticExecutionEnabled: true,
+    })
+    config.methodKnowledge.methods["new-api:daily-checkin"]!.status = {
+      outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
+      availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
+      today: CHECK_IN_METHOD_TODAY_STATUSES.NotChecked,
+      requiresManualVerification: true,
+      evidence: { source: "probe", observedAt: 100 },
+    }
+
+    const updated = markSelectedCheckInExecuted({
+      config,
+      siteType: SITE_TYPES.NEW_API,
+      observedAt: 456,
+    })
+
+    expect(
+      getSelectedCheckInStatus({
+        config: updated,
+        siteType: SITE_TYPES.NEW_API,
+      }),
+    ).toEqual({
+      outcome: "known",
+      availability: "enabled",
+      today: "checked",
+      requiresManualVerification: true,
+      evidence: { source: "execution", observedAt: 456 },
+    })
+  })
+
   it("preserves known method availability when refreshing boolean daily status", () => {
     const config = createCompatibilityCheckInConfig({
       siteType: SITE_TYPES.NEW_API,
@@ -369,6 +434,40 @@ describe("check-in methods compatibility activation", () => {
       result.config.methodKnowledge.methods["new-api:daily-checkin"]?.status,
     ).toMatchObject({ availability: "disabled", today: "not_checked" })
     expect(getStatus).not.toHaveBeenCalled()
+  })
+
+  it("flags every candidate as timed out when the deadline is already exhausted", async () => {
+    const registry = createAutoCheckinMethodRegistry([
+      {
+        id: "new-api:daily-checkin",
+        siteTypes: [SITE_TYPES.NEW_API],
+        provider: {
+          getReadiness: () => ({ ready: true }),
+          detect: async () => ({
+            outcome: "matched",
+            evidence: { source: "probe", observedAt: 200 },
+          }),
+          checkIn: async () => ({ status: "success" }),
+        },
+      },
+    ])
+    const account = buildSiteAccount({ site_type: SITE_TYPES.NEW_API })
+    const config = createCompatibilityCheckInConfig({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+      automaticExecutionEnabled: true,
+    })
+
+    const result = await discoverCheckInMethods({
+      account,
+      config,
+      registry,
+      observedAt: 200,
+      deadlineMs: 0,
+    })
+
+    expect(result.timedOutMethodIds).toEqual(["new-api:daily-checkin"])
+    expect(result.decision.outcome).toBe("unknown")
   })
 
   it("keeps manual selection sticky across an incomplete discovery", async () => {
@@ -563,6 +662,137 @@ describe("check-in methods compatibility activation", () => {
     })
   })
 
+  it("keeps the newer confirmed snapshot during a failed-query merge and clears the failure after success", () => {
+    const config = createCompatibilityCheckInConfig({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+      automaticExecutionEnabled: false,
+    })
+    const confirmed = (observedAt: number) =>
+      mergeCompatibilityCheckInStatus({
+        config,
+        methodId: "new-api:daily-checkin",
+        isCheckedInToday: true,
+        observedAt,
+      })
+    const failed = replaceCheckInMethodStatus({
+      config: confirmed(100),
+      methodId: "new-api:daily-checkin",
+      status: { outcome: "unknown", reason: "network", attemptedAt: 300 },
+    })
+    const merged = mergeRefreshedCheckInStatus({
+      latest: confirmed(200),
+      refreshed: failed,
+    })
+    expect(
+      merged.methodKnowledge.methods["new-api:daily-checkin"]?.status,
+    ).toMatchObject({
+      outcome: "unknown",
+      lastKnown: { evidence: { observedAt: 200 } },
+    })
+    const recovered = mergeRefreshedCheckInStatus({
+      latest: merged,
+      refreshed: confirmed(400),
+    })
+    expect(
+      recovered.methodKnowledge.methods["new-api:daily-checkin"]?.status,
+    ).toMatchObject({ outcome: "known", evidence: { observedAt: 400 } })
+    expect(
+      recovered.methodKnowledge.methods["new-api:daily-checkin"]?.status,
+    ).not.toHaveProperty("lastKnown")
+  })
+
+  it.each(["missing", "unknown", "throws"])(
+    "records a failed %s read without losing the last confirmed status",
+    async (failure) => {
+      const config = mergeCompatibilityCheckInStatus({
+        config: createCompatibilityCheckInConfig({
+          siteType: SITE_TYPES.NEW_API,
+          supported: true,
+          automaticExecutionEnabled: false,
+        }),
+        methodId: "new-api:daily-checkin",
+        isCheckedInToday: true,
+        observedAt: 100,
+      })
+      const registration = autoCheckinMethodRegistry.resolveById(
+        "new-api:daily-checkin",
+      )!
+      const original = registration.provider.getStatus
+      registration.provider.getStatus =
+        failure === "throws"
+          ? vi.fn().mockRejectedValue(new Error("offline"))
+          : vi.fn().mockResolvedValue(
+              failure === "missing"
+                ? undefined
+                : {
+                    outcome: "unknown",
+                    reason: "permission_denied",
+                    attemptedAt: 200,
+                  },
+            )
+      const onOutcome = vi.fn()
+      try {
+        const updated = await refreshSelectedStatus({
+          config,
+          siteType: SITE_TYPES.NEW_API,
+          account: buildSiteAccount({ checkIn: config }),
+          observedAt: 200,
+          onOutcome,
+        })
+        expect(onOutcome).toHaveBeenCalledWith("unavailable")
+        expect(
+          updated.methodKnowledge.methods["new-api:daily-checkin"]?.status,
+        ).toMatchObject({
+          outcome: "unknown",
+          attemptedAt: 200,
+          lastKnown: {
+            outcome: "known",
+            today: "checked",
+            evidence: { observedAt: 100 },
+          },
+        })
+      } finally {
+        registration.provider.getStatus = original
+      }
+    },
+  )
+
+  it.each(["missing", "throws"])(
+    "preserves confirmation after an injected %s status read",
+    async (failure) => {
+      const config = mergeCompatibilityCheckInStatus({
+        config: createCompatibilityCheckInConfig({
+          siteType: SITE_TYPES.NEW_API,
+          supported: true,
+          automaticExecutionEnabled: false,
+        }),
+        methodId: "new-api:daily-checkin",
+        isCheckedInToday: true,
+        observedAt: 100,
+      })
+      const onOutcome = vi.fn()
+      const updated = await refreshSelectedStatus({
+        config,
+        siteType: SITE_TYPES.NEW_API,
+        observedAt: 200,
+        onOutcome,
+        readStatus:
+          failure === "throws"
+            ? vi.fn().mockRejectedValue(new Error("offline"))
+            : vi.fn().mockResolvedValue(undefined),
+      })
+      expect(onOutcome).toHaveBeenCalledExactlyOnceWith("unavailable")
+      expect(
+        updated.methodKnowledge.methods["new-api:daily-checkin"]?.status,
+      ).toMatchObject({
+        outcome: "unknown",
+        attemptedAt: 200,
+        lastKnown: { today: "checked", evidence: { observedAt: 100 } },
+      })
+    },
+  )
+
   it("leaves a matched method without status readback unchanged on refresh", async () => {
     const account = buildSiteAccount({
       site_type: SITE_TYPES.ANYROUTER,
@@ -654,7 +884,13 @@ describe("check-in methods compatibility activation", () => {
           account,
           onOutcome,
         }),
-      ).resolves.toEqual(account.checkIn)
+      ).resolves.toMatchObject({
+        methodKnowledge: {
+          methods: {
+            "new-api:daily-checkin": { status: { outcome: "unknown" } },
+          },
+        },
+      })
       expect(onOutcome).toHaveBeenCalledOnce()
       expect(onOutcome).toHaveBeenCalledWith("unavailable")
     } finally {
@@ -731,7 +967,13 @@ describe("check-in methods compatibility activation", () => {
           account,
           onOutcome,
         }),
-      ).resolves.toEqual(account.checkIn)
+      ).resolves.toMatchObject({
+        methodKnowledge: {
+          methods: {
+            "new-api:daily-checkin": { status: { outcome: "unknown" } },
+          },
+        },
+      })
       expect(onOutcome).toHaveBeenCalledOnce()
       expect(onOutcome).toHaveBeenCalledWith("unavailable")
     } finally {
@@ -783,6 +1025,142 @@ describe("check-in methods compatibility activation", () => {
     })
   })
 
+  it("applies the account-level page-assistance override from the draft", () => {
+    const latest = createCompatibilityCheckInConfig({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+      automaticExecutionEnabled: true,
+    })
+
+    expect(
+      mergeUserOwnedCheckInDraft({
+        latest,
+        draft: { ...latest, continueWhenVerificationRequired: true },
+      }).continueWhenVerificationRequired,
+    ).toBe(true)
+    expect(
+      mergeUserOwnedCheckInDraft({
+        latest: { ...latest, continueWhenVerificationRequired: true },
+        draft: {
+          ...latest,
+          continueWhenVerificationRequired: undefined,
+        },
+      }).continueWhenVerificationRequired,
+    ).toBeUndefined()
+  })
+
+  it("clears a previously saved route when the draft removes it", () => {
+    const latest = createCompatibilityCheckInConfig({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+      automaticExecutionEnabled: true,
+    })
+    latest.routeOverrides = {
+      [AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn]: {
+        path: "/api/user/old",
+        source: "manual",
+        observedAt: 1,
+      },
+    }
+    const draft = { ...latest, routeOverrides: undefined }
+
+    expect(
+      mergeUserOwnedCheckInDraft({ latest, draft }).routeOverrides,
+    ).toBeUndefined()
+    expect(latest.routeOverrides).toBeDefined()
+  })
+
+  it("accepts a relearned route when the draft path was not edited during discovery", () => {
+    const base = createCompatibilityCheckInConfig({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+      automaticExecutionEnabled: true,
+    })
+    base.routeOverrides = {
+      [AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn]: {
+        path: "/api/user/old",
+        source: "discovery",
+        observedAt: 1,
+      },
+    }
+    const learnedRouteOverrides = {
+      [AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn]: {
+        path: "/api/user/new",
+        source: "discovery" as const,
+        observedAt: 2,
+      },
+    }
+    const merged = mergeUserOwnedCheckInDraft({
+      latest: { ...base, routeOverrides: learnedRouteOverrides },
+      draft: base,
+      learnedRouteOverrides,
+      routeDiscoveryBase: base,
+    })
+    expect(merged.routeOverrides).toEqual(learnedRouteOverrides)
+  })
+
+  it("keeps a route the user entered instead of the stored one", () => {
+    const latest = createCompatibilityCheckInConfig({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+      automaticExecutionEnabled: true,
+    })
+    latest.routeOverrides = {
+      "new-api:daily-checkin": {
+        path: "/api/user/learned-earlier",
+        source: "discovery",
+        observedAt: 1,
+      },
+    }
+    const draft = {
+      ...latest,
+      routeOverrides: {
+        "new-api:daily-checkin": {
+          path: "/api/user/daily-9f3k",
+          source: "manual" as const,
+          observedAt: 2,
+        },
+      },
+    }
+
+    const merged = mergeUserOwnedCheckInDraft({ latest, draft })
+
+    expect(merged.routeOverrides).toEqual(draft.routeOverrides)
+  })
+
+  it("keeps a cleared route cleared while a learned one fills other methods", () => {
+    const latest = createCompatibilityCheckInConfig({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+      automaticExecutionEnabled: true,
+    })
+    const draft = {
+      ...latest,
+      routeOverrides: undefined,
+    }
+
+    const merged = mergeUserOwnedCheckInDraft({
+      latest,
+      draft,
+      learnedRouteOverrides: {
+        "new-api:daily-checkin": {
+          path: "/api/user/daily-9f3k",
+          source: "discovery",
+          observedAt: 3,
+        },
+      },
+    })
+
+    expect(merged.routeOverrides).toEqual({
+      "new-api:daily-checkin": {
+        path: "/api/user/daily-9f3k",
+        source: "discovery",
+        observedAt: 3,
+      },
+    })
+    expect(latest.routeOverrides).toBeUndefined()
+  })
+
   it("does not apply an older discovery round with the same timestamp", () => {
     const latest = createCompatibilityCheckInConfig({
       siteType: SITE_TYPES.NEW_API,
@@ -803,6 +1181,37 @@ describe("check-in methods compatibility activation", () => {
       discoveryBaseSelection: latest.selection,
     })
 
+    expect(
+      merged.methodKnowledge.methods["new-api:daily-checkin"]?.detection
+        .outcome,
+    ).toBe("matched")
+  })
+
+  it("does not create detection for a method the account did not select", () => {
+    const latest = createUnrecordedMethodAccount().checkIn
+    const probe = {
+      detection: {
+        outcome: "matched" as const,
+        evidence: { source: "probe" as const, observedAt: 400 },
+      },
+    }
+    const merged = mergeRefreshedCheckInStatus({
+      latest,
+      refreshed: {
+        ...latest,
+        methodKnowledge: {
+          methods: {
+            "veloera:daily-checkin": probe,
+            "new-api:daily-checkin": probe,
+          },
+        },
+      },
+    })
+
+    expect(merged.selection).toEqual(latest.selection)
+    expect(
+      merged.methodKnowledge.methods["veloera:daily-checkin"],
+    ).toBeUndefined()
     expect(
       merged.methodKnowledge.methods["new-api:daily-checkin"]?.detection
         .outcome,
@@ -841,6 +1250,302 @@ describe("check-in methods compatibility activation", () => {
     })
   })
 
+  it("respects recent discovery cooldown during unattended execution with missing detection", async () => {
+    const account = createUnrecordedMethodAccount("automatic")
+    account.checkIn.methodKnowledge.lastFullDiscoveryAt = Date.now()
+    const registration = getNewApiExecutionRegistration()
+    const detect = vi.spyOn(registration.provider, "detect")
+    const result = await executeSelectedCheckIn({
+      account,
+      globalAutomaticExecutionEnabled: true,
+      context: createExecutionContext(),
+      isAutomaticExecutionEnabled: async () => true,
+    })
+    expect(detect).not.toHaveBeenCalled()
+    expect(result.kind).toBe("skipped")
+  })
+
+  it.each([
+    ["unrecorded", "manual"],
+    ["unknown", "manual"],
+    ["timeout", "manual"],
+    ["unsupported", "manual"],
+    ["unrecorded", "automatic"],
+    ["unknown", "automatic"],
+    ["timeout", "automatic"],
+    ["unsupported", "automatic"],
+  ] as const)(
+    "confirms a %s method in %s mode without changing that selection",
+    async (previous, mode) => {
+      const registration = getNewApiExecutionRegistration()
+      const other = autoCheckinMethodRegistry.resolveById(
+        "veloera:daily-checkin",
+      )
+      if (!other?.provider.detect) {
+        throw new Error("Veloera detection is not registered")
+      }
+      const original = createUnrecordedMethodAccount(mode)
+      if (previous !== "unrecorded")
+        original.checkIn.methodKnowledge.methods["new-api:daily-checkin"] = {
+          detection:
+            previous === "unknown" || previous === "timeout"
+              ? {
+                  outcome: "unknown",
+                  reason:
+                    previous === "timeout" ? "timeout" : "invalid_response",
+                  attemptedAt: 100,
+                }
+              : {
+                  outcome: "unsupported",
+                  evidence: { source: "probe", observedAt: 100 },
+                },
+        }
+      const detect = vi
+        .spyOn(registration.provider, "detect")
+        .mockResolvedValue({
+          detection: {
+            outcome: "matched",
+            evidence: { source: "probe", observedAt: 400 },
+          },
+          status: {
+            outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
+            availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
+            today: CHECK_IN_METHOD_TODAY_STATUSES.NotChecked,
+            evidence: {
+              source: CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe,
+              observedAt: 400,
+            },
+          },
+        })
+      const otherDetect = vi.spyOn(other.provider, "detect").mockResolvedValue({
+        outcome: "matched",
+        evidence: { source: "probe", observedAt: 400 },
+      })
+      vi.spyOn(registration.provider, "getStatus").mockResolvedValue({
+        outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
+        availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
+        today: CHECK_IN_METHOD_TODAY_STATUSES.NotChecked,
+        evidence: {
+          source: CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe,
+          observedAt: 400,
+        },
+      })
+      const checkInRequest = vi
+        .spyOn(registration.provider, "checkIn")
+        .mockResolvedValue({ status: "success" })
+      const persisted = createMergingRevalidate(original)
+
+      const result = await executeSelectedCheckIn({
+        account: original,
+        globalAutomaticExecutionEnabled: true,
+        context: createExecutionContext(),
+        revalidateAccount: persisted.revalidateAccount,
+      })
+
+      expect(result).toMatchObject({
+        kind: "executed",
+        methodId: "new-api:daily-checkin",
+      })
+      expect(detect).toHaveBeenCalledOnce()
+      expect(otherDetect).not.toHaveBeenCalled()
+      expect(checkInRequest).toHaveBeenCalledOnce()
+      expect(persisted.currentConfig().selection).toEqual({
+        mode,
+        methodId: "new-api:daily-checkin",
+      })
+      expect(
+        persisted.currentConfig().methodKnowledge.methods[
+          "new-api:daily-checkin"
+        ]?.detection,
+      ).toMatchObject({
+        outcome: "matched",
+        evidence: { source: "probe", observedAt: 400 },
+      })
+    },
+  )
+
+  it("does not execute or save an uncertain probe of an unrecorded manual method", async () => {
+    const registration = getNewApiExecutionRegistration()
+    const account = createUnrecordedMethodAccount()
+    vi.spyOn(registration.provider, "detect").mockResolvedValue({
+      outcome: "unknown",
+      reason: "invalid_response",
+      attemptedAt: 400,
+    })
+    const checkInRequest = vi
+      .spyOn(registration.provider, "checkIn")
+      .mockResolvedValue({ status: "success" })
+    const revalidateAccount = vi.fn(async () => account)
+
+    const result = await executeSelectedCheckIn({
+      account,
+      globalAutomaticExecutionEnabled: true,
+      context: createExecutionContext(),
+      revalidateAccount,
+    })
+
+    expect(result).toEqual({ kind: "skipped", reason: "method_not_matched" })
+    expect(checkInRequest).not.toHaveBeenCalled()
+    expect(revalidateAccount).not.toHaveBeenCalled()
+  })
+
+  it("records an unsupported manual method and does not switch away from it", async () => {
+    const registration = getNewApiExecutionRegistration()
+    const original = createUnrecordedMethodAccount()
+    vi.spyOn(registration.provider, "detect").mockResolvedValue({
+      outcome: "unsupported",
+      evidence: { source: "probe", observedAt: 400 },
+    })
+    const checkInRequest = vi
+      .spyOn(registration.provider, "checkIn")
+      .mockResolvedValue({ status: "success" })
+    const persisted = createMergingRevalidate(original)
+
+    const result = await executeSelectedCheckIn({
+      account: original,
+      globalAutomaticExecutionEnabled: true,
+      context: createExecutionContext(),
+      revalidateAccount: persisted.revalidateAccount,
+    })
+
+    expect(result).toEqual({ kind: "skipped", reason: "method_unsupported" })
+    expect(checkInRequest).not.toHaveBeenCalled()
+    expect(persisted.currentConfig().selection).toEqual({
+      mode: "manual",
+      methodId: "new-api:daily-checkin",
+    })
+    expect(
+      persisted.currentConfig().methodKnowledge.methods["new-api:daily-checkin"]
+        ?.detection,
+    ).toEqual({
+      outcome: "unsupported",
+      evidence: { source: "probe", observedAt: 400 },
+    })
+  })
+
+  it("probes an unrecorded automatic selection and stops when support remains unknown", async () => {
+    const registration = getNewApiExecutionRegistration()
+    const account = createUnrecordedMethodAccount("automatic")
+    const detect = vi.spyOn(registration.provider, "detect").mockResolvedValue({
+      outcome: "unknown",
+      reason: "invalid_response",
+      attemptedAt: 400,
+    })
+    const checkInRequest = vi.spyOn(registration.provider, "checkIn")
+
+    const result = await executeSelectedCheckIn({
+      account,
+      globalAutomaticExecutionEnabled: true,
+      context: createExecutionContext(),
+    })
+
+    expect(result).toEqual({ kind: "skipped", reason: "method_not_matched" })
+    expect(detect).toHaveBeenCalledTimes(1)
+    expect(checkInRequest).not.toHaveBeenCalled()
+  })
+
+  it("keeps a manual method that is no longer a candidate without probing it", async () => {
+    const registration = autoCheckinMethodRegistry.resolveById(
+      "veloera:daily-checkin",
+    )
+    if (!registration?.provider.detect) {
+      throw new Error("Veloera check-in detection is not registered")
+    }
+    const account = buildSiteAccount({
+      site_type: SITE_TYPES.NEW_API,
+      checkIn: {
+        automaticExecutionEnabled: true,
+        methodKnowledge: { methods: {} },
+        selection: {
+          mode: "manual",
+          methodId: "veloera:daily-checkin",
+        },
+      },
+    })
+    const detect = vi.spyOn(registration.provider, "detect")
+
+    const result = await executeSelectedCheckIn({
+      account,
+      globalAutomaticExecutionEnabled: true,
+      context: createExecutionContext(),
+    })
+
+    expect(result).toEqual({ kind: "skipped", reason: "method_unavailable" })
+    expect(detect).not.toHaveBeenCalled()
+  })
+
+  it("skips an unrecorded manual method when its probe throws", async () => {
+    const registration = getNewApiExecutionRegistration()
+    const account = createUnrecordedMethodAccount()
+    vi.spyOn(registration.provider, "detect").mockRejectedValue(
+      new Error("status read failed"),
+    )
+    const checkInRequest = vi.spyOn(registration.provider, "checkIn")
+    const revalidateAccount = vi.fn(async () => account)
+
+    const result = await executeSelectedCheckIn({
+      account,
+      globalAutomaticExecutionEnabled: true,
+      context: createExecutionContext(),
+      revalidateAccount,
+    })
+
+    expect(result).toEqual({ kind: "skipped", reason: "method_not_matched" })
+    expect(checkInRequest).not.toHaveBeenCalled()
+    expect(revalidateAccount).not.toHaveBeenCalled()
+  })
+
+  it("does not execute when the selected manual method cannot be resolved", async () => {
+    const account = createUnrecordedMethodAccount()
+    vi.spyOn(autoCheckinMethodRegistry, "resolveById").mockReturnValue(null)
+
+    const result = await executeSelectedCheckIn({
+      account,
+      globalAutomaticExecutionEnabled: true,
+      context: createExecutionContext(),
+    })
+
+    expect(result).toEqual({ kind: "skipped", reason: "method_not_matched" })
+  })
+
+  it.each([
+    ["returns no account", async (): Promise<null> => null],
+    [
+      "throws",
+      async (): Promise<null> => {
+        throw new Error("write failed")
+      },
+    ],
+  ] as const)(
+    "blocks check-in when saving a matched manual probe %s",
+    async (_name, revalidateAccount): Promise<void> => {
+      const registration = getNewApiExecutionRegistration()
+      const account = createUnrecordedMethodAccount()
+      vi.spyOn(registration.provider, "detect").mockResolvedValue({
+        detection: {
+          outcome: "matched",
+          evidence: { source: "probe", observedAt: 400 },
+        },
+      })
+      const checkInRequest = vi.spyOn(registration.provider, "checkIn")
+
+      const result = await executeSelectedCheckIn({
+        account,
+        globalAutomaticExecutionEnabled: true,
+        context: createExecutionContext(),
+        revalidateAccount,
+      })
+
+      expect(result).toEqual({
+        kind: "blocked",
+        reason: "account_unavailable",
+        retryable: false,
+        completedAt: expect.any(Number),
+      })
+      expect(checkInRequest).not.toHaveBeenCalled()
+    },
+  )
+
   it("rechecks a cached disabled method and executes after the site enables it", async () => {
     const methodId = "new-api:daily-checkin"
     const registration = getNewApiExecutionRegistration()
@@ -876,10 +1581,10 @@ describe("check-in methods compatibility activation", () => {
     })
 
     expect(result.kind).toBe("executed")
-    expect(getStatus).toHaveBeenCalledOnce()
+    expect(getStatus).toHaveBeenCalledTimes(2)
     expect(checkInRequest).toHaveBeenCalledOnce()
     expect(getStatus.mock.invocationCallOrder[0]).toBeLessThan(
-      checkInRequest.mock.invocationCallOrder[0],
+      atIndex(checkInRequest.mock.invocationCallOrder, 0),
     )
   })
 
@@ -952,7 +1657,7 @@ describe("check-in methods compatibility activation", () => {
     expect(result).toMatchObject({
       kind: "blocked",
       reason: "status_unavailable",
-      retryable: false,
+      retryable: true,
     })
     expect(checkInRequest).not.toHaveBeenCalled()
   })
@@ -986,7 +1691,7 @@ describe("check-in methods compatibility activation", () => {
       expect(result).toMatchObject({
         kind: "blocked",
         reason: expectedReason,
-        retryable: expectedReason !== "status_unavailable",
+        retryable: true,
       })
       expect(checkInRequest).not.toHaveBeenCalled()
     },
@@ -1010,7 +1715,7 @@ describe("check-in methods compatibility activation", () => {
     expect(result).toMatchObject({
       kind: "blocked",
       reason: "status_unavailable",
-      retryable: false,
+      retryable: true,
     })
     expect(checkInRequest).not.toHaveBeenCalled()
   })
@@ -1037,7 +1742,7 @@ describe("check-in methods compatibility activation", () => {
     expect(result).toMatchObject({
       kind: "blocked",
       reason: "status_unavailable",
-      retryable: false,
+      retryable: true,
     })
     expect(checkInRequest).not.toHaveBeenCalled()
   })
@@ -1075,7 +1780,12 @@ describe("check-in methods compatibility activation", () => {
           context: createExecutionContext(),
           requireStatusConfirmationBeforeMutation,
         })
-        expect(result).toEqual(expected)
+        expect(result).toEqual({
+          ...expected,
+          ...(expected.kind === "blocked"
+            ? { completedAt: expect.any(Number) }
+            : {}),
+        })
       }
       expect(mutate).not.toHaveBeenCalled()
     },
@@ -1108,6 +1818,7 @@ describe("check-in methods compatibility activation", () => {
         kind: "blocked",
         reason: expectedReason,
         retryable: true,
+        completedAt: expect.any(Number),
       })
       expect(mutate).not.toHaveBeenCalled()
     },
@@ -1133,7 +1844,7 @@ describe("check-in methods compatibility activation", () => {
     ).resolves.toMatchObject({
       kind: "blocked",
       reason: "status_unavailable",
-      retryable: false,
+      retryable: true,
     })
     expect(mutate).not.toHaveBeenCalled()
   })
@@ -1173,6 +1884,7 @@ describe("check-in methods compatibility activation", () => {
     })
     vi.spyOn(registration.provider, "checkIn").mockResolvedValue({
       status: "failed",
+      reasonCode: AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR,
       rawMessage: "Example deployment failure",
     })
 
@@ -1185,53 +1897,151 @@ describe("check-in methods compatibility activation", () => {
     expect(result).toMatchObject({ kind: "executed", retryable: true })
   })
 
-  it("reconciles an uncertain mutation with one authoritative checked read", async () => {
+  it.each(["uncertain", "manual_verification"])(
+    "reconciles %s with one authoritative checked read",
+    async (outcome) => {
+      const registration = getNewApiExecutionRegistration()
+      const account = createNewApiExecutionAccount()
+      const requestOrder: string[] = []
+      vi.spyOn(registration.provider, "getStatus")
+        .mockImplementationOnce(async () => {
+          requestOrder.push("status-before")
+          return {
+            outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
+            availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
+            today: CHECK_IN_METHOD_TODAY_STATUSES.NotChecked,
+            evidence: {
+              source: CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe,
+              observedAt: Date.now(),
+            },
+          }
+        })
+        .mockImplementationOnce(async () => {
+          requestOrder.push("status-after")
+          return {
+            outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
+            availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
+            today: CHECK_IN_METHOD_TODAY_STATUSES.Checked,
+            evidence: {
+              source: CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe,
+              observedAt: Date.now(),
+            },
+          }
+        })
+      vi.spyOn(registration.provider, "checkIn").mockImplementation(
+        async () => {
+          requestOrder.push("mutation")
+          return {
+            status: outcome === "uncertain" ? "uncertain" : "failed",
+            reasonCode:
+              outcome === "uncertain"
+                ? AUTO_CHECKIN_SKIP_REASON.CHECKIN_UNCONFIRMED
+                : AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED,
+          }
+        },
+      )
+
+      const result = await executeSelectedCheckIn({
+        account,
+        globalAutomaticExecutionEnabled: true,
+        context: createExecutionContext(),
+      })
+
+      expect(result).toMatchObject({
+        kind: "executed",
+        methodId: "new-api:daily-checkin",
+        result: { status: "success", reconciliation: "checked" },
+        retryable: false,
+      })
+      expect(requestOrder).toEqual([
+        "status-before",
+        "mutation",
+        "status-after",
+      ])
+    },
+  )
+
+  it.each(["checked", "not_checked", "unavailable"] as const)(
+    "preserves a confirmed grant and its reward after final readback is %s",
+    async (finalStatus) => {
+      const registration = getNewApiExecutionRegistration()
+      const eligible = {
+        outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
+        availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
+        today: CHECK_IN_METHOD_TODAY_STATUSES.NotChecked,
+        evidence: {
+          source: CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe,
+          observedAt: 200,
+        },
+      }
+      const read = vi
+        .spyOn(registration.provider, "getStatus")
+        .mockResolvedValueOnce(eligible)
+      if (finalStatus === "unavailable")
+        read.mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      else read.mockResolvedValueOnce({ ...eligible, today: finalStatus })
+      const grant = {
+        status: "success" as const,
+        reward: { quota: 95000 },
+        messageKey: "autoCheckin:providerFallback.checkinSuccessful",
+        data: { rewardAmount: 0.19 },
+      }
+      vi.spyOn(registration.provider, "checkIn").mockResolvedValue(grant)
+
+      await expect(
+        executeSelectedCheckIn({
+          account: createNewApiExecutionAccount(),
+          globalAutomaticExecutionEnabled: true,
+          context: createExecutionContext(),
+        }),
+      ).resolves.toMatchObject({
+        kind: "executed",
+        result: grant,
+        retryable: false,
+      })
+      expect(read).toHaveBeenCalledTimes(2)
+    },
+  )
+
+  it.each([
+    AUTO_CHECKIN_SKIP_REASON.AUTHENTICATION_REQUIRED,
+    AUTO_CHECKIN_SKIP_REASON.ACCOUNT_UNAVAILABLE,
+    AUTO_CHECKIN_SKIP_REASON.ACCOUNT_STATE_WRITE_FAILED,
+  ])("preserves definitive %s after a checked readback", async (reasonCode) => {
     const registration = getNewApiExecutionRegistration()
-    const account = createNewApiExecutionAccount()
-    const requestOrder: string[] = []
-    vi.spyOn(registration.provider, "getStatus")
-      .mockImplementationOnce(async () => {
-        requestOrder.push("status-before")
-        return {
-          outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
-          availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
-          today: CHECK_IN_METHOD_TODAY_STATUSES.NotChecked,
-          evidence: {
-            source: CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe,
-            observedAt: Date.now(),
-          },
-        }
+    const eligible = {
+      outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
+      availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
+      today: CHECK_IN_METHOD_TODAY_STATUSES.NotChecked,
+      evidence: {
+        source: CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe,
+        observedAt: 200,
+      },
+    }
+    const read = vi
+      .spyOn(registration.provider, "getStatus")
+      .mockResolvedValueOnce(eligible)
+      .mockResolvedValueOnce({
+        ...eligible,
+        today: CHECK_IN_METHOD_TODAY_STATUSES.Checked,
       })
-      .mockImplementationOnce(async () => {
-        requestOrder.push("status-after")
-        return {
-          outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
-          availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
-          today: CHECK_IN_METHOD_TODAY_STATUSES.Checked,
-          evidence: {
-            source: CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe,
-            observedAt: Date.now(),
-          },
-        }
-      })
-    vi.spyOn(registration.provider, "checkIn").mockImplementation(async () => {
-      requestOrder.push("mutation")
-      return { status: "uncertain" }
+    vi.spyOn(registration.provider, "checkIn").mockResolvedValue({
+      status: "failed",
+      reasonCode,
     })
 
-    const result = await executeSelectedCheckIn({
-      account,
-      globalAutomaticExecutionEnabled: true,
-      context: createExecutionContext(),
-    })
-
-    expect(result).toMatchObject({
+    await expect(
+      executeSelectedCheckIn({
+        account: createNewApiExecutionAccount(),
+        globalAutomaticExecutionEnabled: true,
+        context: createExecutionContext(),
+      }),
+    ).resolves.toMatchObject({
       kind: "executed",
-      methodId: "new-api:daily-checkin",
-      result: { status: "success", reconciliation: "checked" },
+      result: { status: "failed", reasonCode },
       retryable: false,
     })
-    expect(requestOrder).toEqual(["status-before", "mutation", "status-after"])
+    expect(read).toHaveBeenCalledTimes(2)
   })
 
   it("passes transport lifecycle evidence through the selected-method boundary", async () => {
@@ -1326,7 +2136,10 @@ describe("check-in methods compatibility activation", () => {
         .mockResolvedValueOnce(status)
       const checkInRequest = vi
         .spyOn(registration.provider, "checkIn")
-        .mockResolvedValue({ status: "uncertain" })
+        .mockResolvedValue({
+          status: "uncertain",
+          reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_UNCONFIRMED,
+        })
 
       const result = await executeSelectedCheckIn({
         account,
@@ -1336,8 +2149,11 @@ describe("check-in methods compatibility activation", () => {
 
       expect(result).toMatchObject({
         kind: "executed",
-        result: { status: "uncertain", reconciliation },
-        retryable: false,
+        result: {
+          status: reconciliation === "not_checked" ? "failed" : "uncertain",
+          reconciliation,
+        },
+        retryable: true,
       })
       expect(checkInRequest).toHaveBeenCalledOnce()
     },
@@ -1359,7 +2175,10 @@ describe("check-in methods compatibility activation", () => {
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
     const checkInRequest = vi
       .spyOn(registration.provider, "checkIn")
-      .mockResolvedValue({ status: "uncertain" })
+      .mockResolvedValue({
+        status: "uncertain",
+        reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_UNCONFIRMED,
+      })
 
     const result = await executeSelectedCheckIn({
       account,
@@ -1370,12 +2189,12 @@ describe("check-in methods compatibility activation", () => {
     expect(result).toMatchObject({
       kind: "executed",
       result: { status: "uncertain", reconciliation: "unavailable" },
-      retryable: false,
+      retryable: true,
     })
     expect(checkInRequest).toHaveBeenCalledOnce()
   })
 
-  it("executes a no-readback method but never retries its uncertain result", async () => {
+  it("retries an uncertain result from a method without status readback", async () => {
     const registration = autoCheckinMethodRegistry.resolveById(
       "anyrouter:daily-checkin",
     )
@@ -1390,7 +2209,10 @@ describe("check-in methods compatibility activation", () => {
     })
     const checkInRequest = vi
       .spyOn(registration.provider, "checkIn")
-      .mockResolvedValue({ status: "uncertain" })
+      .mockResolvedValue({
+        status: "uncertain",
+        reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_UNCONFIRMED,
+      })
 
     const result = await executeSelectedCheckIn({
       account,
@@ -1401,7 +2223,7 @@ describe("check-in methods compatibility activation", () => {
     expect(result).toMatchObject({
       kind: "executed",
       result: { status: "uncertain", reconciliation: "unavailable" },
-      retryable: false,
+      retryable: true,
     })
     expect(checkInRequest).toHaveBeenCalledOnce()
   })
@@ -1447,7 +2269,10 @@ describe("check-in methods compatibility activation", () => {
       .spyOn(registration.provider, "checkIn")
       .mockImplementation(async () => {
         requestOrder.push("mutation")
-        return { status: "uncertain" }
+        return {
+          status: "uncertain",
+          reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_UNCONFIRMED,
+        }
       })
 
     await executeSelectedCheckIn({
@@ -1503,7 +2328,7 @@ describe("check-in methods compatibility activation", () => {
     },
   )
 
-  it("blocks an automatic retry when the method has no safe status readback", async () => {
+  it("posts a retry when the method has no status readback", async () => {
     const registration = autoCheckinMethodRegistry.resolveById(
       "anyrouter:daily-checkin",
     )
@@ -1518,7 +2343,11 @@ describe("check-in methods compatibility activation", () => {
     })
     const checkInRequest = vi
       .spyOn(registration.provider, "checkIn")
-      .mockResolvedValue({ status: "failed", rawMessage: "Example failure" })
+      .mockResolvedValue({
+        status: "failed",
+        reasonCode: AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR,
+        rawMessage: "Example failure",
+      })
 
     const result = await executeSelectedCheckIn({
       account,
@@ -1528,10 +2357,11 @@ describe("check-in methods compatibility activation", () => {
     })
 
     expect(result).toMatchObject({
-      kind: "skipped",
-      reason: "status_unavailable",
+      kind: "executed",
+      retryable: true,
+      result: { status: "failed" },
     })
-    expect(checkInRequest).not.toHaveBeenCalled()
+    expect(checkInRequest).toHaveBeenCalledOnce()
   })
 
   it.each([
@@ -1632,13 +2462,125 @@ describe("check-in methods compatibility activation", () => {
     isAutomaticExecutionEnabled.mockResolvedValueOnce(true)
     checkInRequest.mockImplementation(async (_account, context) => {
       expect(await context.beforeRecoveredMutation?.()).toBe(false)
-      return { status: "failed", retryable: false }
+      return {
+        status: "failed",
+        reasonCode: AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR,
+      }
     })
     expect(await executeSelectedCheckIn(input)).toMatchObject({
       kind: "executed",
       result: { status: "failed" },
     })
     expect(checkInRequest).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    "identity",
+    "intent",
+    "account-disabled",
+    "readiness",
+    "missing",
+    "reload-error",
+  ] as const)(
+    "blocks a recovered POST when latest admission loses %s",
+    async (change) => {
+      const registration = getNewApiExecutionRegistration()
+      const account = createNewApiExecutionAccount()
+      vi.spyOn(registration.provider, "getStatus").mockResolvedValue({
+        outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
+        availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
+        today: CHECK_IN_METHOD_TODAY_STATUSES.NotChecked,
+        evidence: {
+          source: CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe,
+          observedAt: Date.now(),
+        },
+      })
+      const revalidateAccount = vi.fn(
+        async (_config?: CheckInConfig): Promise<typeof account | null> =>
+          account,
+      )
+      const globalSwitch = vi.fn(async () => true)
+      vi.spyOn(registration.provider, "checkIn").mockImplementation(
+        async (_account, context) => {
+          if (change === "reload-error") {
+            revalidateAccount.mockRejectedValueOnce(
+              new Error("Storage unavailable"),
+            )
+          } else if (change === "missing") {
+            revalidateAccount.mockResolvedValueOnce(null)
+          } else if (change === "readiness") {
+            vi.spyOn(registration.provider, "getReadiness").mockReturnValue({
+              ready: false,
+              reason: "credentials_missing",
+            })
+          } else {
+            revalidateAccount.mockResolvedValueOnce({
+              ...account,
+              ...(change === "identity"
+                ? {
+                    account_info: {
+                      ...account.account_info,
+                      id: "another-user",
+                    },
+                  }
+                : {}),
+              ...(change === "account-disabled" ? { disabled: true } : {}),
+              checkIn: {
+                ...account.checkIn,
+                ...(change === "intent"
+                  ? { automaticExecutionEnabled: false }
+                  : {}),
+              },
+            })
+          }
+          expect(await context.beforeRecoveredMutation?.()).toBe(false)
+          expect(revalidateAccount).toHaveBeenLastCalledWith(
+            expect.objectContaining({ methodKnowledge: expect.any(Object) }),
+          )
+          return {
+            status: "failed",
+            reasonCode: AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR,
+          }
+        },
+      )
+      expect(
+        await executeSelectedCheckIn({
+          account,
+          globalAutomaticExecutionEnabled: true,
+          context: createExecutionContext(),
+          revalidateAccount,
+          isAutomaticExecutionEnabled: globalSwitch,
+        }),
+      ).toMatchObject({ kind: "executed", result: { status: "failed" } })
+      expect(globalSwitch).toHaveBeenCalledOnce()
+    },
+  )
+
+  it("leaves recovered POST guarding absent without an account reload callback", async () => {
+    const registration = getNewApiExecutionRegistration()
+    const account = createNewApiExecutionAccount()
+    vi.spyOn(registration.provider, "getStatus").mockResolvedValue({
+      outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
+      availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
+      today: CHECK_IN_METHOD_TODAY_STATUSES.NotChecked,
+      evidence: {
+        source: CHECK_IN_METHOD_STATUS_EVIDENCE_SOURCES.Probe,
+        observedAt: Date.now(),
+      },
+    })
+    vi.spyOn(registration.provider, "checkIn").mockImplementation(
+      async (_account, context) => {
+        expect(context.beforeRecoveredMutation).toBeUndefined()
+        return { status: "success" }
+      },
+    )
+    expect(
+      await executeSelectedCheckIn({
+        account,
+        globalAutomaticExecutionEnabled: true,
+        context: createExecutionContext(),
+      }),
+    ).toMatchObject({ kind: "executed", result: { status: "success" } })
   })
 
   it("preserves a dispatched unsupported result when the global switch changes", async () => {

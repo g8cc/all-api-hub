@@ -3,7 +3,7 @@ import type { InputHTMLAttributes, ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
-import ManagedSiteModelSyncSettings from "~/features/BasicSettings/components/tabs/ManagedSite/managedSiteModelSyncSettings"
+import ManagedSiteModelSyncSettings from "~/features/BasicSettings/components/tabs/ManagedSite/modelSync/managedSiteModelSyncSettings"
 import toast from "~/lib/notify"
 import { modelMetadataService } from "~/services/models/modelMetadata"
 import { sendModelSyncMessage } from "~/services/models/modelSync/messaging"
@@ -15,8 +15,15 @@ import {
   PRODUCT_ANALYTICS_SURFACE_IDS,
 } from "~/services/productAnalytics/contracts"
 import { ModelSyncMessageTypes } from "~/services/runtimeMessaging/messageTypes"
-import { pushWithinOptionsPage } from "~/utils/navigation"
-import { fireEvent, render, screen, waitFor } from "~~/tests/test-utils/render"
+import { pushWithinOptionsPage } from "~/utils/navigation/optionsPage"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "~~/tests/test-utils/render"
 
 const {
   mockedUseUserPreferencesContext,
@@ -75,13 +82,11 @@ vi.mock("~/services/productAnalytics/actions", () => ({
   startProductAnalyticsAction: mockStartProductAnalyticsAction,
 }))
 
-vi.mock("~/utils/navigation", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/utils/navigation")>()
+vi.mock("~/utils/navigation/optionsPage", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/utils/navigation/optionsPage")>()
 
-  return {
-    ...actual,
-    pushWithinOptionsPage: vi.fn(),
-  }
+  return { ...actual, pushWithinOptionsPage: vi.fn() }
 })
 
 vi.mock("~/utils/core/identifier", () => ({
@@ -116,7 +121,7 @@ vi.mock("~/components/SettingSection", () => ({
   ),
 }))
 
-vi.mock("~/components/ChannelFiltersEditor", () => ({
+vi.mock("~/features/ManagedSiteModelSync/filters/ChannelFiltersEditor", () => ({
   default: ({
     filters,
     viewMode,
@@ -238,11 +243,13 @@ vi.mock("~/components/ui", async () => ({
     selected,
     onChange,
     disabled,
+    loading,
   }: {
     options: Array<{ label: string }>
     selected: string[]
     onChange?: (value: string[]) => void
     disabled?: boolean
+    loading?: boolean
   }) => (
     <div>
       <div data-testid={TEST_IDS.allowedModelOptions}>
@@ -253,6 +260,7 @@ vi.mock("~/components/ui", async () => ({
       </div>
       <button
         disabled={disabled}
+        aria-busy={loading}
         onClick={() => onChange?.(["gpt-4o", "claude-3-7-sonnet"])}
       >
         select-allowed-models
@@ -365,7 +373,35 @@ describe("ManagedSiteModelSyncSettings", () => {
     })
   })
 
+  it("announces model loading and clears the status after retaining the selected models", async () => {
+    const options = createDeferred<{ success: boolean; data: string[] }>()
+    mockedSendModelSyncMessage.mockReturnValueOnce(options.promise)
+    render(<ManagedSiteModelSyncSettings />)
+
+    const status = screen.getByRole("status")
+    expect(status).toHaveTextContent(
+      "managedSiteModelSync:settings.allowedModelsLoading",
+    )
+    expect(status).toHaveAttribute("aria-live", "polite")
+    expect(status).toHaveClass("sr-only")
+    const selector = screen.getByRole("button", {
+      name: "select-allowed-models",
+    })
+    expect(selector).toBeDisabled()
+    expect(selector).toHaveAttribute("aria-busy", "true")
+
+    await act(async () => options.resolve({ success: true, data: ["model-a"] }))
+    expect(status).toBeEmptyDOMElement()
+    expect(screen.getByTestId(TEST_IDS.allowedModelSelected)).toHaveTextContent(
+      "existing-model",
+    )
+    expect(selector).toBeEnabled()
+    expect(selector).not.toHaveAttribute("aria-busy", "true")
+  })
+
   it("loads runtime model options and persists toggles, intervals, and allowed models", async () => {
+    const options = createDeferred<{ success: boolean; data: string[] }>()
+    mockedSendModelSyncMessage.mockReturnValueOnce(options.promise)
     render(<ManagedSiteModelSyncSettings />)
 
     await waitFor(() => {
@@ -374,9 +410,12 @@ describe("ManagedSiteModelSyncSettings", () => {
       )
     })
 
-    expect(screen.getByTestId(TEST_IDS.allowedModelOptions)).toHaveTextContent(
-      "a-model,z-model",
-    )
+    options.resolve({ success: true, data: ["z-model", "a-model"] })
+    await waitFor(() => {
+      expect(
+        screen.getByTestId(TEST_IDS.allowedModelOptions),
+      ).toHaveTextContent("a-model,z-model")
+    })
     expect(screen.getByTestId(TEST_IDS.allowedModelSelected)).toHaveTextContent(
       "existing-model",
     )
@@ -739,7 +778,14 @@ describe("ManagedSiteModelSyncSettings", () => {
       channelTimeoutInput,
       rpmInput,
       burstInput,
-    ] = inputs
+    ] = [
+      atIndex(inputs, 0),
+      atIndex(inputs, 1),
+      atIndex(inputs, 2),
+      atIndex(inputs, 3),
+      atIndex(inputs, 4),
+      atIndex(inputs, 5),
+    ]
 
     fireEvent.change(intervalInput, { target: { value: "0" } })
     fireEvent.blur(intervalInput)
@@ -776,14 +822,11 @@ describe("ManagedSiteModelSyncSettings", () => {
     vi.clearAllMocks()
 
     const inputs = screen.getAllByRole("spinbutton")
-    const [
-      ,
-      concurrencyInput,
-      retriesInput,
-      channelTimeoutInput,
-      rpmInput,
-      burstInput,
-    ] = inputs
+    const concurrencyInput = atIndex(inputs, 1)
+    const retriesInput = atIndex(inputs, 2)
+    const channelTimeoutInput = atIndex(inputs, 3)
+    const rpmInput = atIndex(inputs, 4)
+    const burstInput = atIndex(inputs, 5)
 
     fireEvent.change(concurrencyInput, { target: { value: "4" } })
     fireEvent.blur(concurrencyInput)
@@ -857,7 +900,7 @@ describe("ManagedSiteModelSyncSettings", () => {
 
     vi.clearAllMocks()
 
-    const [, , , channelTimeoutInput] = screen.getAllByRole("spinbutton")
+    const channelTimeoutInput = atIndex(screen.getAllByRole("spinbutton"), 3)
     fireEvent.change(channelTimeoutInput, { target: { value: "0" } })
     fireEvent.blur(channelTimeoutInput)
 
@@ -1742,41 +1785,52 @@ describe("ManagedSiteModelSyncSettings", () => {
     expect(mockUpdateNewApiModelSync).not.toHaveBeenCalled()
   })
 
-  it("navigates to the execution page and resets the section through SettingSection", async () => {
-    render(<ManagedSiteModelSyncSettings />)
+  it.each([true, false])(
+    "navigates to execution and reports settings reset success: %s",
+    async (ok) => {
+      if (!ok)
+        mockResetNewApiModelSyncConfig.mockResolvedValueOnce({
+          ok: false,
+          error: new Error("Storage unavailable"),
+        })
+      render(<ManagedSiteModelSyncSettings />)
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "managedSiteModelSync:settings.viewExecutionButton",
-      }),
-    )
-    fireEvent.click(
-      screen.getByRole("button", { name: "common:actions.reset" }),
-    )
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "managedSiteModelSync:settings.viewExecutionButton",
+        }),
+      )
+      fireEvent.click(
+        screen.getByRole("button", { name: "common:actions.reset" }),
+      )
 
-    await waitFor(() => {
-      expect(mockResetNewApiModelSyncConfig).toHaveBeenCalledTimes(1)
-    })
+      await waitFor(() => {
+        expect(mockResetNewApiModelSyncConfig).toHaveBeenCalledTimes(1)
+      })
 
-    expect(mockStartProductAnalyticsAction).toHaveBeenCalledWith({
-      featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ManagedSiteModelSync,
-      actionId: PRODUCT_ANALYTICS_ACTION_IDS.OpenManagedSiteChannelModelSync,
-      surfaceId:
-        PRODUCT_ANALYTICS_SURFACE_IDS.OptionsManagedSiteModelSyncActionBar,
-      entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
-    })
-    expect(mockStartProductAnalyticsAction).toHaveBeenCalledWith({
-      featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ManagedSiteModelSync,
-      actionId: PRODUCT_ANALYTICS_ACTION_IDS.UpdateManagedSiteModelSyncSettings,
-      surfaceId:
-        PRODUCT_ANALYTICS_SURFACE_IDS.OptionsManagedSiteModelSyncActionBar,
-      entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
-    })
-    expect(mockCompleteProductAnalyticsAction).toHaveBeenCalledWith(
-      PRODUCT_ANALYTICS_RESULTS.Success,
-    )
-    expect(mockedPushWithinOptionsPage).toHaveBeenCalledWith(
-      `#${MENU_ITEM_IDS.MANAGED_SITE_MODEL_SYNC}`,
-    )
-  })
+      expect(mockStartProductAnalyticsAction).toHaveBeenCalledWith({
+        featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ManagedSiteModelSync,
+        actionId: PRODUCT_ANALYTICS_ACTION_IDS.OpenManagedSiteChannelModelSync,
+        surfaceId:
+          PRODUCT_ANALYTICS_SURFACE_IDS.OptionsManagedSiteModelSyncActionBar,
+        entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
+      })
+      expect(mockStartProductAnalyticsAction).toHaveBeenCalledWith({
+        featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ManagedSiteModelSync,
+        actionId:
+          PRODUCT_ANALYTICS_ACTION_IDS.UpdateManagedSiteModelSyncSettings,
+        surfaceId:
+          PRODUCT_ANALYTICS_SURFACE_IDS.OptionsManagedSiteModelSyncActionBar,
+        entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
+      })
+      expect(mockCompleteProductAnalyticsAction).toHaveBeenCalledWith(
+        ok
+          ? PRODUCT_ANALYTICS_RESULTS.Success
+          : PRODUCT_ANALYTICS_RESULTS.Failure,
+      )
+      expect(mockedPushWithinOptionsPage).toHaveBeenCalledWith(
+        `#${MENU_ITEM_IDS.MANAGED_SITE_MODEL_SYNC}`,
+      )
+    },
+  )
 })

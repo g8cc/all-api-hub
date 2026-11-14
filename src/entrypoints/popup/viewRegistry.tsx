@@ -9,28 +9,36 @@ import {
 import { useTranslation } from "react-i18next"
 
 import AccountList from "~/features/AccountManagement/components/AccountList"
+import { PopupAccountOnboarding } from "~/features/AccountManagement/components/PopupAccountOnboarding"
+import { useAccountDataContext } from "~/features/AccountManagement/data/AccountDataContext"
+import { useDialogStateContext } from "~/features/AccountManagement/dialogs/useDialogStateContext"
+import { useAddAccountHandler } from "~/features/AccountManagement/opening/useAddAccountHandler"
+import { SPONSOR_WORKFLOW_KINDS } from "~/features/AccountManagement/sponsors/constants"
+import type { SponsorWorkflowIntent } from "~/features/AccountManagement/sponsors/sponsorWorkflowIntent"
+import type { SponsorApiCredentialFallbackPrefill } from "~/features/AccountManagement/sponsors/types"
+import { useSponsorWorkflowReceiver } from "~/features/AccountManagement/sponsors/useSponsorWorkflowReceiver"
 import { ACCOUNT_MANAGEMENT_TEST_IDS } from "~/features/AccountManagement/testIds"
-import type { ApiCredentialProfilesPopupViewHandle } from "~/features/ApiCredentialProfiles/components/ApiCredentialProfilesPopupView"
-import { useBookmarkDialogContext } from "~/features/SiteBookmarks/hooks/BookmarkDialogStateContext"
-import { useAddAccountHandler } from "~/hooks/useAddAccountHandler"
+import type { ApiCredentialProfilesPopupViewHandle } from "~/features/ApiCredentialProfiles/list/ApiCredentialProfilesPopupView"
+import { useBookmarkDialogContext } from "~/features/SiteBookmarks/editor/BookmarkDialogStateContext"
+import { UI_HANDOFF_RECEIVE_RESULTS } from "~/hooks/useUiHandoffReceiver"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_FEATURE_IDS,
   type ProductAnalyticsActionId,
   type ProductAnalyticsFeatureId,
 } from "~/services/productAnalytics/contracts"
+import { isExtensionSidePanel } from "~/utils/browser"
 
 import BalanceSection from "./components/BalanceSection"
 import type { PopupViewType } from "./components/PopupViewSwitchTabs"
 import ShareOverviewSnapshotButton from "./components/ShareOverviewSnapshotButton"
 import { POPUP_TEST_IDS } from "./testIds"
+import { POPUP_VIEW_TYPES } from "./viewTypes"
 
 const loadBookmarksList = () =>
-  import("~/features/SiteBookmarks/components/BookmarksList")
+  import("~/features/SiteBookmarks/list/BookmarksList")
 const loadApiCredentialProfilesPopupView = () =>
-  import(
-    "~/features/ApiCredentialProfiles/components/ApiCredentialProfilesPopupView"
-  )
+  import("~/features/ApiCredentialProfiles/list/ApiCredentialProfilesPopupView")
 
 const LazyBookmarksList = lazy(loadBookmarksList)
 const LazyApiCredentialProfilesPopupView = lazy(
@@ -46,6 +54,8 @@ const LazyApiCredentialProfilesStatsSection = lazy(
 
 interface PopupViewConfig {
   showRefresh: boolean
+  showActionBar?: boolean
+  showAccountActions?: boolean
   headerAction?: ReactNode
   statsSection?: ReactNode
   primaryActionLabel: string
@@ -60,6 +70,7 @@ interface PopupViewConfig {
 }
 
 interface PopupViewRegistryOptions {
+  onSelectView?: (view: PopupViewType) => void
   isPopup?: boolean
   scrollParent?: HTMLElement | null
 }
@@ -92,6 +103,7 @@ function PopupContentFallback() {
 export function usePopupViewRegistry({
   isPopup = false,
   scrollParent,
+  onSelectView,
 }: PopupViewRegistryOptions = {}): Record<PopupViewType, PopupViewConfig> {
   const { t } = useTranslation([
     "account",
@@ -100,7 +112,26 @@ export function usePopupViewRegistry({
     "apiCredentialProfiles",
   ])
   const { handleAddAccountClick } = useAddAccountHandler()
-  const { openAddBookmark } = useBookmarkDialogContext()
+  const { accounts, bookmarks, isInitialLoad } = useAccountDataContext()
+  const hasAccounts = accounts.length > 0
+  const showAccountOverview = !isInitialLoad && hasAccounts
+
+  // Popup-level bridge between the detected-accounts badge in the stats
+  // section and the account list's search box. The revision lets repeated
+  // requests re-apply the same query after the user edits or clears it.
+  const [accountSearchRequest, setAccountSearchRequest] = useState<{
+    query: string
+    revision: number
+  } | null>(null)
+  const requestAccountSearch = useCallback((query: string) => {
+    setAccountSearchRequest((prev) => ({
+      query,
+      revision: (prev?.revision ?? 0) + 1,
+    }))
+  }, [])
+  const { openAddBookmark, isBookmarkDialogOpen } = useBookmarkDialogContext()
+  const { isAddAccountOpen, isEditAccountOpen } = useDialogStateContext()
+  const [isApiEditorOpen, setIsApiEditorOpen] = useState(false)
   // Native action-popup pointer lifecycles do not reliably deliver dnd-kit drag
   // completion, so keep reordering discoverable there but direct users elsewhere.
   const reorderUnavailableReason = isPopup
@@ -110,6 +141,8 @@ export function usePopupViewRegistry({
   const apiCredentialProfilesViewRef =
     useRef<ApiCredentialProfilesPopupViewHandle>(null)
   const [pendingApiCredentialProfilesAdd, setPendingApiCredentialProfilesAdd] =
+    useState<SponsorApiCredentialFallbackPrefill | true | null>(null)
+  const [hasApiCredentialProfiles, setHasApiCredentialProfiles] =
     useState(false)
 
   const handleApiCredentialProfilesViewRef = useCallback(
@@ -117,18 +150,72 @@ export function usePopupViewRegistry({
       apiCredentialProfilesViewRef.current = handle
 
       if (handle && pendingApiCredentialProfilesAdd) {
-        handle.openAddDialog()
-        setPendingApiCredentialProfilesAdd(false)
+        handle.openAddDialog(
+          pendingApiCredentialProfilesAdd === true
+            ? undefined
+            : pendingApiCredentialProfilesAdd,
+        )
+        setPendingApiCredentialProfilesAdd(null)
       }
     },
     [pendingApiCredentialProfilesAdd],
   )
 
+  const receiveSponsorWorkflow = useCallback(
+    (intent: SponsorWorkflowIntent) => {
+      if (
+        isAddAccountOpen ||
+        isEditAccountOpen ||
+        isBookmarkDialogOpen ||
+        isApiEditorOpen ||
+        pendingApiCredentialProfilesAdd !== null
+      )
+        return UI_HANDOFF_RECEIVE_RESULTS.Busy
+      switch (intent.kind) {
+        case SPONSOR_WORKFLOW_KINDS.Account:
+          onSelectView?.(POPUP_VIEW_TYPES.Accounts)
+          handleAddAccountClick(intent.prefill)
+          break
+        case SPONSOR_WORKFLOW_KINDS.Bookmark:
+          onSelectView?.(POPUP_VIEW_TYPES.Bookmarks)
+          openAddBookmark(intent.prefill)
+          break
+        case SPONSOR_WORKFLOW_KINDS.ApiCredential:
+          onSelectView?.(POPUP_VIEW_TYPES.ApiCredentialProfiles)
+          if (apiCredentialProfilesViewRef.current) {
+            apiCredentialProfilesViewRef.current.openAddDialog(intent.prefill)
+          } else {
+            setPendingApiCredentialProfilesAdd(intent.prefill)
+            void loadApiCredentialProfilesPopupView()
+          }
+          break
+      }
+      return UI_HANDOFF_RECEIVE_RESULTS.Accepted
+    },
+    [
+      isAddAccountOpen,
+      isEditAccountOpen,
+      isBookmarkDialogOpen,
+      isApiEditorOpen,
+      pendingApiCredentialProfilesAdd,
+      onSelectView,
+      handleAddAccountClick,
+      openAddBookmark,
+    ],
+  )
+  useSponsorWorkflowReceiver(isExtensionSidePanel(), receiveSponsorWorkflow)
+
   return {
-    accounts: {
-      showRefresh: true,
-      headerAction: <ShareOverviewSnapshotButton />,
-      statsSection: <BalanceSection />,
+    [POPUP_VIEW_TYPES.Accounts]: {
+      showRefresh: showAccountOverview,
+      showActionBar: showAccountOverview,
+      showAccountActions: showAccountOverview,
+      headerAction: showAccountOverview ? (
+        <ShareOverviewSnapshotButton />
+      ) : null,
+      statsSection: showAccountOverview ? (
+        <BalanceSection onFilterCurrentSiteAccounts={requestAccountSearch} />
+      ) : null,
       primaryActionLabel: t("account:addAccount"),
       onPrimaryAction: handleAddAccountClick,
       primaryAnalyticsAction: {
@@ -136,21 +223,29 @@ export function usePopupViewRegistry({
         actionId: PRODUCT_ANALYTICS_ACTION_IDS.OpenCreateAccountDialog,
       },
       primaryActionTestId: ACCOUNT_MANAGEMENT_TEST_IDS.addAccountButton,
-      content: (
-        <AccountList
-          reorderUnavailableReason={reorderUnavailableReason}
-          showAddAccountAction={false}
-          virtualScrollParent={scrollParent}
-        />
-      ),
+      content:
+        !isInitialLoad && !hasAccounts ? (
+          <PopupAccountOnboarding onAdd={handleAddAccountClick} />
+        ) : (
+          <AccountList
+            initialSearchQuery={accountSearchRequest?.query}
+            initialSearchQueryRevision={accountSearchRequest?.revision}
+            reorderUnavailableReason={reorderUnavailableReason}
+            showAddAccountAction={false}
+            virtualScrollParent={scrollParent}
+          />
+        ),
     },
-    bookmarks: {
+    [POPUP_VIEW_TYPES.Bookmarks]: {
       showRefresh: false,
-      statsSection: (
-        <Suspense fallback={<PopupStatsFallback />}>
-          <LazyBookmarkStatsSection />
-        </Suspense>
-      ),
+      showActionBar: !isInitialLoad && bookmarks.length > 0,
+      showAccountActions: false,
+      statsSection:
+        !isInitialLoad && bookmarks.length > 0 ? (
+          <Suspense fallback={<PopupStatsFallback />}>
+            <LazyBookmarkStatsSection />
+          </Suspense>
+        ) : null,
       primaryActionLabel: t("bookmark:actions.add"),
       primaryActionTestId: POPUP_TEST_IDS.bookmarksPrimaryAction,
       onPrimaryAction: openAddBookmark,
@@ -167,13 +262,15 @@ export function usePopupViewRegistry({
         void loadBookmarksList()
       },
     },
-    apiCredentialProfiles: {
+    [POPUP_VIEW_TYPES.ApiCredentialProfiles]: {
       showRefresh: false,
-      statsSection: (
+      showActionBar: hasApiCredentialProfiles,
+      showAccountActions: false,
+      statsSection: hasApiCredentialProfiles ? (
         <Suspense fallback={<PopupStatsFallback />}>
           <LazyApiCredentialProfilesStatsSection />
         </Suspense>
-      ),
+      ) : null,
       primaryActionLabel: t("apiCredentialProfiles:actions.add"),
       primaryActionTestId: POPUP_TEST_IDS.apiCredentialProfilesPrimaryAction,
       onPrimaryAction: () => {
@@ -194,6 +291,9 @@ export function usePopupViewRegistry({
         <Suspense fallback={<PopupContentFallback />}>
           <LazyApiCredentialProfilesPopupView
             ref={handleApiCredentialProfilesViewRef}
+            showKeyManagementImportHint={showAccountOverview}
+            onHasProfilesChange={setHasApiCredentialProfiles}
+            onEditorOpenChange={setIsApiEditorOpen}
           />
         </Suspense>
       ),

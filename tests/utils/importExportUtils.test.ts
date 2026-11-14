@@ -1,48 +1,56 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import {
-  BACKUP_VERSION,
-  importFromBackupObject,
-  normalizeBackupForMerge,
-  parseBackupSummary,
-  type BackupFullV2,
-  type BackupPreferencesPartialV2,
-  type BackupV2,
-  type RawBackupData,
-} from "~/features/ImportExport/utils"
+import { ACCOUNT_LOGIN_METHODS } from "~/constants/accountLogin"
+import { BACKUP_VERSION } from "~/constants/importExport"
+import { importFromBackupObject } from "~/features/ImportExport/utils"
 import { accountDataTransfer } from "~/services/accounts/accountStorage/accountDataTransfer"
-import { apiCredentialProfilesStorage } from "~/services/apiCredentialProfiles/apiCredentialProfilesStorage"
+import { apiCredentialProfilesStorage } from "~/services/apiCredentialProfiles/storage/profiles"
 import {
   createEmptyFeatureGuidanceState,
   featureGuidanceState,
   PRODUCT_TOUR_OUTCOMES,
 } from "~/services/featureGuidance/featureGuidanceState"
-import { channelConfigStorage } from "~/services/managedSites/channelConfigStorage"
+import {
+  normalizeBackupForMerge,
+  parseBackupSummary,
+} from "~/services/importExport/backupCodec"
+import {
+  IMPORT_EXPORT_ERROR_CODES,
+  type BackupFullV2,
+  type BackupPreferencesPartialV2,
+  type BackupV2,
+  type RawBackupData,
+} from "~/services/importExport/backupContracts"
+import { channelConfigStorage } from "~/services/managedSites/configuration/channelConfigStorage"
 import {
   ensureLegacyChannelConfigMigrationReady,
   LegacyChannelConfigMigrationDeferredError,
-} from "~/services/managedSites/legacyChannelConfigMigration"
+} from "~/services/managedSites/configuration/legacyChannelConfigMigration"
 import { userPreferences } from "~/services/preferences/userPreferences"
 import { tagStorage } from "~/services/tags/tagStorage"
 import { API_TYPES } from "~/services/verification/aiApiVerification"
 import { DEFAULT_ACCOUNT_AUTO_REFRESH } from "~/types/accountAutoRefresh"
 import { DEFAULT_WEBDAV_SETTINGS } from "~/types/webdav"
 import { channelConfigSnapshot } from "~~/tests/test-utils/channelConfigSnapshot"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
-vi.mock("~/services/managedSites/legacyChannelConfigMigration", () => {
-  class LegacyChannelConfigMigrationDeferredError extends Error {
-    constructor(readonly reason: string) {
-      super(`Legacy channel config migration deferred: ${reason}`)
+vi.mock(
+  "~/services/managedSites/configuration/legacyChannelConfigMigration",
+  () => {
+    class LegacyChannelConfigMigrationDeferredError extends Error {
+      constructor(readonly reason: string) {
+        super(`Legacy channel config migration deferred: ${reason}`)
+      }
     }
-  }
 
-  return {
-    ensureLegacyChannelConfigMigrationReady: vi
-      .fn()
-      .mockResolvedValue(undefined),
-    LegacyChannelConfigMigrationDeferredError,
-  }
-})
+    return {
+      ensureLegacyChannelConfigMigrationReady: vi
+        .fn()
+        .mockResolvedValue(undefined),
+      LegacyChannelConfigMigrationDeferredError,
+    }
+  },
+)
 
 vi.mock("~/services/accounts/accountStorage/accountDataTransfer", () => ({
   accountDataTransfer: {
@@ -59,7 +67,7 @@ vi.mock("~/services/preferences/userPreferences", () => ({
 }))
 
 vi.mock(
-  import("~/services/managedSites/channelConfigStorage"),
+  import("~/services/managedSites/configuration/channelConfigStorage"),
   async (importOriginal) => {
     const actual = await importOriginal()
     return {
@@ -91,7 +99,7 @@ vi.mock("~/services/tags/tagStorage", () => ({
 }))
 
 vi.mock(
-  import("~/services/apiCredentialProfiles/apiCredentialProfilesStorage"),
+  import("~/services/apiCredentialProfiles/storage/profiles"),
   async (importOriginal) => {
     const actual = await importOriginal()
     return {
@@ -101,6 +109,16 @@ vi.mock(
         mergeConfig: vi.fn(),
         exportConfig: vi.fn(),
       } as unknown as typeof actual.apiCredentialProfilesStorage,
+    }
+  },
+)
+
+vi.mock(
+  import("~/services/apiCredentialProfiles/storage/configCodec"),
+  async (importOriginal) => {
+    const actual = await importOriginal()
+    return {
+      ...actual,
       coerceApiCredentialProfilesConfig: (raw: unknown) =>
         raw as ReturnType<typeof actual.coerceApiCredentialProfilesConfig>,
     }
@@ -415,7 +433,7 @@ describe("importFromBackupObject", () => {
   })
 
   it.each(["1.0", "2.0", "3.0"])(
-    "imports V6 accounts from a V%s envelope as canonical V7",
+    "imports V6 accounts from a V%s envelope as canonical V8",
     async (version) => {
       await importFromBackupObject({
         version,
@@ -436,11 +454,11 @@ describe("importFromBackupObject", () => {
         },
       })
 
-      const imported = mockAccountStorageImportData.mock.calls[0][0]
+      const imported = atIndex(mockAccountStorageImportData.mock.calls, 0)[0]
         .accounts[0] as any
       expect(imported).toMatchObject({
         id: `legacy-${version}`,
-        configVersion: 7,
+        configVersion: 8,
         checkIn: {
           automaticExecutionEnabled: false,
           selection: { methodId: "new-api:daily-checkin" },
@@ -1444,6 +1462,146 @@ describe("importFromBackupObject", () => {
     )
   })
 
+  it("stops planned canonical imports when preferences cannot be persisted", async () => {
+    mockUserPreferencesImport.mockResolvedValue(preferenceWriteFailure())
+    await expect(
+      importFromBackupObject(
+        {
+          version: BACKUP_VERSION,
+          timestamp: Date.now(),
+          preferences: { themeMode: "dark" },
+          channelConfigs: channelConfigSnapshot([]),
+          apiCredentialProfiles: { version: 2, profiles: [] },
+        },
+        {
+          plan: {
+            accounts: "skip",
+            preferences: "replace",
+            channelConfigs: "replace",
+            apiCredentialProfiles: "replace",
+          },
+        },
+      ),
+    ).rejects.toThrow("importExport:import.importOperationFailed")
+    expect(mockChannelConfigImport).not.toHaveBeenCalled()
+    expect(mockApiCredentialProfilesImportConfig).not.toHaveBeenCalled()
+  })
+
+  it("replaces profile-only backups without a tag store", async () => {
+    const profiles = { version: 2, profiles: [] }
+    await importFromBackupObject(
+      {
+        version: BACKUP_VERSION,
+        timestamp: Date.now(),
+        apiCredentialProfiles: profiles,
+      },
+      {
+        plan: {
+          accounts: "skip",
+          preferences: "skip",
+          channelConfigs: "skip",
+          apiCredentialProfiles: "replace",
+        },
+      },
+    )
+    expect(mockApiCredentialProfilesImportConfig).toHaveBeenCalledWith(profiles)
+    expect(mockApiCredentialProfilesMergeConfig).not.toHaveBeenCalled()
+  })
+
+  it("keeps local entries, adds remote entries and replaces older matching entries during a merge", async () => {
+    const local = { id: "retained-local", updated_at: 10 }
+    const incoming = { id: "new-remote", updated_at: 20 }
+    const oldMatching = { id: "matching", updated_at: 10 }
+    const newerMatching = { id: "matching", updated_at: 20 }
+    mockAccountStorageExportData.mockResolvedValue({
+      accounts: [local, oldMatching],
+      bookmarks: [],
+      pinnedAccountIds: [],
+      orderedAccountIds: [],
+      deletedEntryRecords: {},
+    })
+    mockTagStoreExport.mockResolvedValue({ version: 1, tagsById: {} })
+    mockMergeTagStoresForSync.mockReturnValueOnce({
+      tagStore: { version: 1, tagsById: {} },
+      localAccounts: [local, oldMatching],
+      remoteAccounts: [incoming, newerMatching],
+      localBookmarks: [],
+      remoteBookmarks: [],
+      localTaggables: [],
+      remoteTaggables: [],
+    })
+    await importFromBackupObject(
+      {
+        version: BACKUP_VERSION,
+        timestamp: Date.now(),
+        accounts: { accounts: [incoming, newerMatching], last_updated: 20 },
+      },
+      {
+        plan: {
+          accounts: "merge",
+          preferences: "skip",
+          channelConfigs: "skip",
+          apiCredentialProfiles: "skip",
+        },
+      },
+    )
+    expect(mockAccountStorageImportData).toHaveBeenCalledWith(
+      expect.objectContaining({ accounts: [local, newerMatching, incoming] }),
+    )
+  })
+
+  it("imports the legacy tag store before accounts", async () => {
+    const tagStore = { version: 1, tagsById: {} }
+    await importFromBackupObject({
+      version: "1.0",
+      timestamp: Date.now(),
+      accounts: [{ id: "legacy-tagged" }],
+      tagStore,
+    })
+    expect(mockTagStoreImport).toHaveBeenCalledWith(tagStore)
+    expect(mockAccountStorageImportData).toHaveBeenCalledWith({
+      accounts: [{ id: "legacy-tagged" }],
+    })
+    expect(mockTagStoreImport.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAccountStorageImportData.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it("preserves WebDAV configuration when importing legacy preferences", async () => {
+    const preferences = { themeMode: "dark" }
+    await importFromBackupObject(
+      { version: "1.0", timestamp: Date.now(), preferences },
+      { preserveWebdav: true },
+    )
+    expect(mockUserPreferencesImport).toHaveBeenCalledWith(preferences, {
+      preserveWebdav: true,
+    })
+  })
+
+  it("rejects an entirely skipped legacy backup without writing", async () => {
+    await expect(
+      importFromBackupObject(
+        {
+          version: "1.0",
+          timestamp: Date.now(),
+          accounts: [{ id: "skipped" }],
+          preferences: { themeMode: "dark" },
+        },
+        {
+          plan: {
+            accounts: "skip",
+            preferences: "skip",
+            channelConfigs: "skip",
+            apiCredentialProfiles: "skip",
+          },
+        },
+      ),
+    ).rejects.toThrow("importExport:import.noImportableData")
+    expect(mockAccountStorageImportData).not.toHaveBeenCalled()
+    expect(mockUserPreferencesImport).not.toHaveBeenCalled()
+    expect(mockTagStoreImport).not.toHaveBeenCalled()
+  })
+
   it("preserves webdav config when preserveWebdav option is provided", async () => {
     const backup: BackupPreferencesPartialV2 = {
       version: BACKUP_VERSION,
@@ -1530,7 +1688,7 @@ describe("importFromBackupObject", () => {
 })
 
 describe("normalizeBackupForMerge", () => {
-  it("upgrades V6 accounts for WebDAV arbitration without rewriting V7 accounts", () => {
+  it("upgrades V6/V7 accounts for WebDAV arbitration without rewriting V8 accounts", () => {
     const currentCheckIn = {
       automaticExecutionEnabled: true,
       methodKnowledge: {
@@ -1550,7 +1708,7 @@ describe("normalizeBackupForMerge", () => {
     }
     const currentAccount = {
       id: "current-account",
-      configVersion: 7,
+      configVersion: 8,
       checkIn: currentCheckIn,
     }
 
@@ -1575,6 +1733,16 @@ describe("normalizeBackupForMerge", () => {
               },
             },
             currentAccount,
+            {
+              id: "v7-account",
+              configVersion: 7,
+              user_updated_at: 15,
+              checkIn: {
+                ...currentCheckIn,
+                loginCheckIn: { provider: ACCOUNT_LOGIN_METHODS.Password },
+              },
+              passwordAuth: { username: "alice", password: "secret" },
+            },
           ],
         },
       },
@@ -1583,7 +1751,7 @@ describe("normalizeBackupForMerge", () => {
 
     expect(result.accounts[0]).toMatchObject({
       id: "legacy-account",
-      configVersion: 7,
+      configVersion: 8,
       checkIn: {
         automaticExecutionEnabled: false,
         selection: {
@@ -1605,6 +1773,16 @@ describe("normalizeBackupForMerge", () => {
     expect(result.accounts[0]).not.toHaveProperty("checkIn.siteStatus")
     expect(result.accounts[1]).toBe(currentAccount)
     expect(result.accounts[1].checkIn).toBe(currentCheckIn)
+    expect(result.accounts[2]).toMatchObject({
+      configVersion: 8,
+      user_updated_at: 15,
+      login: {
+        methodId: ACCOUNT_LOGIN_METHODS.Password,
+        credentials: { username: "alice", password: "secret" },
+      },
+    })
+    expect(result.accounts[2]).not.toHaveProperty("passwordAuth")
+    expect(result.accounts[2].checkIn).not.toHaveProperty("loginCheckIn")
   })
 
   it("rejects future backup versions instead of normalizing them as V1", () => {
@@ -1656,7 +1834,7 @@ describe("normalizeBackupForMerge", () => {
         },
         null,
       ),
-    ).toThrow("FORMAT_NOT_CORRECT")
+    ).toThrow(IMPORT_EXPORT_ERROR_CODES.FormatNotCorrect)
   })
 
   beforeEach(() => {

@@ -2,21 +2,12 @@ import { FEEDBACK_SCAN_LIMITS } from "./scanLimits"
 
 export type ScanReadIssue = "timeout" | "limit" | "unavailable"
 
-/**
- * Callable surface the scan needs. Declared structurally so the module does not
- * depend on the ambient `fetch` type, whose static members differ between the
- * DOM lib and runtime-augmented globals.
- */
-export type ScanFetch = (
-  input: RequestInfo | URL,
-  init?: RequestInit,
-) => Promise<Response>
-
 /** Shares request and streamed-byte limits across the reads of one scan. */
 export function createScanReader(
   origin: string,
   signal: AbortSignal,
-  fetcher: ScanFetch = fetch,
+  fetcher: typeof fetch = fetch,
+  statusOrigin = origin,
 ) {
   let requests = 0
   let bytes = 0
@@ -27,13 +18,17 @@ export function createScanReader(
     bytes >= FEEDBACK_SCAN_LIMITS.bytes ||
     signal.aborted
 
-  const read = async (url: string, headers?: HeadersInit) => {
+  const readFromOrigin = async (
+    allowedOrigin: string,
+    url: string,
+    headers?: HeadersInit,
+  ) => {
     if (exhausted()) {
       if (!signal.aborted) issues.add("limit")
       throw new Error("scan_limit")
     }
-    const parsed = new URL(url, origin)
-    if (parsed.origin !== origin || parsed.username || parsed.password)
+    const parsed = new URL(url, allowedOrigin)
+    if (parsed.origin !== allowedOrigin || parsed.username || parsed.password)
       throw new Error("scan_origin")
     requests++
     const request = new AbortController()
@@ -98,7 +93,10 @@ export function createScanReader(
     }
   }
   return {
-    read,
+    read: (url: string, headers?: HeadersInit) =>
+      readFromOrigin(origin, url, headers),
+    readStatus: (url: string, headers?: HeadersInit) =>
+      readFromOrigin(statusOrigin, url, headers),
     exhausted,
     issues,
   }

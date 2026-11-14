@@ -1,6 +1,6 @@
 import { RuntimeActionIds } from "~/constants/runtimeActions"
 import type { AccountSiteType } from "~/constants/siteType"
-import { normalizeAccountIdentity } from "~/services/accounts/accountIdentity"
+import { normalizeAccountIdentity } from "~/services/accounts/identity/accountIdentity"
 import { getAccountBrowserIdentityCapability } from "~/services/accountSiteOnboarding/registry"
 import type {
   AccountBrowserIdentityCapability,
@@ -8,7 +8,7 @@ import type {
   BrowserIdentityObservation,
   BrowserIdentityRead,
 } from "~/services/apiAdapters/contracts/accountBrowserIdentity"
-import { sendRuntimeMessage } from "~/utils/browser/browserApi"
+import { sendRuntimeMessage } from "~/utils/browser/runtimeMessages"
 import { isRecord } from "~/utils/core/object"
 import { tryParseOrigin } from "~/utils/core/urlParsing"
 
@@ -221,7 +221,11 @@ export async function verifyAccountBrowserIdentity(input: {
       ).then((userId) => {
         entry.expiresAt =
           Date.now() +
-          (userId ? VERIFIED_IDENTITY_CACHE_MS : UNCONFIRMED_IDENTITY_CACHE_MS)
+          (observation.cacheResult === false
+            ? 0
+            : userId
+              ? VERIFIED_IDENTITY_CACHE_MS
+              : UNCONFIRMED_IDENTITY_CACHE_MS)
         return userId
       }),
     }

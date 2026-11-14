@@ -3,10 +3,8 @@ import {
   SITE_TYPES,
   type AccountSiteType,
 } from "~/constants/siteType"
-import {
-  findAccountSiteProfileForHostname,
-  getAccountSiteProductProfile,
-} from "~/services/accounts/accountSiteProfile"
+import { getAccountSiteProductProfile } from "~/services/accounts/accountSiteProfile"
+import { findAccountSiteProfileForHostname } from "~/services/accounts/accountSiteProfile/urls"
 import { resolveStaticAccountRoutePath } from "~/services/apiAdapters/accountRoutes"
 import {
   ACCOUNT_BOOTSTRAP_ROUTE_KINDS,
@@ -27,6 +25,17 @@ type SiteRouteKind = AccountBootstrapRouteKind
  */
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.trim().replace(/\/+$/, "")
+}
+
+/** Returns the declared destination for presentation without probing deployment facts. Custom URLs take precedence. */
+export function getStaticAccountSiteRouteUrl(
+  target: AccountBootstrapRouteTarget,
+  route: SiteRouteKind,
+  customUrl?: string,
+): string | null {
+  if (customUrl) return customUrl
+  const path = resolveStaticAccountRoutePath(target, route)
+  return path === null ? null : joinUrl(normalizeBaseUrl(target.baseUrl), path)
 }
 
 /**
@@ -80,15 +89,19 @@ async function resolveAccountSiteRoutePath(
 export function resolveAccountSiteRouteUrl(
   target: AccountBootstrapRouteTarget,
   route: typeof SITE_ROUTE_KINDS.Login,
+  customUrl?: string,
 ): Promise<string>
 export function resolveAccountSiteRouteUrl(
   target: AccountBootstrapRouteTarget,
   route: SiteRouteKind,
+  customUrl?: string,
 ): Promise<string | null>
 export async function resolveAccountSiteRouteUrl(
   target: AccountBootstrapRouteTarget,
   route: SiteRouteKind,
+  customUrl?: string,
 ): Promise<string | null> {
+  if (customUrl) return customUrl
   const baseUrl = normalizeBaseUrl(target.baseUrl)
   const path = await resolveAccountSiteRoutePath(target, route)
   if (route === SITE_ROUTE_KINDS.Login && path === null) {

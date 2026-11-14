@@ -161,7 +161,9 @@ describe("apiAdapters registry", () => {
 
   it("exposes the definition adapter family for every account site type", () => {
     for (const siteType of ACCOUNT_SITE_TYPES) {
-      expect(getSiteTypeCapabilities(siteType).family).toBe(
+      const capabilities = getSiteTypeCapabilities(siteType)
+      expect(capabilities.siteType).toBe(siteType)
+      expect(capabilities.family).toBe(
         getAccountSiteDefinition(siteType)?.adapterFamily,
       )
     }
@@ -278,6 +280,62 @@ describe("apiAdapters registry", () => {
     expect(capabilities.account?.modelCatalog).toBeUndefined()
     expect(capabilities.account?.redemption).toBeUndefined()
     expect(capabilities.site?.notice).toBeUndefined()
+    expect(capabilities.managedSites).toBeUndefined()
+  })
+
+  it("returns Requesty account capabilities without managed-site capabilities", () => {
+    const capabilities = getSiteTypeCapabilities(SITE_TYPES.REQUESTY)
+
+    expect(capabilities).toMatchObject({
+      siteType: SITE_TYPES.REQUESTY,
+      family: ACCOUNT_SITE_ADAPTER_FAMILIES.Requesty,
+    })
+    expectAccountDataCapability(capabilities)
+    expectAccountBootstrapCapability(capabilities)
+    expectAccountCompletionCapability(capabilities)
+    expectKeyManagementCapability(capabilities)
+    expectTokenProvisioningCapability(capabilities)
+    expectAccountRefreshCapability(capabilities)
+    expect(capabilities.account?.providerModelCatalog?.source.provider).toBe(
+      SITE_TYPES.REQUESTY,
+    )
+    // Referral links live only on the Clerk-session console API, and Requesty
+    // has no check-in, announcements or redemption concept.
+    expect(capabilities.account?.inviteLink).toBeUndefined()
+    expect(capabilities.site).toBeUndefined()
+    expect(capabilities.managedSites).toBeUndefined()
+  })
+
+  it("returns RelayFor account capabilities without managed-site capabilities", () => {
+    const capabilities = getSiteTypeCapabilities(SITE_TYPES.RELAYFOR)
+
+    expect(capabilities).toMatchObject({
+      siteType: SITE_TYPES.RELAYFOR,
+      family: ACCOUNT_SITE_ADAPTER_FAMILIES.RelayFor,
+    })
+    expectAccountDataCapability(capabilities)
+    expectAccountBootstrapCapability(capabilities)
+    expectAccountCompletionCapability(capabilities)
+    expectKeyManagementCapability(capabilities)
+    expectTokenProvisioningCapability(capabilities)
+    expectAccountRefreshCapability(capabilities)
+    expect(capabilities.account?.modelPricing).toEqual(
+      expect.objectContaining({
+        fetchPricing: expect.any(Function),
+        updateGroup: expect.any(Function),
+        runtimeKeyFallback: "account-pricing",
+      }),
+    )
+    expect(capabilities.account?.inviteLink).toBeUndefined()
+    expect(capabilities.account?.redemption).toEqual({
+      redeem: expect.any(Function),
+    })
+    expect(capabilities.account?.usageHistory).toEqual({
+      fetchPage: expect.any(Function),
+    })
+    expect(capabilities.site?.announcements).toEqual({
+      fetch: expect.any(Function),
+    })
     expect(capabilities.managedSites).toBeUndefined()
   })
 

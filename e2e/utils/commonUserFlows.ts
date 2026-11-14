@@ -15,7 +15,7 @@ import {
   createDefaultAccountStorageConfig,
   normalizeAccountStorageConfigForWrite,
   normalizeSiteAccount,
-} from "~/services/accounts/accountDefaults"
+} from "~/services/accounts/editing/accountDefaults"
 import { CURRENT_CONFIG_VERSION } from "~/services/accounts/migrations/accountDataMigration"
 import type { NewApiToken } from "~/services/apiService/newApiFamily/tokenTypes"
 import {
@@ -39,7 +39,10 @@ import {
   API_CREDENTIAL_PROFILES_CONFIG_VERSION,
   type ApiCredentialProfile,
 } from "~/types/apiCredentialProfiles"
-import type { AutoCheckinStatus } from "~/types/autoCheckin"
+import type {
+  AutoCheckinStatus,
+  CheckinAccountResult,
+} from "~/types/autoCheckin"
 import {
   DAILY_BALANCE_HISTORY_STORE_SCHEMA_VERSION,
   type DailyBalanceHistoryStore,
@@ -52,6 +55,7 @@ import {
 } from "~/types/usageHistory"
 import type { DeepPartial } from "~/types/utils"
 import { deepOverride } from "~/utils"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 import { setPlasmoStorageValue } from "./extensionState"
 
@@ -171,7 +175,7 @@ function installExtensionPageGuardsWithOptions(
 export async function forceExtensionLanguage(page: Page, language = "en") {
   await page.addInitScript(
     ([languageStorageKey, nextLanguage]) => {
-      window.localStorage.setItem(languageStorageKey, nextLanguage)
+      window.localStorage.setItem(languageStorageKey!, nextLanguage!)
     },
     [I18NEXT_LANGUAGE_STORAGE_KEY, language],
   )
@@ -190,6 +194,7 @@ export async function stubLlmMetadataIndex(context: BrowserContext) {
     }),
   )
   await stubSponsorRemoteCatalog(context)
+  await stubCommunityRemoteCatalog(context)
 }
 
 /**
@@ -203,6 +208,23 @@ export async function stubSponsorRemoteCatalog(context: BrowserContext) {
       contentType: "application/json",
       body: JSON.stringify(E2E_SPONSOR_CATALOG_PAYLOAD),
     }),
+  )
+  await context.route(
+    "https://raw.githubusercontent.com/qixing-jk/all-api-hub/main/resources/partners/icons/**",
+    (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: "text/plain",
+        body: "Not Found",
+      }),
+  )
+}
+
+/** Keeps community preloading independent of remote availability in unrelated E2E flows. */
+export async function stubCommunityRemoteCatalog(context: BrowserContext) {
+  await context.route(
+    "https://raw.githubusercontent.com/qixing-jk/all-api-hub/main/public/community-resources.v1.json",
+    (route) => route.fulfill({ json: { schemaVersion: 1, channels: [] } }),
   )
 }
 
@@ -447,6 +469,12 @@ export async function seedUserPreferences(
   )
 }
 
+/** Preserve result-status discriminants when fixture identity is added later. */
+export type AutoCheckinAccountResultFixture<T = CheckinAccountResult> =
+  T extends CheckinAccountResult
+    ? Omit<T, "accountId" | "accountName" | "timestamp">
+    : never
+
 /**
  * Persist the auto check-in status through the service worker.
  *
@@ -460,12 +488,16 @@ export async function seedUserPreferences(
 export async function seedAutoCheckinStatus(
   serviceWorker: Worker,
   status: AutoCheckinStatus,
+  options?: { lockRequestEvent?: string },
 ) {
   await setPlasmoStorageValue(
     serviceWorker,
     AUTO_CHECKIN_STATUS_STORAGE_KEY,
     status,
-    { lock: STORAGE_LOCKS.AUTO_CHECKIN_STATUS },
+    {
+      lock: STORAGE_LOCKS.AUTO_CHECKIN_STATUS,
+      lockRequestEvent: options?.lockRequestEvent,
+    },
   )
 }
 
@@ -1022,7 +1054,7 @@ export async function stubNewApiSiteRoutes(
           userId: Number(userId),
           name: payload.name?.trim() || `e2e-token-${nextTokenId}`,
           key: `sk-created-${nextTokenId}`,
-          group: payload.group?.trim() || "default",
+          group: payload.group ?? "",
           remainQuota: payload.remain_quota ?? -1,
           unlimitedQuota: payload.unlimited_quota !== false,
           expiredTime: payload.expired_time ?? -1,
@@ -1089,7 +1121,7 @@ export async function stubNewApiSiteRoutes(
         return
       }
 
-      const current = tokens[tokenIndex]
+      const current = atIndex(tokens, tokenIndex)
       tokens[tokenIndex] = {
         ...current,
         name: payload.name?.trim() || current.name,
@@ -1100,7 +1132,7 @@ export async function stubNewApiSiteRoutes(
           payload.model_limits_enabled ?? current.model_limits_enabled,
         model_limits: payload.model_limits ?? current.model_limits,
         allow_ips: payload.allow_ips ?? current.allow_ips,
-        group: payload.group?.trim() || current.group,
+        group: payload.group ?? current.group,
       }
 
       await route.fulfill({

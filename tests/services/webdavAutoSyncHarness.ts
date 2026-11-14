@@ -1,8 +1,13 @@
 import { vi } from "vitest"
 
-vi.mock("~/services/managedSites/legacyChannelConfigMigration", () => ({
-  ensureLegacyChannelConfigMigrationReady: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock(
+  "~/services/managedSites/configuration/legacyChannelConfigMigration",
+  () => ({
+    ensureLegacyChannelConfigMigrationReady: vi
+      .fn()
+      .mockResolvedValue(undefined),
+  }),
+)
 
 const mockFeatureGuidanceGetStateStrict = vi
   .fn()
@@ -48,7 +53,7 @@ const mockCreateAlarm = vi.fn()
 const mockClearAlarm = vi.fn()
 const mockOnAlarm = vi.fn()
 
-vi.mock(import("~/utils/browser/browserApi"), async (importOriginal) => {
+vi.mock(import("~/utils/browser/alarms"), async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,
@@ -113,7 +118,7 @@ const mockChannelConfigExport = vi.fn()
 const mockChannelConfigImport = vi.fn()
 const mockChannelConfigMerge = vi.fn()
 vi.mock(
-  import("~/services/managedSites/channelConfigStorage"),
+  import("~/services/managedSites/configuration/channelConfigStorage"),
   async (importOriginal) => {
     const actual = await importOriginal()
     return {
@@ -130,7 +135,7 @@ vi.mock(
 const mockApiCredentialProfilesExport = vi.fn()
 const mockApiCredentialProfilesImport = vi.fn()
 vi.mock(
-  import("~/services/apiCredentialProfiles/apiCredentialProfilesStorage"),
+  import("~/services/apiCredentialProfiles/storage/profiles"),
   async (importOriginal) => {
     const actual = await importOriginal()
     Object.assign(actual.apiCredentialProfilesStorage, {
@@ -174,10 +179,13 @@ const mockParseWebdavBackupJson = vi.fn()
 vi.mock("~/services/webdav/webdavService", () => ({
   testWebdavConnection: (...args: any[]) => mockTestConnection(...args),
   downloadBackup: (...args: any[]) => mockDownloadBackup(...args),
-  parseWebdavBackupJson: (...args: any[]) => mockParseWebdavBackupJson(...args),
   isWebdavFileNotFoundError: (error: any) =>
     error?.code === "WEBDAV_FILE_NOT_FOUND",
   uploadBackup: (...args: any[]) => mockUploadBackup(...args),
+}))
+
+vi.mock("~/services/webdav/backup/webdavBackupValidation", () => ({
+  parseWebdavBackupJson: (...args: any[]) => mockParseWebdavBackupJson(...args),
 }))
 
 export {

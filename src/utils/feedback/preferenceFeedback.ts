@@ -1,10 +1,10 @@
-import type { PreferenceSaveOptions } from "~/contexts/UserPreferencesContext"
+import type { PreferenceSaveOptions } from "~/contexts/userPreferences/preferenceContextTypes"
 import toast from "~/lib/notify"
 import type {
   PreferenceWriteFailure,
   PreferenceWriteResult,
-} from "~/services/preferences/userPreferences"
-import { PREFERENCE_WRITE_FAILURE_TYPES } from "~/services/preferences/userPreferences"
+} from "~/services/preferences/preferencesStore"
+import { PREFERENCE_WRITE_FAILURE_TYPES } from "~/services/preferences/preferencesStore"
 import {
   showResultToast,
   type OperationResult,

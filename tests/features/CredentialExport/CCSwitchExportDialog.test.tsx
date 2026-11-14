@@ -1,0 +1,1203 @@
+import userEvent from "@testing-library/user-event"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+import { SITE_TYPES } from "~/constants/siteType"
+import { CCSwitchExportDialog } from "~/features/CredentialExport/CCSwitchExportDialog"
+import { CC_SWITCH_EXPORT_TEST_IDS } from "~/features/CredentialExport/CCSwitchExportDialog.testIds"
+import { createProfileCredentialExportSource } from "~/services/apiCredentialProfiles/credentialExport"
+import { CCSWITCH_APP_IDS } from "~/services/integrations/ccSwitch"
+import {
+  PRODUCT_ANALYTICS_ACTION_IDS,
+  PRODUCT_ANALYTICS_ENTRYPOINTS,
+  PRODUCT_ANALYTICS_ERROR_CATEGORIES,
+  PRODUCT_ANALYTICS_FEATURE_IDS,
+  PRODUCT_ANALYTICS_RESULTS,
+  PRODUCT_ANALYTICS_SURFACE_IDS,
+} from "~/services/productAnalytics/contracts"
+import type { ApiCredentialProfile } from "~/types/apiCredentialProfiles"
+import {
+  createAccountExportSource,
+  createKimiExportSource,
+} from "~~/tests/test-utils/credentialExportSources"
+import { createDeferred } from "~~/tests/test-utils/deferred"
+import { buildApiCredentialProfile } from "~~/tests/test-utils/factories"
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "~~/tests/test-utils/render"
+
+const mockDiscoverOpenAICompatibleModels = vi.fn()
+const mockOpenInCCSwitch = vi.fn()
+const mockResolveDisplayAccountRuntimeKeySecret = vi.fn()
+const createModelDiscovery = (
+  models: { id: string }[] = [],
+  resolvedBaseUrl = "https://x.test/v1",
+) => ({ models, resolvedBaseUrl })
+const { startProductAnalyticsActionMock, completeProductAnalyticsActionMock } =
+  vi.hoisted(() => ({
+    startProductAnalyticsActionMock: vi.fn(),
+    completeProductAnalyticsActionMock: vi.fn(),
+  }))
+
+vi.mock(
+  "~/services/accounts/utils/apiServiceRequest",
+  async (importOriginal) => {
+    const original =
+      await importOriginal<
+        typeof import("~/services/accounts/utils/apiServiceRequest")
+      >()
+    return {
+      ...original,
+      resolveDisplayAccountRuntimeKeySecret: (
+        ...args: Parameters<
+          typeof original.resolveDisplayAccountRuntimeKeySecret
+        >
+      ) => mockResolveDisplayAccountRuntimeKeySecret(...args),
+    }
+  },
+)
+
+vi.mock("~/services/aiApi/openaiCompatible", () => ({
+  discoverOpenAICompatibleModels: (
+    ...args: Parameters<
+      typeof import("~/services/aiApi/openaiCompatible").discoverOpenAICompatibleModels
+    >
+  ) => mockDiscoverOpenAICompatibleModels(...args),
+}))
+
+vi.mock("~/services/integrations/ccSwitch", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("~/services/integrations/ccSwitch")>()
+  return {
+    ...original,
+    openInCCSwitch: (...args: Parameters<typeof original.openInCCSwitch>) =>
+      mockOpenInCCSwitch(...args),
+  }
+})
+
+vi.mock("~/services/productAnalytics/actions", () => ({
+  startProductAnalyticsAction: startProductAnalyticsActionMock,
+}))
+
+describe("CCSwitchExportDialog", () => {
+  beforeEach(() => {
+    mockDiscoverOpenAICompatibleModels.mockReset()
+    mockOpenInCCSwitch.mockReset()
+    mockResolveDisplayAccountRuntimeKeySecret.mockReset()
+    startProductAnalyticsActionMock.mockReset()
+    completeProductAnalyticsActionMock.mockReset()
+    mockResolveDisplayAccountRuntimeKeySecret.mockImplementation(
+      async (_account, token) => token,
+    )
+    mockOpenInCCSwitch.mockReturnValue(true)
+    startProductAnalyticsActionMock.mockReturnValue({
+      complete: completeProductAnalyticsActionMock,
+    })
+  })
+
+  it.each([
+    CCSWITCH_APP_IDS.Pi,
+    CCSWITCH_APP_IDS.MiniMaxCode,
+    CCSWITCH_APP_IDS.KimiCode,
+    CCSWITCH_APP_IDS.DeepSeekHarness,
+    CCSWITCH_APP_IDS.OhMyPi,
+  ])("blocks %s export until a model is selected", async (app) => {
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(
+      createModelDiscovery([{ id: "test-model" }]),
+    )
+    render(
+      <CCSwitchExportDialog
+        isOpen
+        onClose={vi.fn()}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+    const user = userEvent.setup()
+    await user.click(
+      await screen.findByLabelText("ui:dialog.ccswitch.fields.app"),
+    )
+    await user.click(
+      await screen.findByRole("option", {
+        name: `ui:dialog.ccswitch.appOptions.${app}`,
+      }),
+    )
+    const button = screen.getByRole("button", {
+      name: "ui:dialog.ccswitch.actions.export",
+    })
+    expect(button).toBeDisabled()
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("ui:dialog.ccswitch.fields.model"),
+      ).not.toBeDisabled(),
+    )
+    await user.click(screen.getByLabelText("ui:dialog.ccswitch.fields.model"))
+    await user.click(await screen.findByRole("option", { name: "test-model" }))
+    expect(button).toBeEnabled()
+    await user.click(button)
+    await waitFor(() =>
+      expect(mockOpenInCCSwitch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          app,
+          model: "test-model",
+          endpoint: "https://x.test/v1",
+        }),
+      ),
+    )
+  })
+
+  it.each([
+    CCSWITCH_APP_IDS.Pi,
+    CCSWITCH_APP_IDS.MiniMaxCode,
+    CCSWITCH_APP_IDS.KimiCode,
+    CCSWITCH_APP_IDS.DeepSeekHarness,
+    CCSWITCH_APP_IDS.OhMyPi,
+  ])("allows a custom model for %s while discovery is stalled", async (app) => {
+    const discovery = createDeferred<ReturnType<typeof createModelDiscovery>>()
+    mockDiscoverOpenAICompatibleModels.mockReturnValue(discovery.promise)
+    const user = userEvent.setup()
+    render(
+      <CCSwitchExportDialog
+        isOpen
+        onClose={vi.fn()}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+    const model = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.model",
+    )
+    await waitFor(() => expect(model).toHaveAttribute("aria-busy", "true"))
+    await user.click(screen.getByLabelText("ui:dialog.ccswitch.fields.app"))
+    await user.click(
+      await screen.findByRole("option", {
+        name: `ui:dialog.ccswitch.appOptions.${app}`,
+      }),
+    )
+    const button = screen.getByRole("button", {
+      name: "ui:dialog.ccswitch.actions.export",
+    })
+    expect(button).toBeDisabled()
+    expect(model).toBeEnabled()
+    await user.click(model)
+    await user.type(
+      await screen.findByTestId(CC_SWITCH_EXPORT_TEST_IDS.modelSearchInput),
+      "manual-model",
+    )
+    await user.click(
+      await screen.findByRole("option", {
+        name: "ui:searchableSelect.useValue",
+      }),
+    )
+    expect(model).toHaveAttribute("aria-busy", "true")
+    expect(button).toBeEnabled()
+    await user.click(button)
+    await waitFor(() =>
+      expect(mockOpenInCCSwitch).toHaveBeenCalledWith(
+        expect.objectContaining({ app, model: "manual-model" }),
+      ),
+    )
+  })
+
+  it("clears the previous catalog status before endpoint debounce completes", async () => {
+    mockDiscoverOpenAICompatibleModels
+      .mockResolvedValueOnce(createModelDiscovery([{ id: "known" }]))
+      .mockResolvedValueOnce(createModelDiscovery([{ id: "updated" }]))
+    render(
+      <CCSwitchExportDialog
+        isOpen
+        onClose={vi.fn()}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+    await screen.findByLabelText("ui:searchableSelect.fetchSuccess")
+    fireEvent.change(
+      screen.getByLabelText("ui:dialog.ccswitch.fields.endpoint"),
+      { target: { value: "https://new.test/v1" } },
+    )
+    expect(
+      screen.queryByLabelText("ui:searchableSelect.fetchSuccess"),
+    ).not.toBeInTheDocument()
+    expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalledTimes(1)
+    await waitFor(() =>
+      expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalledTimes(2),
+    )
+    expect(mockDiscoverOpenAICompatibleModels).toHaveBeenLastCalledWith(
+      expect.objectContaining({ baseUrl: "https://new.test" }),
+    )
+    expect(
+      await screen.findByLabelText("ui:searchableSelect.fetchSuccess"),
+    ).toBeVisible()
+    await userEvent.click(
+      screen.getByLabelText("ui:dialog.ccswitch.fields.model"),
+    )
+    expect(await screen.findByRole("option", { name: "updated" })).toBeVisible()
+    expect(screen.queryByRole("option", { name: "known" })).toBeNull()
+  })
+
+  it("indicates model discovery on the control without replacing its label", async () => {
+    const discovery = createDeferred<ReturnType<typeof createModelDiscovery>>()
+    mockDiscoverOpenAICompatibleModels.mockReturnValueOnce(discovery.promise)
+    render(
+      <CCSwitchExportDialog
+        isOpen
+        onClose={vi.fn()}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+    const model = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.model",
+    )
+    await waitFor(() => expect(model).toHaveAttribute("aria-busy", "true"))
+    expect(model).not.toHaveTextContent("common:status.loading")
+    expect(model).toBeEnabled()
+
+    await act(async () =>
+      discovery.resolve(createModelDiscovery([{ id: "gpt-4" }])),
+    )
+    expect(model).not.toHaveAttribute("aria-busy", "true")
+    expect(model).toBeEnabled()
+  })
+
+  it("exposes stable test ids for E2E flows", async () => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValueOnce(
+      createModelDiscovery(),
+    )
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    expect(
+      await screen.findByTestId(CC_SWITCH_EXPORT_TEST_IDS.dialog),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByTestId(CC_SWITCH_EXPORT_TEST_IDS.modelPicker),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByTestId(CC_SWITCH_EXPORT_TEST_IDS.exportButton),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByTestId(CC_SWITCH_EXPORT_TEST_IDS.cancelButton),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByTestId(CC_SWITCH_EXPORT_TEST_IDS.modelPicker))
+    expect(
+      await screen.findByTestId(CC_SWITCH_EXPORT_TEST_IDS.modelSearchInput),
+    ).toBeInTheDocument()
+  })
+
+  it("places the app selector before provider details", async () => {
+    mockDiscoverOpenAICompatibleModels.mockResolvedValueOnce(
+      createModelDiscovery(),
+    )
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    const appSelect = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.app",
+    )
+    const nameInput = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.name",
+    )
+
+    expect(
+      appSelect.compareDocumentPosition(nameInput) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0)
+  })
+
+  it("prefills the provider name with the site and key", async () => {
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    expect(
+      await screen.findByLabelText("ui:dialog.ccswitch.fields.name"),
+    ).toHaveValue("Example - Test Token")
+  })
+
+  it("does not repeat a profile name that already carries its key", async () => {
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createProfileCredentialExportSource(
+          buildApiCredentialProfile({ name: "Example - Key A" }),
+        )}
+      />,
+    )
+
+    expect(
+      await screen.findByLabelText("ui:dialog.ccswitch.fields.name"),
+    ).toHaveValue("Example - Key A")
+  })
+
+  it("loads upstream model ids and exposes them as a selectable default model", async () => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValueOnce(
+      createModelDiscovery([{ id: "gpt-4" }, { id: "claude" }]),
+    )
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalledWith({
+        baseUrl: "https://x.test",
+        apiKey: "sk-test",
+      })
+    })
+
+    const modelCombo = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.model",
+    )
+    await user.click(modelCombo)
+    expect(await screen.findByText("gpt-4")).toBeInTheDocument()
+  })
+
+  it("discovers models on the OpenAI-compatible address when the endpoint shows the Anthropic address", async () => {
+    mockDiscoverOpenAICompatibleModels.mockResolvedValueOnce(
+      createModelDiscovery([{ id: "moonshot-v1" }]),
+    )
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createKimiExportSource()}
+      />,
+    )
+
+    // The Claude default rewrites the endpoint to the Anthropic address; model
+    // discovery must not follow it, or a split-protocol source returns no models.
+    await waitFor(() => {
+      expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalledWith({
+        baseUrl: "https://api.moonshot.ai",
+        apiKey: "sk-test",
+      })
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+    expect(mockDiscoverOpenAICompatibleModels).not.toHaveBeenCalledWith({
+      baseUrl: "https://api.moonshot.ai/anthropic",
+      apiKey: "sk-test",
+    })
+  })
+
+  it.each(["", "not a url"])(
+    "keeps an invalid source %j editable without requesting models",
+    async (baseUrl) => {
+      const user = userEvent.setup()
+      const source = {
+        ...createKimiExportSource(),
+        baseUrl,
+        anthropicBaseUrl: undefined,
+      }
+      render(
+        <CCSwitchExportDialog
+          isOpen={true}
+          onClose={() => {}}
+          source={source}
+        />,
+      )
+      await user.click(
+        await screen.findByLabelText("ui:dialog.ccswitch.fields.app"),
+      )
+      await user.click(
+        await screen.findByRole("option", {
+          name: "ui:dialog.ccswitch.appOptions.codex",
+        }),
+      )
+      expect(
+        screen.getByLabelText("ui:dialog.ccswitch.fields.endpoint"),
+      ).toHaveValue(baseUrl)
+      expect(mockDiscoverOpenAICompatibleModels).not.toHaveBeenCalled()
+    },
+  )
+
+  it("uses the endpoint confirmed by model discovery for Codex", async () => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(
+      createModelDiscovery([], "https://ark.example.invalid/api/v3"),
+    )
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          {
+            id: "acc",
+            name: "Example",
+            baseUrl: "https://ark.example.invalid/api/v3",
+          },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    const endpointInput = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.endpoint",
+    )
+    expect(endpointInput).toHaveValue("https://ark.example.invalid/api/v3")
+
+    await waitFor(() => {
+      expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalledWith({
+        baseUrl: "https://ark.example.invalid/api/v3",
+        apiKey: "sk-test",
+      })
+    })
+
+    const appSelect = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.app",
+    )
+    await user.click(appSelect)
+    await user.click(
+      await screen.findByRole("option", {
+        name: "ui:dialog.ccswitch.appOptions.codex",
+      }),
+    )
+
+    await waitFor(() => {
+      expect(endpointInput).toHaveValue("https://ark.example.invalid/api/v3")
+    })
+  })
+
+  it("uses a discovered /v1 endpoint for Codex without another model request", async () => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(
+      createModelDiscovery([], "https://x.test/v1"),
+    )
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalledTimes(1)
+    })
+
+    const endpointInput = screen.getByLabelText(
+      "ui:dialog.ccswitch.fields.endpoint",
+    )
+    const appSelect = screen.getByLabelText("ui:dialog.ccswitch.fields.app")
+    await user.click(appSelect)
+    await user.click(
+      await screen.findByRole("option", {
+        name: "ui:dialog.ccswitch.appOptions.codex",
+      }),
+    )
+
+    await waitFor(() => {
+      expect(endpointInput).toHaveValue("https://x.test/v1")
+    })
+    expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    {
+      baseUrl: "https://x.test",
+      expectedEndpoint: "https://x.test/v1",
+    },
+    {
+      baseUrl: "https://ark.example.invalid/api/v3",
+      expectedEndpoint: "https://ark.example.invalid/api/v3",
+    },
+    // A declared gateway root that carries a path still needs its version
+    // segment, or Codex would request `/api/responses`.
+    {
+      baseUrl: "https://openrouter.ai",
+      siteType: SITE_TYPES.OPENROUTER,
+      expectedEndpoint: "https://openrouter.ai/api/v1",
+    },
+  ])(
+    "uses the conservative Codex fallback for $baseUrl when discovery is inconclusive",
+    async ({ baseUrl, expectedEndpoint, siteType }) => {
+      const user = userEvent.setup()
+      mockDiscoverOpenAICompatibleModels.mockRejectedValue(
+        new Error("network error"),
+      )
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+      render(
+        <CCSwitchExportDialog
+          isOpen={true}
+          onClose={() => {}}
+          source={createAccountExportSource(
+            {
+              id: "acc",
+              name: "Example",
+              baseUrl,
+              ...(siteType ? { siteType } : {}),
+            },
+            { key: "sk-test" },
+          )}
+        />,
+      )
+
+      await waitFor(() => {
+        expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalled()
+      })
+
+      const endpointInput = screen.getByLabelText(
+        "ui:dialog.ccswitch.fields.endpoint",
+      )
+      const appSelect = screen.getByLabelText("ui:dialog.ccswitch.fields.app")
+      await user.click(appSelect)
+      await user.click(
+        await screen.findByRole("option", {
+          name: "ui:dialog.ccswitch.appOptions.codex",
+        }),
+      )
+
+      await waitFor(() => {
+        expect(endpointInput).toHaveValue(expectedEndpoint)
+      })
+      warnSpy.mockRestore()
+    },
+  )
+
+  // Claude Code and Gemini CLI append the version segment they own, so their
+  // endpoint must be the protocol root; a versioned mount here is appended
+  // twice upstream.
+  it("hands the SDK-native apps a protocol root rather than a versioned mount", async () => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    const endpointInput = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.endpoint",
+    )
+    expect(endpointInput).toHaveValue("https://x.test")
+
+    const appSelect = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.app",
+    )
+    await user.click(appSelect)
+    await user.click(
+      await screen.findByRole("option", {
+        name: "ui:dialog.ccswitch.appOptions.gemini",
+      }),
+    )
+
+    await waitFor(() => {
+      expect(endpointInput).toHaveValue("https://x.test")
+    })
+  })
+
+  it("prefers a declared Anthropic endpoint for Claude over the OpenAI address", async () => {
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          {
+            id: "acc",
+            name: "Kimi",
+            siteType: SITE_TYPES.KIMI_GLOBAL,
+            baseUrl: "https://platform.kimi.ai",
+          },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    const endpointInput = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.endpoint",
+    )
+    await waitFor(() => {
+      expect(endpointInput).toHaveValue("https://api.moonshot.ai/anthropic")
+    })
+  })
+
+  // CC Switch documents these targets with a versioned base
+  // (`https://api.example.com/v1`) because their clients append only an
+  // operation path, so the export must add the segment the account root lacks.
+  it.each([
+    "ui:dialog.ccswitch.appOptions.opencode",
+    "ui:dialog.ccswitch.appOptions.openclaw",
+    "ui:dialog.ccswitch.appOptions.hermes",
+    "ui:dialog.ccswitch.appOptions.grokbuild",
+  ])("fills the versioned base URL for %s", async (appLabel) => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    const endpointInput = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.endpoint",
+    )
+    const appSelect = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.app",
+    )
+
+    await user.click(appSelect)
+    await user.click(
+      await screen.findByRole("option", {
+        name: appLabel,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(endpointInput).toHaveValue("https://x.test/v1")
+    })
+  })
+
+  it.each([
+    {
+      appLabel: "ui:dialog.ccswitch.appOptions.opencode",
+      notice: "ui:dialog.ccswitch.notices.opencode",
+    },
+    {
+      appLabel: "ui:dialog.ccswitch.appOptions.openclaw",
+      notice: "ui:dialog.ccswitch.notices.openclaw",
+    },
+    {
+      appLabel: "ui:dialog.ccswitch.appOptions.hermes",
+      notice: "ui:dialog.ccswitch.notices.hermes",
+    },
+    {
+      appLabel: "ui:dialog.ccswitch.appOptions.claudeDesktop",
+      notice: "ui:dialog.ccswitch.notices.claudeDesktop",
+    },
+  ])(
+    "shows the protocol limitation notice for $appLabel",
+    async ({ appLabel, notice }) => {
+      const user = userEvent.setup()
+      mockDiscoverOpenAICompatibleModels.mockResolvedValue(
+        createModelDiscovery(),
+      )
+
+      render(
+        <CCSwitchExportDialog
+          isOpen={true}
+          onClose={() => {}}
+          source={createAccountExportSource(
+            { id: "acc", name: "Example", baseUrl: "https://x.test" },
+            { key: "sk-test" },
+          )}
+        />,
+      )
+
+      expect(screen.queryByText(notice)).toBeNull()
+
+      const appSelect = await screen.findByLabelText(
+        "ui:dialog.ccswitch.fields.app",
+      )
+      await user.click(appSelect)
+      await user.click(
+        await screen.findByRole("option", {
+          name: appLabel,
+        }),
+      )
+
+      const noticeElement = await screen.findByText(notice)
+      expect(noticeElement).toBeInTheDocument()
+      expect(noticeElement).toHaveAttribute("id", "ccswitch-app-limitation")
+      expect(noticeElement).toHaveAttribute("role", "status")
+      expect(appSelect).toHaveAttribute(
+        "aria-describedby",
+        "ccswitch-app-limitation",
+      )
+    },
+  )
+
+  it.each([
+    {
+      app: CCSWITCH_APP_IDS.Antigravity,
+      appLabel: "ui:dialog.ccswitch.appOptions.agy",
+    },
+    {
+      app: CCSWITCH_APP_IDS.ClaudeDesktop,
+      appLabel: "ui:dialog.ccswitch.appOptions.claudeDesktop",
+    },
+    {
+      app: CCSWITCH_APP_IDS.GrokBuild,
+      appLabel: "ui:dialog.ccswitch.appOptions.grokbuild",
+    },
+    {
+      app: CCSWITCH_APP_IDS.Hermes,
+      appLabel: "ui:dialog.ccswitch.appOptions.hermes",
+    },
+  ] as const)(
+    "submits the selected $app CC Switch app",
+    async ({ app, appLabel }) => {
+      const user = userEvent.setup()
+      mockDiscoverOpenAICompatibleModels.mockResolvedValue(
+        createModelDiscovery(),
+      )
+
+      render(
+        <CCSwitchExportDialog
+          isOpen={true}
+          onClose={() => {}}
+          source={{
+            ...createAccountExportSource(
+              { id: "acc", name: "Example", baseUrl: "https://x.test" },
+              { key: "sk-test" },
+            ),
+            anthropicBaseUrl: "https://anthropic.test/proxy/v1",
+          }}
+        />,
+      )
+
+      const appSelect = await screen.findByLabelText(
+        "ui:dialog.ccswitch.fields.app",
+      )
+      await user.click(appSelect)
+      await user.click(await screen.findByRole("option", { name: appLabel }))
+      await user.click(
+        screen.getByRole("button", {
+          name: "ui:dialog.ccswitch.actions.export",
+        }),
+      )
+
+      await waitFor(() => {
+        expect(mockOpenInCCSwitch).toHaveBeenCalledWith(
+          expect.objectContaining({
+            app,
+            endpoint:
+              app === CCSWITCH_APP_IDS.ClaudeDesktop
+                ? "https://anthropic.test/proxy"
+                : app === CCSWITCH_APP_IDS.Antigravity
+                  ? "https://x.test"
+                  : "https://x.test/v1",
+          }),
+        )
+      })
+    },
+  )
+
+  it("does not show the limitation notice for Codex", async () => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    const appSelect = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.app",
+    )
+    await user.click(appSelect)
+    await user.click(
+      await screen.findByRole("option", {
+        name: "ui:dialog.ccswitch.appOptions.codex",
+      }),
+    )
+
+    expect(screen.queryByText("ui:dialog.ccswitch.notices.opencode")).toBeNull()
+    expect(screen.queryByText("ui:dialog.ccswitch.notices.openclaw")).toBeNull()
+    expect(appSelect).not.toHaveAttribute("aria-describedby")
+  })
+
+  it("preserves a custom endpoint when switching between CC Switch apps", async () => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    const endpointInput = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.endpoint",
+    )
+    const appSelect = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.app",
+    )
+
+    await user.click(appSelect)
+    await user.click(
+      await screen.findByRole("option", {
+        name: "ui:dialog.ccswitch.appOptions.codex",
+      }),
+    )
+
+    await waitFor(() => {
+      expect(endpointInput).toHaveValue("https://x.test/v1")
+    })
+
+    await user.clear(endpointInput)
+    await user.click(endpointInput)
+    await user.paste("https://custom.test/router")
+
+    await user.click(appSelect)
+    await user.click(
+      await screen.findByRole("option", {
+        name: "ui:dialog.ccswitch.appOptions.opencode",
+      }),
+    )
+
+    await waitFor(() => {
+      expect(endpointInput).toHaveValue("https://custom.test/router")
+    })
+  })
+
+  it("keeps the model picker usable when upstream model fetch fails", async () => {
+    mockDiscoverOpenAICompatibleModels.mockRejectedValueOnce(
+      new Error("network error"),
+    )
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalled()
+    })
+
+    const modelCombo = await screen.findByLabelText(
+      "ui:dialog.ccswitch.fields.model",
+    )
+    expect(modelCombo).toBeEnabled()
+    expect(modelCombo).toHaveTextContent("ui:dialog.ccswitch.modelOptions.none")
+    expect(screen.queryByText("gpt-4")).toBeNull()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValueOnce(
+      createModelDiscovery([{ id: "gpt-4" }]),
+    )
+    const user = userEvent.setup()
+    await user.click(modelCombo)
+    await user.click(
+      await screen.findByRole("button", { name: "common:actions.retry" }),
+    )
+    expect(await screen.findByRole("option", { name: "gpt-4" })).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: "common:actions.retry" }),
+    ).not.toBeInTheDocument()
+    expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalledTimes(2)
+    warnSpy.mockRestore()
+  })
+
+  it("prefills notes from the API token note field", async () => {
+    mockDiscoverOpenAICompatibleModels.mockResolvedValueOnce(
+      createModelDiscovery(),
+    )
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-test", note: "token note" },
+        )}
+      />,
+    )
+
+    expect(
+      await screen.findByLabelText("ui:dialog.ccswitch.fields.notes"),
+    ).toHaveValue("token note")
+  })
+
+  it("tracks successful CC Switch exports without sensitive metadata", async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={onClose}
+        source={createAccountExportSource(
+          {
+            id: "acc",
+            name: "Sensitive Provider",
+            baseUrl: "https://private.example.com/v1",
+          },
+          { key: "sk-sensitive", note: "private note" },
+        )}
+      />,
+    )
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "ui:dialog.ccswitch.actions.export",
+      }),
+    )
+
+    await waitFor(() => {
+      expect(mockOpenInCCSwitch).toHaveBeenCalled()
+    })
+    expect(startProductAnalyticsActionMock).toHaveBeenCalledWith({
+      featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ImportExport,
+      actionId: PRODUCT_ANALYTICS_ACTION_IDS.ExportAccountTokenToCCSwitch,
+      surfaceId:
+        PRODUCT_ANALYTICS_SURFACE_IDS.AccountTokenThirdPartyExportDialog,
+      entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
+    })
+    expect(completeProductAnalyticsActionMock).toHaveBeenCalledWith(
+      PRODUCT_ANALYTICS_RESULTS.Success,
+    )
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    const analyticsCalls = JSON.stringify([
+      startProductAnalyticsActionMock.mock.calls,
+      completeProductAnalyticsActionMock.mock.calls,
+    ])
+    expect(analyticsCalls).not.toContain("sk-sensitive")
+    expect(analyticsCalls).not.toContain("https://private.example.com")
+    expect(analyticsCalls).not.toContain("Sensitive Provider")
+    expect(analyticsCalls).not.toContain("private note")
+  })
+
+  it("tracks false CC Switch export results as failures", async () => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+    mockOpenInCCSwitch.mockReturnValueOnce(false)
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-test" },
+        )}
+      />,
+    )
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "ui:dialog.ccswitch.actions.export",
+      }),
+    )
+
+    await waitFor(() => {
+      expect(completeProductAnalyticsActionMock).toHaveBeenCalledWith(
+        PRODUCT_ANALYTICS_RESULTS.Failure,
+      )
+    })
+  })
+
+  it("uses an explicit analytics context for profile-origin exports", async () => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-test" },
+        )}
+        analyticsContext={{
+          featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ApiCredentialProfiles,
+          actionId:
+            PRODUCT_ANALYTICS_ACTION_IDS.ExportApiCredentialProfileToCCSwitch,
+          surfaceId:
+            PRODUCT_ANALYTICS_SURFACE_IDS.OptionsApiCredentialProfilesRowActions,
+          entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
+        }}
+      />,
+    )
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "ui:dialog.ccswitch.actions.export",
+      }),
+    )
+
+    await waitFor(() => {
+      expect(startProductAnalyticsActionMock).toHaveBeenCalledWith({
+        featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ApiCredentialProfiles,
+        actionId:
+          PRODUCT_ANALYTICS_ACTION_IDS.ExportApiCredentialProfileToCCSwitch,
+        surfaceId:
+          PRODUCT_ANALYTICS_SURFACE_IDS.OptionsApiCredentialProfilesRowActions,
+        entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
+      })
+    })
+  })
+
+  it("exports profile-backed credentials without requiring account API context", async () => {
+    const user = userEvent.setup()
+    const profile: ApiCredentialProfile = {
+      id: "profile-1",
+      name: "Profile Provider",
+      apiType: "openai-compatible",
+      baseUrl: "https://profile.example.com",
+      apiKey: "sk-profile",
+      tagIds: [],
+      notes: "profile note",
+      createdAt: 1,
+      updatedAt: 2,
+    }
+    mockResolveDisplayAccountRuntimeKeySecret.mockRejectedValue(
+      new Error("account_api_context_missing_user_id"),
+    )
+    mockDiscoverOpenAICompatibleModels.mockResolvedValueOnce(
+      createModelDiscovery([{ id: "gpt-4o" }]),
+    )
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createProfileCredentialExportSource(profile)}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(mockDiscoverOpenAICompatibleModels).toHaveBeenCalledWith({
+        baseUrl: "https://profile.example.com",
+        apiKey: "sk-profile",
+      })
+    })
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "ui:dialog.ccswitch.actions.export",
+      }),
+    )
+
+    await waitFor(() => {
+      expect(mockOpenInCCSwitch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credential: {
+            providerId: "api-credential-profile:profile-1",
+            providerName: profile.name,
+            baseUrl: profile.baseUrl,
+            apiKey: "sk-profile",
+          },
+        }),
+      )
+    })
+    expect(mockResolveDisplayAccountRuntimeKeySecret).not.toHaveBeenCalled()
+  })
+
+  it("tracks thrown CC Switch submissions as unknown failures", async () => {
+    const user = userEvent.setup()
+    mockDiscoverOpenAICompatibleModels.mockResolvedValue(createModelDiscovery())
+    mockResolveDisplayAccountRuntimeKeySecret.mockRejectedValue(
+      new Error("secret unavailable"),
+    )
+
+    render(
+      <CCSwitchExportDialog
+        isOpen={true}
+        onClose={() => {}}
+        source={createAccountExportSource(
+          { id: "acc", name: "Example", baseUrl: "https://x.test/v1" },
+          { key: "sk-abcd************wxyz" },
+        )}
+      />,
+    )
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "ui:dialog.ccswitch.actions.export",
+      }),
+    )
+
+    await waitFor(() => {
+      expect(completeProductAnalyticsActionMock).toHaveBeenCalledWith(
+        PRODUCT_ANALYTICS_RESULTS.Failure,
+        {
+          errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown,
+        },
+      )
+    })
+  })
+})

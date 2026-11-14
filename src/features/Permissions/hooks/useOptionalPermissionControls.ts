@@ -19,7 +19,7 @@ import {
   PRODUCT_ANALYTICS_PERMISSION_OUTCOMES,
   trackOptionalPermissionRequestResult,
   trackOptionalPermissionResult,
-} from "~/services/productAnalytics/permissions"
+} from "~/services/productAnalytics/facts/permissions"
 import { createLogger } from "~/utils/core/logger"
 import { showResultToast } from "~/utils/feedback/operationFeedback"
 
@@ -173,7 +173,7 @@ export function useOptionalPermissionControls({
         action: shouldEnable ? "request" : "revoke",
         label,
       })
-      let success = false
+      let success: boolean
       const wasGrantedBefore = state.statuses[id] === true
 
       try {
@@ -234,7 +234,6 @@ export function useOptionalPermissionControls({
           }))
         }
       } catch (error) {
-        success = false
         if (shouldEnable) {
           trackOptionalPermissionRequestResult(id, {
             success: false,

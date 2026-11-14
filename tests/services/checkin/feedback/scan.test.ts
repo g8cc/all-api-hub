@@ -8,9 +8,9 @@ import {
   formatCheckInFeedbackClues,
 } from "~/services/checkin/feedback/scan"
 import { FEEDBACK_SCAN_LIMITS } from "~/services/checkin/feedback/scanLimits"
-import type { ScanFetch } from "~/services/checkin/feedback/scanReader"
 import { AuthTypeEnum } from "~/types"
 import { createDeferred } from "~~/tests/test-utils/deferred"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const baseUrl = "https://example.com"
 const response = (body: string, type = "application/json", status = 200) =>
@@ -31,7 +31,7 @@ describe("optional check-in clue scan", () => {
     const clues = await collectCheckInFeedbackClues(
       { baseUrl: "https://agentrouter.org", siteType: SITE_TYPES.NEW_API },
       new AbortController().signal,
-      { fetch: fetch as ScanFetch },
+      { fetch: fetch as typeof globalThis.fetch },
     )
     expect(clues.status).toBe("completed")
     expect(clues.authenticatedQueriesUnavailable).toBe(false)
@@ -50,6 +50,12 @@ describe("optional check-in clue scan", () => {
       getCheckInFeedbackStatusRoutes(
         SITE_TYPES.NEW_API,
         "https://agentrouter.org",
+      ),
+    ).toEqual([{ path: "/api/status", public: true }])
+    expect(
+      getCheckInFeedbackStatusRoutes(
+        SITE_TYPES.NEW_API,
+        "https://ps.air-outer.com",
       ),
     ).toEqual([{ path: "/api/status", public: true }])
     expect(getCheckInFeedbackStatusRoutes(SITE_TYPES.NEW_API, baseUrl)).toEqual(
@@ -77,11 +83,24 @@ describe("optional check-in clue scan", () => {
     expect(clues.status).toBe("partial")
   })
 
+  it("includes ToolCode's read-only growth-center status in Sub2API feedback", () => {
+    expect(
+      getCheckInFeedbackStatusRoutes(
+        SITE_TYPES.SUB2API,
+        "https://toolcode.top",
+      ),
+    ).toContainEqual({
+      path: `/api/v1/engagement/checkin/status?timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`,
+    })
+  })
+
   it("uses Wong's read-only route and excludes AnyRouter's mutation-only flow", () => {
-    expect(getCheckInFeedbackStatusRoutes(SITE_TYPES.WONG_GONGYI)).toEqual([
-      { path: "/api/user/checkin" },
-    ])
-    expect(getCheckInFeedbackStatusRoutes(SITE_TYPES.ANYROUTER)).toEqual([])
+    expect(
+      getCheckInFeedbackStatusRoutes(SITE_TYPES.WONG_GONGYI, baseUrl),
+    ).toEqual([{ path: "/api/user/checkin" }])
+    expect(
+      getCheckInFeedbackStatusRoutes(SITE_TYPES.ANYROUTER, baseUrl),
+    ).toEqual([])
   })
   it("reports route limits and invalid resource responses while retaining useful clues", async () => {
     vi.stubGlobal(
@@ -438,7 +457,7 @@ describe("optional check-in clue scan", () => {
       )
       expect(clues.status).toBe("completed")
       expect(clues.routes).toEqual(["/new/checkin", "/api/redeem"])
-      expect(clues.statusQueries[0].keys).toEqual(["success", "data"])
+      expect(atIndex(clues.statusQueries, 0).keys).toEqual(["success", "data"])
       for (const [url, init] of fetch.mock.calls as unknown as Array<
         [string, RequestInit]
       >) {
@@ -622,7 +641,7 @@ describe("optional check-in clue scan", () => {
     )
     controller.abort()
     await first
-    expect(signals[0].aborted).toBe(true)
+    expect(atIndex(signals, 0).aborted).toBe(true)
     const second = collectCheckInFeedbackClues(
       { baseUrl, siteType: SITE_TYPES.UNKNOWN },
       new AbortController().signal,
@@ -631,7 +650,7 @@ describe("optional check-in clue scan", () => {
     const timedOut = await second
     expect(timedOut.status).toBe("empty")
     expect(timedOut.issues).toContain("timeout")
-    expect(signals[1].aborted).toBe(true)
+    expect(atIndex(signals, 1).aborted).toBe(true)
     expect(vi.getTimerCount()).toBe(0)
   })
 })

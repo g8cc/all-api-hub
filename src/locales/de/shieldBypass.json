@@ -129,13 +129,27 @@
     },
     "unexpectedContent": "Die Antwort hatte ein unerwartetes Format und könnte eine Verifizierungsseite der Website gewesen sein."
   },
+  "notification": {
+    "loginAssistBody": "Die Anmeldung wartet. Öffnen Sie das Anmeldefenster, um die Verifizierung oder Zwei-Faktor-Authentifizierung abzuschließen. Danach prüft die Erweiterung Konto und Aufgabenergebnis.",
+    "loginSessionBody": "Dieses Fenster hat bereits eine angemeldete Sitzung. Öffnen Sie das Anmeldefenster und melden Sie sich nach Prüfung manuell ab, um andere Fenster nicht unbeabsichtigt abzumelden. Danach meldet die Erweiterung das Zielkonto an.",
+    "openLogin": "Anmeldefenster öffnen",
+    "openVerification": "Verifizierungsfenster öffnen",
+    "reminderSettings": "Benachrichtigungseinstellungen",
+    "turnstileAssistBody": "Die Website wartet auf eine menschliche Verifizierung. Öffnen Sie das Verifizierungsfenster und lösen Sie das Captcha. Die Erweiterung prüft danach das Ergebnis.",
+    "turnstileAssistTitle": "All API Hub · Verifizierung erforderlich",
+    "turnstilePageBody": "Die Website wartet auf eine menschliche Verifizierung. Öffnen Sie das Verifizierungsfenster und lösen Sie das Captcha. Die Erweiterung prüft danach das Ergebnis.",
+    "verificationEnded": "Diese Verifizierung ist beendet. Keine weitere Aktion erforderlich."
+  },
   "titlePrefix": "All API Hub · Schutzumgehung",
   "toast": {
     "actions": {
-      "dismiss": "Ausblenden",
       "openSettings": "Einstellungen für die Schutzumgehung öffnen"
     },
-    "body": "Diese Seite wurde automatisch von All API Hub geöffnet, um Schutzprüfungen (z. B. Cloudflare-Challenges) zu bestehen und die erforderlichen Cookies bzw. die Sitzung zu erhalten.\n\nDies ist notwendig, damit All API Hub erfolgreiche Anfragen stellen und Daten auf geschützten Websites erkennen kann.\n\nWenn ein Verifizierungsschritt angezeigt wird, führen Sie ihn in diesem Fenster aus. Sobald er bestanden ist, setzt All API Hub den Vorgang fort; das Fenster wird möglicherweise automatisch geschlossen.",
-    "title": "All API Hub – Helfer für Schutzprüfungen (temporäres Fenster)"
+    "body": "Diese Seite wurde automatisch von All API Hub geöffnet, um Schutzprüfungen (z. B. Cloudflare-Challenges) zu bestehen und die erforderlichen Cookies bzw. die Sitzung zu erhalten.\nDies ist notwendig, damit All API Hub erfolgreiche Anfragen stellen und Daten auf geschützten Websites erkennen kann.\nWenn ein Verifizierungsschritt angezeigt wird, führen Sie ihn in diesem Fenster aus. Sobald er bestanden ist, setzt All API Hub den Vorgang fort; das Fenster wird möglicherweise automatisch geschlossen.",
+    "title": "Helfer für Schutzprüfungen",
+    "turnstile": {
+      "body": "Schließen Sie in diesem Fenster die Verifizierung der Website ab, etwa durch Bestätigen von „Ich bin ein Mensch“ oder Auswählen der angeforderten Bilder. Die Erweiterung wartet und prüft danach das Ergebnis. Falls die Seite weiterhin keinen Check-in anzeigt, checken Sie dort ein.",
+      "title": "Menschliche Überprüfung abschließen"
+    }
   }
 }

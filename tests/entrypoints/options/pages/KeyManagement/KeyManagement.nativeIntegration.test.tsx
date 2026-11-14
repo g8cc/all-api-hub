@@ -5,28 +5,33 @@ import { useState } from "react"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { SITE_TYPES } from "~/constants/siteType"
+import { SITE_TYPES, type AccountSiteType } from "~/constants/siteType"
 import KeyManagement from "~/entrypoints/options/pages/KeyManagement"
 import { KEY_MANAGEMENT_ALL_ACCOUNTS_VALUE } from "~/features/KeyManagement/constants"
-import type { AccountKeyResourceRouteTransition } from "~/features/KeyManagement/controllers/useAccountKeyResourceController"
+import type { AccountKeyResourceRouteTransition } from "~/features/KeyManagement/resources/workflows/useAccountKeyResourceController"
 import { KEY_MANAGEMENT_TEST_IDS } from "~/features/KeyManagement/testIds"
+import * as provisioningUi from "~/features/TokenProvisioning/creation/AccountKeyProvisioningDialog"
 import { TOKEN_PROVISIONING_TEST_IDS } from "~/features/TokenProvisioning/testIds"
+import notify from "~/lib/notify"
 import enKeyManagement from "~/locales/en/keyManagement.json"
 import zhKeyManagement from "~/locales/zh-CN/keyManagement.json"
-import { buildServiceCredentialRuntimeKey } from "~/services/accounts/accountRuntimeKeys"
+import { buildServiceCredentialRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
+import { CREATED_RUNTIME_SECRET_CORRELATION_KINDS as correlationKinds } from "~/services/accounts/keys/createdRuntimeSecret"
+import * as siteRouteResolver from "~/services/accounts/utils/siteRouteResolver"
 import {
   ACCOUNT_KEY_RESOURCE_FAILURE_CODES,
   AccountKeyResourceError,
   type AccountKeyResourceFacts,
 } from "~/services/apiAdapters/contracts/accountKeyResource"
-import { createNewApiKeyEditor } from "~/services/apiAdapters/newApi/keyResourceEditor"
+import { createNewApiKeyEditor } from "~/services/apiAdapters/newApi/keys/keyResourceEditor"
+import { resolveNewApiKeyVariant } from "~/services/apiAdapters/newApi/keys/keyVariant"
 import {
   OPENROUTER_KEY_FIELD_IDS,
   OPENROUTER_KEY_LIMIT_MODES,
   OPENROUTER_KEY_LIMIT_RESETS,
-} from "~/services/apiAdapters/openrouter/keyResourceFields"
+} from "~/services/apiAdapters/openrouter/keys/keyResourceFields"
 import * as capabilityRegistry from "~/services/apiAdapters/registry"
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -37,7 +42,9 @@ import {
   PRODUCT_ANALYTICS_SURFACE_IDS,
 } from "~/services/productAnalytics/contracts"
 import { API_TYPES } from "~/services/verification/aiApiVerification"
+import * as browserTabs from "~/utils/browser/tabs"
 import { testI18n } from "~~/tests/test-utils/i18n"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { render, screen, waitFor } from "~~/tests/test-utils/render"
 import {
   createAccount,
@@ -64,8 +71,12 @@ const {
   legacyAddTokenSpy,
   refreshServiceCredentialsSpy,
   legacyRetryFailedAccountsSpy,
+  toastSuccessMock,
+  toastWarningMock,
 } = vi.hoisted(() => ({
   accountKeyResourceControllerOptionsSpy: vi.fn(),
+  toastSuccessMock: vi.fn(),
+  toastWarningMock: vi.fn(),
   accountKeyResourceControllerReplaceRouteSpy: vi.fn(),
   accountKeyResourceEditorDialogPropsSpy: vi.fn(),
   accountSelectorPanelPropsSpy: vi.fn(),
@@ -86,12 +97,20 @@ const {
   legacyRetryFailedAccountsSpy: vi.fn(),
 }))
 
+vi.mock("~/lib/notify", () => ({
+  default: {
+    success: toastSuccessMock,
+    error: vi.fn(),
+    warning: toastWarningMock,
+  },
+}))
+
 vi.mock(
-  "~/services/apiCredentialProfiles/accountTokenImport",
+  "~/services/apiCredentialProfiles/accountImport/accountTokenImport",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/services/apiCredentialProfiles/accountTokenImport")
+        typeof import("~/services/apiCredentialProfiles/accountImport/accountTokenImport")
       >()
 
     return {
@@ -103,11 +122,11 @@ vi.mock(
 )
 
 vi.mock(
-  "~/features/KeyManagement/controllers/useAccountKeyResourceController",
+  "~/features/KeyManagement/resources/workflows/useAccountKeyResourceController",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/features/KeyManagement/controllers/useAccountKeyResourceController")
+        typeof import("~/features/KeyManagement/resources/workflows/useAccountKeyResourceController")
       >()
 
     return {
@@ -130,11 +149,11 @@ vi.mock(
 )
 
 vi.mock(
-  "~/features/KeyManagement/components/AccountSummaryBar",
+  "~/features/KeyManagement/inventory/AccountSummaryBar",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/features/KeyManagement/components/AccountSummaryBar")
+        typeof import("~/features/KeyManagement/inventory/AccountSummaryBar")
       >()
     const React = await import("react")
     return {
@@ -148,11 +167,11 @@ vi.mock(
 )
 
 vi.mock(
-  "~/features/KeyManagement/components/AccountSelectorPanel",
+  "~/features/KeyManagement/inventory/AccountSelectorPanel",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/features/KeyManagement/components/AccountSelectorPanel")
+        typeof import("~/features/KeyManagement/inventory/AccountSelectorPanel")
       >()
     const React = await import("react")
     return {
@@ -166,11 +185,11 @@ vi.mock(
 )
 
 vi.mock(
-  "~/features/TokenProvisioning/components/AddTokenDialog",
+  "~/features/TokenProvisioning/creation/AddTokenDialog",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/features/TokenProvisioning/components/AddTokenDialog")
+        typeof import("~/features/TokenProvisioning/creation/AddTokenDialog")
       >()
     const React = await import("react")
     return {
@@ -184,11 +203,11 @@ vi.mock(
 )
 
 vi.mock(
-  "~/features/KeyManagement/components/AccountKeyResource/AccountKeyResourceEditorDialog",
+  "~/features/KeyManagement/resources/AccountKeyResourceEditorDialog",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/features/KeyManagement/components/AccountKeyResource/AccountKeyResourceEditorDialog")
+        typeof import("~/features/KeyManagement/resources/AccountKeyResourceEditorDialog")
       >()
     const React = await import("react")
 
@@ -206,11 +225,11 @@ vi.mock(
 )
 
 vi.mock(
-  "~/features/TokenProvisioning/components/OneTimeSecretDialog",
+  "~/features/TokenProvisioning/secretDelivery/OneTimeSecretDialog",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/features/TokenProvisioning/components/OneTimeSecretDialog")
+        typeof import("~/features/TokenProvisioning/secretDelivery/OneTimeSecretDialog")
       >()
     const React = await import("react")
 
@@ -251,38 +270,45 @@ vi.mock("~/services/productAnalytics/actions", () => ({
     startProductAnalyticsActionMock(...args),
 }))
 
-vi.mock("~/features/KeyManagement/hooks/useKeyManagement", () => ({
+vi.mock("~/features/KeyManagement/inventory/useKeyManagement", () => ({
   useKeyManagement: (...args: unknown[]) => useKeyManagementMock(...args),
 }))
 
-vi.mock("~/features/KeyManagement/hooks/useManagedSiteKeyStatuses", () => ({
-  useManagedSiteKeyStatuses: () => {
-    const fixture = useKeyManagementMock.mock.results.at(-1)?.value
-    return {
-      states: fixture.managedSiteTokenStatuses ?? {},
-      supported: fixture.isManagedSiteChannelStatusSupported ?? true,
-      refreshing: fixture.isManagedSiteStatusRefreshing ?? false,
-      refresh: fixture.refreshManagedSiteTokenStatuses,
-      refreshKey: fixture.refreshManagedSiteTokenStatusForToken,
-      confirm: fixture.confirmManagedSiteTokenStatusWithChannelKey,
-    }
-  },
-}))
+vi.mock(
+  "~/features/KeyManagement/managedSite/useManagedSiteKeyStatuses",
+  () => ({
+    useManagedSiteKeyStatuses: () => {
+      const fixture = useKeyManagementMock.mock.results.at(-1)?.value
+      return {
+        states: fixture.managedSiteTokenStatuses ?? {},
+        supported: fixture.isManagedSiteChannelStatusSupported ?? true,
+        refreshing: fixture.isManagedSiteStatusRefreshing ?? false,
+        refresh: fixture.refreshManagedSiteTokenStatuses,
+        refreshKey: fixture.refreshManagedSiteTokenStatusForToken,
+        confirm: fixture.confirmManagedSiteTokenStatusWithChannelKey,
+      }
+    },
+  }),
+)
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
   return { ...actual, sendRuntimeActionMessage: sendRuntimeActionMessageMock }
 })
 
-vi.mock("~/utils/navigation", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/utils/navigation")>()
+vi.mock("~/utils/navigation/optionsPage", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/utils/navigation/optionsPage")>()
   return {
     ...actual,
     replaceWithinOptionsPage: replaceWithinOptionsPageMock,
     pushWithinOptionsPage: vi.fn(),
-    openModelsPage: vi.fn(),
   }
+})
+vi.mock("~/utils/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/utils/navigation")>()
+  return { ...actual, openModelsPage: vi.fn() }
 })
 
 vi.mock("~/contexts/UserPreferencesContext", async (importOriginal) => {
@@ -434,10 +460,11 @@ const createFacts = (
   scopeKey: string,
   resourceId: string,
   displayName = "Native key",
+  siteType: AccountSiteType = SITE_TYPES.OPENROUTER,
 ) => ({
   ref: {
     accountId,
-    siteType: SITE_TYPES.OPENROUTER,
+    siteType,
     scopeKey,
     resourceId,
   },
@@ -552,12 +579,14 @@ const createOpenRouterEditor = ({
   }
 }
 
-async function renderCreatedNativeSecret() {
+async function renderCreatedNativeSecret(
+  siteType: AccountSiteType = SITE_TYPES.OPENROUTER,
+) {
   const user = userEvent.setup()
   const account = createAccount({
     id: "native-account-private-example",
     name: "Private native key name",
-    siteType: SITE_TYPES.OPENROUTER,
+    siteType,
     baseUrl: "https://native.example.invalid",
   })
   const scope = createScope(
@@ -571,15 +600,19 @@ async function renderCreatedNativeSecret() {
     scope.scopeKey,
     "private-hash-example",
     "Private native key name",
+    siteType,
   )
   const createdSecret = {
     correlation: {
-      kind: "account-key-resource" as const,
+      kind: correlationKinds.AccountKeyResource,
       ref: createdFacts.ref,
     },
     displayName: createdFacts.displayName,
     secret: "one-time-private-plaintext-example",
-    secretAvailability: "create-response-only" as const,
+    secretAvailability:
+      siteType === SITE_TYPES.DAHL
+        ? ("recoverable" as const)
+        : ("create-response-only" as const),
     credential: {
       accountName: account.name,
       apiType: API_TYPES.OPENAI_COMPATIBLE,
@@ -588,12 +621,27 @@ async function renderCreatedNativeSecret() {
       tagIds: [],
     },
   }
-  const createEditor = createOpenRouterEditor({
+  const submit = vi
+    .fn()
+    .mockResolvedValue({ facts: createdFacts, createdSecret })
+  const createEditor =
+    siteType === SITE_TYPES.DAHL
+      ? {
+          fields: [{ fieldId: "local_name", type: "text" as const }],
+          initialValues: { local_name: "" },
+          resolveDestinationScopeKey: () => scope.scopeKey,
+          validate: vi.fn().mockReturnValue({ valid: true }),
+          submit,
+        }
+      : createOpenRouterEditor({
+          scopes: [scope],
+          destinationScopeKey: scope.scopeKey,
+          submit,
+        })
+  const { session, collection } = createNativeSession({
     scopes: [scope],
-    destinationScopeKey: scope.scopeKey,
-    submit: vi.fn().mockResolvedValue({ facts: createdFacts, createdSecret }),
+    createEditor,
   })
-  const { session } = createNativeSession({ scopes: [scope], createEditor })
   createDisplayAccountApiContextMock.mockReturnValue({
     accountKeyResources: { open: vi.fn().mockResolvedValue(session) },
     request: {},
@@ -603,7 +651,9 @@ async function renderCreatedNativeSecret() {
     initialSelectedAccount: account.id,
   }
 
-  render(<KeyManagement routeParams={{ accountId: account.id }} />)
+  render(<KeyManagement routeParams={{ accountId: account.id }} />, {
+    withFeatureGuidanceProvider: true,
+  })
   await waitFor(() =>
     expect(
       screen.getByTestId(KEY_MANAGEMENT_TEST_IDS.addTokenButton),
@@ -612,18 +662,24 @@ async function renderCreatedNativeSecret() {
   await user.click(screen.getByTestId(KEY_MANAGEMENT_TEST_IDS.addTokenButton))
   await user.click(
     await screen.findByRole("button", {
-      name: "keyManagement:native.editor.actions.save",
+      name:
+        siteType === SITE_TYPES.DAHL
+          ? "keyManagement:native.editor.dahl.create"
+          : "keyManagement:native.editor.actions.save",
     }),
   )
   await screen.findByRole("dialog", {
-    name: "keyManagement:oneTimeKey.title",
+    name:
+      siteType === SITE_TYPES.DAHL
+        ? "keyManagement:createdKey.title"
+        : "keyManagement:oneTimeKey.title",
   })
 
   // The assertions below are about the secret actions, not the completed create.
   startProductAnalyticsActionMock.mockClear()
   trackCompleteMock.mockClear()
 
-  return { account, createdFacts, createdSecret, user }
+  return { account, createdFacts, createdSecret, user, collection }
 }
 
 function expectSecretActionTelemetry(
@@ -673,6 +729,93 @@ function expectSecretActionTelemetry(
 
 describe("KeyManagement native page integration", () => {
   afterEach(() => vi.restoreAllMocks())
+
+  it.each(["default", "all-groups"] as const)(
+    "completes %s keys for the selected account and refreshes its inventory",
+    async (mode) => {
+      const user = userEvent.setup()
+      const account = createAccount({
+        id: "completion-account",
+        siteType: SITE_TYPES.NEW_API,
+      })
+      const { session, collection } = createNativeSession({
+        scopes: [createScope("default", "default", "Default", true)],
+      })
+      createDisplayAccountApiContextMock.mockReturnValue({
+        accountKeyResources: { open: vi.fn().mockResolvedValue(session) },
+        request: {},
+      })
+      legacyHarnessConfig = {
+        accounts: [account],
+        initialSelectedAccount: account.id,
+      }
+      vi.spyOn(
+        provisioningUi,
+        "AccountKeyProvisioningDialog",
+      ).mockImplementation(({ account: owner, mode: scope, onClose }) => (
+        <div role="dialog" aria-label="Key completion">
+          <p>
+            {owner.id}:{scope}
+          </p>
+          <button onClick={onClose}>Finish completion</button>
+        </div>
+      ))
+      render(<KeyManagement routeParams={{ accountId: account.id }} />)
+      await waitFor(() => expect(collection.list).toHaveBeenCalled())
+      await user.click(
+        await screen.findByRole("button", {
+          name: "keyManagement:tools.title",
+        }),
+      )
+      await user.click(
+        screen.getByRole("menuitem", {
+          name: `keyManagement:provisioning.actions.${mode === "default" ? "default" : "allGroups"}`,
+        }),
+      )
+      expect(
+        await screen.findByRole("dialog", { name: "Key completion" }),
+      ).toHaveTextContent(`${account.id}:${mode}`)
+      collection.list.mockClear()
+      await user.click(
+        screen.getByRole("button", { name: "Finish completion" }),
+      )
+      await waitFor(() => expect(collection.list).toHaveBeenCalled())
+      expect(
+        screen.queryByRole("dialog", { name: "Key completion" }),
+      ).not.toBeInTheDocument()
+    },
+  )
+
+  it("keeps completion scoped to a selected account even when the all-account filter has one account", async () => {
+    const account = createAccount({
+      id: "filtered-account",
+      siteType: SITE_TYPES.NEW_API,
+    })
+    const { session } = createNativeSession({
+      scopes: [createScope("default", "default", "Default", true)],
+    })
+    createDisplayAccountApiContextMock.mockReturnValue({
+      accountKeyResources: { open: vi.fn().mockResolvedValue(session) },
+      request: {},
+    })
+    legacyHarnessConfig = {
+      accounts: [account],
+      initialSelectedAccount: KEY_MANAGEMENT_ALL_ACCOUNTS_VALUE,
+      allAccountsFilterAccountIds: [account.id],
+    }
+    render(<KeyManagement />)
+    await waitFor(() => expect(accountSelectorPanelPropsSpy).toHaveBeenCalled())
+    expect(
+      screen.queryByRole("button", {
+        name: "keyManagement:provisioning.actions.title",
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", {
+        name: "keyManagement:repairMissingKeys.action",
+      }),
+    ).toBeVisible()
+  })
 
   beforeEach(() => {
     accountKeyResourceControllerOptionsSpy.mockReset()
@@ -733,6 +876,100 @@ describe("KeyManagement native page integration", () => {
       enKeyManagement.native.delete.description,
     )
   })
+
+  it.each(["#account", "#balanceHistory"])(
+    "does not let an exiting keys page replace the selected %s route",
+    async (nextHash) => {
+      const originalUrl = window.location.href
+      try {
+        window.history.replaceState(null, "", "#keys")
+        legacyHarnessConfig = {
+          accounts: [],
+          initialSelectedAccount: KEY_MANAGEMENT_ALL_ACCOUNTS_VALUE,
+        }
+        render(<KeyManagement />)
+        await waitFor(() =>
+          expect(accountKeyResourceControllerOptionsSpy).toHaveBeenCalled(),
+        )
+        const replaceRoute =
+          accountKeyResourceControllerOptionsSpy.mock.calls.at(-1)![0]
+            .replaceRoute
+        const params = { accountId: "late-account", workspace: "account" }
+        act(() => replaceRoute(params))
+        expect(replaceWithinOptionsPageMock).toHaveBeenCalledWith(
+          "#keys",
+          params,
+        )
+        replaceWithinOptionsPageMock.mockClear()
+
+        window.history.replaceState(null, "", nextHash)
+        act(() => replaceRoute(params))
+        expect(replaceWithinOptionsPageMock).not.toHaveBeenCalled()
+        expect(window.location.hash).toBe(nextHash)
+      } finally {
+        window.history.replaceState(null, "", originalUrl)
+      }
+    },
+  )
+
+  it.each(["success", "missing", "failed"])(
+    "opens the selected Vercel console or reports recovery failure (%s)",
+    async (outcome) => {
+      vi.mocked(notify.error).mockClear()
+      const route = vi.spyOn(siteRouteResolver, "resolveAccountSiteRouteUrl")
+      const createTab = vi
+        .spyOn(browserTabs, "createTab")
+        .mockResolvedValue({} as never)
+      if (outcome === "failed") route.mockRejectedValue(new Error("offline"))
+      else
+        route.mockResolvedValue(
+          outcome === "success"
+            ? "https://vercel.com/team/~/ai-gateway/api-keys"
+            : null,
+        )
+      const account = createAccount({
+        id: "vercel",
+        siteType: SITE_TYPES.VERCEL_AI_GATEWAY,
+        baseUrl: "https://vercel.com",
+      })
+      const { session } = createNativeSession({
+        scopes: [createScope("account", "account", "Account", true)],
+      })
+      createDisplayAccountApiContextMock.mockReturnValue({
+        accountKeyResources: { open: vi.fn().mockResolvedValue(session) },
+        request: {},
+      })
+      legacyHarnessConfig = {
+        accounts: [account],
+        initialSelectedAccount: account.id,
+      }
+      render(<KeyManagement routeParams={{ accountId: account.id }} />)
+      const user = userEvent.setup()
+      await user.click(
+        await screen.findByRole("button", {
+          name: /openConsole|Open Vercel console/i,
+        }),
+      )
+      if (outcome === "success") {
+        await waitFor(() =>
+          expect(createTab).toHaveBeenCalledWith(
+            "https://vercel.com/team/~/ai-gateway/api-keys",
+            true,
+          ),
+        )
+        expect(notify.error).not.toHaveBeenCalled()
+      } else {
+        await waitFor(() =>
+          expect(notify.error).toHaveBeenCalledExactlyOnceWith(
+            "keyManagement:native.editor.vercelAiGateway.consoleFailed",
+          ),
+        )
+        expect(createTab).not.toHaveBeenCalled()
+      }
+      route.mockRestore()
+      createTab.mockRestore()
+    },
+  )
 
   it.each([
     SITE_TYPES.NEW_API,
@@ -844,7 +1081,7 @@ describe("KeyManagement native page integration", () => {
     )
     const createdSecret = {
       correlation: {
-        kind: "account-key-resource" as const,
+        kind: correlationKinds.AccountKeyResource,
         ref: createdFacts.ref,
       },
       displayName: createdFacts.displayName,
@@ -1027,6 +1264,46 @@ describe("KeyManagement native page integration", () => {
     },
   )
 
+  it("hands a recoverable Dahl creation secret directly to Allocate without recommending vault storage", async () => {
+    oneTimeSecretDialogHarnessState.disableAutoCopy = true
+    const { user, createdFacts, collection } = await renderCreatedNativeSecret(
+      SITE_TYPES.DAHL,
+    )
+    expect(
+      screen.queryByTestId(TOKEN_PROVISIONING_TEST_IDS.oneTimeKeySaveButton),
+    ).not.toBeInTheDocument()
+    expect(oneTimeSecretDialogPropsSpy.mock.lastCall?.[0]).toMatchObject({
+      description: "keyManagement:native.editor.dahl.createdHelp",
+      nextAction: {
+        label: "keyManagement:native.editor.dahl.allocate",
+        disabled: false,
+      },
+    })
+    collection.openEditEditor.mockResolvedValue({
+      fields: [],
+      initialValues: {},
+      validate: vi.fn().mockReturnValue({ valid: true }),
+      submit: vi.fn(),
+    })
+    await user.click(
+      within(
+        screen.getByRole("dialog", { name: "keyManagement:createdKey.title" }),
+      ).getByRole("button", {
+        name: "keyManagement:native.editor.dahl.allocate",
+      }),
+    )
+    await waitFor(() =>
+      expect(collection.openEditEditor).toHaveBeenCalledWith(
+        createdFacts.ref,
+        expect.anything(),
+        expect.objectContaining({ action: "allocate" }),
+      ),
+    )
+    expect(
+      screen.queryByRole("dialog", { name: "keyManagement:createdKey.title" }),
+    ).not.toBeInTheDocument()
+  })
+
   it("deliberately cancels then confirms an unhandled secret close without recording a copy/save action or retaining dialog contents", async () => {
     oneTimeSecretDialogHarnessState.disableAutoCopy = true
     const { createdSecret, user } = await renderCreatedNativeSecret()
@@ -1092,7 +1369,7 @@ describe("KeyManagement native page integration", () => {
     )
     const createdSecret = {
       correlation: {
-        kind: "account-key-resource" as const,
+        kind: correlationKinds.AccountKeyResource,
         ref: createdFacts.ref,
       },
       displayName: createdFacts.displayName,
@@ -1406,12 +1683,14 @@ describe("KeyManagement native page integration", () => {
       })
       if (siteType === SITE_TYPES.NEW_API) {
         const nativeEditor = createNewApiKeyEditor(
-          siteType,
-          {} as never,
           {
-            fetchUserGroups: vi.fn().mockResolvedValue({}),
-            fetchAccountAvailableModels: vi.fn().mockResolvedValue([]),
-          } as never,
+            ...resolveNewApiKeyVariant(siteType),
+            transport: {
+              fetchUserGroups: vi.fn().mockResolvedValue({}),
+              fetchAccountAvailableModels: vi.fn().mockResolvedValue([]),
+            } as never,
+          },
+          {} as never,
         )
         Object.assign(createEditor, nativeEditor)
       }
@@ -1449,7 +1728,7 @@ describe("KeyManagement native page integration", () => {
       ).toBeVisible()
       expect(
         screen.getByRole("button", {
-          name: "keyManagement:repairMissingKeys.action",
+          name: "keyManagement:tools.title",
         }),
       ).toBeVisible()
       expect(
@@ -1582,12 +1861,14 @@ describe("KeyManagement native page integration", () => {
     })
     const scope = createScope("account", "account", "Account", true)
     const createEditor = createNewApiKeyEditor(
-      SITE_TYPES.NEW_API,
-      {} as never,
       {
-        fetchUserGroups: vi.fn().mockResolvedValue({}),
-        fetchAccountAvailableModels: vi.fn().mockResolvedValue([]),
-      } as never,
+        ...resolveNewApiKeyVariant(SITE_TYPES.NEW_API),
+        transport: {
+          fetchUserGroups: vi.fn().mockResolvedValue({}),
+          fetchAccountAvailableModels: vi.fn().mockResolvedValue([]),
+        } as never,
+      },
+      {} as never,
     )
     const { session } = createNativeSession({
       scopes: [scope],
@@ -2175,9 +2456,12 @@ describe("KeyManagement native page integration", () => {
     expect(legacyRetryFailedAccountsSpy).toHaveBeenCalledTimes(1)
 
     await user.click(
-      screen.getAllByRole("button", {
-        name: "keyManagement:actions.detailsFor",
-      })[0],
+      atIndex(
+        screen.getAllByRole("button", {
+          name: "keyManagement:actions.detailsFor",
+        }),
+        0,
+      ),
     )
     expect(screen.getByText("keyManagement:details.empty")).toBeVisible()
     expect(successful.collection.get).not.toHaveBeenCalled()
@@ -2431,6 +2715,59 @@ describe("KeyManagement native page integration", () => {
     )
   })
 
+  it.each(["Visible key", ""])(
+    "announces deletion of '%s' before the inventory refresh completes",
+    async (name) => {
+      toastSuccessMock.mockClear()
+      const user = userEvent.setup()
+      const account = createAccount({
+        id: "native-account",
+        siteType: SITE_TYPES.OPENROUTER,
+      })
+      const scope = createScope("workspace", "default", "Default", true)
+      const facts = createFacts(account.id, scope.scopeKey, "key", name)
+      const reload = deferred<{ items: AccountKeyResourceFacts[] }>()
+      const { session, collection } = createNativeSession({
+        scopes: [scope],
+        rows: [facts],
+        deleteResource: vi.fn().mockResolvedValue(undefined),
+      })
+      collection.list
+        .mockResolvedValueOnce({ items: [facts] })
+        .mockImplementationOnce(() => reload.promise)
+      createDisplayAccountApiContextMock.mockReturnValue({
+        accountKeyResources: { open: vi.fn().mockResolvedValue(session) },
+        request: {},
+      })
+      legacyHarnessConfig = {
+        accounts: [account],
+        initialSelectedAccount: account.id,
+      }
+      render(
+        <KeyManagement
+          routeParams={{ accountId: account.id, workspace: scope.routeKey }}
+        />,
+      )
+      await user.click(
+        await screen.findByRole("button", {
+          name: "keyManagement:native.actions.delete",
+        }),
+      )
+      await user.click(
+        screen.getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeDeleteConfirmButton),
+      )
+      await waitFor(() =>
+        expect(toastSuccessMock).toHaveBeenCalledWith(
+          name
+            ? "keyManagement:messages.keyDeleted"
+            : "keyManagement:messages.keyDeletedSimple",
+        ),
+      )
+      expect(screen.queryByRole("dialog")).toBeNull()
+      await act(async () => reload.resolve({ items: [] }))
+    },
+  )
+
   it("shows safe native delete detail and permits a deliberate retry without exposing the resource id", async () => {
     const user = userEvent.setup()
     const account = createAccount({
@@ -2506,7 +2843,7 @@ describe("KeyManagement native page integration", () => {
     await waitFor(() => expect(deleteResource).toHaveBeenCalledTimes(2))
   })
 
-  it("offers refresh first after an uncertain native delete and never blind-retries deletion", async () => {
+  it("reconciles an uncertain native delete and retains its warning without retrying deletion", async () => {
     const user = userEvent.setup()
     const account = createAccount({
       id: "native-account",
@@ -2558,27 +2895,23 @@ describe("KeyManagement native page integration", () => {
         name: "keyManagement:native.actions.delete",
       }),
     )
+    const openCountBeforeDelete = open.mock.calls.length
     await user.click(
       screen.getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeDeleteConfirmButton),
     )
     await waitFor(() => expect(deleteResource).toHaveBeenCalledTimes(1))
-    expect(
-      await screen.findByText("The provider response was interrupted"),
-    ).toBeVisible()
-    expect(
-      screen.getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeDeleteConfirmButton),
-    ).toHaveTextContent("keyManagement:native.delete.refresh")
-    expect(
-      screen.getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeDeleteConfirmButton),
-    ).toHaveAttribute("data-variant", "warning")
-
-    const openCountAfterRecovery = open.mock.calls.length
-    await user.click(
-      screen.getByTestId(KEY_MANAGEMENT_TEST_IDS.nativeDeleteConfirmButton),
+    await waitFor(() =>
+      expect(open.mock.calls.length).toBeGreaterThan(openCountBeforeDelete),
     )
     await waitFor(() =>
-      expect(open.mock.calls.length).toBeGreaterThan(openCountAfterRecovery),
+      expect(
+        screen.queryByTestId(KEY_MANAGEMENT_TEST_IDS.nativeDeleteConfirmButton),
+      ).not.toBeInTheDocument(),
     )
     expect(deleteResource).toHaveBeenCalledTimes(1)
+    expect(toastWarningMock).toHaveBeenCalledWith(
+      "keyManagement:native.editor.feedback.uncertain\nThe provider response was interrupted",
+      { duration: Infinity },
+    )
   })
 })

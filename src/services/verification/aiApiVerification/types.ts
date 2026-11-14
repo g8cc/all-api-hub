@@ -18,12 +18,28 @@ export const API_VERIFICATION_MODES = {
 export type ApiVerificationMode =
   (typeof API_VERIFICATION_MODES)[keyof typeof API_VERIFICATION_MODES]
 
+/** Request identity is independent of the capability being verified. */
+export const API_VERIFICATION_REQUEST_PROFILES = {
+  Default: "default",
+  Codex: "codex",
+  Claude: "claude",
+  Gemini: "gemini",
+} as const
+
+export type ApiVerificationRequestProfile =
+  (typeof API_VERIFICATION_REQUEST_PROFILES)[keyof typeof API_VERIFICATION_REQUEST_PROFILES]
+
 export const API_VERIFICATION_PROBE_IDS = {
   Models: "models",
   TextGeneration: "text-generation",
   ToolCalling: "tool-calling",
   StructuredOutput: "structured-output",
   WebSearch: "web-search",
+  Embedding: "embedding",
+  Rerank: "rerank",
+  ImageGeneration: "image-generation",
+  VideoGeneration: "video-generation",
+  Decision: "decision",
 } as const
 
 export type ApiVerificationProbeId =
@@ -35,8 +51,18 @@ export const API_VERIFICATION_PROBE_STATUSES = {
   Unsupported: "unsupported",
 } as const
 
+/** Per-probe prompt overrides; blank entries fall back to the built-in prompt. */
+export type ApiVerificationProbePromptOverrides = Partial<
+  Record<ApiVerificationProbeId, string>
+>
+
 export type ApiVerificationProbeStatus =
   (typeof API_VERIFICATION_PROBE_STATUSES)[keyof typeof API_VERIFICATION_PROBE_STATUSES]
+
+export const API_VERIFICATION_MEDIA_TYPES = {
+  Image: "image",
+  Video: "video",
+} as const
 
 export type ApiVerificationProbeResult = {
   id: ApiVerificationProbeId
@@ -47,6 +73,8 @@ export type ApiVerificationProbeResult = {
    * and historical results that did not record their mode.
    */
   mode?: ApiVerificationMode
+  requestProfile?: ApiVerificationRequestProfile
+  requestProfileEnhanced?: boolean
   /**
    * Human-readable summary of the probe result.
    *
@@ -76,5 +104,11 @@ export type ApiVerificationProbeResult = {
    * Must never include secrets (e.g., apiKey).
    */
   output?: unknown
+  /** Transient media for previews. Kept out of diagnostic JSON and persisted history. */
+  media?: {
+    type: (typeof API_VERIFICATION_MEDIA_TYPES)[keyof typeof API_VERIFICATION_MEDIA_TYPES]
+    url: string
+    credentialed?: boolean
+  }
   details?: Record<string, unknown>
 }

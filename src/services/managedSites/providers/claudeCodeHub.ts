@@ -1,18 +1,16 @@
 import { CLAUDE_CODE_HUB_PROVIDER_TYPE } from "~/constants/claudeCodeHub"
 import type { ManagedSiteChannelDraftRequestOptions } from "~/services/apiAdapters/contracts/managedSiteCapabilities"
-import { requireNumericManagedResourceId } from "~/services/apiAdapters/managedResources/resourceIds"
+import { requireNumericManagedResourceId } from "~/services/apiAdapters/managedResources/shared/resourceIds"
 import * as claudeCodeHubApi from "~/services/apiService/claudeCodeHub"
 import type { ScheduledReadOptions } from "~/services/apiTransport/requestScheduling"
 import {
   MANAGED_SITE_CHANNEL_MATCH_UNRESOLVED_REASONS,
   MatchResolutionUnresolvedError,
-} from "~/services/managedSites/channelMatch"
+} from "~/services/managedSites/matching/channelMatch"
 import { hasUsableManagedSiteChannelKey } from "~/services/managedSites/utils/channelKeys"
 import { fetchManagedSiteImportModels } from "~/services/managedSites/utils/fetchManagedSiteImportModels"
-import {
-  userPreferences,
-  type UserPreferences,
-} from "~/services/preferences/userPreferences"
+import { type UserPreferences } from "~/services/preferences/preferencesSchema"
+import { userPreferences } from "~/services/preferences/userPreferences"
 import { toSanitizedErrorSummary } from "~/services/verification/aiApiVerification/utils"
 import type { ClaudeCodeHubConfig } from "~/types/claudeCodeHubConfig"
 import type {

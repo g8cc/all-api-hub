@@ -18,6 +18,7 @@
     "detailsFor": "Details für {{name}}",
     "editKey": "Schlüssel bearbeiten",
     "expandAll": "Alles erweitern",
+    "exportToAiToolbox": "In AI Toolbox exportieren",
     "exportToCCSwitch": "In CC Switch exportieren",
     "exportToCursorPlus": "Cursor++-Anbieterkonfiguration exportieren",
     "exportToKiloCode": "Kilo Code Konfiguration exportieren",
@@ -30,8 +31,8 @@
     "saveToApiProfiles": "Speichern und mit API-Anmeldedaten verknüpfen",
     "showKey": "Schlüssel anzeigen",
     "useInCherry": "Verwendung in Cherry Studio",
-    "verifyApi": "API überprüfen",
-    "verifyCliSupport": "Überprüfen Sie die CLI-Unterstützung"
+    "verifyApi": "API testen",
+    "verifyCliSupport": "CLI-Kompatibilitätstest"
   },
   "actionToolbar": {
     "apiCredential": "API-Anmeldedaten",
@@ -96,9 +97,33 @@
       "models": "Modelle"
     },
     "gatewayDescription": "Dadurch werden Kontoschlüssel als selbstgehostete AI-Gateway-Kanäle importiert. Nach dem Import können mehrere Schlüssel von Clients über eine AI-API verwendet werden.",
+    "importMode": {
+      "appendTo": "Zu bestehendem Kanal hinzufügen: {{name}}",
+      "chooseTarget": "Kanal für diese Schlüssel auswählen",
+      "createNew": "Neuen Kanal erstellen",
+      "grouped": "Schlüssel derselben Website in einem neuen Kanal bündeln",
+      "independent": "Für jeden Schlüssel einen neuen Kanal erstellen",
+      "keyCount_one": "{{count}} Schlüssel",
+      "keyCount_other": "{{count}} Schlüssel",
+      "label": "Schlüssel importieren",
+      "modelDifferences": "Die Modelllisten unterscheiden sich. Die Ressource nutzt deren Vereinigungsmenge; das Gateway übernimmt das Routing.",
+      "models": "Modelle: {{models}}",
+      "preserveSettings": "Konfiguration und Modelleinstellungen des Kanals beibehalten. Nur noch nicht importierte Schlüssel hinzufügen.",
+      "resourceName": "Name des neuen Kanals",
+      "resultSummary": "Schlüssel: {{created}} importiert, {{failed}} fehlgeschlagen, {{uncertain}} unklar, {{skipped}} übersprungen.",
+      "reuse": "Bevorzugt zu einem bestehenden Kanal hinzufügen",
+      "reuseHelp": "Schlüssel zu einem Kanal mit derselben Adresse hinzufügen. Bei mehreren Treffern wählen Sie das Ziel; ohne Treffer wird ein gemeinsamer Kanal erstellt.",
+      "reuseSummary": "{{keyCount}} Schlüssel ausgewählt: {{createCount}} Kanäle erstellen und zu {{appendCount}} bestehenden Kanälen hinzufügen.",
+      "saveFailed": "Die Auswahl gilt für diesen Import, konnte aber nicht gespeichert werden.",
+      "scheduling": "Das Ziel-Gateway bestimmt den Wechsel zwischen Schlüsseln. Wählen Sie nach Ihren Anforderungen.",
+      "summary": "{{keyCount}} Schlüssel ausgewählt; {{resourceCount}} neue Kanäle werden erstellt.",
+      "target": "Zielkanal für die Schlüssel",
+      "unsupported": "Dieser Ressourcentyp unterstützt keine zusammengefassten Schlüssel und wird separat erstellt."
+    },
     "loadingDescription": "Vorschau wird für ausgewählte Schlüssel vorbereitet (Auswahl: {{selectedCount}}).",
     "messages": {
-      "completed": "Batch-Import abgeschlossen: {{created}} erstellt, {{failed}} fehlgeschlagen, {{skipped}} bereits vorhanden.",
+      "batchDuplicate": "Duplikat von {{item}} in diesem Stapel; wurde übersprungen.",
+      "completed": "Schlüssel: {{created}} importiert, {{failed}} fehlgeschlagen, {{uncertain}} unklar, {{skipped}} übersprungen.",
       "duplicate": "Ein identischer Kanal ist bereits vorhanden: {{channel}}. Er wird nicht erneut erstellt.",
       "executionFailed": "Batch-Import konnte nicht ausgeführt werden: {{error}}",
       "targetChanged": "Das Ziel der verwalteten Website wurde geändert. Aktualisieren Sie die Vorschau oder wählen Sie vor dem Import das gewünschte Ziel aus.",
@@ -109,22 +134,22 @@
       "loading": "Kanalvorschau wird vorbereitet...",
       "selected_one": "{{count}} Schlüssel ausgewählt",
       "selected_other": "{{count}} Schlüssel ausgewählt",
-      "summary": "Vorschau: {{ready}} bereit, {{warning}} Warnungen, {{skipped}} bereits vorhanden, {{blocked}} blockiert, {{total}} insgesamt."
+      "summary": "Vorschau: {{ready}} bereit, {{warning}} Warnungen, {{skipped}} übersprungen, {{blocked}} blockiert, {{total}} insgesamt."
     },
     "repairTrusted": {
       "description": "Diese Schlüssel wurden gerade erstellt. Bei der vereinfachten Prüfung werden Duplikat- und exakte Schlüsselprüfungen ausgelassen. Verwenden Sie die vollständige Prüfung, wenn Sie sie vor dem Import überprüfen möchten.",
       "useCompleteChecks": "Vollständige Prüfung verwenden"
     },
     "results": {
-      "channelCreationFailed": "Kanalerstellung fehlgeschlagen.",
+      "channelCreationFailed": "Schlüsselimport fehlgeschlagen.",
       "status": {
         "failed": "Fehlgeschlagen",
         "notSelected": "Nicht ausgewählt",
-        "skipped": "Bereits vorhanden",
-        "success": "Erstellt",
+        "skipped": "Übersprungen",
+        "success": "Importiert",
         "uncertain": "Überprüfung erforderlich"
       },
-      "summary": "Ergebnis: {{created}} erstellt, {{failed}} fehlgeschlagen, {{skipped}} bereits vorhanden, {{total}} insgesamt."
+      "summary": "Schlüssel: {{created}} importiert, {{failed}} fehlgeschlagen, {{uncertain}} unklar, {{skipped}} übersprungen."
     },
     "selection": {
       "accountGroup": "Wählen Sie sichtbare Schlüssel für Konto {{name}}",
@@ -134,7 +159,7 @@
     "status": {
       "blocked": "Blockiert",
       "ready": "Bereit",
-      "skipped": "Bereits vorhanden",
+      "skipped": "Übersprungen",
       "warning": "Warnung"
     },
     "target": {
@@ -152,9 +177,13 @@
   },
   "batchSelection": {
     "accountUnavailableReason": "Dieses Konto verfügt über keine Schlüssel, die Batch-Aktionen unterstützen.",
-    "eligibilityNotice_one": "{{count}} Schlüssel unterstützt derzeit Batch-Aktionen; andere Schlüssel werden nicht einbezogen.",
-    "eligibilityNotice_other": "{{count}} Schlüssel unterstützen derzeit Batch-Aktionen; andere Schlüssel werden nicht einbezogen.",
+    "eligibilityHint": "Stapelaktionen wählen nur exportierbare Inferenzschlüssel aus. Verwaltungsschlüssel und Schlüssel, deren vollständiger Wert nicht verfügbar ist, sind ausgeschlossen.",
+    "helpLabel": "Hinweise zur Mehrfachauswahl",
     "unavailableReason": "Dieser Schlüssel unterstützt keine Batch-Aktionen."
+  },
+  "createdKey": {
+    "subtitle": "{{name}} wurde erstellt. Sie können ihn jetzt kopieren oder später erneut anzeigen.",
+    "title": "Schlüssel erstellt"
   },
   "createFirstKey": "Ersten Schlüssel erstellen",
   "credentialAssociation": {
@@ -193,6 +222,7 @@
     "ipLimits": "IP-Limits",
     "ipPlaceholder": "Für keine Begrenzung leer lassen, mehrere IPs durch Kommas trennen",
     "modelLimits": "Modellgrenzen",
+    "novitaConsoleRequired": "Zum Erstellen von Schlüsseln ist Konsolenautorisierung erforderlich. Bearbeite dieses Konto und hole Zugangsdaten für dasselbe Novita-Konto ab oder erstelle den Schlüssel in der Novita-Konsole.",
     "quotaPlaceholder": "Bitte geben Sie den Kontingentbetrag (USD) ein",
     "quotaSettings": "Kontingenteinstellungen",
     "selectModels": "Modelle auswählen",
@@ -213,8 +243,10 @@
     }
   },
   "keyDetails": {
+    "channels": "Kanäle",
     "createResponseOnlySecret": "Diese Website zeigt den vollständigen Schlüssel nur an, wenn er erstellt wird. Wenn Sie ihn nicht gespeichert haben, öffnen Sie die Schlüsselverwaltung und erstellen Sie einen Ersatzschlüssel.",
     "createTime": "Erstellungszeit:",
+    "defaultChannels": "Standardkanäle der Website",
     "expireTime": "Ablaufzeit:",
     "followsAccountGroup": "Folgt der Kontogruppe",
     "group": "Gruppe:",
@@ -225,8 +257,11 @@
     "neverExpires": "Läuft nie ab",
     "note": "Hinweis:",
     "remainingQuota": "Verbleibendes Kontingent:",
+    "tools": "Erlaubte Tools",
+    "totalQuota": "Gesamtkontingent:",
     "ungrouped": "Nicht gruppiert",
-    "usedQuota": "Verwendetes Kontingent:"
+    "usedQuota": "Verwendetes Kontingent:",
+    "websiteVerificationSecret": "Die Verwaltungs-API liefert keine vollständigen Schlüssel. Öffnen Sie die API-Seite von NanoGPT und schließen Sie die erforderliche Anmeldeprüfung ab, um einen vorhandenen Schlüssel erneut anzuzeigen oder zu kopieren."
   },
   "knownTotalKeys_one": "{{count}} Schlüssel gelesen",
   "knownTotalKeys_other": "{{count}} Schlüssel gelesen",
@@ -319,6 +354,11 @@
     "batchSaveToApiProfilesPartialFailed": "Gespeicherte Schlüssel: {{savedCount}}/{{totalCount}}. Nicht gespeicherte Schlüssel: {{failedCount}}.",
     "copyFailed": "Kopieren fehlgeschlagen",
     "keyCopied": "Schlüssel {{name}} in Zwischenablage kopiert",
+    "keyDeleted": "Schlüssel {{name}} gelöscht",
+    "keyDeletedSimple": "Schlüssel gelöscht",
+    "keySiteTypeMismatch": "Diese Website entspricht {{suggestedType}}, das Konto ist jedoch auf {{storedType}} eingestellt. Stellen Sie den Website-Typ unter „Konto bearbeiten“ auf {{suggestedType}} um und versuchen Sie es erneut.",
+    "keyUpdated": "Schlüssel {{name}} aktualisiert",
+    "keyUpdatedSimple": "Schlüssel aktualisiert",
     "loadFailed": "Schlüsselliste konnte nicht geladen werden",
     "revealFailed": "Schlüssel konnte nicht angezeigt werden",
     "savedToApiProfiles": "{{name}} in der API-Anmeldeinformationsbibliothek gespeichert",
@@ -327,15 +367,32 @@
     "serviceCredentialCopied": "Serviceschlüssel in Zwischenablage kopiert",
     "serviceCredentialRotated": "Serviceschlüssel-Reset",
     "serviceCredentialRotateFailed": "Dienstschlüssel konnte nicht zurückgesetzt werden",
-    "verifyApiFailed": "Fehler beim Öffnen der API-Verifizierung",
-    "verifyCliSupportFailed": "Fehler beim Öffnen der CLI-Kompatibilitätsüberprüfung"
+    "verifyApiFailed": "API-Tests konnten nicht geöffnet werden",
+    "verifyCliSupportFailed": "CLI-Kompatibilitätstest konnte nicht geöffnet werden"
   },
   "native": {
     "actions": {
       "delete": "Schlüssel löschen",
-      "edit": "Schlüssel bearbeiten"
+      "disable": "API-Schlüssel deaktivieren",
+      "edit": "Schlüssel bearbeiten",
+      "enable": "API-Schlüssel aktivieren",
+      "revoke": "Schlüssel widerrufen",
+      "rotate": "API-Schlüssel rotieren"
+    },
+    "badges": {
+      "accountCredential": "Von diesem Konto verwendet",
+      "accountCredentialCandidate": "Möglicherweise zur Kontoanmeldung verwendet",
+      "accountManagePermission": "Verwaltungsschlüssel dieses Kontos",
+      "managePermission": "Verwaltungsschlüssel"
+    },
+    "credentialRole": {
+      "badgeTitle": "All API Hub verbindet sich mit diesem Schlüssel mit dem Konto, um den Kontostand abzurufen und Schlüssel zu verwalten. Wenn Sie ihn ersetzen, aktualisieren Sie den Schlüssel in den Kontoeinstellungen.",
+      "candidateTitle": "Nur anhand des maskierten Schlüssels zugeordnet; nicht bestätigt."
     },
     "delete": {
+      "accountCredentialAcknowledge": "Mir ist bewusst, dass dies Kontofunktionen mit diesem Schlüssel beeinträchtigen kann",
+      "accountCredentialWarningDescription": "Das Löschen kann Kontofunktionen unterbrechen, die diesen Schlüssel verwenden. Aktualisiere zuerst die Zugangsdaten. Der Schlüssel kann hier nicht wiederhergestellt werden.",
+      "accountCredentialWarningTitle": "Eigenen Zugang des Kontos löschen",
       "confirm": "Schlüssel löschen",
       "description": "Den API-Schlüssel {{name}} dauerhaft löschen? Dies kann nicht rückgängig gemacht werden.",
       "feedback": {
@@ -345,6 +402,7 @@
         "unavailable": "Der Dienst ist vorübergehend nicht verfügbar. Aktualisieren Sie die Schlüssel, bevor Sie es erneut versuchen.",
         "uncertain": "Der Schlüsselstatus hat sich möglicherweise geändert. Aktualisieren Sie die Schlüssel, bevor Sie entscheiden, ob Sie es erneut versuchen möchten."
       },
+      "manageKeyWarning": "Dieser Schlüssel hat Verwaltungsberechtigungen. Abläufe, die ihn nutzen, verlieren nach dem Löschen den Verwaltungszugriff.",
       "refresh": "Schlüssel aktualisieren",
       "title": "API-Schlüssel löschen?"
     },
@@ -354,15 +412,130 @@
         "cancel": "Abbrechen",
         "save": "Schlüssel speichern"
       },
+      "aimlapi": {
+        "allowedModels": "Erlaubte Modelle",
+        "allowedModelsHelp": "Modelle nach Name oder ID suchen. Leer lassen, um alle zu erlauben.",
+        "allowedModelsPlaceholder": "Modelle suchen",
+        "allowedTools": "Erlaubte Tools",
+        "allowedToolsHelp": "Tools suchen. Leer lassen, um alle zu erlauben.",
+        "endpoint": {
+          "audio": "Audio",
+          "chat": "Chat",
+          "embeddings": "Einbettungen",
+          "image": "Bilder",
+          "ocr": "Texterkennung (OCR)",
+          "responses": "Responses",
+          "speech": "Sprache",
+          "video": "Video"
+        },
+        "expiryImmutable": "Das Ablaufdatum kann nur beim Erstellen des Schlüssels festgelegt und danach nicht mehr geändert werden.",
+        "limit": {
+          "limited": "Limit festlegen",
+          "unlimited": "Kein Limit"
+        },
+        "maximum": "Höchstens {{maximum}} Einträge",
+        "reset": {
+          "day": "Täglich",
+          "month": "Monatlich",
+          "never": "Nie",
+          "week": "Wöchentlich"
+        },
+        "scopes": "Endpunktberechtigungen",
+        "scopesPlaceholder": "Alle Endpunkte",
+        "spendLimit": "USD-Limit",
+        "spendLimitAmount": "Limitbetrag",
+        "spendLimitReset": "Zurücksetzen"
+      },
+      "allowlistHelp": "Durch Kommas oder Zeilenumbrüche trennen. Leer bedeutet keine Einschränkung.",
+      "allowWallet": "Guthaben zulassen",
+      "allowWalletHelp": "Lässt diesen Schlüssel nach Ausschöpfen des Kontingents weiter über das Kontoguthaben laufen.",
+      "budget5h": "5-Stunden-Budget (USD)",
+      "budgetDay": "Tagesbudget (USD)",
+      "budgetMonth": "Monatsbudget (USD)",
+      "budgetNextReset": "Zurücksetzung {{time}} (UTC+8)",
+      "budgetResetHelp": "0 bedeutet unbegrenzt. Das 5-Stunden-Budget ist gleitend; Tages-, Wochen- und Monatsbudgets werden nach Pekinger Zeit zurückgesetzt. Wochen beginnen montags.",
+      "budgetRolling": "Rollierendes Fenster",
+      "budgetsAndLimits": "Budgets und Zugriffslimits",
+      "budgetUsage": "Verbraucht ${{used}} / ${{limit}} · übrig ${{remaining}} · reserviert ${{reserved}}",
+      "budgetWeek": "Wochenbudget (USD)",
+      "channel": "Kanal",
+      "dahl": {
+        "allocate": "Tokens zuweisen",
+        "amountHelp": "Ganze Tokens oder K/M eingeben. Verfügbar: {{max}} Tokens.",
+        "amountInvalid": "Geben Sie einen gültigen Betrag innerhalb des verfügbaren Guthabens ein.",
+        "amountPlaceholder": "z. B. 2.5M oder 500K",
+        "create": "Schlüssel erstellen",
+        "createdHelp": "{{name}} wurde ohne Tokens erstellt. Kopieren Sie den Schlüssel oder weisen Sie Tokens zu, um ihn zu verwenden. Sie können ihn später erneut anzeigen.",
+        "createHelp": "Erstellt einen neuen Schlüssel mit 0 Tokens. Geben Sie optional einen Namen ein und kopieren Sie nach der Erstellung den Schlüssel oder weisen Sie Tokens zu.",
+        "createTitle": "API-Schlüssel erstellen",
+        "invalidAmount": "Der Betrag muss eine positive ganze Token-Zahl sein und darf {{max}} Tokens nicht überschreiten.",
+        "keyAfter": "Schlüssel nach Übertragung",
+        "keyBalance": "Auf diesem Schlüssel (Tokens)",
+        "manageTitle": "Schlüssel verwalten",
+        "max": "Max",
+        "name": "Schlüsselname",
+        "nameCached": "Lokal zwischengespeicherter Name. Website-Namen werden geprüft, wenn eine Seite desselben Kontos geöffnet ist.",
+        "nameHelp": "Namen werden in diesem Browser mit der Website synchronisiert, wenn eine Seite desselben Kontos geöffnet ist. Laden Sie die Website neu, um Änderungen zu sehen.",
+        "nameInvalid": "Verwenden Sie höchstens 128 Zeichen.",
+        "namePending": "Lokal gespeichert; Synchronisierung ausstehend. Öffnen Sie die Website mit diesem Konto und aktualisieren Sie die Schlüsselliste.",
+        "namePlaceholder": "Optionaler Name",
+        "nameSynced": "Name mit der Website synchronisiert. Laden Sie die Website neu, um Änderungen zu sehen.",
+        "noKeyTokens": "Dieser Schlüssel hat keine Tokens zum Zurückgeben.",
+        "noPoolTokens": "Keine Tokens im Kontopool. Laden Sie auf der Website auf oder geben Sie Tokens eines anderen Schlüssels zurück.",
+        "poolAfter": "Kontopool nach Übertragung",
+        "poolBalance": "Kontopool (Tokens)",
+        "rename": "Umbenennen",
+        "return": "Tokens zurückgeben",
+        "revoke": "Schlüssel widerrufen",
+        "revokeDescription": "{{name}} widerrufen? Der Schlüssel funktioniert danach nicht mehr. Verbleibende Tokens werden an den Kontopool zurückgegeben; die Website behält einen Widerrufseintrag. Dies kann nicht rückgängig gemacht werden.",
+        "revokeTitle": "API-Schlüssel widerrufen",
+        "saveName": "Name speichern",
+        "transferAmount": "Zu übertragende Tokens"
+      },
+      "daya": {
+        "allowFast": "Fast-Modus erlauben",
+        "allowFastHelp": "Erlaubt OpenAI-Anfragen, den Fast-Modus anzufordern. Der Dienst entscheidet über die Anwendung. Bei Deaktivierung verwenden alle OpenAI-Anfragen, einschließlich Flex, den Standardmodus und Standardpreise.",
+        "budget7d": "7-Tage-Budget (USD)",
+        "budgetHelp": "Ausgabenlimit in USD pro Zeitfenster. 0 bedeutet unbegrenzt.",
+        "customKey": "Benutzerdefinierter Schlüssel (optional)",
+        "customKeyHelp": "Ohne Eingabe wird ein Schlüssel erzeugt. Mindestens 16 Buchstaben, Ziffern, Unterstriche oder Bindestriche.",
+        "groupOrderHelp": "Routen werden in dieser Reihenfolge versucht. Per Ziehen oder Pfeiltasten umordnen.",
+        "ipBlacklist": "IP-Sperrliste",
+        "ipWhitelist": "IP-Zulassungsliste"
+      },
+      "description": "Beschreibung (optional)",
+      "emrank": {
+        "expiration": "Ablauf",
+        "expirationOptions": {
+          "custom": "Benutzerdefinierter Zeitpunkt",
+          "day": "Ein Tag",
+          "hour": "Eine Stunde",
+          "keep": "Aktuelles Ablaufdatum beibehalten",
+          "month": "Ein Monat (30 Tage)",
+          "never": "Läuft nie ab"
+        },
+        "quotaHelp": "1 M = 1.000.000 Token, höchstens 6 Nachkommastellen.",
+        "quotaMToken": "Kontingent (M Token)"
+      },
+      "excludeIps": "Ausgeschlossene IPs",
+      "excludeIpsPlaceholder": "Eine pro Zeile (CIDR unterstützt)",
       "expiryDays": "Gültigkeitsdauer (Tage)",
       "feedback": {
+        "adminOnlyKeySettings": "Diese Website beschränkt erweiterte Schlüsseloptionen wie IP-Whitelists auf Administratoren; entfernen Sie diese Felder und versuchen Sie es erneut.",
         "authenticationFailed": "Melden Sie sich erneut an oder aktualisieren Sie die Zugangsdaten dieses Kontos und versuchen Sie es erneut.",
         "error": "Befolgen Sie die Fehlerdetails unten und versuchen Sie es dann erneut.",
         "permissionDenied": "Verwenden Sie Zugangsdaten mit Berechtigung zum Anzeigen und Verwalten von Schlüsseln und versuchen Sie es erneut.",
         "title": "Schlüssel konnte nicht gespeichert werden",
         "unavailable": "Der Dienst ist vorübergehend nicht verfügbar. Versuchen Sie es in Kürze noch einmal.",
-        "uncertain": "Der Dienst hat diese Änderung möglicherweise übernommen. Aktualisieren Sie die Schlüssel, um den aktuellen Status zu bestätigen, bevor Sie entscheiden, ob Sie es erneut versuchen."
+        "uncertain": "Der Dienst hat diese Änderung möglicherweise übernommen. Aktualisieren Sie die Schlüssel, um den aktuellen Status zu bestätigen, bevor Sie entscheiden, ob Sie es erneut versuchen.",
+        "unexpected": "Die Erweiterung konnte diese Aktion nicht ausführen. Aktualisieren Sie die Erweiterung oder melden Sie dieses Problem."
       },
+      "followAccountQuotaHelp": "-1 übernimmt das Kontingent des Kontos.",
+      "followsAccount": "Wie Konto",
+      "groupOnly": "Nur die ausgewählte Gruppe verwenden",
+      "groupOnlyHelp": "Hält den Schlüssel bei der ausgewählten Gruppe, statt auf andere auszuweichen.",
+      "independentQuotaUsd": "Eigenes Kontingent (USD)",
+      "ipCidrAllowlist": "IP/CIDR-Freigabeliste",
       "issues": {
         "inconsistentValue": "Überprüfen Sie diesen Wert und versuchen Sie es erneut.",
         "invalidValue": "Geben Sie einen gültigen Wert ein.",
@@ -370,26 +543,165 @@
         "required": "Dieses Feld ist erforderlich.",
         "unsupportedOption": "Wählen Sie eine verfügbare Option."
       },
+      "keyConcurrency": "Gleichzeitige Anfragen",
+      "keyRateHelp": "0 übernimmt das Kontolimit.",
+      "keyRpm": "Schlüssel-RPM",
+      "keyUnlimitedQuota": "Unbegrenztes Schlüsselkontingent",
+      "keyUnlimitedQuotaHelp": "Kontoguthaben und Abonnementkontingent gelten weiterhin.",
+      "krill": {
+        "allowAnyIp": "Jede IP zulassen",
+        "allowAnyIpHelp": "Deaktiviert die gespeicherte IP-Whitelist. Anfragen von jeder IP sind erlaubt.",
+        "channels": "Kanäle",
+        "channelsHelp": "Welche abrechenbaren Routen dieser Schlüssel verwenden darf."
+      },
+      "laozhang": {
+        "activateOnFirstUse": "Bei erster Nutzung aktivieren",
+        "activationHelp": "0 bedeutet keine Gültigkeitsdauer nach der Aktivierung. Die Website-Regeln bestimmen weiterhin das absolute Ablaufdatum.",
+        "billingHybrid": "Gemischte Abrechnung",
+        "billingRequest": "Pro Anfrage",
+        "billingRequestPriority": "Abrechnung pro Anfrage bevorzugen",
+        "billingType": "Abrechnungsmodell",
+        "billingUsage": "Nutzungsabhängig",
+        "billingUsagePriority": "Nutzungsabhängig bevorzugen",
+        "discordProxy": "Discord-Proxy-URL",
+        "fallbackGroups": "Ersatzgruppen (in Reihenfolge)",
+        "fallbackHelp": "Ersatzgruppen werden in Auswahlreihenfolge versucht. Bei automatischer Gruppierung werden sie nicht verwendet. Die Website legt die Höchstzahl fest.",
+        "mjApiKey": "MJ-Übersetzungs-API-Schlüssel",
+        "mjBaseUrl": "MJ-Übersetzungs-API-URL",
+        "mjModel": "MJ-Übersetzungsmodell",
+        "mjTranslation": "MJ-Übersetzung aktivieren",
+        "rateLimitDuration": "Begrenzungszeitraum (Sekunden)",
+        "rateLimitEnabled": "Ratenbegrenzung aktivieren",
+        "rateLimitMessage": "Meldung bei Überschreitung",
+        "rateLimitNum": "Anfragen pro Zeitraum",
+        "remark": "Schlüsselnotiz",
+        "retryAuto": "Automatisch (globale Einstellung)",
+        "retryBilling": "Abrechnungsmodell bei Wiederholung beibehalten",
+        "retryOff": "Aus",
+        "retryOn": "Ein",
+        "validDuration": "Gültigkeit nach Aktivierung (Tage)"
+      },
+      "modelAllowlist": "Modell-Freigabeliste",
+      "nanogpt": {
+        "anonymized": "Anonymisiertes Routing",
+        "dailyRequests": "Tägliches Anfragelimit",
+        "dailySpend": "Tägliches Ausgabenlimit (USD)",
+        "dailySubscriptionTokens": "Tägliches Abo-Eingabetokenkontingent",
+        "dailyTokens": "Tägliches Eingabetokenlimit",
+        "legacyPolicy": "Ältere Routing-Richtlinie",
+        "limitHelp": "Leer bedeutet unbegrenzt. Null sperrt dieses Kontingent; Abo-Tokens können gewichtet sein.",
+        "monthlyRequests": "Monatliches Anfragelimit",
+        "monthlySpend": "Monatliches Ausgabenlimit (USD)",
+        "monthlySubscriptionTokens": "Monatliches Abo-Eingabetokenkontingent",
+        "monthlyTokens": "Monatliches Eingabetokenlimit",
+        "weeklyRequests": "Wöchentliches Anfragelimit",
+        "weeklySpend": "Wöchentliches Ausgabenlimit (USD)",
+        "weeklySubscriptionTokens": "Wöchentliches Abo-Eingabetokenkontingent",
+        "weeklyTokens": "Wöchentliches Eingabetokenlimit",
+        "zdr": "Keine Datenspeicherung",
+        "zdrPolicy": "Datenschutz-Routing"
+      },
+      "novita": {
+        "allEnabled": "Alle aktivierten Modelle",
+        "allowedIps": "Erlaubte IPs",
+        "allowedIpsHelp": "Eine IPv4-Adresse oder ein CIDR pro Zeile, maximal 100. 0.0.0.0/0 ist nicht erlaubt.",
+        "allowedModels": "Erlaubte Modelle",
+        "days30": "30 Tage",
+        "days90": "90 Tage",
+        "excludedModels": "Ausgeschlossene Modelle",
+        "hours24": "24 Stunden",
+        "lifecycleHelp": "Die Gültigkeit kann nach dem Erstellen nicht geändert werden.",
+        "modelAccess": "Modellzugriff",
+        "modelChoicesHelp": "Einen Vorschlag wählen oder eine vollständige Modell-ID eingeben und Enter drücken. Vorschläge aus dem öffentlichen Katalog sind unverbindlich; beim Speichern wird geprüft, ob die Richtlinie sie akzeptiert.",
+        "permanent": "Unbefristet",
+        "restrictIps": "Quell-IPs einschränken",
+        "selected": "Nur ausgewählte Modelle"
+      },
       "opening": {
         "failed": "Schlüsseleditor konnte nicht geöffnet werden",
         "loading": "Schlüsseleditor öffnen...",
         "retry": "Versuchen Sie es erneut"
       },
+      "pmapi": {
+        "rpm": "Anfragen pro Minute",
+        "rpmHelp": "Maximale Anfragen pro Minute für dieses Token; 0 bedeutet unbegrenzt."
+      },
+      "quotaCredits": "Verbleibende Credits",
+      "quotaCreditsHelp": "Sobald diese Credits aufgebraucht sind, funktioniert der Schlüssel nicht mehr.",
       "quotaUsd": "Kontingent (USD)",
+      "remainingCount": "Verbleibende Aufrufe",
+      "remainingCountPlaceholder": "Wie viele Aufrufe dieser Schlüssel noch erlaubt",
+      "requestyManagePermission": "Verwaltungsberechtigung",
+      "requestyManagePermissionHelp": "Dieser Schlüssel kann Verwaltungsendpunkte aufrufen und andere Schlüssel verwalten.",
+      "requestyMonthlyLimit": "Monatslimit (USD)",
+      "requestyMonthlyLimitPlaceholder": "0 oder leer = unbegrenzt",
+      "storageLocation": "Speicherort",
+      "storageLocationGlobal": "Globaler Knoten",
+      "storageLocationHelp": "Wo die von diesem Schlüssel erzeugten Medien abgelegt werden.",
+      "storageLocationNone": "Nicht speichern (Original-Links verwenden)",
+      "storageLocationUnconfigured": "Standard der Instanz",
       "title": {
         "create": "API-Schlüssel erstellen",
         "edit": "API-Schlüssel bearbeiten"
       },
       "totalQuotaUsd": "Gesamtkontingent (USD)",
+      "unlimitedCount": "Unbegrenzte Aufrufe",
+      "unlimitedCountHelp": "Wenn aus, stoppt der Schlüssel, sobald die verbleibenden Aufrufe aufgebraucht sind; Aufrufe und Guthaben werden getrennt gezählt.",
       "unsaved": {
         "description": "Beim Schließen werden Ihre Änderungen verworfen.",
         "discard": "Änderungen verwerfen",
         "keepEditing": "Weiter bearbeiten",
         "title": "Änderungen verwerfen?"
+      },
+      "vercelAiGateway": {
+        "attribution": {
+          "team": "Team",
+          "user": "Teammitglied"
+        },
+        "budgetAlerts": "E-Mail an den Schlüsselersteller bei diesen Schwellen",
+        "budgetEnabled": "Ausgabenbudget",
+        "budgetHelp": "Eigenes Limit in USD festlegen. Ohne eigenes Budget gilt das Team-Standardbudget, falls vorhanden. Neue Budgets schließen BYOK-Ausgaben aus.",
+        "budgetInactive": "Budget inaktiv",
+        "budgetLimit": "Ausgabenlimit (USD, mindestens $1)",
+        "budgetPeriod": "Budget erneuern",
+        "budgetUnavailable": "Budget konnte nicht gelesen werden. Vor dem Bearbeiten erneut versuchen.",
+        "consoleFailed": "Teamkonsole konnte nicht geöffnet werden. Zugriffstoken prüfen und erneut versuchen.",
+        "inheritedBudget": "Team-Standardbudget",
+        "noBudget": "Kein eigenes Schlüsselbudget",
+        "openConsole": "Vercel-Konsole öffnen",
+        "period": {
+          "daily": "Täglich",
+          "monthly": "Monatlich",
+          "none": "Nie",
+          "weekly": "Wöchentlich"
+        },
+        "spendAttribution": "Ausgabenzuordnung",
+        "spendAttributionHelp": "Wessen Budget dieser Schlüssel belastet. Nur Teambesitzer und AI Gateway Budget Managers können die Zuordnung ändern."
       }
     },
     "heading": "API-Schlüssel",
+    "lifecycle": {
+      "disableDescription": "Vorübergehend deaktivieren. Sie können den Schlüssel später wieder aktivieren.",
+      "enableDescription": "Diesen Schlüssel mit seinen bestehenden Einstellungen wieder aktivieren.",
+      "rotateDescription": "Der alte Schlüssel wird sofort ungültig. Kopieren Sie den neuen Schlüssel und aktualisieren Sie Ihre Clients. Andere Einstellungen bleiben erhalten."
+    },
     "missing": "Nicht verfügbar",
+    "permission": {
+      "accountManageBadgeTitle": "All API Hub verwendet diesen Schlüssel, um den Kontostand abzurufen und Schlüssel zu verwalten. Er kann auch andere Schlüssel der Organisation erstellen und löschen. Aktualisieren Sie nach dem Ersetzen oder Löschen den Schlüssel in den Kontoeinstellungen.",
+      "manage": "Verwaltungsberechtigung",
+      "manageBadgeTitle": "Dieser Schlüssel darf Verwaltungsendpunkte aufrufen und andere Schlüssel der Organisation verwalten.",
+      "manageGranted": "Kann andere Schlüssel verwalten",
+      "manageNotGranted": "Nur Inferenz"
+    },
+    "revoke": {
+      "description": "„{{name}}“ widerrufen? Der Schlüssel wird dauerhaft deaktiviert. Der Eintrag bleibt bis zur Löschung erhalten.",
+      "feedback": {
+        "error": "Dieser Schlüssel konnte nicht widerrufen werden. Aktualisiere die Seite und versuche es erneut."
+      },
+      "success": "Schlüssel widerrufen",
+      "title": "Schlüssel widerrufen",
+      "working": "Wird widerrufen..."
+    },
     "scope": {
       "empty": "Keine Bereiche verfügbar",
       "error": "Bereiche konnten nicht geladen werden",
@@ -398,6 +710,7 @@
       "heading": "Bereich",
       "label": "Bereich auswählen",
       "loading": "Bereiche werden geladen…",
+      "nanoGptManagementOptional": "Das Verwaltungstoken ist optional. Der gespeicherte Inferenz-API-Schlüssel kann weiterhin kopiert, exportiert und geprüft werden. Für die Liste und Verwaltung entfernter Schlüssel ergänzen Sie ein Verwaltungstoken unter Konto bearbeiten.",
       "partial": "Einige Bereiche konnten nicht geladen werden. Verfügbare Bereiche können weiterhin verwendet werden.",
       "placeholder": "Bereich wählen",
       "retry": "Bereiche erneut laden"
@@ -429,8 +742,8 @@
     "copy": "Vollständigen Schlüssel kopieren",
     "copyFailed": "Fehler beim Kopieren des vollständigen Schlüssels",
     "keyLabel": "Vollständiger Schlüssel",
-    "subtitle": "Der vollständige Wert für Schlüssel {{name}} wird erst nach dieser Erstellung angezeigt.",
-    "subtitleUnnamed": "Der vollständige Schlüssel wird erst nach dieser Erstellung angezeigt.",
+    "subtitle": "Der vollständige Wert für Schlüssel {{name}} wird erst nach diesem Vorgang angezeigt.",
+    "subtitleUnnamed": "Der vollständige Schlüssel wird erst nach diesem Vorgang angezeigt.",
     "title": "Speichern Sie jetzt den vollständigen Schlüssel",
     "warningDescription": "Nach dem Schließen dieses Dialogs kann die Erweiterung den vollständigen Schlüssel nicht mehr anzeigen.",
     "warningTitle": "Dieser Schlüssel kann nur einmal angezeigt werden"
@@ -571,9 +884,35 @@
   },
   "pleaseAddAccount": "Bitte fügen Sie zuerst ein Konto hinzu",
   "pleaseSelectAccount": "Bitte Konto auswählen",
+  "provisioning": {
+    "actions": {
+      "allGroups": "Alle fehlenden Gruppen ergänzen",
+      "default": "Standardschlüssel sicherstellen",
+      "hint": "Nur fehlende Schlüssel erstellen und bestehende behalten.",
+      "title": "Fehlende Schlüssel ergänzen"
+    },
+    "cancelled": "Gestoppt. Bereits erstellte Schlüssel bleiben erhalten.",
+    "completed": "Kontoschlüssel bereit: {{created}} erstellt, {{covered}} bereits abgedeckt.",
+    "continue": "Mit Benutzereingaben fortfahren",
+    "creating": "Kontoschlüssel werden ergänzt: {{created}} / {{total}} erstellt…",
+    "input": "{{label}} · {{current}} / {{total}}. Alle Eingaben abschließen, bevor Schlüssel erstellt werden.",
+    "preparing": "Kontoschlüssel werden geprüft…",
+    "progress": "{{created}} / {{total}} erstellt; bereits abgedeckt: {{covered}}.",
+    "result": {
+      "cancelled": "Schlüsselvervollständigung gestoppt",
+      "covered": "Bereits abgedeckt",
+      "created": "Erstellt",
+      "failed": "Einige Schlüssel konnten nicht erstellt werden",
+      "next": "Nächster Schritt",
+      "remaining": "Nicht bestätigt",
+      "resume": "Die Vervollständigung kann später erneut gestartet werden. Vorhandene Schlüssel werden übersprungen.",
+      "retained": "Erstellte und vorhandene Schlüssel bleiben erhalten.",
+      "uncertain": "Einige Schlüssel müssen geprüft werden"
+    }
+  },
   "refreshTokenList": "Schlüsselliste aktualisieren",
   "repairMissingKeys": {
-    "action": "Schlüsselüberprüfung",
+    "action": "Prüfen und reparieren",
     "actions": {
       "cancel": "Prüfung abbrechen",
       "rerun": "Überprüfen Sie es noch einmal",
@@ -587,7 +926,7 @@
       "title_one": "{{count}} ungültigen Schlüssel löschen?",
       "title_other": "{{count}} ungültige Schlüssel löschen?"
     },
-    "description": "Alle verfügbaren Gruppen gespeicherter Konten prüfen und fehlende nutzbare Schlüssel automatisch erstellen, soweit unterstützt. Weitere Probleme werden unten aufgeführt.",
+    "description": "Alle verfügbaren Gruppen der ausgewählten Konten prüfen und fehlende nutzbare Schlüssel automatisch erstellen, soweit unterstützt. Weitere Probleme werden unten aufgeführt.",
     "failureGuidance": {
       "aborted": "Der Vorgang wurde vor Abschluss abgebrochen. Starten Sie die Prüfung erneut, wenn Sie bereit sind.",
       "authenticationFailed": "Melden Sie sich erneut an oder aktualisieren Sie die Zugangsdaten dieses Kontos und versuchen Sie es erneut.",
@@ -602,7 +941,7 @@
       "validationFailed": "Prüfen Sie die erforderlichen Schlüsseleinstellungen, korrigieren Sie sie und versuchen Sie es erneut."
     },
     "historyNote": "Dies zeigt das vorherige Prüfergebnis. Derzeit wird kein Job ausgeführt und Sie können die Prüfung erneut ausführen.",
-    "initialNotice": "Gespeicherte Konten Gruppe für Gruppe prüfen und fehlende Schlüssel erstellen, soweit unterstützt. Gruppen mit nutzbaren Schlüsseln werden übersprungen.",
+    "initialNotice": "Ausgewählte Konten Gruppe für Gruppe prüfen und fehlende Schlüssel erstellen, soweit unterstützt. Gruppen mit nutzbaren Schlüsseln werden übersprungen.",
     "invalidKeys": {
       "badge": "Ungültig",
       "deleteFailed": "Ungültige Schlüssel konnten nicht gelöscht werden",
@@ -700,6 +1039,10 @@
     },
     "resultsTitle": "Ergebnisse",
     "runningNote": "Dieser Job läuft im Hintergrund. Sie können dieses Dialogfeld schließen und später überprüfen oder den Vorgang über die Fortschrittskarte abbrechen.",
+    "scope": {
+      "allSelected": "Alle Konten ausgewählt",
+      "label": "Zu prüfende Konten"
+    },
     "searchLabel": "Suche",
     "searchPlaceholder": "Konto, Schlüsselname, Gruppe, Domain oder Website-Typ suchen...",
     "skipReasons": {
@@ -739,6 +1082,9 @@
   "showingCount_one": "Zeigt {{count}}",
   "showingCount_other": "Zeigt {{count}}",
   "title": "Schlüsselverwaltung",
+  "tools": {
+    "title": "Schlüsselwerkzeuge"
+  },
   "totalKeys_one": "Gesamt {{count}} Schlüssel",
   "totalKeys_other": "Insgesamt {{count}} Schlüssel",
   "unifiedApiGuidance": {

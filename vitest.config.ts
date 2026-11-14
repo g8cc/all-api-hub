@@ -2,22 +2,27 @@ import { fileURLToPath } from "node:url"
 import path from "path"
 import { defineConfig } from "vitest/config"
 
-import { DurationBalancedSequencer } from "./vitest.shardSequencer"
+import { DurationBalancedSequencer } from "./vitest.shardSequencer.ts"
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 const domOnlyTsTests = [
   "entrypoints/content/index.test.ts",
   "entrypoints/content/redemptionAssist/index.test.ts",
   "entrypoints/content/messageHandlers/utils/capGuard.test.ts",
-  "entrypoints/content/messageHandlers/utils/browserCheckIn.test.ts",
   "entrypoints/content/messageHandlers/utils/turnstileGuard.test.ts",
+  "entrypoints/content/messageHandlers/utils/checkinActionDiscovery.test.ts",
+  "entrypoints/content/messageHandlers/utils/turnstileUserAssist.test.ts",
+  "entrypoints/content/messageHandlers/handlers/nativeCheckinVerification.test.ts",
+  "services/checkin/turnstile/pageApi.test.ts",
+  "services/checkin/pageVerification.test.ts",
+  "services/checkin/turnstileSitekey.test.ts",
   "entrypoints/content/webAiApiCheck/index.test.ts",
   "entrypoints/content/messageHandlers/handlers/storage.test.ts",
   "entrypoints/content/messageHandlers/handlers/accountIdentityVerification.test.ts",
-  "entrypoints/options/pages/ModelList/useFilteredModels.test.ts",
   "services/ldohSiteLookup.background.test.ts",
   "services/shareSnapshotExport.test.ts",
   "services/starPromotion/githubStarButton.test.ts",
+  "utils/aiToolbox.test.ts",
   "utils/browserApi.test.ts",
   "utils/ccSwitch.test.ts",
   "utils/cherryStudio.test.ts",
@@ -31,6 +36,9 @@ export default defineConfig({
   test: {
     dir: "tests",
     pool: "threads",
+
+    // Persist transforms for CI iterations; every test and coverage probe still runs.
+    fsModuleCache: process.env.VITEST_FS_MODULE_CACHE !== "0",
 
     // Shard by measured file cost instead of by file count; see vitest.shardSequencer.ts.
     // Only consulted when `--shard` is passed, so unsharded runs are unaffected.

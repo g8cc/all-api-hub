@@ -39,6 +39,7 @@
     "modelManagement": "模型列表",
     "openAllExternalCheckIn": "一键打开外部签到",
     "openAllExternalCheckInHint": "默认仅打开未签到；Ctrl/Cmd 打开全部；Shift 在新窗口打开；Ctrl/Cmd+Shift 同时生效。",
+    "openSite": "打开站点",
     "pin": "置顶账号",
     "pinned": "已置顶",
     "quickCheckin": "快速签到",
@@ -58,7 +59,7 @@
   "addFirstAccount": "添加你的第一个站点账号",
   "bulk": {
     "clearAll": "清空选择",
-    "clearVisible": "取消当前结果选择",
+    "clearVisible": "取消选中当前列表",
     "copyInviteLinks": "复制邀请链接",
     "copyInviteLinksClipboardFailed": "浏览器无法写入剪贴板，请手动复制已生成的邀请链接。",
     "copyInviteLinksClipboardFailedWithReasons": "浏览器无法写入剪贴板，请手动复制已生成的邀请链接。其他账号：{{reasonSummary}}。",
@@ -67,6 +68,10 @@
     "copyInviteLinksPartialSuccess": "已复制 {{successCount}} 个邀请链接；其余账号：{{reasonSummary}}。",
     "copyInviteLinksSuccess": "已复制 {{count}} 个邀请链接。",
     "copyInviteLinksUnsupported": "当前所选账号暂不支持邀请链接。",
+    "copySiteUrls": "复制站点地址",
+    "copySiteUrlsClipboardFailed": "浏览器无法写入剪贴板，请手动复制账号列表中的站点地址。",
+    "copySiteUrlsNone": "所选账号没有可复制的站点地址。",
+    "copySiteUrlsSuccess": "已复制 {{count}} 个站点地址。",
     "deleteConfirmAction": "删除已选账号",
     "deleteConfirmDescription": "你将删除 {{count}} 个已选账号。请在确认前仔细检查这些选择。",
     "deleteConfirmTitle": "删除已选账号",
@@ -88,22 +93,28 @@
     "selectedSummary": "已选 {{selected}} 个",
     "selectionEmpty": "尚未选择账号",
     "selectionScope": "选择范围",
-    "selectVisible": "选择当前结果"
+    "selectVisible": "全选当前列表"
   },
-  "currentLoginAdded": "⚠️{{siteName}} 的当前登录账号已在列表中",
-  "currentSiteAdded": "⚠️{{siteName}} 已有账号",
-  "currentSiteAddedCount": "⚠️当前站点已有 {{count}} 个账号",
+  "currentLoginAdded": "{{siteName}} 的当前登录账号已在列表中",
+  "currentSiteAdded": "{{siteName}} 已有账号",
+  "currentSiteAddedCount": "当前站点已有 {{count}} 个账号",
+  "currentSiteFilterAction": "查看",
+  "currentSiteFilterHint": "点击在列表中筛选出本站点的账号",
   "description": "管理站点账号，查看余额、用量与健康状态。",
-  "emptyState": "暂无站点账号",
+  "emptyState": "开始管理你的中转站点",
   "emptyStateDescription": "添加账号后，可以集中查看余额、健康状态、API Key 和使用情况。",
   "filter": {
     "checkIn": {
       "all": "全部签到状态",
       "checked-in": "已签到",
+      "configuration": "待配置／方式失效",
+      "manual": "无法查询",
       "not-checked-in": "未签到",
-      "outdated": "状态过期",
+      "outdated": "待更新",
+      "pending": "尚未查询",
       "placeholder": "签到状态",
-      "status-unavailable": "状态不可读取",
+      "query-failed": "查询失败",
+      "site-disabled": "站点未开启",
       "unsupported": "不支持"
     },
     "disabled": {
@@ -204,7 +215,21 @@
     "resetSort": "重置默认排序",
     "site": {
       "checkedInToday": "今日已签到，点我查看",
-      "checkInStatusOutdated": "签到状态不是今日检测（上次检测时间：{{time}}），点我刷新",
+      "checkInAccountDisabled": "账号已禁用，自动签到已暂停",
+      "checkInAutomationBlocked": "自动签到暂不可执行：{{reason}}",
+      "checkInAutomationDisabled": "账号自动签到已关闭",
+      "checkInAutomationEnabled": "账号自动签到已开启",
+      "checkInAutomationGloballyDisabled": "账号自动签到已开启，但全局开关已关闭",
+      "checkInLastKnownChecked": "上次确认已签到：{{time}}",
+      "checkInLastKnownNotChecked": "上次确认未签到：{{time}}",
+      "checkInNeedsConfiguration": "自动签到待配置：{{reason}}。点击编辑账号",
+      "checkInNeedsRedetection": "签到方式需要重新检测：{{reason}}。点击重新检测",
+      "checkInRefreshPartial": "{{accountName}} 的账号数据已刷新，但签到状态更新失败，请重试",
+      "checkInSiteDisabled": "站点未开启签到，点击前往站点查看",
+      "checkInStatusFailed": "签到状态更新失败（尝试时间：{{time}}），点击重试",
+      "checkInStatusManual": "此签到方式不支持状态查询，点击前往站点查看",
+      "checkInStatusOutdated": "签到状态待更新（上次确认：{{time}}），点击刷新",
+      "checkInStatusPending": "尚未查询签到状态，点击刷新",
       "currentSite": "当前站点",
       "currentSiteBoostHint": "匹配当前站点的登录账号，优先于其他账号显示；已禁用账号仍排在末尾。",
       "currentSiteExists": "与当前标签页站点相同",
@@ -223,7 +248,11 @@
     "sortMenu": "排序方式",
     "toggleSortOrder": "切换正序/倒序"
   },
+  "popupOnboarding": {
+    "signInHint": "登录站点后台即可自动识别并添加。集中掌握各站余额与用量变化，开启每日自动打卡，并在全网跨站比对模型价格。"
+  },
   "refresh": {
+    "checkInStatusFailed": "其中 {{count}} 个账号的签到状态更新失败，请重试",
     "refreshComplete": "刷新完成: {{success}} 成功, {{failed}} 失败",
     "refreshDisabledComplete": "已禁用账号探测完成：恢复 {{restored}} 个，仍禁用 {{stillDisabled}} 个",
     "refreshDisabledCompleteWithFailures": "已禁用账号探测完成：恢复 {{restored}} 个，仍禁用 {{stillDisabled}} 个，失败 {{failed}} 个",
@@ -241,35 +270,71 @@
   "sponsor": {
     "actions": {
       "continueAddAccount": "继续添加此账号",
-      "openApiCredentialProfilesFallback": "可将其 API 密钥添加为 API 凭证",
+      "openApiCredentialProfilesFallback": "可将其 API 密钥添加为 API 凭据",
       "openBookmarkManagerFallback": "暂不添加账号，先收藏服务商",
       "visitProvider": "访问服务商"
     },
     "newcomer": {
-      "description": "前往服务商网站注册，再按卡片提示添加账号、保存 API 凭据或收藏站点。",
-      "title": "探索可用服务商"
+      "description": "还没有可用站点？可参考以下推荐服务商，支持一键配置接入：",
+      "title": "精选合作伙伴"
+    },
+    "openWorkflowFailed": "无法打开添加流程，请重试。",
+    "popupApiCredentialProfiles": {
+      "description": "需要开发 API 或 Coding Plan 额度？支持一键预填 Base URL 与控制台快捷领 Key：",
+      "title": "推荐服务商与订阅"
+    },
+    "popupBookmarks": {
+      "description": "支持一键加入书签，随时快速访问：",
+      "title": "精选站点推荐"
     },
     "recommendedProviders": "推荐服务商",
     "supportStatus": {
-      "fallbackApiCredentialProfiles": "可加为凭证",
+      "fallbackApiCredentialProfiles": "可加为凭据",
       "fallbackBookmark": "可先收藏",
-      "fallbackBookmarkAndApi": "可先收藏 / 可加为凭证",
+      "fallbackBookmarkAndApi": "可先收藏 / 可加为凭据",
       "supported": "可直接添加",
       "unsupported": "可能需要手动设置"
     }
   },
   "stats": {
+    "allowanceExpiry": "到期：{{time}}",
+    "allowanceReset": "重置：{{time}}",
+    "allowances": "额度明细",
+    "allowanceScope": "额度组：{{scope}}",
     "completion": "补全",
     "estimatedTodayIncome": "估算收入",
+    "groupAllowance": "分组额度",
+    "nativeCredits": "额度",
+    "nativeCreditsDetail": "永久 {{permanent, number}} · 今日 {{daily, number}}（次日清零）",
+    "novitaBalance": {
+      "available": "可用余额",
+      "cash": "充值余额",
+      "creditLimit": "信用额度（可欠款上限）",
+      "description": "可用余额以 Novita 返回的数值为准；充值余额是剩余充值资金，信用额度是允许欠款的上限。插件暂不将 Novita 余额计入总余额、余额历史和收入估算。",
+      "title": "余额明细"
+    },
+    "permanentAllowance": "永久额度",
     "prompt": "提示",
-    "subscriptionInactive": "权益未激活或已过期",
+    "scopedAllowances": "分组和套餐额度可能有使用限制。原生额度不计入总余额、余额历史和收入估算。",
     "subscriptionRemainingCount": "订阅剩余次数",
+    "subscriptionRemainingTokens": "剩余 Token 额度（账户池 + 密钥）；美元余额是按官方价格折算的等值，包含免费额度。",
+    "subscriptionState": {
+      "active": "订阅生效中",
+      "expired": "订阅已过期",
+      "grace": "订阅宽限期",
+      "inactive": "当前无生效订阅",
+      "unavailable": "订阅状态无法获取"
+    },
     "subscriptionStatus": "订阅状态",
     "subscriptionTitle": "订阅套餐",
+    "timedAllowance": "限时额度",
+    "timedDetailsUnavailable": "限时额度明细暂时无法读取，请刷新账户重试。",
     "todayConsumption": "今日消耗",
     "todayIncome": "今日收入",
+    "tokenCredit": "Token",
     "totalBalance": "总余额",
     "trustedTodayIncome": "可信收入",
+    "unlockedModels": "解锁模型：{{models}}",
     "usageRequests": "周期请求数",
     "usageTokens": "周期 Token 数"
   },

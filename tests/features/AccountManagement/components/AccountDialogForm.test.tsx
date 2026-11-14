@@ -1,7 +1,12 @@
 import userEvent from "@testing-library/user-event"
+import { http, HttpResponse } from "msw"
 import type { ComponentProps } from "react"
+import { createRef, useState } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { ACCOUNT_COOKIE_VALIDATION_STATUS } from "~/constants/accountCookieValidation"
+import { ACCOUNT_LOGIN_METHODS } from "~/constants/accountLogin"
+import { BASIC_SETTINGS_TAB_IDS } from "~/constants/basicSettingsTabs"
 import {
   AUTO_CHECKIN_METHOD_IDS,
   CHECK_IN_METHOD_AVAILABILITIES,
@@ -12,24 +17,47 @@ import {
   CHECK_IN_METHOD_TODAY_STATUSES,
 } from "~/constants/checkIn"
 import { SITE_TYPES } from "~/constants/siteType"
-import AccountForm from "~/features/AccountManagement/components/AccountDialog/AccountForm"
-import { ACCOUNT_FORM_MOBILE_DEFAULT_OPEN } from "~/features/AccountManagement/components/AccountDialog/accountFormSections"
+import AccountForm, {
+  type AccountFormHandle,
+} from "~/features/AccountManagement/components/AccountDialog/form/AccountForm"
+import { ACCOUNT_FORM_MOBILE_DEFAULT_OPEN } from "~/features/AccountManagement/components/AccountDialog/form/accountFormSections"
+import { getAccountDialogSitePolicy } from "~/features/AccountManagement/components/AccountDialog/form/sitePolicy"
 import { createEmptyAccountDialogDraft } from "~/features/AccountManagement/components/AccountDialog/models"
-import { getAccountDialogSitePolicy } from "~/features/AccountManagement/components/AccountDialog/sitePolicy"
 import { ACCOUNT_MANAGEMENT_TEST_IDS } from "~/features/AccountManagement/testIds"
+import { AUTO_CHECKIN_TARGET_IDS } from "~/features/BasicSettings/components/tabs/CheckinRedeem/searchTargets"
 import enAccountDialog from "~/locales/en/accountDialog.json"
-import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/compatibilityConfig"
+import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/configuration/compatibilityConfig"
 import { mergeCheckInDiscoveryResults } from "~/services/checkin/autoCheckin/domain"
 import { AuthTypeEnum, type CheckInConfig } from "~/types"
+import { server } from "~~/tests/msw/server"
 import { testI18n } from "~~/tests/test-utils/i18n"
-import { fireEvent, render, screen, within } from "~~/tests/test-utils/render"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "~~/tests/test-utils/render"
 
 const mediaQueryState = {
   isSmallScreen: false,
 }
 
+const cookieValidation = vi.hoisted(() => ({ run: vi.fn() }))
+vi.mock("~/services/accounts/cookieValidation", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("~/services/accounts/cookieValidation")
+  >()),
+  validateAccountCookie: cookieValidation.run,
+}))
+
 vi.mock("~/hooks/useMediaQuery", () => ({
   useIsSmallScreen: () => mediaQueryState.isSmallScreen,
+  useMediaQuery: (query: string) =>
+    query === "(max-width: 639px)"
+      ? mediaQueryState.isSmallScreen
+      : !mediaQueryState.isSmallScreen,
 }))
 
 vi.mock("~/features/AccountManagement/components/TagPicker", () => ({
@@ -55,7 +83,792 @@ vi.mock("~/utils/core/formatters", () => ({
   formatLocaleDateTime: vi.fn(() => "formatted-expiry"),
 }))
 
+vi.mock("~/utils/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/utils/navigation")>()),
+  openSettingsTabInNewTab: vi.fn(),
+}))
+
+const { openSettingsTabInNewTab } = await import("~/utils/navigation")
+
 describe("AccountDialog AccountForm", () => {
+  it("opens login from route focus and invokes configured recovery after Cookie rejection", async () => {
+    const props = createProps()
+    props.siteUrl = "https://anyrouter.top"
+    props.draft.siteType = SITE_TYPES.ANYROUTER
+    props.draft.authType = AuthTypeEnum.Cookie
+    props.draft.cookieAuthSessionCookie = "session=old"
+    props.draft.login = {
+      methodId: "password",
+      credentials: { username: "member", password: "secret" },
+    }
+    props.focusSection = "account-login"
+    props.cookieRecovery = { pending: false, onRecover: vi.fn() }
+    cookieValidation.run.mockResolvedValue({
+      status: ACCOUNT_COOKIE_VALIDATION_STATUS.Invalid,
+    })
+    const user = userEvent.setup()
+    render(<AccountForm {...withSitePolicy(props)} />)
+    expect(
+      await screen.findByRole("combobox", {
+        name: "accountDialog:login.method",
+      }),
+    ).toHaveFocus()
+    await user.click(
+      screen.getByRole("button", {
+        name: "accountDialog:cookieValidation.action",
+      }),
+    )
+    await user.click(
+      await screen.findByRole("button", {
+        name: "accountDialog:cookieValidation.recover",
+      }),
+    )
+    expect(props.cookieRecovery.onRecover).toHaveBeenCalledOnce()
+  })
+
+  it("puts Cookie field guidance beside its label and action guidance on each button", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.ANYROUTER
+    props.draft.authType = AuthTypeEnum.Cookie
+    props.draft.userId = "17"
+    props.draft.accessToken = "saved-token"
+    props.draft.cookieAuthSessionCookie = "session=fixture"
+    props.siteUrl = "https://anyrouter.top"
+    render(<AccountForm {...withSitePolicy(props)} />)
+    const credential = await screen.findByRole("group", {
+      name: "accountDialog:form.cookieAuthSessionCookie",
+    })
+    expect(within(credential).getByRole("textbox")).toHaveValue(
+      "session=fixture",
+    )
+    expect(
+      within(credential).getByRole("button", {
+        name: "accountDialog:cookieValidation.action",
+      }),
+    ).toBeEnabled()
+    expect(
+      within(credential).getByRole("button", {
+        name: "accountDialog:cookieValidation.action",
+      }),
+    ).toHaveAccessibleDescription(
+      "accountDialog:cookieValidation.validationExplanation",
+    )
+    expect(
+      screen.getByRole("button", {
+        name: "accountDialog:form.importCookieAuthSessionCookie",
+      }),
+    ).toHaveAccessibleDescription(
+      "accountDialog:form.importCookieAuthSessionCookieHint",
+    )
+    const help = await screen.findByRole("button", {
+      name: "accountDialog:form.cookieAuthSessionCookieHelp",
+    })
+    expect(help).toHaveAccessibleDescription(
+      "accountDialog:form.cookieAuthSessionCookieHelpDesc",
+    )
+    expect(
+      screen.queryByText(
+        "accountDialog:cookieValidation.compatibilityExplanation",
+      ),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", {
+        name: "accountDialog:cookieValidation.action",
+      }),
+    ).toBeEnabled()
+    expect(
+      screen.getByRole("button", {
+        name: "accountDialog:login.configureRecovery",
+      }),
+    ).toBeVisible()
+    const user = userEvent.setup()
+    await user.click(help)
+    expect(help).toHaveFocus()
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "accountDialog:form.cookieAuthSessionCookieHelpDesc",
+    )
+    expect(
+      screen.queryByRole("button", {
+        name: "accountDialog:cookieValidation.refreshHelp",
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByText("accountDialog:login.recoveryConfigurationDescription"),
+    ).toBeVisible()
+    expect(props.onLoginChange).not.toHaveBeenCalled()
+    expect(props.onCookieAuthSessionCookieChange).not.toHaveBeenCalled()
+    expect(props.onImportCookieAuthSessionCookie).not.toHaveBeenCalled()
+  })
+  it("offers shared Cookie verification for New API without login recovery", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NEW_API
+    props.draft.authType = AuthTypeEnum.Cookie
+    props.draft.accessToken = "existing-token"
+    render(<AccountForm {...withSitePolicy(props)} />)
+    await userEvent.setup().click(
+      await screen.findByRole("button", {
+        name: "accountDialog:cookieValidation.help",
+      }),
+    )
+    expect(
+      await screen.findByText(
+        "accountDialog:cookieValidation.compatibilityExplanation",
+      ),
+    ).toBeVisible()
+    expect(
+      screen.getByText("accountDialog:cookieValidation.savedTokenExplanation"),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole("button", {
+        name: "accountDialog:cookieValidation.action",
+      }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole("button", {
+        name: "accountDialog:login.configureRecovery",
+      }),
+    ).not.toBeInTheDocument()
+  })
+  it.each([
+    { siteType: SITE_TYPES.NEW_API, token: "" },
+    { siteType: SITE_TYPES.NEW_API, token: "  " },
+    { siteType: SITE_TYPES.FREEMODEL, token: "" },
+  ])(
+    "explains Cookie compatibility without inventing a saved Token ($siteType / '$token')",
+    async ({ siteType, token }) => {
+      const props = createProps()
+      props.draft.siteType = siteType
+      props.draft.authType = AuthTypeEnum.Cookie
+      props.draft.accessToken = token
+      render(<AccountForm {...withSitePolicy(props)} />)
+      await userEvent.setup().click(
+        await screen.findByRole("button", {
+          name: "accountDialog:cookieValidation.help",
+        }),
+      )
+      expect(
+        await screen.findByText(
+          "accountDialog:cookieValidation.compatibilityExplanation",
+        ),
+      ).toBeVisible()
+      expect(
+        screen.queryByText(
+          "accountDialog:cookieValidation.savedTokenExplanation",
+        ),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole("button", {
+          name: "accountDialog:cookieValidation.action",
+        }),
+      ).toBeVisible()
+      expect(
+        screen.queryByRole("button", {
+          name: "accountDialog:login.configureRecovery",
+        }),
+      ).not.toBeInTheDocument()
+      if (siteType === SITE_TYPES.FREEMODEL)
+        expect(
+          screen.getAllByText("accountDialog:siteInfo.browserCookieSession")
+            .length,
+        ).toBeGreaterThan(0)
+    },
+  )
+  it.each([SITE_TYPES.NEW_API, SITE_TYPES.ANYROUTER])(
+    "hides Cookie-specific guidance in access-token mode ($siteType)",
+    async (siteType) => {
+      const props = createProps()
+      props.draft.siteType = siteType
+      props.draft.authType = AuthTypeEnum.AccessToken
+      props.draft.accessToken = "existing-token"
+      render(<AccountForm {...withSitePolicy(props)} />)
+      await screen.findByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.accessTokenInput)
+      expect(
+        screen.queryByText(
+          "accountDialog:cookieValidation.compatibilityExplanation",
+        ),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText(
+          "accountDialog:cookieValidation.savedTokenExplanation",
+        ),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole("button", {
+          name: "accountDialog:cookieValidation.action",
+        }),
+      ).not.toBeInTheDocument()
+    },
+  )
+  it("explains independent Cookie verification and diagnoses a rejected AnyRouter Cookie", async () => {
+    const user = userEvent.setup()
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.ANYROUTER
+    props.draft.authType = AuthTypeEnum.Cookie
+    props.draft.accessToken = "valid-token"
+    props.draft.userId = "17"
+    props.siteUrl = "https://anyrouter.top"
+    props.draft.cookieAuthSessionCookie = "session=wrong"
+    cookieValidation.run.mockResolvedValue({
+      status: ACCOUNT_COOKIE_VALIDATION_STATUS.Invalid,
+    })
+    render(<AccountForm {...withSitePolicy(props)} />)
+    const action = await screen.findByRole("button", {
+      name: "accountDialog:cookieValidation.action",
+    })
+    expect(action).toHaveAccessibleDescription(
+      "accountDialog:cookieValidation.validationExplanation",
+    )
+    await user.click(action)
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "accountDialog:cookieValidation.invalid",
+    )
+    expect(props.onCookieAuthSessionCookieChange).not.toHaveBeenCalled()
+    expect(props.onLoginChange).not.toHaveBeenCalled()
+  })
+  it.each(["", "  ", "saved-token"])(
+    "explains independent AnyRouter verification without assuming a saved Token ('%s')",
+    async (token) => {
+      const props = createProps()
+      props.draft.siteType = SITE_TYPES.ANYROUTER
+      props.draft.authType = AuthTypeEnum.Cookie
+      props.draft.accessToken = token
+      render(<AccountForm {...withSitePolicy(props)} />)
+      expect(
+        await screen.findByRole("button", {
+          name: "accountDialog:cookieValidation.action",
+        }),
+      ).toHaveAccessibleDescription(
+        "accountDialog:cookieValidation.validationExplanation",
+      )
+      await userEvent.setup().click(
+        screen.getByRole("button", {
+          name: "accountDialog:cookieValidation.help",
+        }),
+      )
+      expect(
+        screen.getByText(
+          "accountDialog:cookieValidation.compatibilityExplanation",
+        ),
+      ).toBeVisible()
+      if (token.trim()) {
+        expect(
+          screen.getByText(
+            "accountDialog:cookieValidation.savedTokenExplanation",
+          ),
+        ).toBeVisible()
+      } else {
+        expect(
+          screen.queryByText(
+            "accountDialog:cookieValidation.savedTokenExplanation",
+          ),
+        ).not.toBeInTheDocument()
+      }
+    },
+  )
+  it.each([
+    { siteType: SITE_TYPES.NEW_API, supportsValidation: true },
+    { siteType: SITE_TYPES.ANYROUTER, supportsValidation: false },
+  ])(
+    "shows Cookie verification by capability ($siteType / $supportsValidation)",
+    async ({ siteType, supportsValidation }) => {
+      const props = createProps()
+      props.draft.siteType = siteType
+      props.draft.authType = AuthTypeEnum.Cookie
+      props.draft.accessToken = "saved-token"
+      const resolved = withSitePolicy(props)
+      resolved.sitePolicy.supportsCookieValidation = supportsValidation
+      render(<AccountForm {...resolved} />)
+      await userEvent.setup().click(
+        await screen.findByRole("button", {
+          name: "accountDialog:cookieValidation.help",
+        }),
+      )
+      expect(
+        screen.getByText(
+          "accountDialog:cookieValidation.savedTokenExplanation",
+        ),
+      ).toBeVisible()
+      const action = screen.queryByRole("button", {
+        name: "accountDialog:cookieValidation.action",
+      })
+      const guide = screen.queryByText(
+        "accountDialog:cookieValidation.verificationGuide",
+      )
+      if (supportsValidation) {
+        expect(action).toBeVisible()
+        expect(guide).toBeVisible()
+      } else {
+        expect(action).not.toBeInTheDocument()
+        expect(guide).not.toBeInTheDocument()
+      }
+    },
+  )
+  it("edits the secondary AIMLAPI key without changing the management credential", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.AIMLAPI
+    props.draft.aimlApiKey = "old-regular"
+    render(<AccountForm {...withSitePolicy(props)} />)
+    const input = await screen.findByTestId(
+      ACCOUNT_MANAGEMENT_TEST_IDS.aimlApiKeyInput,
+    )
+    expect(input).toHaveAttribute("type", "password")
+    fireEvent.change(input, { target: { value: "new-regular" } })
+    expect(props.onAimlApiKeyChange).toHaveBeenLastCalledWith("new-regular")
+    expect(props.onAccessTokenChange).not.toHaveBeenCalled()
+  })
+
+  it("does not present console-only verification as an API-key result and names each reveal action correctly", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NOVITA
+    props.draft.accessToken = "novita-console:verified-session"
+    render(
+      <AccountForm
+        {...withSitePolicy(props)}
+        novitaCredentialActions={{
+          onAcquireConsole: vi.fn(),
+          onVerify: vi.fn(),
+          isVerifying: false,
+          operation: "console",
+          verification: { status: "success", accountLabel: "user@example.com" },
+        }}
+      />,
+    )
+    const apiInput = await screen.findByTestId(
+      ACCOUNT_MANAGEMENT_TEST_IDS.accessTokenInput,
+    )
+    expect(apiInput).toHaveValue("")
+    expect(apiInput).not.toHaveAttribute("aria-describedby")
+    expect(
+      screen.getByRole("button", {
+        name: "accountDialog:novitaCredentials.verifyKey",
+      }),
+    ).toBeDisabled()
+    expect(
+      screen.getByRole("button", {
+        name: "accountDialog:novitaCredentials.showApiKey",
+      }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole("button", {
+        name: "accountDialog:novitaCredentials.showConsoleToken",
+      }),
+    ).toBeVisible()
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "accountDialog:novitaCredentials.consoleVerified",
+    )
+    expect(
+      screen.getByLabelText(/accountDialog:novitaCredentials.console/),
+    ).toHaveAccessibleDescription(
+      "accountDialog:novitaCredentials.consoleVerified",
+    )
+  })
+  it("keeps console acquisition progress and errors off the API-key field", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NOVITA
+    props.draft.accessToken = "sk_existing"
+    const actions = {
+      onAcquireConsole: vi.fn(),
+      onVerify: vi.fn(),
+      isVerifying: true,
+      operation: "console" as const,
+    }
+    const { rerender } = render(
+      <AccountForm
+        {...withSitePolicy(props)}
+        novitaCredentialActions={actions}
+      />,
+    )
+    const apiInput = await screen.findByTestId(
+      ACCOUNT_MANAGEMENT_TEST_IDS.accessTokenInput,
+    )
+    expect(apiInput).not.toHaveAttribute("aria-busy", "true")
+    const consoleInput = screen.getByLabelText(
+      "accountDialog:novitaCredentials.console",
+    )
+    expect(consoleInput).toHaveAttribute("aria-busy", "true")
+    rerender(
+      <AccountForm
+        {...withSitePolicy(props)}
+        novitaCredentialActions={{
+          ...actions,
+          isVerifying: false,
+          verification: { status: "error", message: "Sign in to Novita first" },
+        }}
+      />,
+    )
+    expect(consoleInput).toHaveAttribute("aria-invalid", "true")
+    expect(apiInput).not.toHaveAttribute("aria-invalid", "true")
+    expect(consoleInput).toHaveAccessibleDescription("Sign in to Novita first")
+  })
+  it("edits an API key without discarding the saved console credential and removes the console credential independently", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NOVITA
+    props.draft.accessToken =
+      'novita-credentials:{"apiKey":"sk_daily","consoleToken":"saved-session"}'
+    const user = userEvent.setup()
+    render(
+      <AccountForm
+        {...withSitePolicy(props)}
+        novitaCredentialActions={{
+          onAcquireConsole: vi.fn(),
+          onVerify: vi.fn(),
+          isVerifying: false,
+        }}
+      />,
+    )
+    const input = await screen.findByTestId(
+      ACCOUNT_MANAGEMENT_TEST_IDS.accessTokenInput,
+    )
+    expect(input).toHaveValue("sk_daily")
+    await user.clear(input)
+    expect(props.onAccessTokenChange).toHaveBeenLastCalledWith(
+      "novita-console:saved-session",
+    )
+    const consoleInput = screen.getByLabelText(
+      "accountDialog:novitaCredentials.console",
+    )
+    expect(consoleInput).toHaveValue("saved-session")
+    await user.clear(consoleInput)
+    expect(props.onAccessTokenChange).toHaveBeenLastCalledWith("sk_daily")
+    expect(
+      screen.queryByText("accountDialog:novitaCredentials.consoleSaved"),
+    ).not.toBeInTheDocument()
+  })
+  it("shows optional Novita API-key verification and its feedback at the input", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NOVITA
+    props.draft.accessToken = "sk_user-key"
+    const actions = {
+      onAcquireConsole: vi.fn(),
+      onVerify: vi.fn(),
+      isVerifying: false,
+      verification: { status: "success" as const },
+    }
+    const { rerender } = render(
+      <AccountForm
+        {...withSitePolicy(props)}
+        novitaCredentialActions={actions}
+      />,
+    )
+    const input = await screen.findByTestId(
+      ACCOUNT_MANAGEMENT_TEST_IDS.accessTokenInput,
+    )
+    const button = screen.getByRole("button", {
+      name: "accountDialog:novitaCredentials.verifyKey",
+    })
+    expect(input.parentElement).toContainElement(button)
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "accountDialog:novitaCredentials.apiKeyVerified",
+    )
+    expect(input).toHaveAccessibleDescription(
+      "accountDialog:novitaCredentials.apiKeyVerified",
+    )
+    rerender(
+      <AccountForm
+        {...withSitePolicy(props)}
+        novitaCredentialActions={{
+          ...actions,
+          verification: { status: "error", message: "Invalid or expired key" },
+        }}
+      />,
+    )
+    expect(input).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Invalid or expired key",
+    )
+    rerender(
+      <AccountForm
+        {...withSitePolicy(props)}
+        novitaCredentialActions={{
+          ...actions,
+          isVerifying: true,
+          verification: undefined,
+        }}
+      />,
+    )
+    expect(input).toBeEnabled()
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "accountDialog:novitaCredentials.verifying",
+    )
+    rerender(
+      <AccountForm
+        {...withSitePolicy(props)}
+        novitaCredentialActions={{ ...actions, verification: undefined }}
+      />,
+    )
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+    expect(input).not.toHaveAttribute("aria-describedby")
+  })
+  it("offers a discoverable Novita API-key method, acquisition guide and verify action", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NOVITA
+    props.draft.accessToken = ""
+    props.draft.novitaCredentialMode = "api-key"
+    props.siteUrl = "https://novita.ai"
+    const onAcquireConsole = vi.fn()
+    const onVerify = vi.fn()
+    const { rerender } = render(
+      <AccountForm
+        {...withSitePolicy(props)}
+        novitaCredentialActions={{
+          onAcquireConsole,
+          onVerify,
+          isVerifying: false,
+        }}
+      />,
+    )
+    expect(
+      await screen.findByText("accountDialog:novitaCredentials.apiKeyScope"),
+    ).toBeVisible()
+    expect(
+      screen.getByRole("button", {
+        name: "accountDialog:novitaCredentials.openKeys",
+      }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole("button", {
+        name: "accountDialog:novitaCredentials.verifyKey",
+      }),
+    ).toBeDisabled()
+    const user = userEvent.setup()
+    await user.click(
+      screen.getByRole("button", {
+        name: "accountDialog:novitaCredentials.detectSession",
+      }),
+    )
+    expect(onAcquireConsole).toHaveBeenCalledOnce()
+    props.draft.accessToken = "sk_user-key"
+    rerender(
+      <AccountForm
+        {...withSitePolicy(props)}
+        novitaCredentialActions={{
+          onAcquireConsole,
+          onVerify,
+          isVerifying: false,
+        }}
+      />,
+    )
+    await user.click(
+      screen.getByRole("button", {
+        name: "accountDialog:novitaCredentials.verifyKey",
+      }),
+    )
+    expect(onVerify).toHaveBeenCalledOnce()
+  })
+  afterEach(() => server.resetHandlers())
+  it("binds the Vercel team selector to the draft's account identity", async () => {
+    server.use(
+      http.get("https://api.vercel.com/v2/teams", () =>
+        HttpResponse.json({ teams: [{ id: "team_a", slug: "alpha" }] }),
+      ),
+    )
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.VERCEL_AI_GATEWAY
+    props.draft.accessToken = "pat"
+    props.draft.userId = ""
+    render(<AccountForm {...withSitePolicy(props)} continuous />)
+    expect(
+      await screen.findByTestId("account-management-vercel-team-select"),
+    ).toBeVisible()
+    await vi.waitFor(() =>
+      expect(props.onUserIdChange).toHaveBeenCalledWith("team_a"),
+    )
+  })
+  it("uses the shared site-type glyph for the platform selector", async () => {
+    render(<AccountForm {...createProps()} continuous />)
+    expect(
+      (
+        await screen.findByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.siteTypeTrigger)
+      ).querySelector("svg"),
+    ).toHaveClass("lucide-layers")
+  })
+
+  it("pairs directory and section heading icons with distinct section meanings", async () => {
+    render(<AccountForm {...createProps()} continuous />)
+    const navigation = await screen.findByRole("navigation", {
+      name: "accountDialog:sections.navigation",
+    })
+    for (const [title, icon] of [
+      ["siteInfo", "earth"],
+      ["accountAuth", "shield-check"],
+      ["checkInConfig", "calendar-check-2"],
+      ["balanceAndStats", "wallet"],
+      ["tagsAndNotes", "tag"],
+    ]) {
+      const name = `accountDialog:sections.${title}.title`
+      const headingIcon = screen
+        .getByRole("heading", { name })
+        .querySelector("svg")
+      const directoryIcon = within(navigation)
+        .getByRole("button", { name })
+        .querySelector("svg")
+      expect(headingIcon).toHaveClass(`lucide-${icon}`)
+      expect(headingIcon).toHaveAttribute("aria-hidden", "true")
+      expect(directoryIcon?.innerHTML).toBe(headingIcon?.innerHTML)
+    }
+  })
+
+  it.each([false, true])(
+    "keeps one visible edit guidance block in its responsive column (small screen: %s)",
+    async (isSmallScreen) => {
+      mediaQueryState.isSmallScreen = isSmallScreen
+      render(
+        <AccountForm
+          {...createProps()}
+          continuous
+          guidance={<p>Edit guidance</p>}
+        />,
+      )
+      const guidance = await screen.findByText("Edit guidance")
+      expect(guidance).toBeVisible()
+      expect(screen.getAllByText("Edit guidance")).toHaveLength(1)
+      expect(guidance.closest("aside") !== null).toBe(!isSmallScreen)
+    },
+  )
+
+  it.each([AuthTypeEnum.AccessToken, AuthTypeEnum.Cookie])(
+    "keeps authentication caution inside a help tooltip in edit mode (%s)",
+    async (authType) => {
+      const user = userEvent.setup()
+      const props = createProps()
+      props.draft.authType = authType
+      render(<AccountForm {...withSitePolicy(props)} continuous />)
+      await screen.findByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.authTypeTrigger)
+      expect(
+        screen.queryByText("accountDialog:siteInfo.cookieWarning"),
+      ).not.toBeInTheDocument()
+      const help = screen.getByRole("button", {
+        name: "accountDialog:siteInfo.cookieWarning",
+      })
+      await user.hover(help)
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "accountDialog:siteInfo.cookieWarning",
+      )
+      await user.unhover(help)
+      await user.click(
+        screen.getByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.authTypeTrigger),
+      )
+      await user.keyboard("{Escape}")
+      act(() => help.focus())
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "accountDialog:siteInfo.cookieWarning",
+      )
+    },
+  )
+
+  it("labels the editable Cookie and explains browser-session mode once", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.CUBENCE
+    props.draft.authType = AuthTypeEnum.Cookie
+    render(<AccountForm {...withSitePolicy(props)} continuous />)
+    expect(
+      await screen.findByRole("textbox", {
+        name: "accountDialog:form.cookieAuthSessionCookie",
+      }),
+    ).not.toBeRequired()
+    expect(
+      screen.getAllByText("accountDialog:siteInfo.browserCookieSession"),
+    ).toHaveLength(1)
+  })
+
+  it("keeps every edit section visible with a directory on small screens", async () => {
+    mediaQueryState.isSmallScreen = true
+    const user = userEvent.setup()
+    const props = createProps()
+    render(<AccountForm {...props} continuous />)
+
+    const navigation = await screen.findByRole("navigation", {
+      name: "accountDialog:sections.navigation",
+    })
+    const trigger = within(navigation).getByRole("button", {
+      name: "accountDialog:sections.siteInfo.title, accountDialog:sections.navigation",
+    })
+    await user.click(trigger)
+    const links = await screen.findAllByRole("menuitem")
+    expect(links).toHaveLength(5)
+    const names = [
+      "accountDialog:sections.siteInfo.title",
+      "accountDialog:sections.accountAuth.title",
+      "accountDialog:sections.checkInConfig.title",
+      "accountDialog:sections.balanceAndStats.title",
+      "accountDialog:sections.tagsAndNotes.title",
+    ]
+    names.forEach((name, index) =>
+      expect(atIndex(links, index)).toHaveAccessibleName(name),
+    )
+    await user.keyboard("{Escape}")
+    expect(trigger).toHaveFocus()
+    expect(trigger).toHaveAccessibleName(
+      "accountDialog:sections.siteInfo.title, accountDialog:sections.navigation",
+    )
+    await user.click(trigger)
+    expect(
+      screen.getByPlaceholderText("accountDialog:form.exchangeRatePlaceholder"),
+    ).toBeVisible()
+    expect(
+      within(
+        screen.getByTestId(
+          ACCOUNT_MANAGEMENT_TEST_IDS.accountFormSectionSiteInfo,
+        ),
+      ).getByDisplayValue("alice"),
+    ).toBeVisible()
+    await user.click(
+      screen.getByRole("menuitem", {
+        name: "accountDialog:sections.tagsAndNotes.title",
+      }),
+    )
+    expect(screen.getByDisplayValue("existing note")).toBeVisible()
+    expect(trigger).toHaveAccessibleName(
+      "accountDialog:sections.tagsAndNotes.title, accountDialog:sections.navigation",
+    )
+    expect(
+      screen.getByRole("heading", {
+        name: "accountDialog:sections.tagsAndNotes.title",
+      }),
+    ).toHaveFocus()
+    expect(screen.getByDisplayValue("secret-token")).toHaveValue("secret-token")
+    expect(props.onNotesChange).not.toHaveBeenCalled()
+  })
+
+  it("keeps access-token recovery focus and directory selection in sync in the edit form", async () => {
+    mediaQueryState.isSmallScreen = true
+    const user = userEvent.setup()
+    const ref = createRef<AccountFormHandle>()
+    render(<AccountForm {...createProps()} continuous ref={ref} />)
+    const navigation = await screen.findByRole("navigation")
+    const trigger = within(navigation).getByRole("button", {
+      name: "accountDialog:sections.siteInfo.title, accountDialog:sections.navigation",
+    })
+    await user.click(trigger)
+    await user.click(
+      screen.getByRole("menuitem", {
+        name: "accountDialog:sections.tagsAndNotes.title",
+      }),
+    )
+    act(() => ref.current?.focusAccessToken())
+    expect(
+      screen.getByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.accessTokenInput),
+    ).toHaveFocus()
+    expect(trigger).toHaveTextContent(
+      "accountDialog:sections.accountAuth.title",
+    )
+    expect(trigger).toHaveAccessibleName(
+      "accountDialog:sections.accountAuth.title, accountDialog:sections.navigation",
+    )
+  })
+
+  it("explains that Cubence uses the browser login session without requiring an imported Cookie", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.CUBENCE
+    props.draft.authType = AuthTypeEnum.Cookie
+    render(<AccountForm {...withSitePolicy(props)} />)
+    expect(
+      await screen.findAllByText("accountDialog:siteInfo.browserCookieSession"),
+    ).toHaveLength(2)
+    expect(
+      screen.queryByText("accountDialog:form.cookieAuthSessionCookieDesc"),
+    ).not.toBeInTheDocument()
+  })
   beforeEach(() => {
     mediaQueryState.isSmallScreen = false
   })
@@ -78,6 +891,37 @@ describe("AccountDialog AccountForm", () => {
       automaticExecutionEnabled: input?.automaticExecutionEnabled ?? true,
       customCheckIn: input?.customCheckIn,
     })
+
+  /** A selected PM-API method whose deployment enforces its own checkin captcha. */
+  const createVerificationGatedCheckIn = (input?: {
+    automaticExecutionEnabled?: boolean
+  }): CheckInConfig => {
+    const checkIn = createEmptyAccountDialogDraft(SITE_TYPES.PMAPI).checkIn
+    checkIn.automaticExecutionEnabled =
+      input?.automaticExecutionEnabled ?? false
+    checkIn.selection = {
+      mode: "manual",
+      methodId: AUTO_CHECKIN_METHOD_IDS.PmApiDailyCheckIn,
+    }
+    checkIn.methodKnowledge.methods[AUTO_CHECKIN_METHOD_IDS.PmApiDailyCheckIn] =
+      {
+        detection: {
+          outcome: CHECK_IN_METHOD_DETECTION_OUTCOMES.Matched,
+          evidence: {
+            source: CHECK_IN_METHOD_DETECTION_EVIDENCE_SOURCES.Probe,
+            observedAt: 1,
+          },
+        },
+        status: {
+          outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
+          availability: CHECK_IN_METHOD_AVAILABILITIES.Enabled,
+          today: CHECK_IN_METHOD_TODAY_STATUSES.NotChecked,
+          requiresManualVerification: true,
+          evidence: { source: "probe", observedAt: 1 },
+        },
+      }
+    return checkIn
+  }
 
   const createProps = (): ComponentProps<typeof AccountForm> => ({
     draft: {
@@ -111,6 +955,7 @@ describe("AccountDialog AccountForm", () => {
     onUsernameChange: vi.fn(),
     onUserIdChange: vi.fn(),
     onAccessTokenChange: vi.fn(),
+    onAimlApiKeyChange: vi.fn(),
     onExchangeRateChange: vi.fn(),
     onManualBalanceUsdChange: vi.fn(),
     onShowAccessTokenChange: vi.fn(),
@@ -132,6 +977,7 @@ describe("AccountDialog AccountForm", () => {
     deleteTag: vi.fn(),
     onSiteTypeChange: vi.fn(),
     onAuthTypeChange: vi.fn(),
+    onLoginChange: vi.fn(),
     onCheckInChange: vi.fn(),
     onCheckInSelectionChange: vi.fn(),
     onRedetectCheckInMethods: vi.fn(),
@@ -174,23 +1020,327 @@ describe("AccountDialog AccountForm", () => {
     return props
   }
 
-  it("configures login check-in without changing access-token authentication", async () => {
+  it("configures account login independently of check-in and access-token authentication", async () => {
     const props = createAgentRouterProps()
     render(<AccountForm {...withSitePolicy(props)} />)
     const user = userEvent.setup()
     await user.click(
       await screen.findByRole("combobox", {
-        name: "accountDialog:form.loginCheckInProvider",
+        name: "accountDialog:login.method",
       }),
     )
     await user.click(screen.getByRole("option", { name: "Linux DO" }))
-    expect(props.onCheckInChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ loginCheckIn: { provider: "linuxdo" } }),
-    )
+    expect(props.onLoginChange).toHaveBeenLastCalledWith({
+      methodId: "linuxdo",
+    })
+    expect(props.onCheckInChange).not.toHaveBeenCalled()
     expect(props.onAuthTypeChange).not.toHaveBeenCalled()
     expect(props.onAccessTokenChange).not.toHaveBeenCalled()
     expect(props.onCookieAuthSessionCookieChange).not.toHaveBeenCalled()
   })
+
+  it.each(["github", "linuxdo"])(
+    "only renders login settings and guidance for a selected login check-in method (%s)",
+    async (method) => {
+      const props = createAgentRouterProps()
+      props.draft.login = { methodId: method }
+      const { rerender } = render(<AccountForm {...withSitePolicy(props)} />)
+      expect(
+        await screen.findByRole("combobox", {
+          name: "accountDialog:login.method",
+        }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText("accountDialog:login.checkInTitle"),
+      ).toBeInTheDocument()
+      props.draft = {
+        ...props.draft,
+        checkIn: createCheckIn({ siteType: SITE_TYPES.NEW_API }),
+      }
+      rerender(<AccountForm {...withSitePolicy(props)} />)
+      expect(
+        screen.queryByRole("combobox", { name: "accountDialog:login.method" }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText("accountDialog:login.checkInTitle"),
+      ).not.toBeInTheDocument()
+      expect(props.onLoginChange).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([ACCOUNT_LOGIN_METHODS.Password, "native-password", "retired-sso"])(
+    "explains unfinished %s edits when switching away hides the fields",
+    async (methodId) => {
+      const props = createAgentRouterProps()
+      props.draft.login = {
+        methodId,
+        credentials: { username: "member", password: "" },
+      }
+      props.draft.loginChanged = true
+      props.draft.checkIn = createCheckIn({ siteType: SITE_TYPES.NEW_API })
+      render(<AccountForm {...withSitePolicy(props)} />)
+      expect(
+        await screen.findByText("accountDialog:login.incompleteHidden"),
+      ).toBeVisible()
+      expect(
+        screen.queryByRole("combobox", { name: "accountDialog:login.method" }),
+      ).not.toBeInTheDocument()
+      expect(props.onLoginChange).not.toHaveBeenCalled()
+      await userEvent.click(
+        screen.getByRole("button", { name: "common:actions.clear" }),
+      )
+      expect(props.onLoginChange).toHaveBeenLastCalledWith(undefined)
+    },
+  )
+
+  it.each([false, true])(
+    "shows AnyRouter credential recovery without AgentRouter check-in guidance (configured: %s)",
+    async (configured) => {
+      const props = createProps()
+      props.siteUrl = "https://anyrouter.top"
+      props.draft.siteType = SITE_TYPES.ANYROUTER
+      props.draft.authType = AuthTypeEnum.Cookie
+      props.draft.cookieAuthSessionCookie = "session=existing"
+      props.draft.checkIn = createCheckIn({
+        siteType: SITE_TYPES.ANYROUTER,
+        supported: true,
+      })
+      props.draft.login = configured
+        ? {
+            methodId: ACCOUNT_LOGIN_METHODS.Password,
+            credentials: { username: "member", password: "fixture-password" },
+            automaticRecovery: true,
+          }
+        : undefined
+      render(<AccountForm {...withSitePolicy(props)} />)
+      const loginSection = await screen.findByTestId(
+        ACCOUNT_MANAGEMENT_TEST_IDS.accountFormSectionLogin,
+      )
+      expect(
+        within(loginSection).getByRole("combobox", {
+          name: "accountDialog:login.method",
+        }),
+      ).toBeVisible()
+      const recoverySwitch = within(loginSection).getByRole("switch", {
+        name: "accountDialog:login.automaticRecovery",
+      })
+      if (configured) {
+        expect(recoverySwitch).toBeChecked()
+      } else {
+        expect(recoverySwitch).toBeDisabled()
+      }
+      const checkInSection = screen.getByTestId(
+        ACCOUNT_MANAGEMENT_TEST_IDS.accountFormSectionCheckIn,
+      )
+      expect(
+        within(checkInSection).queryByText("accountDialog:login.checkInTitle"),
+      ).not.toBeInTheDocument()
+      expect(
+        within(checkInSection).queryByText(
+          "accountDialog:login.checkInExplanation",
+        ),
+      ).not.toBeInTheDocument()
+      expect(
+        within(checkInSection).queryByText(
+          "accountDialog:login.checkInMissing",
+        ),
+      ).not.toBeInTheDocument()
+      expect(props.onCheckInChange).not.toHaveBeenCalled()
+      expect(props.onCheckInSelectionChange).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([false, true])(
+    "guides AnyRouter Cookie authentication to login recovery without changing settings (continuous: %s)",
+    async (continuous) => {
+      mediaQueryState.isSmallScreen = !continuous
+      const props = createProps()
+      props.continuous = continuous
+      props.siteUrl = "https://anyrouter.top"
+      props.draft.siteType = SITE_TYPES.ANYROUTER
+      props.draft.authType = AuthTypeEnum.Cookie
+      props.draft.cookieAuthSessionCookie = "session=existing"
+      props.draft.checkIn = createCheckIn({
+        siteType: SITE_TYPES.ANYROUTER,
+        supported: true,
+      })
+      render(<AccountForm {...withSitePolicy(props)} />)
+      const user = userEvent.setup()
+      const authSection = await screen.findByTestId(
+        ACCOUNT_MANAGEMENT_TEST_IDS.accountFormSectionAuth,
+      )
+      const configure = within(authSection).getByRole("button", {
+        name: "accountDialog:login.configureRecovery",
+      })
+      expect(configure).toHaveAccessibleDescription(
+        "accountDialog:login.recoveryGuideSummary",
+      )
+      const loginSection = screen.getByTestId(
+        ACCOUNT_MANAGEMENT_TEST_IDS.accountFormSectionLogin,
+      )
+      if (!continuous) {
+        await user.click(
+          within(loginSection).getByRole("button", { name: /login.title/ }),
+        )
+      }
+      await user.click(configure)
+      expect(
+        within(loginSection).getByRole("combobox", {
+          name: "accountDialog:login.method",
+        }),
+      ).toHaveFocus()
+      if (continuous) {
+        expect(
+          within(screen.getByRole("navigation")).getByRole("button", {
+            name: "accountDialog:login.title",
+          }),
+        ).toHaveAttribute("aria-current", "location")
+      }
+      expect(props.onLoginChange).not.toHaveBeenCalled()
+      expect(props.onCookieAuthSessionCookieChange).not.toHaveBeenCalled()
+      expect(props.onCheckInChange).not.toHaveBeenCalled()
+    },
+  )
+
+  it("does not suggest automatic recovery for AgentRouter Cookie authentication", async () => {
+    const props = createAgentRouterProps()
+    props.draft.authType = AuthTypeEnum.Cookie
+    props.draft.cookieAuthSessionCookie = "session=existing"
+    render(<AccountForm {...withSitePolicy(props)} />)
+    const authSection = await screen.findByTestId(
+      ACCOUNT_MANAGEMENT_TEST_IDS.accountFormSectionAuth,
+    )
+    expect(
+      within(authSection).queryByRole("button", {
+        name: "accountDialog:login.configureRecovery",
+      }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("keeps login-only configuration without offering unsupported recovery after Cookie rejection", async () => {
+    const props = createAgentRouterProps()
+    props.draft.authType = AuthTypeEnum.Cookie
+    props.draft.cookieAuthSessionCookie = "session=invalid"
+    cookieValidation.run.mockResolvedValue({
+      status: ACCOUNT_COOKIE_VALIDATION_STATUS.Invalid,
+    })
+    const user = userEvent.setup()
+    render(<AccountForm {...withSitePolicy(props)} />)
+    await user.click(
+      await screen.findByRole("button", {
+        name: "accountDialog:cookieValidation.action",
+      }),
+    )
+    expect(
+      await screen.findByText("accountDialog:cookieValidation.invalid"),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", {
+        name: "accountDialog:login.configureRecovery",
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", {
+        name: "accountDialog:cookieValidation.recover",
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("combobox", { name: "accountDialog:login.method" }),
+    ).toBeInTheDocument()
+  })
+
+  it("explains login check-in and opens its account configuration on compact screens", async () => {
+    mediaQueryState.isSmallScreen = true
+    const props = createAgentRouterProps()
+    render(<AccountForm {...withSitePolicy(props)} />)
+    const user = userEvent.setup()
+    const checkInSection = await screen.findByTestId(
+      ACCOUNT_MANAGEMENT_TEST_IDS.accountFormSectionCheckIn,
+    )
+    expect(
+      within(checkInSection).getByText("accountDialog:login.checkInTitle"),
+    ).toBeInTheDocument()
+    expect(
+      within(checkInSection).getByText(
+        "accountDialog:login.checkInExplanation",
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(checkInSection).getByText("accountDialog:login.checkInMissing"),
+    ).toBeInTheDocument()
+    const loginSection = screen.getByTestId(
+      ACCOUNT_MANAGEMENT_TEST_IDS.accountFormSectionLogin,
+    )
+    await user.click(
+      within(loginSection).getByRole("button", { name: /login.title/ }),
+    )
+    await user.click(
+      within(checkInSection).getByRole("button", {
+        name: "accountDialog:login.configure",
+      }),
+    )
+    expect(
+      await screen.findByRole("combobox", {
+        name: "accountDialog:login.method",
+      }),
+    ).toHaveFocus()
+    expect(loginSection).toHaveClass("ring-2", "ring-theme-500")
+  })
+
+  it.each([false, true])(
+    "edits native password credentials without changing API authentication and retains them across method switches (continuous: %s)",
+    async (continuous) => {
+      const props = createAgentRouterProps()
+      props.continuous = continuous
+      function StatefulForm() {
+        const [login, setLogin] = useState(props.draft.login)
+        return (
+          <AccountForm
+            {...withSitePolicy(props)}
+            draft={{ ...props.draft, login }}
+            onLoginChange={setLogin}
+          />
+        )
+      }
+      render(<StatefulForm />)
+      const user = userEvent.setup()
+      const method = await screen.findByRole("combobox", {
+        name: "accountDialog:login.method",
+      })
+      await user.click(method)
+      await user.click(
+        screen.getByRole("option", {
+          name: "accountDialog:login.passwordMethod",
+        }),
+      )
+      await user.type(
+        screen.getByLabelText(/accountDialog:login.username/),
+        "native-member",
+      )
+      const password = screen.getByLabelText(/accountDialog:login.password\*/)
+      expect(password).toHaveAttribute("type", "password")
+      await user.type(password, " secret ")
+      await user.click(method)
+      await user.click(screen.getByRole("option", { name: "GitHub" }))
+      expect(
+        screen.queryByLabelText(/accountDialog:login.password\*/),
+      ).not.toBeInTheDocument()
+      await user.click(method)
+      await user.click(
+        screen.getByRole("option", {
+          name: "accountDialog:login.passwordMethod",
+        }),
+      )
+      expect(screen.getByLabelText(/accountDialog:login.username/)).toHaveValue(
+        "native-member",
+      )
+      expect(
+        screen.getByLabelText(/accountDialog:login.password\*/),
+      ).toHaveValue(" secret ")
+      expect(props.onAuthTypeChange).not.toHaveBeenCalled()
+      expect(props.onAccessTokenChange).not.toHaveBeenCalled()
+    },
+  )
 
   it("does not offer login check-in on other New API sites", async () => {
     const props = createAgentRouterProps()
@@ -202,7 +1352,7 @@ describe("AccountDialog AccountForm", () => {
     )
     expect(
       screen.queryByRole("combobox", {
-        name: "accountDialog:form.loginCheckInProvider",
+        name: "accountDialog:login.method",
       }),
     ).not.toBeInTheDocument()
   })
@@ -222,7 +1372,7 @@ describe("AccountDialog AccountForm", () => {
 
     await user.click(
       await screen.findByRole("combobox", {
-        name: "accountDialog:form.loginCheckInProvider",
+        name: "accountDialog:login.method",
       }),
     )
     expect(screen.getByRole("option", { name: "GitHub" })).toHaveAttribute(
@@ -236,7 +1386,7 @@ describe("AccountDialog AccountForm", () => {
 
   it("keeps a claimed provider selectable while it is the stored selection", async () => {
     const props = createAgentRouterProps()
-    props.draft.checkIn.loginCheckIn = { provider: "github" }
+    props.draft.login = { methodId: "github" }
     props.claimedLoginProviders = [
       {
         provider: "github",
@@ -248,7 +1398,7 @@ describe("AccountDialog AccountForm", () => {
 
     await user.click(
       await screen.findByRole("combobox", {
-        name: "accountDialog:form.loginCheckInProvider",
+        name: "accountDialog:login.method",
       }),
     )
     expect(screen.getByRole("option", { name: "GitHub" })).not.toHaveAttribute(
@@ -259,34 +1409,157 @@ describe("AccountDialog AccountForm", () => {
 
   it("clears the stored login provider when the user selects none", async () => {
     const props = createAgentRouterProps()
-    props.draft.checkIn.loginCheckIn = { provider: "github" }
+    props.draft.login = { methodId: "github" }
     render(<AccountForm {...withSitePolicy(props)} />)
     const user = userEvent.setup()
 
     await user.click(
       await screen.findByRole("combobox", {
-        name: "accountDialog:form.loginCheckInProvider",
+        name: "accountDialog:login.method",
       }),
     )
     await user.click(
       screen.getByRole("option", {
-        name: "accountDialog:form.loginCheckInProviderNotSelected",
+        name: "accountDialog:login.notConfigured",
       }),
     )
 
-    expect(props.onCheckInChange).toHaveBeenLastCalledWith(
-      expect.not.objectContaining({ loginCheckIn: expect.anything() }),
+    expect(props.onLoginChange).toHaveBeenLastCalledWith(undefined)
+  })
+
+  it.each([false, true])(
+    "presents optional editable identity with the protected OpenRouter management key (continuous: %s)",
+    async (continuous) => {
+      const props = createProps()
+      props.continuous = continuous
+      props.draft.siteType = SITE_TYPES.OPENROUTER
+      props.draft.siteName = "OpenRouter"
+      props.draft.username = ""
+      props.draft.userId = ""
+
+      render(<AccountForm {...withSitePolicy(props)} />)
+
+      expect(
+        await screen.findByText("accountDialog:form.openrouterManagementKey"),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText("accountDialog:form.openrouterManagementKeyGuidance"),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.accessTokenInput),
+      ).toHaveValue("secret-token")
+      const usernameInput = screen.getByTestId(
+        ACCOUNT_MANAGEMENT_TEST_IDS.usernameInput,
+      )
+      const userIdInput = screen.getByTestId(
+        ACCOUNT_MANAGEMENT_TEST_IDS.userIdInput,
+      )
+      expect(usernameInput).not.toBeRequired()
+      expect(userIdInput).not.toBeRequired()
+      expect(
+        screen.getByText("accountDialog:form.username").closest("label"),
+      ).not.toHaveTextContent("*")
+      expect(
+        screen.getByText("accountDialog:form.userId").closest("label"),
+      ).not.toHaveTextContent("*")
+      expect(
+        screen.getByRole("button", {
+          name: "accountDialog:form.showAccessToken",
+        }),
+      ).toBeInTheDocument()
+    },
+  )
+
+  it("edits NanoGPT management and inference credentials without replacing the other secret", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NANOGPT
+    props.draft.accessToken = "sk-nano-mgmt-fixture"
+    render(<AccountForm {...withSitePolicy(props)} />)
+    const management = await screen.findByLabelText(
+      /accountDialog:nanoGptCredentials.managementToken/,
+    )
+    expect(management).toHaveValue("sk-nano-mgmt-fixture")
+    const inference = screen.getByTestId(
+      ACCOUNT_MANAGEMENT_TEST_IDS.accessTokenInput,
+    )
+    expect(inference).toHaveValue("")
+    expect(inference).not.toBeRequired()
+    fireEvent.change(inference, { target: { value: "sk-nano-runtime" } })
+    expect(props.onAccessTokenChange).toHaveBeenLastCalledWith(
+      'nanogpt-credentials:{"apiKey":"sk-nano-runtime","managementToken":"sk-nano-mgmt-fixture"}',
     )
   })
 
-  it("presents optional editable identity with the protected OpenRouter management key", async () => {
+  it.each(["sk-nano-mgmt-fixture", "sk-nano-runtime"])(
+    "does not ask to complete NanoGPT credentials when a credential is already present: %s",
+    async (credential) => {
+      const props = createProps()
+      props.draft.siteType = SITE_TYPES.NANOGPT
+      props.draft.accessToken = credential
+      render(<AccountForm {...withSitePolicy(props)} />)
+      await screen.findByTestId(
+        ACCOUNT_MANAGEMENT_TEST_IDS.nanoGptManagementTokenInput,
+      )
+      expect(
+        screen.queryByText("accountDialog:form.nanoGptApiKeyGuidanceTitle"),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByText("accountDialog:nanoGptCredentials.managementHelp"),
+      ).toBeInTheDocument()
+    },
+  )
+
+  it("presents NanoGPT's inference-key guidance without a required account id", async () => {
     const props = createProps()
-    props.draft.siteType = SITE_TYPES.OPENROUTER
-    props.draft.siteName = "OpenRouter"
+    props.draft.siteType = SITE_TYPES.NANOGPT
+    props.draft.siteName = "NanoGPT"
+    props.draft.accessToken = ""
     props.draft.username = ""
     props.draft.userId = ""
 
     render(<AccountForm {...withSitePolicy(props)} />)
+
+    expect(
+      await screen.findByText("accountDialog:form.nanoGptApiKey"),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText("accountDialog:form.nanoGptApiKeyGuidanceTitle"),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText("accountDialog:form.nanoGptApiKeyGuidance"),
+    ).toBeInTheDocument()
+    // The key alone authenticates; neither identity field may be mandatory.
+    expect(
+      screen.getByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.usernameInput),
+    ).not.toBeRequired()
+    expect(
+      screen.getByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.userIdInput),
+    ).not.toBeRequired()
+  })
+
+  it("does not repeat inline key instructions when the recovery guide owns them", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NANOGPT
+    props.draft.accessToken = ""
+    render(
+      <AccountForm
+        {...withSitePolicy(props)}
+        showAccessTokenGuidance={false}
+      />,
+    )
+    expect(
+      await screen.findByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.accessTokenInput),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText("accountDialog:form.nanoGptApiKeyGuidanceTitle"),
+    ).not.toBeInTheDocument()
+  })
+
+  it("uses credential presentation from the supplied policy regardless of the draft site type", async () => {
+    const props = createProps()
+    const policy = getAccountDialogSitePolicy(SITE_TYPES.OPENROUTER)
+
+    render(<AccountForm {...props} sitePolicy={policy} />)
 
     expect(
       await screen.findByText("accountDialog:form.openrouterManagementKey"),
@@ -294,28 +1567,23 @@ describe("AccountDialog AccountForm", () => {
     expect(
       screen.getByText("accountDialog:form.openrouterManagementKeyGuidance"),
     ).toBeInTheDocument()
+  })
+
+  it("shows configured credential guidance without requiring a title", async () => {
+    const props = createProps()
+    const policy = getAccountDialogSitePolicy(SITE_TYPES.OPENROUTER)
+    policy.accessTokenPresentation.accessTokenGuidanceTitleKey = undefined
+    render(<AccountForm {...props} sitePolicy={policy} />)
     expect(
-      screen.getByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.accessTokenInput),
-    ).toHaveValue("secret-token")
-    const usernameInput = screen.getByTestId(
-      ACCOUNT_MANAGEMENT_TEST_IDS.usernameInput,
-    )
-    const userIdInput = screen.getByTestId(
-      ACCOUNT_MANAGEMENT_TEST_IDS.userIdInput,
-    )
-    expect(usernameInput).not.toBeRequired()
-    expect(userIdInput).not.toBeRequired()
-    expect(
-      screen.getByText("accountDialog:form.username").closest("label"),
-    ).not.toHaveTextContent("*")
-    expect(
-      screen.getByText("accountDialog:form.userId").closest("label"),
-    ).not.toHaveTextContent("*")
-    expect(
-      screen.getByRole("button", {
-        name: "accountDialog:form.showAccessToken",
-      }),
+      await screen.findByText(
+        "accountDialog:form.openrouterManagementKeyGuidance",
+      ),
     ).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        "accountDialog:form.openrouterManagementKeyGuidanceTitle",
+      ),
+    ).not.toBeInTheDocument()
   })
 
   it("hides manual OpenRouter guidance after detection fills the management key", async () => {
@@ -619,91 +1887,100 @@ describe("AccountDialog AccountForm", () => {
     ).toBeInTheDocument()
   })
 
-  it("propagates core field edits, exposes access-token controls, and surfaces validation states", async () => {
-    const user = userEvent.setup()
-    const props = createProps()
-    props.draft.exchangeRate = "0"
-    props.draft.manualBalanceUsd = "-1"
-    props.isManualBalanceUsdInvalid = true
+  it.each([false, true])(
+    "propagates core field edits, exposes access-token controls, and surfaces validation states (continuous: %s)",
+    async (continuous) => {
+      const user = userEvent.setup()
+      const props = createProps()
+      props.continuous = continuous
+      props.draft.exchangeRate = "0"
+      props.draft.manualBalanceUsd = "-1"
+      props.isManualBalanceUsdInvalid = true
 
-    render(<AccountForm {...withSitePolicy(props)} />)
+      render(<AccountForm {...withSitePolicy(props)} />)
 
-    const accessTokenInput = await screen.findByDisplayValue("secret-token")
-    expect(accessTokenInput).toHaveAttribute("type", "password")
-    expect(
-      screen.getByText("accountDialog:form.validRateError"),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText("accountDialog:form.manualBalanceUsdError"),
-    ).toBeInTheDocument()
+      const accessTokenInput = await screen.findByDisplayValue("secret-token")
+      expect(accessTokenInput).toHaveAttribute("type", "password")
+      expect(
+        screen.getByText("accountDialog:form.validRateError"),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText("accountDialog:form.manualBalanceUsdError"),
+      ).toBeInTheDocument()
 
-    fireEvent.change(await screen.findByDisplayValue("Example Site"), {
-      target: { value: "Example Site Updated" },
-    })
-    fireEvent.change(screen.getByDisplayValue("alice"), {
-      target: { value: "alice cooper" },
-    })
-    fireEvent.change(screen.getByPlaceholderText("accountDialog:form.userId"), {
-      target: { value: "77" },
-    })
-    fireEvent.change(accessTokenInput, {
-      target: { value: "secret-token next" },
-    })
-    await user.click(
-      screen.getByRole("button", {
-        name: "accountDialog:form.showAccessToken",
-      }),
-    )
-    fireEvent.change(
-      screen.getByPlaceholderText("accountDialog:form.exchangeRatePlaceholder"),
-      { target: { value: "8.8" } },
-    )
-    fireEvent.change(
-      screen.getByPlaceholderText(
-        "accountDialog:form.manualBalanceUsdPlaceholder",
-      ),
-      { target: { value: "12.5" } },
-    )
-    await user.click(
-      screen.getByRole("switch", {
-        name: "accountDialog:form.excludeFromTotalBalance",
-      }),
-    )
-    await user.click(
-      screen.getByRole("switch", {
-        name: "accountDialog:form.excludeFromTodayIncome",
-      }),
-    )
-    await user.click(
-      screen.getByRole("button", {
-        name: "accountDialog:form.tagsPlaceholder",
-      }),
-    )
-    fireEvent.change(
-      screen.getByPlaceholderText("accountDialog:form.notesPlaceholder"),
-      {
-        target: { value: "existing note updated" },
-      },
-    )
+      fireEvent.change(await screen.findByDisplayValue("Example Site"), {
+        target: { value: "Example Site Updated" },
+      })
+      fireEvent.change(screen.getByDisplayValue("alice"), {
+        target: { value: "alice cooper" },
+      })
+      fireEvent.change(
+        screen.getByPlaceholderText("accountDialog:form.userId"),
+        {
+          target: { value: "77" },
+        },
+      )
+      fireEvent.change(accessTokenInput, {
+        target: { value: "secret-token next" },
+      })
+      await user.click(
+        screen.getByRole("button", {
+          name: "accountDialog:form.showAccessToken",
+        }),
+      )
+      fireEvent.change(
+        screen.getByPlaceholderText(
+          "accountDialog:form.exchangeRatePlaceholder",
+        ),
+        { target: { value: "8.8" } },
+      )
+      fireEvent.change(
+        screen.getByPlaceholderText(
+          "accountDialog:form.manualBalanceUsdPlaceholder",
+        ),
+        { target: { value: "12.5" } },
+      )
+      await user.click(
+        screen.getByRole("switch", {
+          name: "accountDialog:form.excludeFromTotalBalance",
+        }),
+      )
+      await user.click(
+        screen.getByRole("switch", {
+          name: "accountDialog:form.excludeFromTodayIncome",
+        }),
+      )
+      await user.click(
+        screen.getByRole("button", {
+          name: "accountDialog:form.tagsPlaceholder",
+        }),
+      )
+      fireEvent.change(
+        screen.getByPlaceholderText("accountDialog:form.notesPlaceholder"),
+        {
+          target: { value: "existing note updated" },
+        },
+      )
 
-    expect(props.onSiteNameChange).toHaveBeenLastCalledWith(
-      "Example Site Updated",
-    )
-    expect(props.onUsernameChange).toHaveBeenLastCalledWith("alice cooper")
-    expect(props.onUserIdChange).toHaveBeenLastCalledWith("77")
-    expect(props.onAccessTokenChange).toHaveBeenLastCalledWith(
-      "secret-token next",
-    )
-    expect(props.onShowAccessTokenChange).toHaveBeenCalledWith(true)
-    expect(props.onExchangeRateChange).toHaveBeenLastCalledWith("8.8")
-    expect(props.onManualBalanceUsdChange).toHaveBeenLastCalledWith("12.5")
-    expect(props.onExcludeFromTotalBalanceChange).toHaveBeenCalledWith(true)
-    expect(props.onExcludeFromTodayIncomeChange).toHaveBeenCalledWith(true)
-    expect(props.onSelectedTagIdsChange).toHaveBeenCalledWith(["tag-1"])
-    expect(props.onNotesChange).toHaveBeenLastCalledWith(
-      "existing note updated",
-    )
-  })
+      expect(props.onSiteNameChange).toHaveBeenLastCalledWith(
+        "Example Site Updated",
+      )
+      expect(props.onUsernameChange).toHaveBeenLastCalledWith("alice cooper")
+      expect(props.onUserIdChange).toHaveBeenLastCalledWith("77")
+      expect(props.onAccessTokenChange).toHaveBeenLastCalledWith(
+        "secret-token next",
+      )
+      expect(props.onShowAccessTokenChange).toHaveBeenCalledWith(true)
+      expect(props.onExchangeRateChange).toHaveBeenLastCalledWith("8.8")
+      expect(props.onManualBalanceUsdChange).toHaveBeenLastCalledWith("12.5")
+      expect(props.onExcludeFromTotalBalanceChange).toHaveBeenCalledWith(true)
+      expect(props.onExcludeFromTodayIncomeChange).toHaveBeenCalledWith(true)
+      expect(props.onSelectedTagIdsChange).toHaveBeenCalledWith(["tag-1"])
+      expect(props.onNotesChange).toHaveBeenLastCalledWith(
+        "existing note updated",
+      )
+    },
+  )
 
   it("renders the access token as visible text when showAccessToken is enabled", async () => {
     const props = createProps()
@@ -717,44 +1994,48 @@ describe("AccountDialog AccountForm", () => {
     )
   })
 
-  it("shows cookie-auth import fallback UI and permission guidance when cookie auth is selected", async () => {
-    const user = userEvent.setup()
-    const props = createProps()
-    props.draft.authType = AuthTypeEnum.Cookie
-    props.draft.cookieAuthSessionCookie = "session=abc"
-    props.isImportingCookies = true
-    props.showCookiePermissionWarning = true
+  it.each([false, true])(
+    "shows cookie-auth import fallback UI and permission guidance when cookie auth is selected (continuous: %s)",
+    async (continuous) => {
+      const user = userEvent.setup()
+      const props = createProps()
+      props.continuous = continuous
+      props.draft.authType = AuthTypeEnum.Cookie
+      props.draft.cookieAuthSessionCookie = "session=abc"
+      props.isImportingCookies = true
+      props.showCookiePermissionWarning = true
 
-    render(<AccountForm {...withSitePolicy(props)} />)
+      render(<AccountForm {...withSitePolicy(props)} />)
 
-    expect(
-      await screen.findByText(
-        "accountDialog:messages.importCookiesPermissionDenied",
-      ),
-    ).toBeInTheDocument()
-    const importButton = screen.getByRole("button", {
-      name: "accountDialog:messages.importCookiesLoading",
-    })
-    expect(importButton).toHaveAttribute("aria-busy", "true")
-    expect(importButton).toBeDisabled()
+      expect(
+        await screen.findByText(
+          "accountDialog:messages.importCookiesPermissionDenied",
+        ),
+      ).toBeInTheDocument()
+      const importButton = screen.getByRole("button", {
+        name: "accountDialog:messages.importCookiesLoading",
+      })
+      expect(importButton).toHaveAttribute("aria-busy", "true")
+      expect(importButton).toBeDisabled()
 
-    await user.click(importButton)
-    expect(props.onImportCookieAuthSessionCookie).not.toHaveBeenCalled()
+      await user.click(importButton)
+      expect(props.onImportCookieAuthSessionCookie).not.toHaveBeenCalled()
 
-    const permissionHelpButton = screen.getByRole("button", {
-      name: "accountDialog:form.cookiePermissionHelpAction",
-    })
-    expect(permissionHelpButton).not.toHaveAttribute("aria-busy")
-    await user.click(permissionHelpButton)
-    fireEvent.change(screen.getByDisplayValue("session=abc"), {
-      target: { value: "session=abc; Path=/" },
-    })
+      const permissionHelpButton = screen.getByRole("button", {
+        name: "accountDialog:form.cookiePermissionHelpAction",
+      })
+      expect(permissionHelpButton).not.toHaveAttribute("aria-busy")
+      await user.click(permissionHelpButton)
+      fireEvent.change(screen.getByDisplayValue("session=abc"), {
+        target: { value: "session=abc; Path=/" },
+      })
 
-    expect(props.onOpenCookiePermissionSettings).toHaveBeenCalledTimes(1)
-    expect(props.onCookieAuthSessionCookieChange).toHaveBeenLastCalledWith(
-      "session=abc; Path=/",
-    )
-  })
+      expect(props.onOpenCookiePermissionSettings).toHaveBeenCalledTimes(1)
+      expect(props.onCookieAuthSessionCookieChange).toHaveBeenLastCalledWith(
+        "session=abc; Path=/",
+      )
+    },
+  )
 
   it("marks the cookie-auth textarea as required and shows the idle import CTA", async () => {
     const props = createProps()
@@ -774,122 +2055,331 @@ describe("AccountDialog AccountForm", () => {
     ).toBeRequired()
   })
 
-  it("shows a compact full cookie-auth permission recommendation without fallback copy", async () => {
-    const user = userEvent.setup()
+  it.each([false, true])(
+    "shows compact Cookie permission guidance with accessible details (continuous: %s)",
+    async (continuous) => {
+      const user = userEvent.setup()
+      const props = createProps()
+      props.draft.authType = AuthTypeEnum.Cookie
+      props.cookieAuthPermissionsGranted = false
+      props.continuous = continuous
+
+      const { rerender } = render(<AccountForm {...withSitePolicy(props)} />)
+
+      expect(
+        await screen.findByTestId(
+          ACCOUNT_MANAGEMENT_TEST_IDS.cookiePermissionRecommendation,
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          "accountDialog:form.cookiePermissionRecommendationDesc",
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText("accountDialog:form.cookiePermissionManualFallback"),
+      ).not.toBeInTheDocument()
+
+      await user.click(
+        screen.getByTestId(
+          ACCOUNT_MANAGEMENT_TEST_IDS.cookiePermissionGrantButton,
+        ),
+      )
+
+      expect(props.onRequestCookieAuthPermissions).toHaveBeenCalledTimes(1)
+
+      props.isRequestingCookieAuthPermissions = true
+      rerender(<AccountForm {...withSitePolicy(props)} />)
+
+      const applyingButton = screen.getByRole("button", {
+        name: "common:status.applying",
+      })
+      expect(applyingButton).toBeDisabled()
+      expect(applyingButton).toHaveAttribute("aria-busy", "true")
+      await user.click(applyingButton)
+      expect(props.onRequestCookieAuthPermissions).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByPlaceholderText(
+          "accountDialog:form.cookieAuthSessionCookiePlaceholder",
+        ),
+      ).toBeRequired()
+    },
+  )
+
+  it.each([false, true])(
+    "renders Sub2API refresh-token controls, visibility toggles, and expiry metadata (continuous: %s)",
+    async (continuous) => {
+      const user = userEvent.setup()
+      const props = createProps()
+      props.continuous = continuous
+      props.draft.siteType = SITE_TYPES.SUB2API
+      props.draft.sub2apiUseRefreshToken = true
+      props.draft.sub2apiRefreshToken = "refresh-secret"
+      props.draft.sub2apiTokenExpiresAt = 1700000000000
+      props.isImportingSub2apiSession = true
+
+      const { rerender } = render(<AccountForm {...withSitePolicy(props)} />)
+
+      expect(
+        await screen.findByText(
+          "accountDialog:form.sub2apiRefreshTokenWarningTitle",
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText("accountDialog:form.checkInStatusPending"),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText("accountDialog:form.checkInStatusDesc"),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole("switch", {
+          name: "accountDialog:form.checkInStatus",
+        }),
+      ).not.toBeInTheDocument()
+      expect(screen.getByDisplayValue("formatted-expiry")).toBeDisabled()
+
+      const refreshTokenInput = screen.getByDisplayValue("refresh-secret")
+      expect(refreshTokenInput).toHaveAttribute("type", "password")
+
+      await user.click(
+        screen.getByRole("button", {
+          name: "accountDialog:form.showRefreshToken",
+        }),
+      )
+      expect(screen.getByDisplayValue("refresh-secret")).toHaveAttribute(
+        "type",
+        "text",
+      )
+
+      fireEvent.change(screen.getByDisplayValue("refresh-secret"), {
+        target: { value: "refresh-secret-next" },
+      })
+      await user.click(
+        screen.getByRole("switch", {
+          name: "accountDialog:form.sub2apiRefreshTokenMode",
+        }),
+      )
+
+      expect(props.onSub2apiRefreshTokenChange).toHaveBeenLastCalledWith(
+        "refresh-secret-next",
+      )
+      expect(props.onSub2apiUseRefreshTokenChange).toHaveBeenCalledWith(false)
+      expect(props.onImportSub2apiSession).not.toHaveBeenCalled()
+      const importingButton = screen.getByRole("button", {
+        name: "common:status.importing",
+      })
+      expect(importingButton).toBeDisabled()
+      expect(importingButton).toHaveAttribute("aria-busy", "true")
+
+      props.isImportingSub2apiSession = false
+      rerender(<AccountForm {...withSitePolicy(props)} />)
+
+      await user.click(
+        screen.getByRole("button", {
+          name: "accountDialog:form.sub2apiImportRefreshToken",
+        }),
+      )
+      expect(props.onImportSub2apiSession).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it("stores a deployment's renamed check-in route for the selected method", async () => {
     const props = createProps()
-    props.draft.authType = AuthTypeEnum.Cookie
-    props.cookieAuthPermissionsGranted = false
-
-    const { rerender } = render(<AccountForm {...withSitePolicy(props)} />)
-
-    expect(
-      await screen.findByTestId(
-        ACCOUNT_MANAGEMENT_TEST_IDS.cookiePermissionRecommendation,
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText("accountDialog:form.cookiePermissionRecommendationDesc"),
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByText("accountDialog:form.cookiePermissionManualFallback"),
-    ).not.toBeInTheDocument()
-
-    await user.click(
-      screen.getByTestId(
-        ACCOUNT_MANAGEMENT_TEST_IDS.cookiePermissionGrantButton,
-      ),
-    )
-
-    expect(props.onRequestCookieAuthPermissions).toHaveBeenCalledTimes(1)
-
-    props.isRequestingCookieAuthPermissions = true
-    rerender(<AccountForm {...withSitePolicy(props)} />)
-
-    const applyingButton = screen.getByRole("button", {
-      name: "common:status.applying",
+    props.draft.siteType = SITE_TYPES.NEW_API
+    props.draft.checkIn = createCheckIn({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
     })
-    expect(applyingButton).toBeDisabled()
-    expect(applyingButton).toHaveAttribute("aria-busy", "true")
-    await user.click(applyingButton)
-    expect(props.onRequestCookieAuthPermissions).toHaveBeenCalledTimes(1)
-    expect(
-      screen.getByPlaceholderText(
-        "accountDialog:form.cookieAuthSessionCookiePlaceholder",
-      ),
-    ).toBeRequired()
+    props.draft.checkIn.selection = {
+      mode: "manual",
+      methodId: AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn,
+    }
+    props.draft.checkIn.methodKnowledge.methods[
+      AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn
+    ] = {
+      detection: {
+        outcome: CHECK_IN_METHOD_DETECTION_OUTCOMES.Matched,
+        evidence: { source: "probe", observedAt: 10 },
+      },
+    }
+    const onCheckInChange = vi.mocked(props.onCheckInChange)
+
+    render(<AccountForm {...withSitePolicy(props)} />)
+
+    const field = await screen.findByLabelText(
+      "accountDialog:form.checkInRoutePath",
+    )
+    expect(field).toHaveAttribute("placeholder", "/api/user/checkin")
+
+    fireEvent.change(field, { target: { value: "/api/user/daily-9f3k" } })
+
+    expect(onCheckInChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        routeOverrides: {
+          [AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn]: expect.objectContaining(
+            { path: "/api/user/daily-9f3k" },
+          ),
+        },
+      }),
+    )
   })
 
-  it("renders Sub2API refresh-token controls, visibility toggles, and expiry metadata", async () => {
+  it("retains invalid route text and blocks form submission until corrected", async () => {
     const user = userEvent.setup()
     const props = createProps()
+    props.draft.siteType = SITE_TYPES.NEW_API
+    props.draft.checkIn = createCheckIn({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+    })
+    render(
+      <form aria-label="Account editor">
+        <AccountForm {...withSitePolicy(props)} />
+      </form>,
+    )
+    const field = await screen.findByLabelText(
+      "accountDialog:form.checkInRoutePath",
+    )
+    await user.click(field)
+    await user.paste("https://example.com/api/user/daily")
+
+    expect(field).toHaveValue("https://example.com/api/user/daily")
+    expect(
+      screen.getByText("accountDialog:form.checkInRoutePathInvalid"),
+    ).toBeVisible()
+    expect(field).toBeInvalid()
+    expect(
+      (
+        screen.getByRole("form", { name: "Account editor" }) as HTMLFormElement
+      ).checkValidity(),
+    ).toBe(false)
+    expect(props.onCheckInChange).not.toHaveBeenCalled()
+
+    await user.clear(field)
+    await user.type(field, "/api/user/daily")
+    expect(field).toHaveValue("/api/user/daily")
+    expect(field).toBeValid()
+    expect(
+      screen.queryByText("accountDialog:form.checkInRoutePathInvalid"),
+    ).not.toBeInTheDocument()
+    expect(props.onCheckInChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        routeOverrides: {
+          [AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn]: expect.objectContaining(
+            { path: "/api/user/daily" },
+          ),
+        },
+      }),
+    )
+  })
+
+  it("records manual provenance and a fresh timestamp after editing a discovered route", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NEW_API
+    props.draft.checkIn = createCheckIn({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+    })
+    props.draft.checkIn.routeOverrides = {
+      [AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn]: {
+        path: "/api/user/old",
+        source: "discovery",
+        observedAt: 1,
+      },
+    }
+    render(<AccountForm {...withSitePolicy(props)} />)
+    const field = await screen.findByLabelText(
+      "accountDialog:form.checkInRoutePath",
+    )
+    const before = Date.now()
+    fireEvent.change(field, { target: { value: "/api/user/manual" } })
+
+    const updated = vi.mocked(props.onCheckInChange).mock.lastCall?.[0]
+    expect(
+      updated?.routeOverrides?.[AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn],
+    ).toEqual({
+      path: "/api/user/manual",
+      source: "manual",
+      observedAt: expect.any(Number),
+    })
+    expect(
+      updated?.routeOverrides?.[AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn]
+        ?.observedAt,
+    ).toBeGreaterThanOrEqual(before)
+  })
+
+  it("clears a configured deployment path using the field's clear button", async () => {
+    const user = userEvent.setup()
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NEW_API
+    props.draft.checkIn = createCheckIn({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
+    })
+    props.draft.checkIn.routeOverrides = {
+      [AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn]: {
+        path: "/api/user/custom",
+        source: "manual",
+        observedAt: 1,
+      },
+    }
+    render(<AccountForm {...withSitePolicy(props)} />)
+    const field = await screen.findByLabelText(
+      "accountDialog:form.checkInRoutePath",
+    )
+    const clear = within(field.parentElement!).getByRole("button", {
+      name: "Clear",
+    })
+    await user.click(clear)
+    expect(field).toHaveValue("")
+    expect(props.onCheckInChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ routeOverrides: undefined }),
+    )
+  })
+
+  it("does not offer a route path for a site whose methods have no route override", async () => {
+    const props = createProps()
     props.draft.siteType = SITE_TYPES.SUB2API
-    props.draft.sub2apiUseRefreshToken = true
-    props.draft.sub2apiRefreshToken = "refresh-secret"
-    props.draft.sub2apiTokenExpiresAt = 1700000000000
-    props.isImportingSub2apiSession = true
-
-    const { rerender } = render(<AccountForm {...withSitePolicy(props)} />)
-
-    expect(
-      await screen.findByText(
-        "accountDialog:form.sub2apiRefreshTokenWarningTitle",
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText("accountDialog:form.checkInStatusPending"),
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByText("accountDialog:form.checkInStatusDesc"),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole("switch", {
-        name: "accountDialog:form.checkInStatus",
-      }),
-    ).not.toBeInTheDocument()
-    expect(screen.getByDisplayValue("formatted-expiry")).toBeDisabled()
-
-    const refreshTokenInput = screen.getByDisplayValue("refresh-secret")
-    expect(refreshTokenInput).toHaveAttribute("type", "password")
-
-    await user.click(
-      screen.getByRole("button", {
-        name: "accountDialog:form.showRefreshToken",
-      }),
-    )
-    expect(screen.getByDisplayValue("refresh-secret")).toHaveAttribute(
-      "type",
-      "text",
-    )
-
-    fireEvent.change(screen.getByDisplayValue("refresh-secret"), {
-      target: { value: "refresh-secret-next" },
+    props.draft.checkIn = createCheckIn({
+      siteType: SITE_TYPES.SUB2API,
+      supported: true,
     })
-    await user.click(
-      screen.getByRole("switch", {
-        name: "accountDialog:form.sub2apiRefreshTokenMode",
-      }),
-    )
 
-    expect(props.onSub2apiRefreshTokenChange).toHaveBeenLastCalledWith(
-      "refresh-secret-next",
+    render(<AccountForm {...withSitePolicy(props)} />)
+
+    await screen.findByTestId(
+      ACCOUNT_MANAGEMENT_TEST_IDS.accountFormSectionCheckIn,
     )
-    expect(props.onSub2apiUseRefreshTokenChange).toHaveBeenCalledWith(false)
-    expect(props.onImportSub2apiSession).not.toHaveBeenCalled()
-    const importingButton = screen.getByRole("button", {
-      name: "common:status.importing",
+    expect(
+      screen.queryByLabelText("accountDialog:form.checkInRoutePath"),
+    ).not.toBeInTheDocument()
+  })
+
+  it("offers a route path before any method is confirmed", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.NEW_API
+    props.draft.checkIn = createCheckIn({
+      siteType: SITE_TYPES.NEW_API,
+      supported: true,
     })
-    expect(importingButton).toBeDisabled()
-    expect(importingButton).toHaveAttribute("aria-busy", "true")
+    const onCheckInChange = vi.mocked(props.onCheckInChange)
 
-    props.isImportingSub2apiSession = false
-    rerender(<AccountForm {...withSitePolicy(props)} />)
+    render(<AccountForm {...withSitePolicy(props)} />)
 
-    await user.click(
-      screen.getByRole("button", {
-        name: "accountDialog:form.sub2apiImportRefreshToken",
+    const field = await screen.findByLabelText(
+      "accountDialog:form.checkInRoutePath",
+    )
+    fireEvent.change(field, { target: { value: "/api/user/daily-9f3k" } })
+
+    expect(onCheckInChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        routeOverrides: {
+          [AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn]: expect.objectContaining(
+            { path: "/api/user/daily-9f3k" },
+          ),
+        },
       }),
     )
-    expect(props.onImportSub2apiSession).toHaveBeenCalledTimes(1)
   })
 
   it("updates auto check-in and custom check-in config with the expected fallback defaults", async () => {
@@ -1022,6 +2512,148 @@ describe("AccountDialog AccountForm", () => {
     expect(props.onCheckInChange).toHaveBeenCalledWith({
       ...props.draft.checkIn,
       automaticExecutionEnabled: true,
+    })
+  })
+
+  it("hides the continuation choice while the account stays out of automatic check-in", async () => {
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.PMAPI
+    props.draft.checkIn = createVerificationGatedCheckIn()
+
+    render(<AccountForm {...withSitePolicy(props)} />)
+
+    // The deployment fact is always stated, and with the switch off it also
+    // explains why the account starts out of the run.
+    expect(
+      await screen.findByText(
+        "accountDialog:form.manualVerificationRequiredTitle",
+      ),
+    ).toBeVisible()
+    expect(
+      screen.getByText("accountDialog:form.manualVerificationRequiredDesc"),
+    ).toBeVisible()
+    expect(
+      screen.getByText(
+        "accountDialog:form.manualVerificationRequiredSwitchOffDesc",
+      ),
+    ).toBeVisible()
+    // The continuation preference is only consulted once a run reaches the
+    // claim, so the choice stays hidden until the account takes part.
+    expect(
+      screen.queryByRole("combobox", {
+        name: "accountDialog:form.continueWhenVerificationRequired",
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", {
+        name: "accountDialog:form.continueWhenVerificationRequiredOpenSettings",
+      }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("shows the resolved global value and links to the setting that owns it", async () => {
+    const user = userEvent.setup()
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.PMAPI
+    props.draft.checkIn = createVerificationGatedCheckIn({
+      automaticExecutionEnabled: true,
+    })
+
+    render(<AccountForm {...withSitePolicy(props)} />)
+
+    const assist = await screen.findByRole("combobox", {
+      name: "accountDialog:form.continueWhenVerificationRequired",
+    })
+    // Inheriting is not an answer on its own: the account shows what it
+    // resolves to so the operator does not have to open settings to find out.
+    // The default global preference is off.
+    expect(assist).toHaveTextContent(
+      "accountDialog:form.continueWhenVerificationRequiredInheritOff",
+    )
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "accountDialog:form.continueWhenVerificationRequiredOpenSettings",
+      }),
+    )
+
+    expect(openSettingsTabInNewTab).toHaveBeenCalledWith(
+      BASIC_SETTINGS_TAB_IDS.CheckinRedeem,
+      {
+        anchor: AUTO_CHECKIN_TARGET_IDS.continueWhenVerificationRequired,
+        highlight: true,
+        keepCurrentWindow: true,
+      },
+    )
+  })
+
+  it.each([
+    [true, "accountDialog:form.continueWhenVerificationRequiredOff", false],
+    [
+      false,
+      "accountDialog:form.continueWhenVerificationRequiredInheritOff",
+      undefined,
+    ],
+  ] as const)(
+    "changes an explicit continuation override %s using %s",
+    async (initial, option, expected) => {
+      const user = userEvent.setup()
+      const props = createProps()
+      props.draft.siteType = SITE_TYPES.PMAPI
+      props.draft.checkIn = {
+        ...createVerificationGatedCheckIn({ automaticExecutionEnabled: true }),
+        continueWhenVerificationRequired: initial,
+      }
+      render(<AccountForm {...withSitePolicy(props)} />)
+      await user.click(
+        await screen.findByRole("combobox", {
+          name: "accountDialog:form.continueWhenVerificationRequired",
+        }),
+      )
+      await user.click(await screen.findByRole("option", { name: option }))
+      expect(props.onCheckInChange).toHaveBeenCalledWith({
+        ...props.draft.checkIn,
+        continueWhenVerificationRequired: expected,
+      })
+    },
+  )
+
+  it("explains a verification-gated check-in and stores the account-level assist override", async () => {
+    const user = userEvent.setup()
+    const props = createProps()
+    props.draft.siteType = SITE_TYPES.PMAPI
+    props.draft.checkIn = createVerificationGatedCheckIn({
+      automaticExecutionEnabled: true,
+    })
+
+    render(<AccountForm {...withSitePolicy(props)} />)
+
+    expect(
+      await screen.findByText(
+        "accountDialog:form.manualVerificationRequiredTitle",
+      ),
+    ).toBeVisible()
+    expect(
+      screen.getByText("accountDialog:form.manualVerificationRequiredDesc"),
+    ).toBeVisible()
+
+    const assist = screen.getByRole("combobox", {
+      name: "accountDialog:form.continueWhenVerificationRequired",
+    })
+    expect(assist).toHaveTextContent(
+      "accountDialog:form.continueWhenVerificationRequiredInheritOff",
+    )
+
+    await user.click(assist)
+    await user.click(
+      await screen.findByRole("option", {
+        name: "accountDialog:form.continueWhenVerificationRequiredOn",
+      }),
+    )
+
+    expect(props.onCheckInChange).toHaveBeenCalledWith({
+      ...props.draft.checkIn,
+      continueWhenVerificationRequired: true,
     })
   })
 
@@ -1370,6 +3002,10 @@ describe("AccountDialog AccountForm", () => {
       "accountDialog:form.automaticCheckInSelectionWithDetail",
     )
 
+    await user.click(screen.getByText("accountDialog:form.checkInMethod"))
+    expect(screen.getByRole("listbox")).toBeVisible()
+    await user.keyboard("{Escape}")
+
     await user.click(
       screen.getByRole("combobox", {
         name: "accountDialog:form.checkInMethod",
@@ -1389,9 +3025,10 @@ describe("AccountDialog AccountForm", () => {
       }),
     )
 
-    props.draft.checkIn = vi.mocked(
-      props.onCheckInSelectionChange,
-    ).mock.calls[0][0]
+    props.draft.checkIn = atIndex(
+      vi.mocked(props.onCheckInSelectionChange).mock.calls,
+      0,
+    )[0]
     rerender(<AccountForm {...withSitePolicy(props)} />)
     await user.click(
       screen.getByRole("combobox", {
@@ -1665,4 +3302,40 @@ describe("AccountDialog AccountForm", () => {
       }),
     ).not.toBeInTheDocument()
   })
+  it.each(["idle", "working", "failed"] as const)(
+    "supports management-key creation state %s and preserves recovery guidance",
+    async (status) => {
+      const props = createProps()
+      props.draft.siteType = SITE_TYPES.REQUESTY
+      props.draft.accessToken = ""
+      const onCreate = vi.fn()
+      render(
+        <AccountForm
+          {...withSitePolicy(props)}
+          autoCreateAccessToken={{
+            enabled: true,
+            status,
+            onCreate,
+            message: "Check the console before retrying",
+          }}
+        />,
+      )
+      const button = await screen.findByRole("button", {
+        name: "accountDialog:form.autoCreateAccessToken",
+      })
+      if (status === "working") expect(button).toBeDisabled()
+      else {
+        await userEvent.setup().click(button)
+        expect(onCreate).toHaveBeenCalledOnce()
+      }
+      if (status === "failed")
+        expect(
+          screen.getByText("Check the console before retrying"),
+        ).toBeVisible()
+      else
+        expect(
+          screen.queryByText("Check the console before retrying"),
+        ).not.toBeInTheDocument()
+    },
+  )
 })

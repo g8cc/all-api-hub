@@ -10,8 +10,36 @@
  */
 export const I18NEXT_LANGUAGE_STORAGE_KEY = "all-api-hub-i18nextLng"
 export const LINKED_CHANNEL_CLEANUP_STORAGE_KEY = "linkedChannelCleanupTasks"
+export const AIMLAPI_ONBOARDING_STORAGE_KEY = "aimlapiConnectionCredentials_v1"
+/**
+ * Browser session that currently owns the extension's temporary pages.
+ *
+ * Markers carry it so a leftover can be reclaimed after an extension reload or
+ * update, while markers from an earlier browser session (where tab ids mean
+ * nothing) are only cleared.
+ */
+export const INTERNAL_TAB_BROWSER_SESSION_STORAGE_KEY =
+  "internalBrowsingBrowserSession_v1"
+/** Ownership markers retained until temporary-page reclamation completes. */
+export const INTERNAL_TAB_STORAGE_KEY_PREFIX = "internalBrowsingTab:"
 
 export const STORAGE_LOCKS = {
+  /** Serializes explicit data cleanup operations in development builds. */
+  DEV_DATA_CLEANUP: "all-api-hub:dev-data-cleanup",
+  LOGIN_PROVIDER_EVIDENCE: "all-api-hub:login-provider-evidence",
+  /** Serializes Sub2API token rotation and login recovery across contexts. */
+  SUB2API_SESSION_AUTH: "all-api-hub:sub2api-session-auth",
+  /** Serializes account login recovery across extension contexts. */
+  ACCOUNT_CREDENTIAL_RECOVERY: "all-api-hub:account-credential-recovery",
+  AIMLAPI_ONBOARDING: "all-api-hub:aimlapi-onboarding",
+  /** Serializes sponsor creation handoffs between popup and side panels. */
+  SPONSOR_WORKFLOW: "all-api-hub:sponsor-workflow",
+  /** Serializes local Dahl key names and website-sync acknowledgements. */
+  DAHL_KEY_NAMES: "all-api-hub:dahl-key-names",
+  /** Orders website acknowledgements while local names remain independently writable. */
+  DAHL_KEY_NAME_SYNC: "all-api-hub:dahl-key-name-sync",
+  /** Serializes local diagnostic log history writes and clears. */
+  LOG_HISTORY: "all-api-hub:log-history",
   /** Serializes the shared cooldown for passive browser identity requests. */
   ACCOUNT_BROWSER_IDENTITY_RATE_LIMIT:
     "all-api-hub:account-browser-identity-rate-limit",
@@ -98,6 +126,8 @@ export const STORAGE_LOCKS = {
    * recommendation catalog cache.
    */
   SPONSOR_CATALOG: "all-api-hub:sponsor-catalog",
+  /** Serializes acceptance of community catalog and image responses in Cache Storage. */
+  COMMUNITY_RESOURCES: "all-api-hub:community-resources",
   /**
    * Exclusive lock used for read-modify-write sequences touching the GitHub
    * star promotion state store.
@@ -105,16 +135,27 @@ export const STORAGE_LOCKS = {
   STAR_PROMOTION: "all-api-hub:star-promotion",
   /** Exclusive claim of a popup account draft by its destination view. */
   ACCOUNT_DIALOG_RECOVERY: "all-api-hub:account-dialog-recovery",
+  /** Serializes interruption records without overwriting another popup's flow. */
+  POPUP_INTERRUPTION_HINT: "all-api-hub:popup-interruption-hint",
+  /** Per-flow liveness leases, released by the browser when a popup is destroyed. */
+  POPUP_CRITICAL_FLOW_PREFIX: "all-api-hub:popup-critical-flow:",
   /**
    * Exclusive lock used for read-modify-write sequences touching the
    * development-only fixture account id registry.
    */
   DEV_FIXTURE_ACCOUNTS: "all-api-hub:dev-fixture-accounts",
+  /** Exclusive lock for the development-only fixture credential id registry. */
+  DEV_FIXTURE_API_CREDENTIALS: "all-api-hub:dev-fixture-api-credentials",
   /**
    * Exclusive lock used for read-modify-write sequences touching the auto
    * check-in status blob.
    */
   AUTO_CHECKIN_STATUS: "all-api-hub:auto-checkin-status",
+  /**
+   * Exclusive lock used for read-modify-write sequences touching recorded
+   * site-type observations.
+   */
+  SITE_TYPE_OBSERVATIONS: "all-api-hub:site-type-observations",
   /**
    * Exclusive lock used for read-modify-write sequences touching the usage
    * history store.
@@ -125,6 +166,11 @@ export const STORAGE_LOCKS = {
    * search recent-items list.
    */
   OPTIONS_SEARCH_RECENT_ITEMS: "all-api-hub:options-search-recent-items",
+  /**
+   * Exclusive lock used for read-modify-write sequences touching the uninstall
+   * survey state store.
+   */
+  UNINSTALL_SURVEY: "all-api-hub:uninstall-survey",
 } as const
 
 export const ACCOUNT_STORAGE_KEYS = {
@@ -138,6 +184,11 @@ export const ACCOUNT_BROWSER_IDENTITY_STORAGE_KEYS = {
 export const LOGIN_PROVIDER_EVIDENCE_STORAGE_KEYS = {
   /** Last observed browser login outcome per account, keyed by account id. */
   EVIDENCE: "login_provider_evidence",
+} as const
+
+export const SITE_TYPE_OBSERVATION_STORAGE_KEYS = {
+  /** Last recorded site-type mismatch per account, keyed by account id. */
+  OBSERVATIONS: "site_type_observations",
 } as const
 
 export const TAG_STORAGE_KEYS = {
@@ -155,6 +206,20 @@ const FEATURE_GUIDANCE_STORAGE_KEYS = {
 export const PRODUCT_ANALYTICS_STORAGE_KEYS = {
   PRODUCT_ANALYTICS_PREFERENCES: "productAnalytics_preferences_v1",
   PRODUCT_ANALYTICS_STATE: "productAnalytics_state_v1",
+} as const
+
+/** Worker recovery facts kept independently of persistent local-storage writes. */
+export const AUTO_CHECKIN_SESSION_STORAGE_KEYS = {
+  DAILY_RUN_PERSIST_FAILED_AT: "autoCheckin_dailyRunPersistFailedAt_v1",
+} as const
+
+export const AUTO_CHECKIN_STORAGE_KEYS = {
+  AUTO_CHECKIN_STATUS: "autoCheckin_status",
+} as const
+
+export const PRODUCT_ANALYTICS_SESSION_STORAGE_KEYS = {
+  AUTO_CHECKIN_CONFIG_SNAPSHOT_AT:
+    "productAnalytics_autoCheckinConfigSnapshotAt_v1",
 } as const
 
 const DAILY_BALANCE_HISTORY_STORAGE_KEYS = {
@@ -178,6 +243,8 @@ export const API_VERIFICATION_HISTORY_STORAGE_KEYS = {
 
 export const WEB_AI_API_CHECK_STORAGE_KEYS = {
   BASE_URL_HISTORY: "webAiApiCheck_baseUrlHistory_v1",
+  CONTEXT_CHECKPOINTS: "webAiApiCheck_contextCheckpoints_v1",
+  NEEDLE_CHECKPOINTS: "webAiApiCheck_needleCheckpoints_v1",
 } as const
 
 export const LDOH_SITE_LOOKUP_STORAGE_KEYS = {
@@ -214,16 +281,21 @@ const SPONSOR_CATALOG_STORAGE_KEYS = {
   VERSIONED_CACHE: "sponsorCatalog_versionedCache_v1",
 } as const
 
-const SPONSOR_ADD_ACCOUNT_INTENT_STORAGE_KEYS = {
-  PENDING_PREFILL: "sponsorAddAccount_pendingPrefill_v1",
-} as const
-
 const POPUP_INTERRUPTION_STORAGE_KEYS = {
   HINT: "popupInterruption_hint_v1",
 } as const
 
 const STAR_PROMOTION_STORAGE_KEYS = {
   STATE: "starPromotion_state_v1",
+} as const
+
+const UNINSTALL_SURVEY_STORAGE_KEYS = {
+  STATE: "uninstallSurvey_state_v1",
+} as const
+
+export const SPONSOR_WORKFLOW_STORAGE_KEYS = {
+  DRAFT_PREFIX: "sponsorWorkflow_draft_v1:",
+  PENDING_PREFIX: "sponsorWorkflow_pending_v1:",
 } as const
 
 export const ACCOUNT_DIALOG_RECOVERY_STORAGE_KEYS = {
@@ -238,12 +310,17 @@ export const ACCOUNT_DIALOG_RECOVERY_STORAGE_KEYS = {
  * specific storage module so discovery and auditing remain straightforward.
  */
 export const STORAGE_KEYS = {
+  DAHL_KEY_NAMES: "dahlKeyNames_v1",
+  /** Local logs are bounded and excluded from account backup/sync. */
+  LOG_HISTORY: "logHistory_v1",
   PROTECTION_BYPASS_HISTORY: "protectionBypass_history_v1",
   /**
    * Development-only registry of account ids created by the dev panel fixture
    * generator, so cleanup never has to match editable account fields.
    */
   DEV_FIXTURE_ACCOUNT_IDS: "devFixtureAccountIds_v1",
+  /** IDs of credentials created by the dev panel, used for safe cleanup. */
+  DEV_FIXTURE_API_CREDENTIAL_IDS: "devFixtureApiCredentialIds_v1",
   ...ACCOUNT_STORAGE_KEYS,
   ...ACCOUNT_BROWSER_IDENTITY_STORAGE_KEYS,
   ...LOGIN_PROVIDER_EVIDENCE_STORAGE_KEYS,
@@ -266,8 +343,10 @@ export const STORAGE_KEYS = {
   PRODUCT_ANNOUNCEMENTS_STATE: PRODUCT_ANNOUNCEMENTS_STORAGE_KEYS.STATE,
   SPONSOR_CATALOG_CACHE: SPONSOR_CATALOG_STORAGE_KEYS.CACHE,
   SPONSOR_CATALOG_VERSIONED_CACHE: SPONSOR_CATALOG_STORAGE_KEYS.VERSIONED_CACHE,
-  SPONSOR_ADD_ACCOUNT_PENDING_PREFILL:
-    SPONSOR_ADD_ACCOUNT_INTENT_STORAGE_KEYS.PENDING_PREFILL,
   POPUP_INTERRUPTION_HINT: POPUP_INTERRUPTION_STORAGE_KEYS.HINT,
   STAR_PROMOTION_STATE: STAR_PROMOTION_STORAGE_KEYS.STATE,
+  UNINSTALL_SURVEY_STATE: UNINSTALL_SURVEY_STORAGE_KEYS.STATE,
 } as const
+
+/** Per-tab, background-owned session keys; no account data or report text. */
+export const CHECKIN_FEEDBACK_TAB_HINT_PREFIX = "checkinFeedbackTabHint:"

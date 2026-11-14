@@ -2,35 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
 import {
-  getManagedSiteStatusSourceAccountType,
   shouldEditModelsInManagedSiteCrudScenario,
   shouldSeedModelsInManagedSiteCrudScenario,
 } from "~~/e2e/scenarios/managedSiteChannels"
-
-describe("getManagedSiteStatusSourceAccountType", () => {
-  it("selects a compatible source account for each supported import target", () => {
-    expect(getManagedSiteStatusSourceAccountType(SITE_TYPES.NEW_API)).toBe(
-      SITE_TYPES.NEW_API,
-    )
-    expect(getManagedSiteStatusSourceAccountType(SITE_TYPES.SUB2API)).toBe(
-      SITE_TYPES.SUB2API,
-    )
-    expect(getManagedSiteStatusSourceAccountType(SITE_TYPES.OCTOPUS)).toBe(
-      SITE_TYPES.NEW_API,
-    )
-  })
-
-  it.each([
-    SITE_TYPES.VELOERA,
-    SITE_TYPES.DONE_HUB,
-    SITE_TYPES.AXON_HUB,
-    SITE_TYPES.CLAUDE_CODE_HUB,
-  ])("provides a New API source account for %s imports", (siteType) => {
-    expect(getManagedSiteStatusSourceAccountType(siteType)).toBe(
-      SITE_TYPES.NEW_API,
-    )
-  })
-})
 
 describe("shouldEditModelsInManagedSiteCrudScenario", () => {
   it("skips generic model edits for the AxonHub resource editor", () => {
@@ -61,5 +35,18 @@ describe("shouldEditModelsInManagedSiteCrudScenario", () => {
     expect(shouldSeedModelsInManagedSiteCrudScenario(SITE_TYPES.SUB2API)).toBe(
       false,
     )
+  })
+
+  it("skips generic model edits for the OmniRoute connection editor", () => {
+    expect(
+      shouldEditModelsInManagedSiteCrudScenario(SITE_TYPES.OMNIROUTE),
+    ).toBe(false)
+  })
+
+  it("does not seed a create model for OmniRoute connections", () => {
+    // A connection stores one `defaultModel`; it has no per-channel model list.
+    expect(
+      shouldSeedModelsInManagedSiteCrudScenario(SITE_TYPES.OMNIROUTE),
+    ).toBe(false)
   })
 })

@@ -1,11 +1,11 @@
 import type { BrowserContext, Route } from "@playwright/test"
 
-import { CHANNEL_DIALOG_TEST_IDS } from "~/components/dialogs/ChannelDialog/testIds"
 import { OPTIONS_PAGE_PATH } from "~/constants/extensionPages"
 import { ChannelType } from "~/constants/newApi"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { SITE_TYPES } from "~/constants/siteType"
 import { BASIC_SETTINGS_TEST_IDS } from "~/features/BasicSettings/testIds"
+import { CHANNEL_DIALOG_TEST_IDS } from "~/features/ManagedSiteChannels/editor/ChannelDialog/testIds"
 import {
   getManagedSiteChannelRowFiltersActionTestId,
   getManagedSiteChannelRowSyncActionTestId,
@@ -805,6 +805,7 @@ test("creates a managed-site channel from channel management", async ({
   await expect(
     page.getByLabel("Copy gpt-4.1-mini", { exact: true }),
   ).toBeVisible()
+  await page.getByTestId(CHANNEL_DIALOG_TEST_IDS.modelsInput).press("Escape")
 
   await page.getByRole("button", { name: "Create Channel" }).click()
 
@@ -878,6 +879,7 @@ test("edits a managed-site channel from row actions", async ({
   await expect(
     page.getByLabel("Copy gpt-4.1-mini", { exact: true }),
   ).toBeVisible()
+  await modelSearchInput.press("Escape")
 
   await page.getByRole("button", { name: "Save Changes" }).click()
 
@@ -973,6 +975,51 @@ test("applies a saved channel filter during immediate model sync", async ({
     models: "gpt-4.1-mini",
   })
   expect(modelSyncPayload).not.toHaveProperty("key")
+})
+
+test("retains excluded channels in Skipped after Run All and a page reload", async ({
+  context,
+  extensionId,
+  page,
+}) => {
+  await seedManagedSitePreferences(context)
+  const { fetchedModelChannelIds } = await stubManagedSiteAdminRoutes(context)
+  await page.goto(modelSyncUrl(extensionId, { tab: "manual" }))
+  await waitForExtensionRoot(page)
+  const toggle = page.getByRole("switch", {
+    name: "Skip Sandbox Anthropic during auto-sync and Run All",
+  })
+  await toggle.click()
+  await expect(toggle).toBeChecked()
+  await expect(
+    page.getByText("Saved: auto-sync and Run All will skip this channel."),
+  ).toBeVisible()
+  await page.getByRole("tab", { name: "Execution History" }).click()
+  await page.getByRole("button", { name: "Run All", exact: true }).click()
+  await expect(
+    page.getByRole("button", { name: "Skipped 1", exact: true }),
+  ).toBeVisible()
+  await page.getByRole("button", { name: "Skipped 1", exact: true }).click()
+  await expect(
+    page.getByRole("button", { name: "Manage channel: Sandbox Anthropic" }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Manage channel: Production OpenAI" }),
+  ).toHaveCount(0)
+  expect(fetchedModelChannelIds).toEqual([101])
+  const storedExecution = await readStoredModelSyncExecution(context)
+  expect(storedExecution.items).toContainEqual(
+    expect.objectContaining({
+      channelName: "Sandbox Anthropic",
+      skipReason: "excluded",
+      attempts: 0,
+    }),
+  )
+  await page.goto(modelSyncUrl(extensionId, { tab: "history" }))
+  await page.getByRole("button", { name: "Skipped 1", exact: true }).click()
+  await expect(
+    page.getByRole("button", { name: "Manage channel: Sandbox Anthropic" }),
+  ).toBeVisible()
 })
 
 test("loads managed-site channels, deep-links into manual model sync, and runs a selected sync", async ({

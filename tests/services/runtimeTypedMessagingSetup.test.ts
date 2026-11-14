@@ -5,6 +5,7 @@ import {
   CHECK_IN_METHOD_DETECTION_EVIDENCE_SOURCES,
   CHECK_IN_METHOD_DETECTION_OUTCOMES,
 } from "~/constants/checkIn"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import {
   INVALID_PROTECTION_BYPASS_EXECUTION_ERROR,
   PROTECTION_BYPASS_AUTOMATIC_TRIGGERS,
@@ -112,9 +113,9 @@ describe("typed runtime messaging setup", () => {
           : key,
       ),
     }))
-    vi.doMock("~/utils/browser/browserApi", async (importOriginal) => {
+    vi.doMock("~/utils/browser/alarms", async (importOriginal) => {
       const actual =
-        await importOriginal<typeof import("~/utils/browser/browserApi")>()
+        await importOriginal<typeof import("~/utils/browser/alarms")>()
       return {
         ...actual,
         clearAlarm: vi.fn(),
@@ -220,9 +221,9 @@ describe("typed runtime messaging setup", () => {
           : key,
       ),
     }))
-    vi.doMock("~/utils/browser/browserApi", async (importOriginal) => {
+    vi.doMock("~/utils/browser/alarms", async (importOriginal) => {
       const actual =
-        await importOriginal<typeof import("~/utils/browser/browserApi")>()
+        await importOriginal<typeof import("~/utils/browser/alarms")>()
       return {
         ...actual,
         clearAlarm: vi.fn(),
@@ -433,9 +434,9 @@ describe("typed runtime messaging setup", () => {
       DEFAULT_PREFERENCES: { managedSiteModelSync: {} },
       userPreferences: { getPreferences: vi.fn(), savePreferences: vi.fn() },
     }))
-    vi.doMock("~/utils/browser/browserApi", async (importOriginal) => {
+    vi.doMock("~/utils/browser/alarms", async (importOriginal) => {
       const actual =
-        await importOriginal<typeof import("~/utils/browser/browserApi")>()
+        await importOriginal<typeof import("~/utils/browser/alarms")>()
       return {
         ...actual,
         clearAlarm: vi.fn(),
@@ -749,21 +750,31 @@ describe("typed runtime messaging setup", () => {
   it("routes WebDAV auto-sync typed listeners through runtime resolvers", async () => {
     const onWebdavAutoSyncMessage: OnMessageMock = vi.fn(() => vi.fn())
 
-    vi.doMock("~/services/webdav/webdavAutoSyncMessaging", () => ({
+    vi.doMock("~/services/webdav/autoSync/webdavAutoSyncMessaging", () => ({
       onWebdavAutoSyncMessage,
     }))
 
-    const service = await import("~/services/webdav/webdavAutoSyncService")
-    vi.spyOn(service.webdavAutoSyncService, "setupAutoSync").mockResolvedValue(
-      undefined,
+    const service_webdavAutoSyncService = await import(
+      "~/services/webdav/autoSync/webdavAutoSyncService"
     )
-    vi.spyOn(service.webdavAutoSyncService, "syncNow")
+    const service_webdavAutoSyncMessageHandlers = await import(
+      "~/services/webdav/autoSync/webdavAutoSyncMessageHandlers"
+    )
+    vi.spyOn(
+      service_webdavAutoSyncService.webdavAutoSyncService,
+      "setupAutoSync",
+    ).mockResolvedValue(undefined)
+    vi.spyOn(service_webdavAutoSyncService.webdavAutoSyncService, "syncNow")
       .mockResolvedValueOnce({ success: true, message: "synced" })
       .mockResolvedValueOnce({ success: false, message: "sync failed" })
-    vi.spyOn(service.webdavAutoSyncService, "stopAutoSync").mockResolvedValue(
-      undefined,
+    vi.spyOn(
+      service_webdavAutoSyncService.webdavAutoSyncService,
+      "stopAutoSync",
+    ).mockResolvedValue(undefined)
+    vi.spyOn(
+      service_webdavAutoSyncService.webdavAutoSyncService,
+      "updateSettings",
     )
-    vi.spyOn(service.webdavAutoSyncService, "updateSettings")
       .mockResolvedValueOnce({
         ok: true,
         savedPreferences: { lastUpdated: 3 } as any,
@@ -776,7 +787,7 @@ describe("typed runtime messaging setup", () => {
           actualLastUpdated: 9,
         },
       })
-    vi.spyOn(service.webdavAutoSyncService, "getStatus")
+    vi.spyOn(service_webdavAutoSyncService.webdavAutoSyncService, "getStatus")
       .mockReturnValueOnce({
         isRunning: true,
         isInitialized: true,
@@ -789,8 +800,8 @@ describe("typed runtime messaging setup", () => {
         throw new Error("status failed")
       })
 
-    service.setupWebdavAutoSyncMessagingListeners()
-    service.setupWebdavAutoSyncMessagingListeners()
+    service_webdavAutoSyncMessageHandlers.setupWebdavAutoSyncMessagingListeners()
+    service_webdavAutoSyncMessageHandlers.setupWebdavAutoSyncMessagingListeners()
 
     expect(onWebdavAutoSyncMessage).toHaveBeenCalledTimes(5)
     await expect(
@@ -1002,7 +1013,7 @@ describe("typed runtime messaging setup", () => {
       }
     })
 
-    vi.doMock("~/entrypoints/background/tempWindowPool", () => ({
+    vi.doMock("~/services/browsingContext/tempPage/taskDispatch", () => ({
       executeAuthorizedTempContextTask,
     }))
     vi.doMock("~/services/history/dailyBalanceHistory/messaging", () => ({
@@ -1011,7 +1022,7 @@ describe("typed runtime messaging setup", () => {
     vi.doMock("~/services/accounts/accountStorage/accountRefresh", () => ({
       accountRefresh: { refreshAllAccounts },
     }))
-    vi.doMock("~/services/accounts/accountTodayStatsResolver", () => ({
+    vi.doMock("~/services/accounts/metrics/accountTodayStatsResolver", () => ({
       resolveAccountTodayStatsAvailability: vi.fn(),
     }))
     vi.doMock("~/services/preferences/userPreferences", async () => {
@@ -1021,10 +1032,8 @@ describe("typed runtime messaging setup", () => {
       return {
         ...actual,
         userPreferences: {
-          getPreferences: vi.fn().mockResolvedValue(actual.DEFAULT_PREFERENCES),
-          getPreferencesStrict: vi
-            .fn()
-            .mockResolvedValue(actual.DEFAULT_PREFERENCES),
+          getPreferences: vi.fn().mockResolvedValue(DEFAULT_PREFERENCES),
+          getPreferencesStrict: vi.fn().mockResolvedValue(DEFAULT_PREFERENCES),
           savePreferences: vi.fn(),
         },
       }
@@ -1385,7 +1394,7 @@ describe("typed runtime messaging setup", () => {
       items: [],
     })
 
-    vi.doMock("~/entrypoints/background/tempWindowPool", () => ({
+    vi.doMock("~/services/browsingContext/tempPage/taskDispatch", () => ({
       executeAuthorizedTempContextTask,
     }))
     vi.doMock("~/services/preferences/userPreferences", async () => {
@@ -1395,10 +1404,8 @@ describe("typed runtime messaging setup", () => {
       return {
         ...actual,
         userPreferences: {
-          getPreferences: vi.fn().mockResolvedValue(actual.DEFAULT_PREFERENCES),
-          getPreferencesStrict: vi
-            .fn()
-            .mockResolvedValue(actual.DEFAULT_PREFERENCES),
+          getPreferences: vi.fn().mockResolvedValue(DEFAULT_PREFERENCES),
+          getPreferencesStrict: vi.fn().mockResolvedValue(DEFAULT_PREFERENCES),
         },
       }
     })
@@ -1485,7 +1492,9 @@ describe("typed runtime messaging setup", () => {
       },
     }))
 
-    const scheduler = await import("~/services/checkin/autoCheckin/scheduler")
+    const scheduler = await import(
+      "~/services/checkin/autoCheckin/scheduling/schedulerMessaging"
+    )
 
     scheduler.setupAutoCheckinMessagingListeners()
     scheduler.setupAutoCheckinMessagingListeners()
@@ -1516,7 +1525,9 @@ describe("typed runtime messaging setup", () => {
       summary: { executed: 1 },
       pendingRetry: false,
     })
-    const verifyAccountStatus = vi.fn().mockResolvedValue(undefined)
+    const verifyAccountStatus = vi
+      .fn()
+      .mockResolvedValue({ outcome: "verified" })
     const getAccountDisplayData = vi.fn().mockResolvedValue({
       id: "account-1",
       siteName: "Example",
@@ -1539,49 +1550,50 @@ describe("typed runtime messaging setup", () => {
       },
     }))
 
-    const scheduler = await import("~/services/checkin/autoCheckin/scheduler")
-    vi.spyOn(scheduler.autoCheckinScheduler, "runCheckins").mockImplementation(
+    const scheduler = await import(
+      "~/services/checkin/autoCheckin/scheduling/schedulerMessaging"
+    )
+    const { autoCheckinScheduler } = await import(
+      "~/services/checkin/autoCheckin/scheduling/schedulerCore"
+    )
+    vi.spyOn(autoCheckinScheduler, "runCheckins").mockImplementation(
       runCheckins,
     )
     vi.spyOn(
-      scheduler.autoCheckinScheduler,
+      autoCheckinScheduler,
       "debugTriggerDailyAlarmNow",
     ).mockImplementation(debugTriggerDailyAlarmNow)
     vi.spyOn(
-      scheduler.autoCheckinScheduler,
+      autoCheckinScheduler,
       "debugTriggerRetryAlarmNow",
     ).mockImplementation(debugTriggerRetryAlarmNow)
     vi.spyOn(
-      scheduler.autoCheckinScheduler,
+      autoCheckinScheduler,
       "debugResetLastDailyRunDay",
     ).mockImplementation(debugResetLastDailyRunDay)
     vi.spyOn(
-      scheduler.autoCheckinScheduler,
+      autoCheckinScheduler,
       "debugScheduleDailyAlarmForToday",
     ).mockImplementation(debugScheduleDailyAlarmForToday)
     vi.spyOn(
-      scheduler.autoCheckinScheduler,
+      autoCheckinScheduler,
       "pretriggerDailyOnUiOpen",
     ).mockImplementation(pretriggerDailyOnUiOpen)
-    vi.spyOn(scheduler.autoCheckinScheduler, "retryAccount").mockImplementation(
+    vi.spyOn(autoCheckinScheduler, "retryAccount").mockImplementation(
       retryAccount,
     )
-    vi.spyOn(
-      scheduler.autoCheckinScheduler,
-      "verifyAccountStatus",
-    ).mockImplementation(verifyAccountStatus)
-    vi.spyOn(
-      scheduler.autoCheckinScheduler,
-      "getAccountDisplayData",
-    ).mockImplementation(getAccountDisplayData)
-    vi.spyOn(
-      scheduler.autoCheckinScheduler,
-      "updateSettings",
-    ).mockImplementation(updateSettings)
-    vi.spyOn(
-      scheduler.autoCheckinScheduler,
-      "scheduleNextRun",
-    ).mockImplementation(scheduleNextRun)
+    vi.spyOn(autoCheckinScheduler, "verifyAccountStatus").mockImplementation(
+      verifyAccountStatus,
+    )
+    vi.spyOn(autoCheckinScheduler, "getAccountDisplayData").mockImplementation(
+      getAccountDisplayData,
+    )
+    vi.spyOn(autoCheckinScheduler, "updateSettings").mockImplementation(
+      updateSettings,
+    )
+    vi.spyOn(autoCheckinScheduler, "scheduleNextRun").mockImplementation(
+      scheduleNextRun,
+    )
 
     scheduler.setupAutoCheckinMessagingListeners()
 
@@ -1602,7 +1614,49 @@ describe("typed runtime messaging setup", () => {
         onAutoCheckinMessage,
         "autoCheckin:verifyAccountStatus",
       )({ data: { accountId: "account-1" } }),
-    ).resolves.toEqual({ success: true })
+    ).resolves.toEqual({ success: true, outcome: "verified" })
+    verifyAccountStatus.mockResolvedValueOnce({
+      outcome: "verified",
+      verifiedStatus: "checked",
+    })
+    await expect(
+      getRegisteredHandler(
+        onAutoCheckinMessage,
+        "autoCheckin:verifyAccountStatus",
+      )({ data: { accountId: "account-1" } }),
+    ).resolves.toEqual({
+      success: true,
+      outcome: "verified",
+      verifiedStatus: "checked",
+    })
+    verifyAccountStatus.mockResolvedValueOnce({
+      outcome: "unsupported",
+      error: "autoCheckin:messages.error.statusVerificationUnsupported",
+    })
+    await expect(
+      getRegisteredHandler(
+        onAutoCheckinMessage,
+        "autoCheckin:verifyAccountStatus",
+      )({ data: { accountId: "account-1" } }),
+    ).resolves.toEqual({
+      success: false,
+      outcome: "unsupported",
+      error: "autoCheckin:messages.error.statusVerificationUnsupported",
+    })
+    verifyAccountStatus.mockResolvedValueOnce({
+      outcome: "verified",
+      verifiedStatus: "unknown",
+    })
+    await expect(
+      getRegisteredHandler(
+        onAutoCheckinMessage,
+        "autoCheckin:verifyAccountStatus",
+      )({ data: { accountId: "account-1" } }),
+    ).resolves.toEqual({
+      success: false,
+      outcome: "unknown",
+      error: "autoCheckin:messages.error.statusVerificationFailed",
+    })
     await expect(
       getRegisteredHandler(
         onAutoCheckinMessage,
@@ -1837,7 +1891,7 @@ describe("typed runtime messaging setup", () => {
     )
     let savedStatus: unknown = null
 
-    vi.doMock("~/entrypoints/background/tempWindowPool", () => ({
+    vi.doMock("~/services/browsingContext/tempPage/taskDispatch", () => ({
       executeAuthorizedTempContextTask,
     }))
     vi.doMock("~/services/checkin/autoCheckin/messaging", () => ({
@@ -1848,9 +1902,9 @@ describe("typed runtime messaging setup", () => {
         typeof import("~/services/preferences/userPreferences")
       >("~/services/preferences/userPreferences")
       const preferences = {
-        ...actual.DEFAULT_PREFERENCES,
+        ...DEFAULT_PREFERENCES,
         autoCheckin: {
-          ...actual.DEFAULT_PREFERENCES.autoCheckin,
+          ...DEFAULT_PREFERENCES.autoCheckin,
           globalEnabled: true,
           notifyUiOnCompletion: false,
           retryStrategy: {
@@ -1942,7 +1996,10 @@ describe("typed runtime messaging setup", () => {
     vi.doMock("~/services/productAnalytics/actions", () => ({
       trackProductAnalyticsActionCompleted: vi.fn(),
     }))
-    vi.doMock("~/services/productAnalytics/autoCheckin", () => ({
+    vi.doMock("~/services/productAnalytics/facts/autoCheckin", () => ({
+      buildAutoCheckinConfigSnapshotProperties: vi.fn(() => ({
+        setting_id: "auto_checkin_config_snapshot",
+      })),
       buildAutoCheckinDiagnostics: vi.fn(() => ({})),
       trackAutoCheckinConfigSnapshot: vi.fn(),
       trackAutoCheckinRunAnalytics: vi.fn(),
@@ -1950,18 +2007,26 @@ describe("typed runtime messaging setup", () => {
     vi.doMock("~/services/notifications/taskNotificationService", () => ({
       notifyTaskResult: vi.fn(),
     }))
-    vi.doMock("~/utils/browser/browserApi", async () => {
+    vi.doMock("~/utils/browser/alarms", async () => {
       const actual = await vi.importActual<
-        typeof import("~/utils/browser/browserApi")
-      >("~/utils/browser/browserApi")
+        typeof import("~/utils/browser/alarms")
+      >("~/utils/browser/alarms")
       return {
         ...actual,
         clearAlarm: vi.fn(),
         createAlarm: vi.fn(),
         getAlarm: vi.fn().mockResolvedValue(undefined),
         hasAlarmsAPI: vi.fn().mockReturnValue(true),
-        isMessageReceiverUnavailableError: vi.fn().mockReturnValue(false),
         onAlarm: vi.fn(),
+      }
+    })
+    vi.doMock("~/utils/browser/runtimeMessages", async () => {
+      const actual = await vi.importActual<
+        typeof import("~/utils/browser/runtimeMessages")
+      >("~/utils/browser/runtimeMessages")
+      return {
+        ...actual,
+        isMessageReceiverUnavailableError: vi.fn().mockReturnValue(false),
         sendRuntimeMessage: vi.fn().mockResolvedValue(undefined),
       }
     })
@@ -2010,7 +2075,9 @@ describe("typed runtime messaging setup", () => {
     const execution = userCommandExecution(
       PROTECTION_BYPASS_USER_COMMANDS.ManualCheckin,
     )
-    const scheduler = await import("~/services/checkin/autoCheckin/scheduler")
+    const scheduler = await import(
+      "~/services/checkin/autoCheckin/scheduling/schedulerMessaging"
+    )
     scheduler.setupAutoCheckinMessagingListeners()
 
     await expect(
@@ -2068,45 +2135,46 @@ describe("typed runtime messaging setup", () => {
       },
     }))
 
-    const scheduler = await import("~/services/checkin/autoCheckin/scheduler")
-    vi.spyOn(scheduler.autoCheckinScheduler, "runCheckins").mockRejectedValue(
+    const scheduler = await import(
+      "~/services/checkin/autoCheckin/scheduling/schedulerMessaging"
+    )
+    const { autoCheckinScheduler } = await import(
+      "~/services/checkin/autoCheckin/scheduling/schedulerCore"
+    )
+    vi.spyOn(autoCheckinScheduler, "runCheckins").mockRejectedValue(
       new Error("run failed"),
     )
+    vi.spyOn(autoCheckinScheduler, "scheduleNextRun").mockRejectedValue(
+      new Error("reschedule failed"),
+    )
     vi.spyOn(
-      scheduler.autoCheckinScheduler,
-      "scheduleNextRun",
-    ).mockRejectedValue(new Error("reschedule failed"))
-    vi.spyOn(
-      scheduler.autoCheckinScheduler,
+      autoCheckinScheduler,
       "debugTriggerDailyAlarmNow",
     ).mockRejectedValue(new Error("daily debug failed"))
     vi.spyOn(
-      scheduler.autoCheckinScheduler,
+      autoCheckinScheduler,
       "debugTriggerRetryAlarmNow",
     ).mockRejectedValue(new Error("retry debug failed"))
     vi.spyOn(
-      scheduler.autoCheckinScheduler,
+      autoCheckinScheduler,
       "debugResetLastDailyRunDay",
     ).mockRejectedValue(new Error("reset failed"))
     vi.spyOn(
-      scheduler.autoCheckinScheduler,
+      autoCheckinScheduler,
       "debugScheduleDailyAlarmForToday",
     ).mockRejectedValue(new Error("schedule today failed"))
-    vi.spyOn(
-      scheduler.autoCheckinScheduler,
-      "pretriggerDailyOnUiOpen",
-    ).mockRejectedValue(new Error("pretrigger failed"))
-    vi.spyOn(scheduler.autoCheckinScheduler, "retryAccount").mockRejectedValue(
+    vi.spyOn(autoCheckinScheduler, "pretriggerDailyOnUiOpen").mockRejectedValue(
+      new Error("pretrigger failed"),
+    )
+    vi.spyOn(autoCheckinScheduler, "retryAccount").mockRejectedValue(
       new Error("retry failed"),
     )
-    vi.spyOn(
-      scheduler.autoCheckinScheduler,
-      "getAccountDisplayData",
-    ).mockRejectedValue(new Error("account info failed"))
-    vi.spyOn(
-      scheduler.autoCheckinScheduler,
-      "updateSettings",
-    ).mockRejectedValue(new Error("settings failed"))
+    vi.spyOn(autoCheckinScheduler, "getAccountDisplayData").mockRejectedValue(
+      new Error("account info failed"),
+    )
+    vi.spyOn(autoCheckinScheduler, "updateSettings").mockRejectedValue(
+      new Error("settings failed"),
+    )
 
     scheduler.setupAutoCheckinMessagingListeners()
 

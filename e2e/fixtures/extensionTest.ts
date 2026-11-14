@@ -3,7 +3,10 @@ import os from "node:os"
 import path from "node:path"
 import { test as base, expect as baseExpect, chromium } from "@playwright/test"
 
-import { stubSponsorRemoteCatalog } from "~~/e2e/utils/commonUserFlows"
+import {
+  stubCommunityRemoteCatalog,
+  stubSponsorRemoteCatalog,
+} from "~~/e2e/utils/commonUserFlows"
 import { getE2eExtensionDirName } from "~~/e2e/utils/e2eBuildVariants"
 import {
   assertBuiltExtensionExists,
@@ -50,8 +53,6 @@ export const test = base.extend<ExtensionFixtures>({
     const temporaryUserDataDirs: string[] = []
 
     const chromeExecutablePath = process.env.AAH_E2E_CHROME_EXECUTABLE_PATH
-      ? path.resolve(process.cwd(), process.env.AAH_E2E_CHROME_EXECUTABLE_PATH)
-      : null
     const extensionServiceWorkerTimeoutMs =
       resolveExtensionServiceWorkerTimeoutMs(
         process.env.AAH_E2E_EXTENSION_STARTUP_TIMEOUT_MS,
@@ -64,10 +65,10 @@ export const test = base.extend<ExtensionFixtures>({
     const originalTestTimeoutMs = testInfo.timeout
 
     // Preserve unlimited timeouts while extending finite test-body budgets for
-    // one bounded fresh-context retry during extension startup.
+    // two attempts, each with a browser-launch and service-worker budget.
     if (originalTestTimeoutMs > 0) {
       testInfo.setTimeout(
-        originalTestTimeoutMs + extensionServiceWorkerTimeoutMs * 2,
+        originalTestTimeoutMs + extensionServiceWorkerTimeoutMs * 4,
       )
     }
 
@@ -96,23 +97,36 @@ export const test = base.extend<ExtensionFixtures>({
           return await chromium.launchPersistentContext(userDataDir, {
             ...contextOptions,
             ...launchOptions,
+            // Bound the launch itself so its timeout can reach the retry helper
+            // before the enclosing fixture/test timeout aborts the worker.
+            timeout: extensionServiceWorkerTimeoutMs,
             deviceScaleFactor,
             locale,
             timezoneId,
             viewport,
           })
         },
+        // A timed-out launch exposes no context/process to await. Even a missing
+        // lock file can precede Chromium acquiring the profile during startup.
+        retryLaunchTimeouts: !reusableUserDataDir,
         waitForReady: async (candidateContext) => {
           await Promise.all([
             stubSponsorRemoteCatalog(candidateContext),
+            stubCommunityRemoteCatalog(candidateContext),
             getExtensionServiceWorker(candidateContext, {
               timeoutMs: extensionServiceWorkerTimeoutMs,
             }),
           ])
         },
+        onReadinessFailure: (error, attempt) => {
+          console.warn(
+            `Extension service-worker readiness failed on attempt ${attempt}; closing browser context`,
+            error,
+          )
+        },
         onRetry: (error, attempt) => {
           console.warn(
-            `Extension service worker startup failed on attempt ${attempt}; retrying with a fresh context`,
+            `Extension startup failed on attempt ${attempt}; retrying browser context startup`,
             error,
           )
         },

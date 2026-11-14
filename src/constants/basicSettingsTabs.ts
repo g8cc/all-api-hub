@@ -1,22 +1,33 @@
 import { SETTINGS_ANCHORS } from "./settingsAnchors"
 
+export const BASIC_SETTINGS_TAB_IDS = {
+  General: "general",
+  SiteAnnouncements: "siteAnnouncements",
+  Notifications: "notifications",
+  BalanceHistory: "balanceHistory",
+  AccountManagement: "accountManagement",
+  Refresh: "refresh",
+  CheckinRedeem: "checkinRedeem",
+  WebAiApiCheck: "webAiApiCheck",
+  AccountUsage: "accountUsage",
+  DataBackup: "dataBackup",
+  ManagedSite: "managedSite",
+  ClaudeCodeRouter: "claudeCodeRouter",
+  Permissions: "permissions",
+} as const
+
 export type BasicSettingsTabId =
-  | "general"
-  | "siteAnnouncements"
-  | "notifications"
-  | "balanceHistory"
-  | "accountManagement"
-  | "refresh"
-  | "checkinRedeem"
-  | "webAiApiCheck"
-  | "accountUsage"
-  | "dataBackup"
-  | "managedSite"
-  | "claudeCodeRouter"
-  | "permissions"
+  (typeof BASIC_SETTINGS_TAB_IDS)[keyof typeof BASIC_SETTINGS_TAB_IDS]
 
 export const BASIC_SETTINGS_ANCHOR_TO_TAB: Record<string, BasicSettingsTabId> =
   {
+    [SETTINGS_ANCHORS.INCOGNITO_ACCESS]: "permissions",
+    [SETTINGS_ANCHORS.LOGGING]: "general",
+    [SETTINGS_ANCHORS.SHIELD_TURNSTILE_ASSIST]: "refresh",
+    [SETTINGS_ANCHORS.SHIELD_TURNSTILE_SOLVER]: "refresh",
+    [SETTINGS_ANCHORS.LOGGING_ENABLED]: "general",
+    [SETTINGS_ANCHORS.LOGGING_LEVEL]: "general",
+    [SETTINGS_ANCHORS.LOGGING_HISTORY]: "general",
     [SETTINGS_ANCHORS.MANAGED_SITE_DEPLOYMENT_DOCS]: "managedSite",
     [SETTINGS_ANCHORS.SHIELD_WINDOW_SIZE]: "refresh",
     "general-display": "general",
@@ -79,7 +90,7 @@ export const BASIC_SETTINGS_ANCHOR_TO_TAB: Record<string, BasicSettingsTabId> =
     [SETTINGS_ANCHORS.USAGE_HISTORY_SYNC]: "accountUsage",
     "usage-history-sync-state": "accountUsage",
     webdav: "dataBackup",
-    "webdav-auto-sync": "dataBackup",
+    [SETTINGS_ANCHORS.WEBDAV_AUTO_SYNC]: "dataBackup",
     "import-export-entry": "dataBackup",
     "new-api": "managedSite",
     [SETTINGS_ANCHORS.NEW_API_TOTP_SECRET]: "managedSite",
@@ -92,6 +103,19 @@ export const BASIC_SETTINGS_ANCHOR_TO_TAB: Record<string, BasicSettingsTabId> =
     [SETTINGS_ANCHORS.SUB2API_ADMIN_API_KEY]: "managedSite",
     [SETTINGS_ANCHORS.SUB2API_VALIDATE]: "managedSite",
     [SETTINGS_ANCHORS.SUB2API_DEFAULT_SCOPE]: "managedSite",
+    [SETTINGS_ANCHORS.OMNIROUTE]: "managedSite",
+    [SETTINGS_ANCHORS.OMNIROUTE_BASE_URL]: "managedSite",
+    [SETTINGS_ANCHORS.OMNIROUTE_CREDENTIAL]: "managedSite",
+    [SETTINGS_ANCHORS.OMNIROUTE_TOKENS_LINK]: "managedSite",
+    [SETTINGS_ANCHORS.OMNIROUTE_VALIDATE]: "managedSite",
+    [SETTINGS_ANCHORS.MAGPIE]: "managedSite",
+    [SETTINGS_ANCHORS.MAGPIE_BASE_URL]: "managedSite",
+    [SETTINGS_ANCHORS.MAGPIE_WEB_KEY]: "managedSite",
+    [SETTINGS_ANCHORS.MAGPIE_VALIDATE]: "managedSite",
+    [SETTINGS_ANCHORS.GPT_LOAD]: "managedSite",
+    [SETTINGS_ANCHORS.GPT_LOAD_BASE_URL]: "managedSite",
+    [SETTINGS_ANCHORS.GPT_LOAD_MANAGEMENT_KEY]: "managedSite",
+    [SETTINGS_ANCHORS.GPT_LOAD_VALIDATE]: "managedSite",
     "cli-proxy": "managedSite",
     "cli-proxy-base-url": "managedSite",
     "cli-proxy-management-key": "managedSite",

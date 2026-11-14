@@ -17,24 +17,30 @@ import {
   getCreatedAccountRuntimeKey,
   getCreatedAccountRuntimeKeyId,
   type AccountKeyCreationResult,
-} from "~/services/accounts/accountKeyCreation"
-import { fetchDisplayAccountKeyResourceInventory } from "~/services/accounts/accountKeyResourceInventory"
+} from "~/services/accounts/keys/accountKeyCreation"
+import { fetchDisplayAccountKeyResourceInventory } from "~/services/accounts/keys/accountKeyResourceInventory"
 import {
   buildAccountKeyResourceRuntimeKeyFromFacts,
   type AccountRuntimeKey,
-} from "~/services/accounts/accountRuntimeKeys"
-import type { CreatedRuntimeSecret } from "~/services/accounts/createdRuntimeSecret"
+} from "~/services/accounts/keys/accountRuntimeKeys"
+import type { CreatedRuntimeSecret } from "~/services/accounts/keys/createdRuntimeSecret"
 import {
   canCreateAccountKeyResources,
   canListAccountKeyResources,
   canListAccountRuntimeKeys,
   supportsAccountKeyCreation,
   supportsRecoverableAccountRuntimeKeySecrets,
-} from "~/services/accounts/keyProductCapabilities"
+} from "~/services/accounts/keys/keyProductCapabilities"
 import {
   fetchDisplayAccountRuntimeKeys,
+  fetchDisplayAccountServiceRuntimeKeys,
   resolveDisplayAccountRuntimeKeySecret,
 } from "~/services/accounts/utils/apiServiceRequest"
+import { mapAccountKeyResourceFailure } from "~/services/apiAdapters/accountKeyResources/failure"
+import {
+  AccountKeyResourceError,
+  ACCOUNT_KEY_RESOURCE_FAILURE_CODES as keyFailures,
+} from "~/services/apiAdapters/contracts/accountKeyResource"
 import { startProductAnalyticsAction } from "~/services/productAnalytics/actions"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
@@ -113,6 +119,9 @@ export function useCopyKeyDialog(
   )
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setError] = useState<string | null>(null)
+  const [authenticationFailed, setAuthenticationFailed] = useState(false)
+  const [managementConfigurationRequired, setManagementConfigurationRequired] =
+    useState(false)
   const [postCreateFailure, setPostCreateError] =
     useState<PostCreateFailure | null>(null)
   const [oneTimeSecret, setOneTimeSecret] =
@@ -141,6 +150,8 @@ export function useCopyKeyDialog(
     setRuntimeKeys([])
     setNativeKeyRows([])
     setError(null)
+    setAuthenticationFailed(false)
+    setManagementConfigurationRequired(false)
     setPostCreateError(null)
     setOneTimeSecret(null)
     setCopiedRuntimeKeyId(null)
@@ -170,16 +181,45 @@ export function useCopyKeyDialog(
     inventoryAbortControllerRef.current = controller
     setIsLoading(true)
     setError(null)
+    setAuthenticationFailed(false)
+    setManagementConfigurationRequired(false)
     setPostCreateError(null)
 
     try {
       if (canLoadNativeKeys) {
-        const inventory = await fetchDisplayAccountKeyResourceInventory(
-          account,
-          { signal: controller.signal },
-        )
+        const [serviceResult, inventoryResult] = await Promise.allSettled([
+          fetchDisplayAccountServiceRuntimeKeys(account, {
+            signal: controller.signal,
+          }),
+          fetchDisplayAccountKeyResourceInventory(account, {
+            signal: controller.signal,
+          }),
+        ])
         if (fetchRequestIdRef.current !== requestId) return
-        setRuntimeKeys([])
+        const serviceKeys =
+          serviceResult.status === "fulfilled" ? serviceResult.value : []
+        setRuntimeKeys(serviceKeys)
+        setNativeKeyRows([])
+        if (serviceResult.status === "rejected") {
+          setError(getErrorMessage(serviceResult.reason))
+          setAuthenticationFailed(
+            mapAccountKeyResourceFailure(serviceResult.reason).code ===
+              keyFailures.AuthenticationFailed,
+          )
+        }
+        if (inventoryResult.status === "rejected") {
+          if (
+            inventoryResult.reason instanceof AccountKeyResourceError &&
+            inventoryResult.reason.failure.code ===
+              keyFailures.ConfigurationRequired
+          ) {
+            setManagementConfigurationRequired(true)
+            if (serviceResult.status === "rejected") throw serviceResult.reason
+            return serviceKeys
+          }
+          throw inventoryResult.reason
+        }
+        const inventory = inventoryResult.value
         setNativeKeyRows(
           inventory.items.map((facts, index) => ({
             kind: KEY_MANAGEMENT_DISPLAY_ROW_KINDS.AccountKeyResource,
@@ -190,11 +230,14 @@ export function useCopyKeyDialog(
             facts,
           })),
         )
-        return inventory.items
-          .filter((facts) => facts.runtimeKey)
-          .map((facts) =>
-            buildAccountKeyResourceRuntimeKeyFromFacts(account, facts),
-          )
+        return [
+          ...serviceKeys,
+          ...inventory.items
+            .filter((facts) => facts.runtimeKey)
+            .map((facts) =>
+              buildAccountKeyResourceRuntimeKeyFromFacts(account, facts),
+            ),
+        ]
       }
 
       const loadedRuntimeKeys = await fetchDisplayAccountRuntimeKeys(account)
@@ -216,6 +259,10 @@ export function useCopyKeyDialog(
         siteType: account.siteType,
       })
       setError(getErrorMessage(error))
+      setAuthenticationFailed(
+        mapAccountKeyResourceFailure(error).code ===
+          keyFailures.AuthenticationFailed,
+      )
     } finally {
       if (fetchRequestIdRef.current === requestId) {
         if (inventoryAbortControllerRef.current === controller) {
@@ -339,6 +386,8 @@ export function useCopyKeyDialog(
     runtimeKeys,
     nativeKeyRows,
     isLoading,
+    authenticationFailed,
+    managementConfigurationRequired,
     error:
       loadError !== null
         ? t("ui:dialog.copyKey.loadFailed", {

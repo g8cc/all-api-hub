@@ -1,10 +1,12 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, expectTypeOf, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import {
-  defineAccountKeyResourceCapability,
-  type AccountKeyResourceDefinition,
-} from "~/services/apiAdapters/accountKeyResources/factory"
+import { CREATED_RUNTIME_SECRET_CORRELATION_KINDS as correlationKinds } from "~/services/accounts/keys/createdRuntimeSecret"
+import type {
+  AccountKeyResourceDefinition,
+  AccountKeyResourceProviderFacts,
+} from "~/services/apiAdapters/accountKeyResources/definition"
+import { defineAccountKeyResourceCapability } from "~/services/apiAdapters/accountKeyResources/factory"
 import {
   ACCOUNT_KEY_REQUIREMENT_PROVISIONING_KINDS,
   ACCOUNT_KEY_RESOURCE_FAILURE_CODES,
@@ -17,9 +19,10 @@ import {
   type ResourceFailure,
   type ResourceValidationResult,
 } from "~/services/apiAdapters/contracts/accountKeyResource"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 
-type Detail = { id: string; name: string }
+type Detail = { id: string; name: string; secret?: string }
 type CreateCommand = { name: string; destinationScopeKey?: string }
 type Definition = AccountKeyResourceDefinition<
   { scopeKey: string },
@@ -52,6 +55,7 @@ const OPEN_INPUT: AccountKeyResourceOpenInput = {
     siteType: SITE_TYPES.OPENROUTER,
   },
   request: {
+    directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
     accountId: "account-example",
     baseUrl: "https://example.invalid",
     auth: {
@@ -64,6 +68,7 @@ const OPEN_INPUT: AccountKeyResourceOpenInput = {
 
 const createDefinition = (overrides: Partial<Definition> = {}): Definition => ({
   siteType: SITE_TYPES.OPENROUTER,
+  requiresFreshUpdateDetail: () => true,
   openConfig: vi.fn(async () => ({ scopeKey: "workspace-example" })),
   listScopes: vi.fn(async () => [SCOPE]),
   defaultScopeKey: (config) => config.scopeKey,
@@ -79,6 +84,7 @@ const createDefinition = (overrides: Partial<Definition> = {}): Definition => ({
     ref,
     displayName: item.name,
     maskedLabel: "…example",
+    runtimeSecret: item.secret,
     status: "enabled",
     fields: [],
     actions: { canUpdate: true, canDelete: true },
@@ -87,6 +93,7 @@ const createDefinition = (overrides: Partial<Definition> = {}): Definition => ({
     ref,
     displayName: detail.name,
     maskedLabel: "…example",
+    runtimeSecret: detail.secret,
     status: "enabled",
     fields: [],
     actions: { canUpdate: true, canDelete: true },
@@ -128,13 +135,311 @@ const createDefinition = (overrides: Partial<Definition> = {}): Definition => ({
   ...overrides,
 })
 
+it("requires a command for every declared status action and forbids independent button claims", () => {
+  const invalid: AccountKeyResourceProviderFacts["actions"] = {
+    canUpdate: true,
+    canDelete: true,
+    // @ts-expect-error A visible action cannot be declared independently of its handler.
+    canDisable: true,
+  }
+  const missing: NonNullable<Definition["statusActions"]> = {
+    // @ts-expect-error Availability alone cannot register an executable action.
+    disable: { available: () => true },
+  }
+  expect(invalid).toBeDefined()
+  expect(missing).toBeDefined()
+})
+
+it("hides registered actions whose native eligibility fails and rejects stale calls before mutation", async () => {
+  const definition = createDefinition({
+    statusActions: {
+      disable: {
+        available: () => false,
+        buildCommand: () => ({ name: "unused" }),
+      },
+    },
+  })
+  const session =
+    await defineAccountKeyResourceCapability(definition).open(OPEN_INPUT)
+  const collection = await session.openCollection(SCOPE.scopeKey)
+  const row = (await collection.list()).items[0]!
+  expect(row.actions.canDisable).toBe(false)
+  await expect(
+    collection.openEditEditor(row.ref, undefined, { action: "disable" }),
+  ).rejects.toMatchObject({ failure: { code: "validation_failed" } })
+  expect(definition.update).not.toHaveBeenCalled()
+})
+
+it("derives status buttons and executable actions from the same registration", async () => {
+  const definition = createDefinition({
+    statusActions: {
+      disable: {
+        available: () => true,
+        buildCommand: () => ({ name: "disabled-command" }),
+      },
+    },
+  })
+  const session =
+    await defineAccountKeyResourceCapability(definition).open(OPEN_INPUT)
+  const collection = await session.openCollection(SCOPE.scopeKey)
+  const row = (await collection.list()).items[0]!
+  expect(row.actions.canDisable).toBe(true)
+  expect(row.actions.canEnable).toBe(false)
+  const editor = await collection.openEditEditor(row.ref, undefined, {
+    action: "disable",
+  })
+  expect(editor.action).toBe("disable")
+  expect(editor.fields).toHaveLength(0)
+  await editor.submit({})
+  expect(definition.update).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.anything(),
+    expect.anything(),
+    { name: "disabled-command" },
+    undefined,
+  )
+  expect(definition.editEditor).not.toHaveBeenCalled()
+})
+
+it("does not advertise or dispatch unregistered status actions", async () => {
+  const definition = createDefinition()
+  const session =
+    await defineAccountKeyResourceCapability(definition).open(OPEN_INPUT)
+  const collection = await session.openCollection(SCOPE.scopeKey)
+  const row = (await collection.list()).items[0]!
+  expect(row.actions.canDisable).toBe(false)
+  await expect(
+    collection.openEditEditor(row.ref, undefined, { action: "disable" }),
+  ).rejects.toMatchObject({ failure: { code: "validation_failed" } })
+  expect(definition.editEditor).not.toHaveBeenCalled()
+  expect(definition.update).not.toHaveBeenCalled()
+})
+
+it("rejects requirement-bound creation editors unless their adapter explicitly supports binding", async () => {
+  const definition = createDefinition()
+  const session =
+    await defineAccountKeyResourceCapability(definition).open(OPEN_INPUT)
+  await expect(
+    session.openCreateEditor(
+      SCOPE.scopeKey,
+      undefined,
+      undefined,
+      "opaque-requirement",
+    ),
+  ).rejects.toMatchObject({ failure: { code: "unavailable" } })
+  expect(definition.createEditor).not.toHaveBeenCalled()
+})
+
 const openSession = (definition = createDefinition()) =>
   defineAccountKeyResourceCapability(definition).open(OPEN_INPUT)
+
+it("requires existing provider projections to include their native secret value", () => {
+  type ProviderFacts = ReturnType<Definition["toListFacts"]>
+  expectTypeOf<
+    Omit<ProviderFacts, "runtimeSecret"> extends ProviderFacts ? true : false
+  >().toEqualTypeOf<false>()
+})
+
+it.each([
+  ["sk-private", "sk-private"],
+  ["sk-****masked", undefined],
+  ["sk-••••masked", undefined],
+  ["sk-start…end", undefined],
+  [undefined, undefined],
+])(
+  "automatically projects only declared complete plaintext for list and detail: %s",
+  async (secret, expected) => {
+    const definition = createDefinition({
+      inventorySecretAvailability: "recoverable",
+      list: vi.fn(async () => ({
+        items: [{ id: REF.resourceId, name: "Key", secret }],
+      })),
+      get: vi.fn(async () => ({ id: REF.resourceId, name: "Key", secret })),
+    })
+    const session = await openSession(definition)
+    const collection = await session.openCollection(SCOPE.scopeKey)
+    expect((await collection.list()).items[0]?.runtimeSecret).toBe(expected)
+    expect((await collection.get(REF)).runtimeSecret).toBe(expected)
+  },
+)
+
+it("does not infer plaintext from a resource identity that looks like a secret", async () => {
+  const definition = createDefinition({
+    list: vi.fn(async () => ({
+      items: [{ id: "sk-resource-id", name: "Key" }],
+    })),
+  })
+  const session = await openSession(definition)
+  expect(
+    (await (await session.openCollection(SCOPE.scopeKey)).list()).items[0]
+      ?.runtimeSecret,
+  ).toBeUndefined()
+})
 
 const open = async (definition = createDefinition()) =>
   (await openSession(definition)).openCollection("workspace-example")
 
 describe("defineAccountKeyResourceCapability", () => {
+  it.each(["blank-locator", "locator-throw", "foreign-facts", "facts-throw"])(
+    "fails safely for malformed provider list projection: %s",
+    async (kind) => {
+      const definition = createDefinition()
+      const project = definition.toListFacts
+      if (kind === "blank-locator") definition.encodeLocator = () => " "
+      if (kind === "locator-throw")
+        definition.encodeLocator = () => {
+          throw "denied"
+        }
+      if (kind === "foreign-facts")
+        definition.toListFacts = (item, ref) => ({
+          ...project(item, ref),
+          ref: { ...ref, resourceId: "foreign" },
+        })
+      if (kind === "facts-throw")
+        definition.toListFacts = (item, ref) => ({
+          ...project(item, ref),
+          get ref(): AccountKeyResourceRef {
+            throw "denied"
+          },
+        })
+      const collection = await (
+        await openSession(definition)
+      ).openCollection(SCOPE.scopeKey)
+      await expect(collection.list({})).rejects.toMatchObject({
+        failure: {
+          code: kind.endsWith("throw")
+            ? ACCOUNT_KEY_RESOURCE_FAILURE_CODES.PermissionDenied
+            : ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unexpected,
+        },
+      })
+      expect(definition.create).not.toHaveBeenCalled()
+    },
+  )
+
+  it("rejects changed detail identity before accepting a read or opening an edit", async () => {
+    const definition = createDefinition({
+      get: vi.fn(async () => ({ id: "another-key", name: "Foreign" })),
+    })
+    const collection = await (
+      await openSession(definition)
+    ).openCollection(SCOPE.scopeKey)
+    await expect(collection.openEditEditor(REF)).rejects.toMatchObject({
+      failure: { code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unexpected },
+    })
+    await expect(collection.get(REF)).rejects.toMatchObject({
+      failure: { code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unexpected },
+    })
+    expect(definition.update).not.toHaveBeenCalled()
+    expect(definition.delete).not.toHaveBeenCalled()
+  })
+
+  it("does not expose a failure mapper exception at the public boundary", async () => {
+    const secret = "private-provider-secret"
+    const definition = createDefinition({
+      get: vi.fn(async () => {
+        throw "denied"
+      }),
+      mapFailure: () => {
+        throw new Error(secret)
+      },
+    })
+    const collection = await (
+      await openSession(definition)
+    ).openCollection(SCOPE.scopeKey)
+    const failure = await collection.get(REF).catch((error: unknown) => error)
+    expect(failure).toMatchObject({
+      failure: { code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unexpected },
+    })
+    expect(JSON.stringify(failure)).not.toContain(secret)
+  })
+
+  it.each(["throw", "blank"])(
+    "rejects an invalid default scope resolution: %s",
+    async (kind) => {
+      const definition = createDefinition({
+        defaultScopeKey: () => {
+          if (kind === "throw") throw "denied"
+          return " "
+        },
+      })
+      const session = await openSession(definition)
+      await expect(session.resolveDefaultScope()).rejects.toMatchObject({
+        failure: {
+          code:
+            kind === "throw"
+              ? ACCOUNT_KEY_RESOURCE_FAILURE_CODES.PermissionDenied
+              : ACCOUNT_KEY_RESOURCE_FAILURE_CODES.ValidationFailed,
+        },
+      })
+      expect(definition.list).not.toHaveBeenCalled()
+    },
+  )
+
+  it("rejects malformed partial scope metadata without caching it, then preserves valid upstream metadata", async () => {
+    const listScopeInventory = vi
+      .fn()
+      .mockResolvedValueOnce({
+        scopes: [SCOPE],
+        partialFailure: {
+          code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unavailable,
+          upstreamCode: " ",
+        },
+      })
+      .mockResolvedValueOnce({
+        scopes: [SCOPE],
+        partialFailure: {
+          code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unavailable,
+          upstreamCode: "UPSTREAM_OFFLINE",
+        },
+      })
+    const session = await openSession(createDefinition({ listScopeInventory }))
+    const inventory = session.listScopeInventory
+    if (!inventory) throw new Error("Expected native scope inventory")
+    await expect(inventory()).rejects.toMatchObject({
+      failure: { code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unexpected },
+    })
+    await expect(inventory()).resolves.toMatchObject({
+      partialFailure: { upstreamCode: "UPSTREAM_OFFLINE" },
+      scopes: [SCOPE],
+    })
+    expect(listScopeInventory).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    null,
+    { valid: false, issues: [null] },
+    {
+      valid: false,
+      issues: [
+        {
+          fieldId: "name",
+          code: "invalid-provider-code",
+          value: "private-secret",
+        },
+      ],
+    },
+  ])(
+    "rejects malformed provider validation before any mutation %#",
+    async (validation) => {
+      const definition = createDefinition({
+        createEditor: vi.fn(async () => ({
+          fields: [],
+          initialValues: {},
+          validate: () => validation as ResourceValidationResult,
+          buildCommand: () => ({ name: "Unused" }),
+        })),
+      })
+      const editor = await (
+        await openSession(definition)
+      ).openCreateEditor(SCOPE.scopeKey)
+      expect(() => editor.validate({})).toThrow(AccountKeyResourceError)
+      await expect(editor.submit({})).rejects.toMatchObject({
+        failure: { code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unexpected },
+      })
+      expect(definition.create).not.toHaveBeenCalled()
+    },
+  )
+
   it("uses the controlled failure message as the public Error message", () => {
     const error = new AccountKeyResourceError({
       code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unexpected,
@@ -663,6 +968,9 @@ describe("defineAccountKeyResourceCapability", () => {
       submitError = error
     }
     expect(submitError).toBeInstanceOf(AccountKeyResourceError)
+    expect((submitError as AccountKeyResourceError).mutationCertainty).toBe(
+      "not-applied",
+    )
     expect((submitError as AccountKeyResourceError).failure).toEqual({
       code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.ValidationFailed,
       fieldIssues: [
@@ -685,7 +993,7 @@ describe("defineAccountKeyResourceCapability", () => {
       }),
     )
     const update = vi.fn<Definition["update"]>(
-      async (_config, _scope, detail, command) => ({
+      async (_config, _scope, { current: detail }, command) => ({
         certainty: "applied",
         value: { ...detail, name: command.name },
       }),
@@ -713,7 +1021,10 @@ describe("defineAccountKeyResourceCapability", () => {
     expect(update).toHaveBeenCalledWith(
       { scopeKey: "workspace-example" },
       expect.objectContaining(SCOPE),
-      { id: "opaque-key-example", name: "Key" },
+      {
+        baseline: { id: "opaque-key-example", name: "Key" },
+        current: { id: "opaque-key-example", name: "Key" },
+      },
       { name: "Renamed" },
       editOptions,
     )
@@ -793,7 +1104,7 @@ describe("defineAccountKeyResourceCapability", () => {
           detail: { id: "created-key", name: "Created" },
           createdSecret: {
             correlation: {
-              kind: "account-key-resource",
+              kind: correlationKinds.AccountKeyResource,
               ref: {
                 accountId: "account-example",
                 siteType: SITE_TYPES.OPENROUTER,
@@ -844,7 +1155,7 @@ describe("defineAccountKeyResourceCapability", () => {
           scopeKey: "workspace-destination",
           createdSecret: {
             correlation: {
-              kind: "account-key-resource",
+              kind: correlationKinds.AccountKeyResource,
               ref: {
                 accountId: "account-example",
                 siteType: SITE_TYPES.OPENROUTER,
@@ -1046,6 +1357,7 @@ describe("defineAccountKeyResourceCapability", () => {
       retryingEditor.submit({ name: "First" }),
     ).rejects.toMatchObject({
       failure: { code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.PermissionDenied },
+      mutationCertainty: "not-applied",
     })
     await expect(
       retryingEditor.submit({ name: "Recovered" }),
@@ -1076,6 +1388,38 @@ describe("defineAccountKeyResourceCapability", () => {
     })
     expect(uncertainCreate).toHaveBeenCalledOnce()
   })
+
+  it("contains an unclassified adapter exception and prevents replay through the public editor", async () => {
+    const create = vi
+      .fn<Definition["create"]>()
+      .mockRejectedValue(new Error("connection lost"))
+    const editor = await (
+      await openSession(createDefinition({ create }))
+    ).openCreateEditor(SCOPE.scopeKey)
+    await expect(editor.submit({ name: "First" })).rejects.toMatchObject({
+      failure: {
+        code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.MutationStateUncertain,
+      },
+    })
+    await expect(editor.submit({ name: "Replay" })).rejects.toMatchObject({
+      failure: { code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.ValidationFailed },
+    })
+    expect(create).toHaveBeenCalledOnce()
+  })
+
+  it.each(["delete", "revoke"] as const)(
+    "contains an unclassified %s exception at the public collection",
+    async (operation) => {
+      const mutation = vi.fn().mockRejectedValue(new Error("connection lost"))
+      const collection = await open(createDefinition({ [operation]: mutation }))
+      await expect(collection[operation]!(REF)).rejects.toMatchObject({
+        failure: {
+          code: ACCOUNT_KEY_RESOURCE_FAILURE_CODES.MutationStateUncertain,
+        },
+      })
+      expect(mutation).toHaveBeenCalledOnce()
+    },
+  )
 
   it("preserves the mapped upstream code for uncertain editor and delete mutations", async () => {
     const definition = createDefinition({
@@ -1113,3 +1457,112 @@ describe("defineAccountKeyResourceCapability", () => {
     })
   })
 })
+
+it("rejects an edit-detail identity mismatch before creating or submitting an editor", async () => {
+  const definition = createDefinition({
+    getEditDetail: vi.fn(async () => ({
+      id: "different-key",
+      name: "Other key",
+    })),
+  })
+  const collection = await open(definition)
+  await expect(collection.openEditEditor(REF)).rejects.toMatchObject({
+    failure: { code: "unexpected" },
+  })
+  expect(definition.update).not.toHaveBeenCalled()
+})
+
+it("passes both the opening baseline and one fresh detail to the update owner", async () => {
+  const baseline = { id: REF.resourceId, name: "Opening" }
+  const current = { id: REF.resourceId, name: "Changed elsewhere" }
+  const definition = createDefinition({
+    get: vi.fn().mockResolvedValueOnce(baseline).mockResolvedValueOnce(current),
+  })
+  const collection = await (
+    await openSession(definition)
+  ).openCollection(SCOPE.scopeKey)
+  const editor = await collection.openEditEditor(REF)
+  await editor.submit({ name: "Local edit" })
+  expect(definition.get).toHaveBeenCalledTimes(2)
+  expect(definition.update).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.anything(),
+    { baseline, current },
+    { name: "Local edit" },
+    undefined,
+  )
+})
+
+it("does not reread details before a snapshot-based update", async () => {
+  const definition = createDefinition({
+    requiresFreshUpdateDetail: () => false,
+  })
+  const session =
+    await defineAccountKeyResourceCapability(definition).open(OPEN_INPUT)
+  const editor = await (
+    await session.openCollection(SCOPE.scopeKey)
+  ).openEditEditor(REF)
+  await editor.submit({ name: "Changed" })
+  expect(definition.get).toHaveBeenCalledTimes(1)
+  expect(definition.update).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.anything(),
+    {
+      baseline: { id: REF.resourceId, name: "Key" },
+      current: { id: REF.resourceId, name: "Key" },
+    },
+    { name: "Changed" },
+    undefined,
+  )
+})
+
+it("rejects a revoke result attributed to another resource", async () => {
+  const definition = createDefinition({
+    revoke: async () => ({
+      certainty: "applied",
+      value: { id: "foreign-key", name: "Foreign" },
+    }),
+  })
+  const collection = await (
+    await openSession(definition)
+  ).openCollection(SCOPE.scopeKey)
+  await expect(collection.revoke!(REF)).rejects.toMatchObject({
+    failure: { code: "unexpected" },
+  })
+})
+
+it.each([false, true])(
+  "delivers update secrets only for the same resource (mismatch=%s)",
+  async (mismatch) => {
+    const createdSecret = {
+      correlation: {
+        kind: correlationKinds.AccountKeyResource,
+        ref: { ...REF, accountId: mismatch ? "other-account" : REF.accountId },
+      },
+      displayName: "Rotated",
+      secret: "sk-rotated-example-secret",
+      secretAvailability: "create-response-only" as const,
+      credential: {
+        accountName: "Example",
+        apiType: "openai-compatible" as const,
+        baseUrl: "https://example.invalid",
+        tagIds: [],
+      },
+    }
+    const definition = createDefinition({
+      update: async () => ({
+        certainty: "applied",
+        value: { id: REF.resourceId, name: "Rotated" },
+        createdSecret,
+      }),
+    })
+    const session =
+      await defineAccountKeyResourceCapability(definition).open(OPEN_INPUT)
+    const collection = await session.openCollection(REF.scopeKey)
+    const editor = await collection.openEditEditor(REF)
+    const result = editor.submit({ name: "Rotated" })
+    if (mismatch)
+      await expect(result).rejects.toBeInstanceOf(AccountKeyResourceError)
+    else expect((await result).createdSecret?.secret).toBe(createdSecret.secret)
+  },
+)

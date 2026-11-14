@@ -18,7 +18,7 @@
     },
     "actions": {
       "addAccount": "Konto hinzufügen",
-      "addProfile": "Anmeldedaten hinzufügen",
+      "addProfile": "API-Anmeldeinformation hinzufügen",
       "editAccount": "Konto bearbeiten",
       "fixAccount": "Konto reparieren",
       "handleCheckIn": "Check-in bearbeiten",
@@ -36,8 +36,8 @@
       "title": "Noch keine Konten"
     },
     "addProfile": {
-      "description": "Fügen Sie API-Anmeldeinformationen hinzu, damit Tools und Exportflüsse sie wiederverwenden können.",
-      "title": "Noch keine API-Profile"
+      "description": "Die Bibliothek speichert API-Keys, Coding-Plan-Keys und weitere Keys und überwacht Guthaben und Nutzung zentral – inklusive des restlichen 5-Stunden-/7-Tage-/Monats-Kontingents.",
+      "title": "Noch keine API-Anmeldeinformationen"
     },
     "autoCheckinGloballyDisabled": {
       "description_one": "{{count}} Konto hat den automatischen Check-in aktiviert, aber er läuft nicht, solange der globale Schalter aus ist. Aktivieren Sie ihn in den Check-in-Einstellungen erneut.",
@@ -77,6 +77,10 @@
     },
     "filterAll": "Alle",
     "severityFilterLabel": "Schweregrad",
+    "siteTypeMismatch": {
+      "description": "Diese Website entspricht {{suggestedType}}, das Konto ist jedoch auf {{storedType}} eingestellt. Bearbeiten Sie das Konto und stellen Sie den Website-Typ auf {{suggestedType}} um.",
+      "title": "{{name}} hat möglicherweise den falschen Website-Typ"
+    },
     "siteTypeUnknown": {
       "description": "Der automatische Check-in kann das Protokoll dieser Website nicht bestimmen. Bearbeiten Sie das Konto und wählen Sie den richtigen Seitentyp, oder führen Sie die automatische Erkennung erneut aus.",
       "title": "{{name}} hat einen unbekannten Seitentyp"
@@ -130,6 +134,7 @@
     "summary": "Zusammenfassung des automatischen Check-in-Laufs"
   },
   "automation": {
+    "automaticEnabled": "Automatische Ausführung ist aktiviert",
     "empty": {
       "autoCheckin": {
         "disabled": "Aktivieren Sie den automatischen Check-in, wenn Sie Prämien automatisch einfordern möchten. Zukünftige Zeitpläne und Ergebnisse werden hier angezeigt."
@@ -172,11 +177,28 @@
         "strategy": "Synchronisierungsstrategie"
       }
     },
+    "metrics": {
+      "failed": "Fehlgeschlagen",
+      "skipped": "Übersprungen",
+      "success": "Erfolgreich",
+      "unsupported": "Nicht unterstützt"
+    },
     "neverChecked": "Noch nicht geprüft",
     "openItem": "Öffnen Sie {{name}}",
     "status": {
-      "enabled": "Aktiviert"
-    }
+      "disabled": "Deaktiviert",
+      "failed": "Ausführung fehlgeschlagen",
+      "limited": "Teilweise unterstützt",
+      "notRun": "Wartet auf erste Ausführung",
+      "partial": "Teilweise fehlgeschlagen",
+      "ready": "Bereit",
+      "running": "Wird ausgeführt",
+      "skipped": "Nicht ausgeführt",
+      "success": "Ausführung erfolgreich",
+      "unknown": "Status unbekannt",
+      "unsupported": "Nicht unterstützt"
+    },
+    "statusUnavailable": "Der Ausführungsstatus ist nicht verfügbar. Öffnen Sie die Details oder laden Sie die Seite erneut."
   },
   "configurationOverview": {
     "accountFoundation": {
@@ -207,12 +229,12 @@
       }
     },
     "credentialAssets": {
-      "description": "API-Profile und Kontoschlüssel zur Verwendung vorbereitet.",
+      "description": "Speicherung Ihrer Keys sowie Überwachung von Guthaben, Kontingent und Nutzung.",
       "label": "Berechtigungsnachweise",
       "state": {
-        "disabled": "Es gibt noch keine wiederverwendbaren Anmeldeinformationen. Überprüfen Sie die Einrichtung des Kontos oder API-Profils.",
-        "needs_setup": "Fügen Sie API-Profile hinzu, damit Tools und Exportflüsse sie direkt wiederverwenden können.",
-        "not_applicable": "Diese Umgebung benötigt keine separaten API-Profile."
+        "disabled": "Es gibt noch keine wiederverwendbaren Anmeldeinformationen. Überprüfen Sie die Einrichtung des Kontos oder der API-Anmeldeinformationen.",
+        "needs_setup": "Speichern Sie eine API-Anmeldeinformation (Base URL + API Key), um Guthaben, Kontingent und Nutzung an einer Stelle zu überwachen.",
+        "not_applicable": "Diese Umgebung benötigt keine separaten API-Anmeldeinformationen."
       }
     },
     "dataHistory": {
@@ -236,7 +258,7 @@
     "subItems": {
       "accounts": "Konten",
       "apiKeys": "API-Schlüssel",
-      "apiProfiles": "API-Profile",
+      "apiProfiles": "API-Anmeldeinformationen",
       "autoCheckin": "Automatischer Check-in",
       "balanceHistory": "Saldenverlauf",
       "managedSiteChannels": "Kanalverwaltung",
@@ -281,7 +303,7 @@
       "label": "Achtung"
     },
     "profiles": {
-      "label": "Profile"
+      "label": "Anmeldeinformationen"
     },
     "todayUsage": {
       "label": "Heute"

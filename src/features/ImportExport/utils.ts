@@ -1,28 +1,27 @@
+import { BACKUP_VERSION } from "~/constants/importExport"
 import toast from "~/lib/notify"
 import { accountDataTransfer } from "~/services/accounts/accountStorage/accountDataTransfer"
-import { apiCredentialProfilesStorage } from "~/services/apiCredentialProfiles/apiCredentialProfilesStorage"
+import { apiCredentialProfilesStorage } from "~/services/apiCredentialProfiles/storage/profiles"
 import { featureGuidanceState } from "~/services/featureGuidance/featureGuidanceState"
 import {
-  BACKUP_VERSION,
+  IMPORT_EXPORT_ERROR_CODES,
   ImportExportError,
-  importFromBackupObject as importFromBackupObjectService,
-  normalizeBackupForMerge,
-  parseBackupSummary,
   type BackupAccountsPartialV2,
   type BackupFullV2,
   type BackupPreferencesPartialV2,
-  type BackupV2,
   type ImportFromBackupOptions,
   type ImportResult,
   type RawBackupData,
-} from "~/services/importExport/importExportService"
-import { channelConfigStorage } from "~/services/managedSites/channelConfigStorage"
+} from "~/services/importExport/backupContracts"
+import { importFromBackupObject as importFromBackupObjectService } from "~/services/importExport/importExportService"
+import { channelConfigStorage } from "~/services/managedSites/configuration/channelConfigStorage"
 import {
   ensureLegacyChannelConfigMigrationReady,
   LegacyChannelConfigMigrationDeferredError,
-} from "~/services/managedSites/legacyChannelConfigMigration"
+} from "~/services/managedSites/configuration/legacyChannelConfigMigration"
 import { userPreferences } from "~/services/preferences/userPreferences"
 import { tagStorage } from "~/services/tags/tagStorage"
+import { downloadBlob } from "~/utils/browser/download"
 import { formatUtcDayKey } from "~/utils/core/dayKey"
 import { createLogger } from "~/utils/core/logger"
 import { t } from "~/utils/i18n/core"
@@ -32,25 +31,17 @@ import { t } from "~/utils/i18n/core"
  */
 const logger = createLogger("ImportExportUtils")
 
-export { BACKUP_VERSION, normalizeBackupForMerge, parseBackupSummary }
-export type {
-  BackupFullV2,
-  BackupPreferencesPartialV2,
-  BackupV2,
-  RawBackupData,
-}
-
 /** Maps owned backup and migration failures to user-facing localized copy. */
 export function getImportExportErrorMessage(error: unknown): string | null {
   if (error instanceof ImportExportError) {
     switch (error.code) {
-      case "FORMAT_NOT_CORRECT":
+      case IMPORT_EXPORT_ERROR_CODES.FormatNotCorrect:
         return t("importExport:import.formatNotCorrect")
-      case "IMPORT_FAILED":
+      case IMPORT_EXPORT_ERROR_CODES.ImportFailed:
         return t("importExport:import.importOperationFailed")
-      case "NO_IMPORTABLE_DATA":
+      case IMPORT_EXPORT_ERROR_CODES.NoImportableData:
         return t("importExport:import.noImportableData")
-      case "VERSION_NOT_SUPPORTED":
+      case IMPORT_EXPORT_ERROR_CODES.VersionNotSupported:
         return t("importExport:import.versionNotSupported")
     }
   }
@@ -74,7 +65,7 @@ export async function importFromBackupObject(
   } catch (error) {
     const message = getImportExportErrorMessage(error)
     if (message) {
-      throw new Error(message)
+      throw new Error(message, { cause: error })
     }
 
     throw error
@@ -125,14 +116,7 @@ export const handleExportAll = async (
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
       type: "application/json",
     })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `all-api-hub-backup-${formatUtcDayKey()}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    downloadBlob(blob, `all-api-hub-backup-${formatUtcDayKey()}.json`)
 
     toast.success(t("importExport:export.dataExported"))
   } catch (error) {
@@ -170,14 +154,7 @@ export const handleExportAccounts = async (
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
       type: "application/json",
     })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `accounts-backup-${formatUtcDayKey()}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    downloadBlob(blob, `accounts-backup-${formatUtcDayKey()}.json`)
 
     toast.success(t("importExport:export.accountsExported"))
   } catch (error) {
@@ -215,14 +192,7 @@ export const handleExportPreferences = async (
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
       type: "application/json",
     })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `preferences-backup-${formatUtcDayKey()}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    downloadBlob(blob, `preferences-backup-${formatUtcDayKey()}.json`)
 
     toast.success(t("importExport:export.settingsExported"))
   } catch (error) {

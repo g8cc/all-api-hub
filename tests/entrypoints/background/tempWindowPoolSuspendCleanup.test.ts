@@ -31,6 +31,7 @@ describe("cleanupTempContextsOnSuspend", () => {
               case RuntimeActionIds.ContentShowShieldBypassUi:
                 return undefined
               case RuntimeActionIds.ContentCheckCapGuard:
+              case RuntimeActionIds.ContentCheckAliyunGuard:
               case RuntimeActionIds.ContentCheckCloudflareGuard:
                 return { success: true, passed: true }
               case RuntimeActionIds.ContentGetRenderedTitle:
@@ -43,18 +44,32 @@ describe("cleanupTempContextsOnSuspend", () => {
       },
     }
 
-    vi.doMock("~/utils/browser/browserApi", async (importOriginal) => {
+    vi.doMock("~/utils/browser/tabs", async (importOriginal) => {
       const actual =
-        await importOriginal<typeof import("~/utils/browser/browserApi")>()
+        await importOriginal<typeof import("~/utils/browser/tabs")>()
       return {
         ...actual,
         createTab: createTabMock,
+        onTabRemoved: vi.fn(() => () => {}),
+        removeTab: removeTabMock,
+      }
+    })
+    vi.doMock("~/utils/browser/windows", async (importOriginal) => {
+      const actual =
+        await importOriginal<typeof import("~/utils/browser/windows")>()
+      return {
+        ...actual,
         createWindow: vi.fn(),
         hasWindowsAPI: vi.fn(() => false),
-        isAllowedIncognitoAccess: vi.fn().mockResolvedValue(true),
-        onTabRemoved: vi.fn(() => () => {}),
         onWindowRemoved: vi.fn(() => () => {}),
-        removeTab: removeTabMock,
+      }
+    })
+    vi.doMock("~/utils/browser/runtime", async (importOriginal) => {
+      const actual =
+        await importOriginal<typeof import("~/utils/browser/runtime")>()
+      return {
+        ...actual,
+        isAllowedIncognitoAccess: vi.fn().mockResolvedValue(true),
       }
     })
     vi.doMock("~/services/preferences/userPreferences", () => ({
@@ -80,7 +95,20 @@ describe("cleanupTempContextsOnSuspend", () => {
     ;(globalThis as any).browser = originalBrowser
 
     vi.useRealTimers()
-    vi.doUnmock("~/utils/browser/browserApi")
+    vi.doUnmock("~/utils/browser/extensionStorage")
+    vi.doUnmock("~/utils/browser/tabs")
+    vi.doUnmock("~/utils/browser/windows")
+    vi.doUnmock("~/utils/browser/runtimeMessages")
+    vi.doUnmock("~/utils/browser/runtime")
+    vi.doUnmock("~/utils/browser/bookmarks")
+    vi.doUnmock("~/utils/browser/storage")
+    vi.doUnmock("~/utils/browser/sidePanel")
+    vi.doUnmock("~/utils/browser/alarms")
+    vi.doUnmock("~/utils/browser/notifications")
+    vi.doUnmock("~/utils/browser/contextMenus")
+    vi.doUnmock("~/utils/browser/cookies")
+    vi.doUnmock("~/utils/browser/action")
+    vi.doUnmock("~/utils/browser/permissions")
     vi.doUnmock("~/services/preferences/userPreferences")
     vi.doUnmock("~/utils/i18n/core")
     vi.resetModules()
@@ -160,5 +188,70 @@ describe("cleanupTempContextsOnSuspend", () => {
 
     await expect(cleanupTempContextsOnSuspend()).resolves.toBeUndefined()
     expect(removeTabMock).not.toHaveBeenCalled()
+  })
+
+  it("automatically destroys idle tab context when idle timeout expires", async () => {
+    const { handleTempWindowGetRenderedTitle } = await import(
+      "~~/tests/entrypoints/background/tempWindowPoolTestAdapter"
+    )
+
+    const response = vi.fn()
+    const request = handleTempWindowGetRenderedTitle(
+      {
+        originUrl: "https://example.com/protected/idle",
+        requestId: "req-idle-1",
+      },
+      response,
+    )
+
+    await vi.advanceTimersByTimeAsync(500)
+    await request
+
+    expect(response).toHaveBeenCalledWith({
+      success: true,
+      title: "Example title",
+    })
+    expect(createTabMock).toHaveBeenCalledTimes(1)
+    expect(removeTabMock).not.toHaveBeenCalled()
+
+    // Advance beyond TEMP_CONTEXT_IDLE_TIMEOUT (10 seconds)
+    await vi.advanceTimersByTimeAsync(15_000)
+
+    expect(removeTabMock).toHaveBeenCalledWith(101)
+  })
+
+  it("handles suspend cleanup failure when destroyOriginPool encounters an error", async () => {
+    const { cleanupTempContextsOnSuspend, handleTempWindowGetRenderedTitle } =
+      await import("~~/tests/entrypoints/background/tempWindowPoolTestAdapter")
+
+    const response = vi.fn()
+    const request = handleTempWindowGetRenderedTitle(
+      {
+        originUrl: "https://example.com/protected/error",
+        requestId: "req-err-1",
+      },
+      response,
+    )
+
+    await vi.advanceTimersByTimeAsync(500)
+    await request
+
+    removeTabMock.mockRejectedValue(new Error("Tab cannot be removed"))
+
+    await expect(cleanupTempContextsOnSuspend()).resolves.toBeUndefined()
+  })
+
+  it("handles error in handleCloseTempWindow gracefully", async () => {
+    const { handleCloseTempWindow } = await import(
+      "~~/tests/entrypoints/background/tempWindowPoolTestAdapter"
+    )
+
+    const sendResponse = vi.fn()
+    // Null request triggers catch block in handleCloseTempWindow
+    await handleCloseTempWindow(null as any, sendResponse)
+
+    expect(sendResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false }),
+    )
   })
 })

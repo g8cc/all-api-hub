@@ -1,10 +1,12 @@
 {
   "verifyDialog": {
+    "about": "Testinformationen",
     "actions": {
       "close": "Schließen",
       "manageModelKey": "Modellschlüssel-Setup öffnen",
       "retry": "Wiederholen",
-      "run": "Ausführen",
+      "runAll": "Standardtests ausführen",
+      "runAllHint": "Führt nur Routinetests aus. Starten Sie Tests auf Abruf separat.",
       "running": "Läuft...",
       "runOne": "Ausführen",
       "stop": "Stopp",
@@ -16,55 +18,127 @@
       "openai": "OpenAI",
       "openaiCompatible": "OpenAI-kompatibel"
     },
+    "associatedCredentialHint": "Diese Website kann den vollständigen Schlüssel nicht erneut ausgeben. Tests verwenden den vollständigen Schlüssel aus der API-Zugangsdatenbibliothek, der mit dem ausgewählten Schlüssel verknüpft ist. Fehlt die Verknüpfung, speichere oder verknüpfe den Schlüssel zuerst in der Schlüsselverwaltung.",
     "details": {
       "input": "Eingabe",
-      "output": "Ausgabe"
+      "output": "Ausgabe",
+      "result": "Ausführungsergebnis"
     },
     "errors": {
       "unexpected": "Unerwarteter Fehler"
     },
+    "generatedImagePreview": "Vorschau des generierten Bildes",
+    "generatedVideoPreview": "Vorschau des generierten Videos",
     "history": {
       "clear": "Verlauf löschen",
-      "lastVerified": "Zuletzt überprüft"
+      "lastVerified": "Zuletzt getestet",
+      "previousResult": "Zuvor: {{result}}",
+      "storage": {
+        "context": "Der Verlauf enthält Messwerte, ohne Details zu einzelnen Anfragen.",
+        "drawing": "Der Verlauf enthält weder die Zeichnung noch Ausführungsdetails.",
+        "needle": "Der Verlauf enthält Messwerte. Mit derselben Beispielnummer und denselben Einstellungen lässt sich der Testtext erneut erzeugen.",
+        "probe": "Der Verlauf enthält die Testübersicht, ohne Anfrage- oder Antwortinhalte."
+      }
     },
-    "idleHint": "Wählen Sie einen Schlüssel aus, um die Überprüfung zu starten. Für modellabhängige Sonden ist eine Modell-ID erforderlich.",
+    "intro": {
+      "probes": {
+        "decision": "Einen Beispielzustand an den Entscheidungsendpunkt senden und prüfen, ob ein Entscheidungswert oder Wahrscheinlichkeiten zurückgegeben werden.",
+        "embedding": "Sende einen Beispieltext und prüfe den zurückgegebenen Vektor und seine Dimensionen.",
+        "image-generation": "Sende einen Bildprompt, prüfe die Antwort und sieh dir das erzeugte Bild an.",
+        "models": "Modellnamen und Anzahl vom Endpunkt abrufen, um Modelle für weitere Tests auszuwählen.",
+        "rerank": "Sende eine Anfrage und Kandidatendokumente und prüfe deren Relevanzreihenfolge.",
+        "structured-output": "JSON mit ok: true vom Modell anfordern und den Feldwert sowie die Struktur prüfen.",
+        "text-generation": "Prüfen, ob das Modell auf eine Anweisung antwortet. Enthält die Antwort OK, gilt der Test als bestanden; Groß- und Kleinschreibung spielt keine Rolle.",
+        "tool-calling": "Das Modell soll das integrierte Zeitstempel-Werkzeug aufrufen. Wird dieser Aufruf erkannt, ist der Test bestanden.",
+        "video-generation": "Starte eine Videoerzeugung, warte auf den Status und prüfe das erzeugte Video.",
+        "web-search": "Prüfe, ob die API die Websuche nutzen kann, und sieh dir Ergebnisse und Quellen an."
+      },
+      "startHint": "Wähle <run>Ausführen</run>, um diesen Test zu starten."
+    },
     "loadingRuntimeKeysHint": "Schlüssel werden geladen...",
+    "mediaPreviewUnavailable": "Die Vorschau konnte nicht geladen werden.",
     "meta": {
       "apiType": "API-Typ",
       "apiTypePlaceholder": "API-Typ auswählen",
+      "configuration": "Anfragekonfiguration",
       "mode": "Testmodus",
       "model": "Modell",
       "modelPlaceholder": "Geben Sie die Modell-ID ein",
+      "requestProfile": "Client-Simulation",
       "runtimeKey": "Schlüssel",
       "runtimeKeyIncompatible": "Für dieses Modell nicht verfügbar",
       "runtimeKeyPlaceholder": "Schlüssel auswählen"
+    },
+    "modalityNotice": {
+      "image": "Dies ist ein Bildgenerierungsmodell; Testaufrufe verbrauchen Kontingent pro Anfrage.",
+      "quotaCost": "Pro Aufruf",
+      "video": "Erstellt ein Video und wartet bis zu zwei Minuten auf die Wiedergabe. Stoppen beendet nur das lokale Warten; die Serveraufgabe kann weiterlaufen und Kosten verursachen."
     },
     "modes": {
       "nonStreaming": "Ohne Streaming",
       "streaming": "Streaming"
     },
     "noCompatibleRuntimeKeyHint": "Für die Gruppe dieses Modells ist kein Schlüssel verfügbar. Erstellen oder wählen Sie einen Schlüssel für eine aktivierte Gruppe in der Schlüsselverwaltung aus.",
-    "notRunYet": "Noch nicht ausgeführt",
+    "openGeneratedMedia": "Generierte Medien öffnen",
     "probes": {
+      "decision": "Entscheidungsmodell",
+      "embedding": "Embedding",
+      "image-generation": "Bildgenerierung",
       "models": "Modellliste",
-      "structured-output": "Strukturierte Ausgabe (JSON-Schema)",
+      "rerank": "Reranker",
+      "structured-output": "Strukturierte Ausgabe",
       "text-generation": "Textgenerierung",
       "tool-calling": "Werkzeug-/Funktionsaufruf",
-      "web-search": "Websuche / Grounding"
+      "video-generation": "Videoaufgabe",
+      "web-search": "Websuche"
+    },
+    "requestProfiles": {
+      "claude": "Claude Code",
+      "codex": "Codex CLI",
+      "default": "Normale API",
+      "enhancedBadge": "Erweitert",
+      "enhancedCostHint": "Kann den Eingabeverbrauch erhöhen",
+      "enhancedHint": "Ergänzt bekannte Identitätsprompts, SDK-Header, Cache- und Sitzungsmerkmale. Kann die Eingabenutzung erhöhen; die Zulassung hängt von der Website ab.",
+      "enhancedLabel": "Erweiterte CLI-Simulation",
+      "gemini": "Gemini CLI",
+      "hint": "Bei der Auswahl eines Clients wird dessen Standardprotokoll eingestellt. Du kannst es anschließend manuell ändern. Die Tests simulieren die API-Anfragen des Clients, ohne eine CLI auf deinem Gerät zu starten.",
+      "protocolMismatch": "Weicht vom Standardprotokoll des Clients ({{apiType}}) ab; möglicherweise nicht kompatibel.",
+      "shortcutHint": "{{client}} ist ausgewählt. Starte einen Test oder wähle einen anderen Client.",
+      "shortcutTooltip": "Teste, ob diese API CLI-Clients unterstützt"
     },
     "requiresModelId": "Geben Sie eine Modell-ID ein, um diesen Test auszuführen.",
+    "sections": {
+      "onDemand": "Optionale Tests",
+      "routine": "Standardtests"
+    },
     "selectedRuntimeKeyIncompatibleHint": "Der ausgewählte Schlüssel ist für die Gruppe dieses Modells nicht verfügbar. Wählen Sie einen kompatiblen Schlüssel, bevor Sie die Überprüfung durchführen.",
+    "source": {
+      "account": "Konto: {{name}}",
+      "profile": "Zugangsdaten: {{name}}"
+    },
     "status": {
+      "emptyResponse": "Kein Antworttext",
       "fail": "Fehlgeschlagen",
+      "inconclusive": "Unbestimmt",
       "pass": "Bestanden",
+      "paused": "Pausiert",
       "pending": "Ausstehend",
+      "stopped": "Gestoppt",
+      "timeout": "Zeitüberschreitung",
       "unsupported": "Nicht unterstützt",
-      "unverified": "Nicht bestätigt"
+      "unverified": "Nicht getestet"
     },
     "summaries": {
+      "decisionSucceeded": "Entscheidungsüberprüfung erfolgreich.",
+      "decisionUnexpectedResponse": "Unerwartete Antwort der Entscheidungsschnittstelle.",
+      "embeddingSucceeded": "Embedding erfolgreich generiert (Dimension: {{dimension}}).",
+      "embeddingUnexpectedResponse": "Unerwartete Embedding-Antwort.",
+      "embeddingUnsupportedAnthropic": "Anthropic unterstützt keine nativen Embedding-Modelle.",
       "endpointNotFound": "Endpunkt nicht gefunden (404): Diese API wird möglicherweise nicht unterstützt",
       "forbidden": "Verboten (403): Zugriff verweigert",
       "httpError": "HTTP-Fehler ({{status}})",
+      "imageGenerationNoData": "Keine Bilddaten zurückgegeben.",
+      "imageGenerationSucceeded": "Bildgenerierung erfolgreich.",
       "modelsFetched": "{{count}} Modelle abgerufen.",
       "modelsFetched_one": "{{count}} Modell abgerufen.",
       "modelsFetched_other": "{{count}} Modelle abgerufen.",
@@ -75,6 +149,11 @@
       "noModelIdProvidedToRunProbes": "Keine Modell-ID zum Ausführen von Sonden angegeben.",
       "noModelsReturned": "Keine Modelle zurückgegeben.",
       "noToolCallDetected": "Kein Werkzeugaufruf erkannt (Modell unterstützt möglicherweise keine Werkzeuge).",
+      "probeRequiresOpenAiProtocol": "Dieser Test erfordert einen OpenAI-kompatiblen API-Endpunkt. Wählen Sie dieses Protokoll nur, wenn Ihr Dienst es unterstützt.",
+      "requestProfileIncompatible": "Diese Client-Simulation unterstützt das gewählte API-Protokoll oder den Test nicht.",
+      "requestTimedOut": "Die Anfrage hat das Zeitlimit überschritten und kein eindeutiges Ergebnis geliefert. Versuchen Sie es später erneut. Eine Zeitüberschreitung belegt nicht, dass das Modell diese Funktion nicht unterstützt.",
+      "rerankSucceeded": "Rerank erfolgreich.",
+      "rerankUnexpectedResponse": "Unerwartete Rerank-Antwort.",
       "stopped": "Vom Benutzer gestoppt.",
       "structuredOutputInvalid": "Ungültige Ausgabe.",
       "structuredOutputSucceeded": "Strukturierte Ausgabe erfolgreich.",
@@ -82,6 +161,12 @@
       "textGenerationUnexpectedResponse": "Unerwarteter Antworttext.",
       "toolCallSucceeded": "Werkzeugaufruf erfolgreich.",
       "unauthorized": "Nicht autorisiert (401): ungültiger Schlüssel oder fehlende Authentifizierung",
+      "videoGenerationSucceeded": "Video erfolgreich generiert.",
+      "videoGenerationTimedOut": "Die Videogenerierung wurde nicht innerhalb von zwei Minuten abgeschlossen. Die Serveraufgabe läuft möglicherweise weiter.",
+      "videoNoPlayableResult": "Die Videoaufgabe wurde ohne abspielbare URL abgeschlossen.",
+      "videoNoTaskReturned": "Keine Videoaufgaben-ID zurückgegeben.",
+      "videoTaskAccepted": "Videoaufgabe akzeptiert.",
+      "videoUnexpectedResponse": "Der Videoauftrag ist fehlgeschlagen oder hat eine ungültige Antwort zurückgegeben.",
       "webSearchGroundingNoResults": "Keine Ergebnisse für Websuche/Grounding.",
       "webSearchGroundingSucceeded": "Websuche/Grounding erfolgreich.",
       "webSearchNoResults": "Keine Web-Suchergebnisse.",
@@ -90,8 +175,228 @@
       "webSearchUnsupportedAnthropic": "Die Websuchprüfung wird für Anthropic-Endpunkte nicht unterstützt.",
       "webSearchUnsupportedForApiType": "Die Websuchprüfung wird für diesen API-Typ nicht unterstützt."
     },
-    "title": "API-Verifizierung",
+    "title": "API-Tests",
+    "tools": {
+      "agent": {
+        "calls": "Werkzeugaktivität",
+        "completed": "Eine SVG-Datei wurde erstellt. Beurteilen Sie die Zeichnung selbst.",
+        "files": "Arbeitsbereichsdateien",
+        "hint": "Das Modell prüft und verbessert seine Zeichnung. Dabei kann der Verbrauch steigen.",
+        "label": "Agent-Testmodus",
+        "noArtifact": "Das Modell hat kein vollständiges SVG in pelican.svg geschrieben. Die letzte Antwort wird nicht als Ergebnisdatei verwendet.",
+        "summary": "Runden: {{steps}} · Werkzeugaufrufe: {{calls}} · {{seconds}} s"
+      },
+      "context": {
+        "about": "Über den Modellkontext-Test",
+        "acceptedTitle": "Modellkontext: etwa {{tokens}} Tokens geprüft",
+        "comparison": "Metadaten geben {{expected}} Tokens an",
+        "continue": "Test fortsetzen",
+        "counter": "Tokenizer: {{encoding}}.",
+        "coverage": "Kontext ≈{{percent}}%",
+        "description": "Verwendet den angegebenen Modellkontext als Testgrenze, bei unbekanntem Wert bis zu 1M Tokens. Jede Serie hat ein kumulatives Eingabebudget von etwa 8M Tokens und kann nach einer Pause fortgesetzt werden.",
+        "details": "Testdetails",
+        "discard": "Unterbrochene Tests verwerfen",
+        "discardWarning": "Zu viele unterbrochene Tests sind gespeichert. Verwerfen Sie inaktive Einträge, um fortzufahren. Ihr Abrechnungsstatus ist unbekannt; laufende Tests bleiben erhalten.",
+        "emptyResponse": "Die Antwort endete normal ohne Antworttext; die Eingabeannahme bleibt unbestätigt.",
+        "errorTitle": "Test konnte nicht abgeschlossen werden",
+        "estimated": "Modellkodierung geschätzt.",
+        "hint": "Prüft den Eingabekontext, den das Modell akzeptiert. Das Ergebnis hängt von API und Anfragekonfiguration ab und bestätigt nicht das gesamte Kontextfenster.",
+        "historyError": "Verlauf nicht verfügbar. Das aktuelle Ergebnis wird weiterhin angezeigt.",
+        "incompleteResponse": "Keine eindeutige Antwort erhalten. Beendigungsgrund: {{reason}}.",
+        "interrupted": "Die Anfrage wurde unterbrochen; der Abrechnungsstatus ist unbekannt. Sie wurde nicht erneut gesendet. Ein neuer Test kann zusätzliche Nutzung verursachen.",
+        "lower": "Größte angenommene Eingabe: {{tokens}} lokale Texttokens",
+        "maskedHistoryHint": "Gespeicherte Messung für diesen maskierten Schlüssel. Die aktuellen Zugangsdaten wurden nicht erneut geprüft.",
+        "matched": "Modellkodierung zugeordnet; die Tokenzahl der gesamten Anfrage kann abweichen.",
+        "measuredBadge": "≈{{tokens}} Tokens akzeptiert",
+        "measurementDetails": "Messgrundlage",
+        "outputLimited": "Eingabe angenommen; die Ausgabe wurde an einer Längengrenze abgeschnitten. Die Eingabeannahme bleibt bestätigt.",
+        "pausedTitle": "Test pausiert",
+        "progress": "Anfragen: {{requests}} · Kumuliertes Eingabebudget: ca. {{tokens}} Tokens (einschließlich fehlgeschlagener Anfragen)",
+        "reasons": {
+          "bracketed": "Ungefähre Eingabegrenze dieser Verbindung gefunden.",
+          "budget": "Das Anfrage- oder Eingabebudget dieses Durchlaufs ist erreicht. Fortsetzen erlaubt weitere Nutzung ab dieser Stelle.",
+          "inconclusive": "Keine Kapazitätsgrenze bestätigt. Erneut versuchen oder Ursache in den Ausführungsdetails prüfen.",
+          "test-limit": "Diese Eingabelänge wurde angenommen. Die tatsächliche Kapazität kann größer sein.",
+          "timeout": "Die Anfrage hat das Zeitlimit überschritten, bevor die Annahme der Eingabe bestätigt werden konnte. Dies belegt keine Überschreitung der Modellkapazität. Versuchen Sie es später erneut. Dabei wird der lange Text erneut gesendet und es können Kosten entstehen."
+        },
+        "reportedUsage": "Gemeldete Nutzung: Eingabe {{input}} + Ausgabe {{output}} = insgesamt {{total}} Tokens",
+        "requestDetails": "Anfrage und Nutzung",
+        "resultLabel": "Kontextkapazität: Ergebnis",
+        "run": "Kontext prüfen",
+        "startHint": "Sendet langen Text und verbraucht API-Kontingent. Pausiert am Nutzungslimit.",
+        "stoppedTitle": "Test gestoppt",
+        "title": "Modellkontext-Test",
+        "unableTitle": "Eingabekapazität nicht bestätigt",
+        "upper": "Kapazitätsablehnung bei: {{tokens}} lokalen Text-Tokens"
+      },
+      "errors": {
+        "unexpected": "Anfrage fehlgeschlagen: {{message}}"
+      },
+      "needle": {
+        "automatic": "Automatisch",
+        "automaticLimit": "Automatisch ({{limit}})",
+        "budget": "Etwa {{tokens}} Eingabe-Tokens, zuzüglich Ausgabe. Der Test verbraucht Ihr API-Kontingent.",
+        "cancelledCell": "Abgebrochen",
+        "cancelledUnknown": "Es wurde kein auswertbares Ergebnis erzielt.",
+        "capacityRunning": "Der verfügbare Kontext wird geprüft. Danach werden die Testlängen aktualisiert.",
+        "capped": "Pro Anfrage werden höchstens 1M Eingabe-Tokens getestet.",
+        "cell": "Lokale Eingabe: {{tokens}} Tokens · Tatsächliche Position: {{depth}}% · {{latency}} ms",
+        "cellDetails": "Zelldetails",
+        "cumulativeScore": "Gesamtergebnisse: {{hits}}/{{graded}} auswertbare Antworten stimmen überein",
+        "custom": "Benutzerdefiniert",
+        "customLimit": "Eigene Länge (Tokens)",
+        "description": "Prüft, ob das Modell einen bestimmten Eintrag an verschiedenen Stellen eines langen Textes findet.",
+        "errors": {
+          "busy": "Für diese Verbindung läuft bereits ein Test auf einer anderen Seite.",
+          "failed": "Der Nadeltest konnte nicht abgeschlossen werden: {{detail}}",
+          "metadata": "Kontextinformationen konnten nicht geladen werden. Bitte erneut versuchen.",
+          "request": "Wähle ein Modell und gültige Zugangsdaten aus."
+        },
+        "exactLengths": "Genaue Längen: {{lengths}} Tokens",
+        "exactTotal": "Geschätzte Gesamteingabe: {{tokens}} Tokens",
+        "expected": "Erwartet: {{value}}",
+        "invalid": "Die Textlänge muss eine ganze Zahl von 1.024 bis 1.048.576 sein, die Beispielnummer eine ganze Zahl von 0 bis 4.294.967.295.",
+        "length": "Tokens",
+        "lengthRule": "Die Längen verdoppeln sich ab 8K. Die letzte Stufe entspricht dem Eingabelimit von {{limit}}.",
+        "limit": "Maximale Textlänge (Tokens)",
+        "limitation": "Ein Treffer bestätigt nur diese Stichprobe. Ein Fehlschlag beweist weder eine Kürzung noch ein kleineres Kontextfenster oder ein anderes Modell.",
+        "matrix": "Suchergebnisse nach Eingabelänge und Position",
+        "matrixHint": "Klicken Sie auf einen Status, um Details zu sehen und die Zelle zu testen oder erneut zu testen. Zeilen- und Spaltenschaltflächen testen alle zugehörigen Zellen, auch solche mit vorhandenen Ergebnissen. Stopp gilt nur für die jeweilige Zelle, Zeile oder Spalte.",
+        "notRun": "Nicht getestet",
+        "notScheduled": "Nicht in diesem Lauf",
+        "outcomes": {
+          "contextLimit": "Zu lang",
+          "error": "Fehler",
+          "hit": "Treffer",
+          "incomplete": "Unvollständig",
+          "interrupted": "Unbekannt",
+          "miss": "Verfehlt"
+        },
+        "planDetails": "Wie werden die Längen gewählt?",
+        "planned": "Geplant",
+        "plannedLengths": "Textlängen (Tokens)",
+        "positionRule": "Jede Länge wird bei {{positions}} getestet, also am Anfang, in der Mitte und am Ende.",
+        "preparing": "Testplan wird vorbereitet…",
+        "preparingCellState": "Vorbereitung…",
+        "previewPositions": "Jede Länge wird an den Positionen {{positions}} getestet.",
+        "previewTitle": "Testvorschau",
+        "previousResult": "Vorheriges Ergebnis (vor diesem Durchlauf)",
+        "probeFirst": "Verfügbaren Kontext prüfen",
+        "progress": "Letzter Durchlauf: {{completed}}/{{total}} Anfragen verarbeitet",
+        "quick": "Nur den längsten Text testen",
+        "quickHint": "Nur die drei Positionen der längsten geplanten Eingabe testen. Andere Längen sind ausgeschlossen und können separat zeilen- oder spaltenweise getestet werden.",
+        "randomSample": "Neues Zufallsbeispiel",
+        "reasons": {
+          "budget": "Budget erreicht",
+          "complete": "Abgeschlossen",
+          "error": "Anfrage fehlgeschlagen",
+          "interrupted": "Unterbrochen; Ergebnis unbekannt"
+        },
+        "reference": {
+          "context": "Modellangabe: {{tokens}} Kontext (ungeprüft)",
+          "input": "Modellangabe: {{tokens}} Eingabelimit (ungeprüft)",
+          "measured": "Zuvor akzeptiert: {{tokens}} Eingabe (Maximum unbekannt)",
+          "unknown": "Kontextlimit unbekannt. Automatisch werden vorläufig {{tokens}} Tokens verwendet; eine Kontextprüfung aktualisiert den Wert."
+        },
+        "reproduce": "Stichprobe {{seed}} · Tokenizer: {{encoding}}.",
+        "requestCount_one": "{{count}} Anfrage",
+        "requestCount_other": "{{count}} Anfragen",
+        "requestDetails": "Anfrage- und Antwortdetails",
+        "resultDetails": "Testparameter und Reproduktion",
+        "retestCell": "Diese Zelle erneut testen",
+        "retestColumn": "Spalte {{depth}}% erneut testen ({{requests}})",
+        "retestRow": "Zeile {{length}} erneut testen ({{requests}})",
+        "retry": "Erneut versuchen",
+        "run": "Suchtest starten",
+        "runCell": "Diese Zelle testen",
+        "runColumn": "Spalte {{depth}}% ausführen ({{requests}})",
+        "runRow": "Zeile {{length}} ausführen ({{requests}})",
+        "savedResult": "Gespeichertes Ergebnis",
+        "scopeProgress": "{{completed}}/{{total}} verarbeitet",
+        "score": "{{hits}}/{{total}} Treffer",
+        "seedHint": "Leer lassen für ein neues Beispiel bei jedem Test. Dieselbe Nummer und dieselben Einstellungen erzeugen denselben Text.",
+        "seedInput": "Testbeispielnummer (optional)",
+        "singleLengthRule": "Dieser Plan testet nur eine Länge: {{limit}}.",
+        "sources": {
+          "custom": "Sie haben die maximale Testeingabe auf {{limit}} gesetzt. Der Plan verwendet dieses Limit.",
+          "declaredContext": "Die Modelldaten nennen {{context}} Gesamtkontext. Nach {{reserve}} Reserve für die Antwort bleiben {{input}} für die Eingabe. Dies wurde mit der aktuellen API noch nicht verifiziert.",
+          "declaredInput": "Die Modelldaten nennen ein separates Eingabelimit von {{input}}, das die Testlängen bestimmt. Dies wurde mit der aktuellen API noch nicht verifiziert.",
+          "fallback": "Es liegen keine nutzbaren Modelllimits oder akzeptierten Eingaben vor. Der Plan verwendet das Standardlimit {{limit}}. Ändern Sie es in den Testeinstellungen oder prüfen Sie zuerst den verfügbaren Kontext.",
+          "measured": "Ausgehend von zuvor durch diese Verbindung akzeptierten Eingaben testet dieser Plan bis {{limit}}. Das belegt keine maximale Modellkapazität."
+        },
+        "stopCapacity": "Kontextprüfung stoppen",
+        "stopCell": "{{length}} · {{depth}}% stoppen",
+        "stopColumn": "Spalte {{depth}}% stoppen",
+        "stopFailed": "Stoppen fehlgeschlagen. Erneut versuchen.",
+        "stoppingCell": "Wird gestoppt…",
+        "stopRow": "Zeile {{length}} stoppen",
+        "title": "Nadel im Heuhaufen",
+        "tokenUnits": "In diesem Test gilt: 1K = 1.024 Tokens und 1M = 1.048.576 Tokens."
+      },
+      "pelican": {
+        "analysis": "{{shapes}} Formen · {{wheels}} Kreise/Ellipsen · viewBox {{viewBox}}",
+        "description": "Lässt das Modell einen Pelikan auf einem Fahrrad als SVG zeichnen, um das Ergebnis direkt zu vergleichen. Die Bewertung bleibt manuell.",
+        "noSvg": "Das Modell hat kein SVG zurückgegeben.",
+        "outcomes": {
+          "error": "Ausführung fehlgeschlagen",
+          "generated": "Zeichnung erzeugt",
+          "no-artifact": "Keine Zeichnung erzeugt"
+        },
+        "previewAlt": "Erzeugte Zeichnung",
+        "previewFailed": "Das SVG konnte nicht angezeigt werden. Es enthält möglicherweise ungültiges XML, etwa doppelte Attribute. Öffnen Sie die ursprüngliche Antwort oder die Arbeitsbereichsdateien zur Prüfung.",
+        "raw": "Rohe Antwort",
+        "run": "Zeichentest starten",
+        "title": "Zeichentest",
+        "unsafe": "Die Antwort enthielt Skripte oder externe Verweise und wurde nicht gerendert."
+      },
+      "prompts": {
+        "editorLabel": "Prompt für {{probe}}",
+        "label": "Prompt",
+        "resetOne": "Diesen Prompt zurücksetzen",
+        "saveFailed": "Prompts konnten nicht gespeichert werden: {{message}}",
+        "sharedHint": "Gespeicherte Prompts gelten für alle Testzugänge."
+      },
+      "questionAnswer": {
+        "comparison": "Antwortvergleich",
+        "comparisonHint": "Nur der Text der endgültigen Antwort wird verglichen. Prüfe die vollständige Antwort, um die Begründung zu beurteilen.",
+        "description": "Mit einer eigenen Frage die Antwort und Begründung des Modells ansehen. Eine Referenzantwort ermöglicht den Vergleich der endgültigen Antwort.",
+        "draftChanged": "Frage oder Referenzantwort wurde geändert. Dieses Ergebnis stammt vom vorherigen Durchlauf. Starte den Test erneut, um die Änderungen zu vergleichen.",
+        "finalAnswer": "Extrahierte endgültige Antwort",
+        "loadFailed": "Frageneinstellungen konnten nicht geladen werden. Versuchen Sie es erneut, um den gespeicherten Entwurf zu laden.",
+        "notIdentified": "Nicht erkannt",
+        "outcomes": {
+          "empty": "Keine Antwort erhalten",
+          "incomplete": "Unvollständige Antwort",
+          "manual": "Antwort erhalten",
+          "matched": "Stimmt mit Referenz überein",
+          "mismatched": "Weicht von Referenz ab",
+          "ungraded": "Schlussantwort unklar"
+        },
+        "question": "Frage",
+        "questionRequired": "Gib eine Frage ein, um den Test zu starten.",
+        "reference": "Referenzantwort (optional)",
+        "requestFailed": "Anfrage fehlgeschlagen",
+        "reset": "Frage und Referenzantwort zurücksetzen",
+        "response": "Modellantwort",
+        "rules": {
+          "extraction": "Bei einer Referenz wird das Modell aufgefordert, seine Endantwort in der letzten Zeile mit FINAL_ANSWER: einzuleiten. Der Text nach dem Doppelpunkt wird extrahiert. Ohne Referenz wird die Antwort ohne Bewertung angezeigt.",
+          "matching": "Äußere Leerzeichen werden entfernt und Kompatibilitätszeichen, etwa vollbreite Zeichen, normalisiert. Danach muss der Text exakt übereinstimmen. Beispiel: ２１ entspricht 21, aber 21 Stück entspricht nicht 21. Großschreibung, Satzzeichen und innere Leerzeichen bleiben relevant.",
+          "privacy": "Die Referenz wird nur lokal verwendet und nicht an das Modell gesendet.",
+          "title": "Vergleichsregeln",
+          "unavailable": "Ohne formatierte Endantwort gilt nur eine vollständig mit der Referenz übereinstimmende Antwort als Treffer. Andernfalls wird die Endantwort als unklar angezeigt. Leere oder unvollständige Antworten werden separat gemeldet."
+        },
+        "run": "Fragentest starten",
+        "runQuestion": "Frage dieses Testlaufs",
+        "runReference": "Referenzantwort dieses Durchlaufs",
+        "saveFailed": "Einstellungen konnten nicht gespeichert werden. Der aktuelle Entwurf bleibt nutzbar.",
+        "saving": "Wird gespeichert…",
+        "title": "Fragen und Antworten"
+      },
+      "settingsTitle": "Testeinstellungen",
+      "stop": "Stop",
+      "stopped": "Vor dem Abschluss gestoppt; nichts wurde gespeichert."
+    },
     "unsupportedProbeForApiType": "Die Prüfung „{{probe}}“ wird für diesen API-Typ nicht unterstützt.",
-    "warning": "Wenn Unterstützung erkannt wird, ist es sehr wahrscheinlich, dass es sich um eine echte Unterstützung handelt. Wenn keine Unterstützung erkannt wird, wird sie möglicherweise trotzdem unterstützt. Die Ergebnisse dienen nur als Referenz; Verlassen Sie sich auf die tatsächliche Werkzeugnutzung."
+    "warning": "Die Ergebnisse gelten nur für die in diesem Test verwendete API, das Modell und die Anfragekonfiguration."
   }
 }

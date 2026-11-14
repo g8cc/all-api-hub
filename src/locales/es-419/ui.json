@@ -8,6 +8,57 @@
     "tokenBased": "Facturación por tokens"
   },
   "dialog": {
+    "aiToolbox": {
+      "actions": {
+        "export": "Exportar"
+      },
+      "appOptions": {
+        "claude": "Claude Code",
+        "claudedesktop": "Claude Desktop",
+        "codex": "Codex",
+        "dsh": "DeepSeek Harness",
+        "gemini": "Gemini CLI",
+        "grok": "Grok CLI",
+        "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "omp": "Oh My Pi",
+        "openclaw": "OpenClaw",
+        "opencode": "OpenCode",
+        "pi": "Pi"
+      },
+      "description": "Enviar esta configuración de proveedor directamente a AI Toolbox mediante deep link",
+      "descriptions": {
+        "apiFormat": "AI Toolbox reconstruye el proveedor para la app destino. Elige un protocolo solo cuando este proveedor no use el predeterminado de la app.",
+        "model": "Cuando están disponibles, los modelos se cargan desde /v1/models para seleccionarlos. También puedes escribir un id de modelo personalizado."
+      },
+      "fields": {
+        "apiFormat": "Protocolo de API",
+        "app": "App destino",
+        "baseUrl": "URL base de API",
+        "homepage": "URL de inicio",
+        "model": "Modelo predeterminado (opcional)",
+        "name": "Nombre del proveedor",
+        "notes": "Notas (opcional)"
+      },
+      "formatOptions": {
+        "anthropicMessages": "Anthropic Messages",
+        "automatic": "Automático (predeterminado de la app)",
+        "geminiNative": "Gemini Native",
+        "openAIChat": "OpenAI Chat Completions",
+        "openAIResponses": "OpenAI Responses"
+      },
+      "modelOptions": {
+        "none": "Sin modelo predeterminado"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com",
+        "homepage": "https://example.com",
+        "model": "p. ej. claude-3-opus",
+        "name": "p. ej. Acme Relay",
+        "notes": "Agregar notas de importación"
+      },
+      "title": "Exportar a AI Toolbox"
+    },
     "bookmarkAccountImport": {
       "actions": {
         "allowAndScan": "Elegir marcadores e iniciar importación por lotes",
@@ -18,24 +69,28 @@
         "collapseFolder": "Contraer carpeta",
         "expandAll": "Expandir todo",
         "expandFolder": "Expandir carpeta",
-        "importSelected_one": "Importar seleccionados ({{count}})",
-        "importSelected_many": "Importar seleccionados ({{count}})",
-        "importSelected_other": "Importar seleccionados ({{count}})",
+        "importSelected_one": "Agregar seleccionadas ({{count}})",
+        "importSelected_many": "Agregar seleccionadas ({{count}})",
+        "importSelected_other": "Agregar seleccionadas ({{count}})",
         "invertSelected": "Invertir selección",
-        "openAddAccount": "Abrir Agregar cuenta",
+        "openAddAccount": "Completar manualmente",
+        "retryFailed": "Reintentar pendientes",
         "scanSelected": "Escanear rango seleccionado",
         "selectAll": "Seleccionar todo"
       },
       "apiUnavailable": "Este navegador no expone marcadores nativos a la extensión.",
+      "bestEffortHelp": "Intentaremos agregarlas automáticamente. Algunos sitios pueden necesitar que inicies sesión, completes una verificación o agregues algunos datos.",
       "bookmarkCount_one": "{{count}} marcador",
       "bookmarkCount_many": "{{count}} marcadores",
       "bookmarkCount_other": "{{count}} marcadores",
-      "description": "Escanea por lotes URLs de marcadores del navegador y revisa candidatos de sitios de cuenta antes de importar.",
+      "description": "Agrega cuentas de tus sitios guardados en marcadores en un solo paso.",
       "empty": "No se devolvieron marcadores del navegador.",
       "failures": {
-        "detection": "La autodetección no pudo leer este sitio.",
-        "save": "No se pudo guardar la cuenta.",
-        "unknown": "La importación falló."
+        "detection": "Faltan algunos datos de la cuenta. Reintenta o completa manualmente.",
+        "login": "Inicia sesión en este sitio y vuelve a intentar agregarlo.",
+        "save": "Revisa y completa los datos de la cuenta antes de agregarla.",
+        "unknown": "La cuenta aún no se ha agregado. Reintenta o completa manualmente.",
+        "verification": "Este sitio requiere verificación. Elige «Completar manualmente» para continuar."
       },
       "folderCount_one": "{{count}} carpeta",
       "folderCount_many": "{{count}} carpetas",
@@ -45,16 +100,17 @@
       "includeExisting": "Incluir sitios que ya tienen cuentas guardadas",
       "initialSteps": {
         "chooseScope": "Elegir carpetas de marcadores",
-        "review": "Revisar candidatos de importación",
+        "review": "Revisar sitios por agregar",
         "skipExisting": "Omitir cuentas existentes de forma predeterminada"
       },
-      "initialValue": "Escanea por lotes los marcadores del navegador y convierte sitios relay guardados en candidatos de cuenta. Primero eliges las carpetas de marcadores, revisas los candidatos antes de importar y las cuentas existentes se omiten de forma predeterminada.",
+      "initialValue": "Elige tus sitios de retransmisión guardados, revisa la lista y agrégalos juntos. Las cuentas existentes se omiten de forma predeterminada.",
       "noCandidates": "No se encontraron URLs de marcadores web importables.",
       "permissionDenied": "No se concedió el permiso de marcadores. Puedes intentarlo de nuevo sin cerrar este diálogo.",
       "permissionNeeded": "El acceso a marcadores es opcional y solo se solicita para esta importación por lotes.",
       "readFailed": "No se pudo leer el árbol de marcadores del navegador.",
+      "recoveryHelp": "Para las cuentas pendientes, inicia sesión y reintenta o elige «Completar manualmente».",
       "reloadFailed": "La importación terminó, pero no se pudieron recargar los datos de cuenta. Actualiza la lista de cuentas e inténtalo de nuevo si las cuentas nuevas no son visibles.",
-      "resultSummary": "Importadas {{success}}, fallidas {{failed}}, omitidas {{skipped}}.",
+      "resultSummary": "Agregadas {{success}}, pendientes {{failed}}, omitidas {{skipped}}.",
       "scanning": "Escaneando marcadores del navegador...",
       "scopeHelp": "El escaneo solo crea una vista previa. Puedes volver aquí para ajustar la selección antes de importar.",
       "searchEmpty": "No hay ámbitos de marcadores coincidentes",
@@ -68,7 +124,7 @@
         "duplicate_many": "Omitido de forma predeterminada. Coincidencias con cuentas guardadas existentes: {{count}}",
         "duplicate_other": "Omitido de forma predeterminada. Coincidencias con cuentas guardadas existentes: {{count}}",
         "imported": "Importado",
-        "ready": "Listo para importar"
+        "ready": "Por agregar"
       },
       "title": "Importar cuentas desde marcadores",
       "untitledFolder": "Carpeta sin título"
@@ -78,13 +134,20 @@
         "export": "Exportar"
       },
       "appOptions": {
+        "agy": "Antigravity",
         "claude": "Claude",
+        "claudeDesktop": "Claude Desktop",
         "codex": "Codex",
+        "dsh": "DeepSeek Harness",
         "gemini": "Gemini",
         "grokbuild": "Grok CLI",
         "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "mcode": "MiniMax Code",
+        "omp": "Oh My Pi",
         "openclaw": "OpenClaw",
-        "opencode": "OpenCode"
+        "opencode": "OpenCode",
+        "pi": "Pi"
       },
       "description": "Enviar esta configuración de proveedor directamente a CC Switch mediante deep link",
       "descriptions": {
@@ -94,7 +157,7 @@
         "app": "App destino",
         "endpoint": "Endpoint de API",
         "homepage": "URL de inicio",
-        "model": "Modelo predeterminado (opcional)",
+        "model": "Modelo predeterminado",
         "name": "Nombre del proveedor",
         "notes": "Notas (opcional)"
       },
@@ -102,7 +165,9 @@
         "none": "Sin modelo predeterminado"
       },
       "notices": {
+        "claudeDesktop": "Requiere CC Switch v4.0.26 o posterior. Usa el formato de API Anthropic. Los modelos con nombre claude- o sin modelo se importan como conexión directa; los demás, como asignaciones de modelos mediante el enrutador local de CC Switch.",
         "hermes": "CC Switch importa Hermes con el protocolo Chat Completions. Durante la exportación, el nombre del proveedor se convierte en un identificador válido que solo contiene letras minúsculas, números y guiones. Para usar otro formato, como Anthropic Messages o Codex Responses, ajústalo en CC Switch después de importar.",
+        "modelRequired": "Requiere CC Switch v4.0.26 o posterior. Selecciona o ingresa un modelo antes de exportar. Usa el formato de API OpenAI Chat Completions.",
         "openclaw": "CC Switch actualmente no admite configurar formatos de API del servicio de IA OpenClaw mediante importación externa. Ajústalo en CC Switch después de importar si es necesario.",
         "opencode": "CC Switch actualmente no admite configurar formatos de API del servicio de IA OpenCode mediante importación externa. Ajústalo en CC Switch después de importar si es necesario."
       },
@@ -153,6 +218,7 @@
       "keyCopied": "Clave copiada al portapapeles",
       "loadFailed": "No se pudo cargar la lista de claves: {{error}}",
       "loading": "Cargando lista de claves...",
+      "managementConfigurationRequired": "Se requiere un token de administración para cargar y administrar la lista de claves del sitio. Las claves API guardadas se pueden seguir usando de forma independiente.",
       "noKeyFoundAfterCreate": "No se encontró ninguna clave después de crear una. Inténtalo de nuevo.",
       "noKeys": "Aún no hay datos de claves",
       "noKeysDescription": "Crea rápidamente una clave predeterminada o crea una clave personalizada con ajustes avanzados.",
@@ -296,11 +362,15 @@
     "expand": "Expandir",
     "firefox": {
       "confirm": "Confirmar",
+      "howOpenOptions": "Continuar en la página completa",
       "howOpenSidebar": "Cómo abrir la barra lateral",
       "limitation": "Limitación de función del navegador Firefox",
+      "openFailed": "No se pudo abrir el panel lateral ni la página completa. Inténtalo de nuevo.",
+      "openOptions": "Continuar en la página completa",
       "openSidebar": "Abrir barra lateral",
-      "popupLimitation": "Esta función no se puede usar normalmente en el popup del navegador Firefox. Usa el modo de barra lateral para agregar cuentas",
-      "sidebarInstruction": "Haz clic en el ícono de la extensión en la barra de herramientas del navegador y luego selecciona la opción 'Sidebar' para abrir el modo de barra lateral",
+      "optionsInstruction": "Usa el botón de abajo para abrir la página completa de administración de cuentas de la extensión.",
+      "popupLimitation": "El popup de Firefox puede cerrarse al abrir otra página. Agrega cuentas en el panel lateral o en la página completa.",
+      "sidebarInstruction": "Usa el botón de abajo para continuar en el panel lateral. Si no se puede abrir, se abrirá la página completa.",
       "warningTitle": "Recordatorio de limitación de función"
     },
     "kelivo": {
@@ -431,27 +501,32 @@
       "titleWithCookieInterceptor": "La actualización automática necesita verificar el sitio"
     },
     "updateLog": {
-      "autoOpenSetting": "Apertura automática del registro de cambios",
-      "disableAutoOpen": "No mostrar después de actualizaciones",
-      "enableAutoOpen": "Volver a habilitar después de actualizaciones",
       "loading": "Cargando changelog…",
-      "missingSection": "No se pudo cargar la vista previa del changelog de v{{version}}. Puedes abrir el changelog completo.",
-      "openFullChangelog": "Abrir changelog completo",
-      "starPrompt": "¿Te resulta útil All API Hub? Dale una estrella en GitHub para seguir las novedades",
+      "missingSection": "El historial de v{{version}} está tardando en cargar. Puedes abrir el historial completo.",
+      "openFullChangelog": "Ver historial completo",
+      "starPrompt": "Apoya las mejoras continuas con una estrella en GitHub",
       "title": "Novedades",
       "updatedTo": "Actualizado a v{{version}}"
     }
   },
   "feedback": {
     "bugReport": "Reportar un bug",
+    "clickAnywhereToClose": "Haz clic en cualquier lugar para cerrar",
     "community": "Grupos de comunidad",
+    "communityUnavailable": "No se pudieron cargar los enlaces de la comunidad. Abre la página de la comunidad para ver las invitaciones actuales.",
     "discussion": "Iniciar una discusión",
     "featureRequest": "Solicitar una función",
     "languageRequest": "Solicitar un idioma nuevo",
+    "openCommunityPage": "Abrir página de la comunidad",
     "siteSupportRequest": "Solicitar soporte de sitio",
+    "sponsor": "Patrocinar",
+    "sponsorTitle": "Ver patrocinadores y apoyo",
     "starOnGithub": "Dar una estrella en GitHub",
     "trigger": "Comentarios",
-    "triggerTooltip": "Abrir accesos rapidos de comentarios"
+    "triggerTooltip": "Abrir accesos rapidos de comentarios",
+    "wechat": "Grupo de WeChat",
+    "wechatHelp": "¿La invitación venció o el grupo está lleno? Escanea el código QR personal de la imagen para agregar al contacto y pedir una invitación, o visita la página de la comunidad.",
+    "wechatUnavailable": "No se pudo cargar el código QR."
   },
   "modelListInput": {
     "actions": {
@@ -505,6 +580,7 @@
     "basic": "Ajustes",
     "batchCheckin": "Check-in por lotes",
     "bookmark": "Gestión de marcadores",
+    "browserApiLab": "Laboratorio de API del navegador (Dev)",
     "categories": {
       "api": "API",
       "automation": "Automatización",
@@ -560,10 +636,12 @@
   "popupInterruption": {
     "actions": {
       "keepPopup": "Mantener popup",
-      "useSidepanel": "Usar barra lateral"
+      "useOptions": "Continuar en la página completa",
+      "useSidepanel": "Continuar en el panel lateral"
     },
-    "description": "El popup se cerró mientras se ejecutaba la autodetección de cuenta. Usa la barra lateral para un flujo de agregar cuenta más estable.",
-    "settingName": "Comportamiento de clic en la barra de herramientas",
+    "description": "El popup se cerró durante la detección automática de la cuenta. Continúa en el panel lateral; si no se puede abrir, se usará la página completa.",
+    "openFailed": "No se pudo abrir el panel lateral ni la página completa. Inténtalo de nuevo.",
+    "optionsDescription": "El popup se cerró durante la detección automática de la cuenta. Continúa agregando la cuenta en la página completa.",
     "title": "La autodetección puede haberse interrumpido"
   },
   "repeatableInput": {
@@ -582,6 +660,14 @@
   },
   "searchableSelect": {
     "empty": "No se encontraron resultados",
+    "fetchDetails": "Detalles del error",
+    "fetchEmpty": "La solicitud se completó, pero no devolvió modelos.",
+    "fetchEmptyLabel": "Lista vacía",
+    "fetchFailed": "No se pudo obtener la lista.",
+    "fetchSuccess_one": "Se obtuvo {{count}} modelo.",
+    "fetchSuccess_many": "Se obtuvieron {{count}} modelos.",
+    "fetchSuccess_other": "Se obtuvieron {{count}} modelos.",
+    "manualInputHint": "Puedes ingresar un ID de modelo directamente.",
     "noOptions": "No hay opciones disponibles",
     "noOptionsAllowCustom": "No hay opciones disponibles. Escribe para crear una",
     "searchPlaceholder": "Buscar...",
@@ -589,6 +675,7 @@
   },
   "secretList": {
     "add": "Agregar clave",
+    "clearedState": "Se borrará la clave guardada",
     "collapse": "Contraer API Key {{number}}",
     "configured": "Configurado",
     "enableKey": "Habilitar esta clave",
@@ -596,6 +683,7 @@
     "hide": "Ocultar clave",
     "keepPlaceholder": "Deja en blanco para conservar la clave guardada",
     "loadFailed": "No se pudo cargar esta clave. Inténtalo de nuevo.",
+    "maskedOnly": "Solo está disponible el valor enmascarado de esta clave guardada.",
     "newPlaceholder": "Ingresa la clave API",
     "newState": "Nueva, sin guardar",
     "previousDisableReason": "Motivo de la desactivación anterior: {{reason}}",
@@ -608,6 +696,12 @@
     "show": "Mostrar clave",
     "title": "Claves API"
   },
+  "sidebarFooter": {
+    "community": "Comunidad",
+    "docs": "Docs",
+    "github": "GitHub",
+    "sponsor": "Patrocinar"
+  },
   "starPromotion": {
     "actions": {
       "alreadyStarred": "Ya le di estrella",
@@ -616,7 +710,7 @@
       "star": "Dar estrella"
     },
     "cardDescription": "All API Hub es totalmente de código abierto, y sigue adaptándose a más sitios mientras mejora la experiencia. Una estrella sostiene su mantenimiento y ayuda a que más gente que lo necesita lo encuentre.",
-    "cardTitle": "¿Te sirve All API Hub?"
+    "cardTitle": "Apoya las mejoras continuas"
   },
   "textEntries": {
     "add": "Agregar fila",

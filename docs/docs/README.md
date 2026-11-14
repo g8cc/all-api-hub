@@ -63,7 +63,7 @@ footer: "AGPL-3.0 Licensed | Copyright 2025-present All API Hub"
 
 ### 🛠️ 我是进阶玩家 (Key 收藏家)
 - **密钥管理**：[将独立 URL+Key 保存到 API 凭据库](./api-credential-profiles.md)
-- **可用性测试**：[批量验证接口与 CLI 兼容性](./web-ai-api-check.md)
+- **可用性测试**：[网页 API 测试与客户端兼容性检查](./web-ai-api-check.md)
 - **跨端同步**：[配置 WebDAV 加密备份](./webdav-sync.md)
 
 ### 👑 我是站点管理员 (站长专区)
@@ -132,13 +132,13 @@ footer: "AGPL-3.0 Licensed | Copyright 2025-present All API Hub"
 
 <div class="readme-sponsor">
   <div class="readme-sponsor-logo">
-    <a href="https://www.packyapi.com/register?aff=all-api-hub">
+    <a href="https://www.packyapi.ai/register?aff=all-api-hub">
       <img src="../../resources/partners/packycode.png" alt="PackyCode">
     </a>
   </div>
   <p class="readme-sponsor-copy">
     PackyCode 是一家稳定、高效的API中转服务商，提供 Claude Code、Codex、Gemini 等多种中转服务。PackyCode
-    为本软件的用户提供了特别优惠，使用<a href="https://www.packyapi.com/register?aff=all-api-hub">此链接</a>注册并在充值时填写"all-api-hub"优惠码，首次充值可以享受9折优惠（<a href="./sponsor-guides/packycode.md">使用教程</a>）！
+    为本软件的用户提供了特别优惠，使用<a href="https://www.packyapi.ai/register?aff=all-api-hub">此链接</a>注册并在充值时填写"all-api-hub"优惠码，首次充值可以享受9折优惠（<a href="./sponsor-guides/packycode.md">使用教程</a>）！
   </p>
 </div>
 
@@ -159,33 +159,6 @@ footer: "AGPL-3.0 Licensed | Copyright 2025-present All API Hub"
 
 <div class="readme-sponsor">
   <div class="readme-sponsor-logo">
-    <a href="https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB">
-      <img src="../../resources/partners/xuanshu-api.png" alt="玄枢API">
-    </a>
-  </div>
-  <p class="readme-sponsor-copy">
-    玄枢API是面向企业、技术团队和个人开发者的新一代 AI 模型路由网关，提供企业级稳定性的全球顶级模型（Claude, GPT, Grok等）一站式API 接入。模型一折到六折，通过<a href="https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB">此链接</a>注册，充值额外加赠，首充送更多！企业支持对公转账和开票（<a href="./service-guides/xuanshuapi.md">使用教程</a>）。
-  </p>
-</div>
-
-<hr class="readme-sponsor-divider">
-
-<div class="readme-sponsor">
-  <div class="readme-sponsor-logo">
-    <a href="https://www.aicodemirror.ai/register?invitecode=7IQNR8">
-      <img src="../../resources/partners/aicodemirror.png" alt="AICodeMirror">
-    </a>
-  </div>
-  <p class="readme-sponsor-copy">
-    AICodeMirror 提供 Claude Code / Codex / Gemini CLI 官方高稳定中转服务，支持企业级高并发、极速开票、7×24 专属技术支持。Claude Code / Codex / Gemini 官方渠道低至 3.8 / 0.2 / 0.9 折，充值更有折上折！AICodeMirror
-    为 All API Hub 的用户提供了特别福利：通过<a href="https://www.aicodemirror.ai/register?invitecode=7IQNR8">此链接</a>注册，可享受首充 8 折，企业客户最高可享 7.5 折！
-  </p>
-</div>
-
-<hr class="readme-sponsor-divider">
-
-<div class="readme-sponsor">
-  <div class="readme-sponsor-logo">
     <a href="https://sui-xiang.com/">
       <img src="../../resources/partners/suixiang.jpg" alt="随想AI中转站">
     </a>
@@ -197,17 +170,27 @@ footer: "AGPL-3.0 Licensed | Copyright 2025-present All API Hub"
 
 <hr class="readme-sponsor-divider">
 
+<div class="readme-sponsor">
+  <div class="readme-sponsor-logo">
+    <a href="https://88api.ai/register?aff=XcTj">
+      <img src="../../resources/partners/88api.jpg" alt="88API Token聚合平台">
+    </a>
+  </div>
+  <p class="readme-sponsor-copy">
+    <strong>88API Token聚合平台</strong> 由香港企业运营的一站式多模型 API 平台，面向开发者、创作者与 AI 应用用户，通过统一接口接入文本、图片、语音和视频模型，覆盖 AI 编程、智能翻译、内容创作、配音、图像生成、视频生成等常见工作流。可直接在 CC Switch 中添加并切换 Provider，支持国际主流付款方式、发票与企业级稳定服务。 <a href="https://88api.ai/register?aff=XcTj">通过专属链接注册可获取赠送额度！</a>
+  </p>
+</div>
 
 <hr class="readme-sponsor-divider">
 
 <div class="readme-sponsor">
   <div class="readme-sponsor-logo">
-    <a href="https://go.apimart.ai/gh-all-api-hub">
-      <img src="../../resources/partners/apimart.png" alt="APIMart">
+    <a href="https://dzhsmartai.com/">
+      <img class="readme-sponsor-logo-small" src="../../resources/partners/ccccccapi.jpg" alt="ccccccapi">
     </a>
   </div>
   <p class="readme-sponsor-copy">
-    <strong>APIMart</strong> 专注 AI 图片/视频生成的低价 API 平台，GPT-Image-2 低至 <strong>$0.006/张</strong>，1 美元可出图 160+ 张。图片、视频一套异步 API 通吃，提交任务拿 ID、回调取结果，跑批万张不超时、换模型不改代码，按量付费、无月费。欢迎通过<a href="https://go.apimart.ai/gh-all-api-hub">此链接</a>注册使用。
+    <strong>ccccccapi</strong> 支持 ChatGPT、Claude、Gemini、Deepseek 等，全网最低价，用的不烧心，<a href="https://dzhsmartai.com/">是兄弟就来砍我！</a>
   </p>
 </div>
 

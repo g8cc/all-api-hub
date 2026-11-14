@@ -39,25 +39,19 @@ const DialogStateTestContext = createContext<{
   openAddAccount: () => void
 } | null>(null)
 
-function MockAccountDialog({
-  isOpen,
-  onOpenBookmarkImport,
-}: {
-  isOpen: boolean
-  onOpenBookmarkImport?: () => void
-}) {
-  return isOpen ? (
-    <div>
-      <div>AccountDialogOpen</div>
-      <button type="button" onClick={onOpenBookmarkImport}>
-        OpenBookmarkImportFromAccountDialog
-      </button>
-    </div>
-  ) : null
+function MockAccountDialog({ isOpen }: { isOpen: boolean }) {
+  return isOpen ? <div>AccountDialogOpen</div> : null
 }
 
-vi.mock("~/features/AccountManagement/hooks/DialogStateContext", () => ({
+vi.mock("~/features/AccountManagement/dialogs/useDialogStateContext", () => ({
   useDialogStateContext: () => {
+    const context = useContext(DialogStateTestContext)
+    if (!context) {
+      throw new Error("DialogStateTestContext missing")
+    }
+    return context
+  },
+  useAccountDialogActions: () => {
     const context = useContext(DialogStateTestContext)
     if (!context) {
       throw new Error("DialogStateTestContext missing")
@@ -66,38 +60,29 @@ vi.mock("~/features/AccountManagement/hooks/DialogStateContext", () => ({
   },
 }))
 
-vi.mock("~/features/AccountManagement/hooks/AccountManagementProvider", () => ({
-  AccountManagementProvider: ({
-    children,
-    onOpenBookmarkImport,
-  }: {
-    children: ReactNode
-    onOpenBookmarkImport?: () => void
-  }) => {
-    const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false)
-    return (
-      <DialogStateTestContext.Provider
-        value={{
-          openAddAccount: () => {
-            setIsAccountDialogOpen(true)
-            openAddAccountMock()
-          },
-        }}
-      >
-        {children}
-        <MockAccountDialog
-          isOpen={isAccountDialogOpen}
-          onOpenBookmarkImport={() => {
-            setIsAccountDialogOpen(false)
-            onOpenBookmarkImport?.()
+vi.mock(
+  "~/features/AccountManagement/workspace/AccountManagementProvider",
+  () => ({
+    AccountManagementProvider: ({ children }: { children: ReactNode }) => {
+      const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false)
+      return (
+        <DialogStateTestContext.Provider
+          value={{
+            openAddAccount: () => {
+              setIsAccountDialogOpen(true)
+              openAddAccountMock()
+            },
           }}
-        />
-      </DialogStateTestContext.Provider>
-    )
-  },
-}))
+        >
+          {children}
+          <MockAccountDialog isOpen={isAccountDialogOpen} />
+        </DialogStateTestContext.Provider>
+      )
+    },
+  }),
+)
 
-vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
+vi.mock("~/features/AccountManagement/data/AccountDataContext", () => ({
   useAccountDataContext: () => ({
     ...accountDataContextState.current,
     handleRefresh: handleRefreshMock,
@@ -105,7 +90,7 @@ vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
   }),
 }))
 
-vi.mock("~/features/AccountManagement/hooks/AccountActionsContext", () => ({
+vi.mock("~/features/AccountManagement/actions/AccountActionsContext", () => ({
   useAccountActionsContext: () => ({
     handleOpenExternalCheckIns: handleOpenExternalCheckInsMock,
   }),
@@ -248,7 +233,7 @@ describe("AccountManagement bookmark import entry point", () => {
     ).not.toHaveTextContent(firstInstance ?? "")
   })
 
-  it("opens bookmark account import from the add-account dialog", async () => {
+  it("opens the add-account workflow independently of bookmark import", async () => {
     const user = userEvent.setup()
 
     render(<AccountManagement />)
@@ -258,15 +243,8 @@ describe("AccountManagement bookmark import entry point", () => {
     )
     expect(await screen.findByText("AccountDialogOpen")).toBeInTheDocument()
 
-    await user.click(
-      screen.getByRole("button", {
-        name: "OpenBookmarkImportFromAccountDialog",
-      }),
-    )
-
     expect(
-      await screen.findByText("BookmarkAccountImportDialogOpen"),
-    ).toBeInTheDocument()
-    expect(screen.queryByText("AccountDialogOpen")).not.toBeInTheDocument()
+      screen.queryByText("BookmarkAccountImportDialogOpen"),
+    ).not.toBeInTheDocument()
   })
 })

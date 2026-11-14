@@ -9,19 +9,32 @@ import { createAccountApiRequestFromStoredAccount } from "~/services/accounts/ut
 import {
   getSub2ApiAuthPersistenceStatus,
   SUB2API_AUTH_PERSISTENCE_STATUSES,
-} from "~/services/apiService/sub2api/authSession"
+} from "~/services/apiService/sub2api/auth/authSession"
+import {
+  SUB2API_CHECK_IN_RECOVERY_REASONS,
+  Sub2ApiCheckInRecoveryBlockedError,
+} from "~/services/apiService/sub2api/checkin/unauthorizedRecovery"
+import { convertUsdBalanceToQuota } from "~/services/apiService/sub2api/parsing"
 import { ApiError } from "~/services/apiTransport/errors"
+import { bindApiTransportRequest } from "~/services/apiTransport/recovery"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ApiServiceRequest } from "~/services/apiTransport/type"
 import {
   AUTO_CHECKIN_ERROR_CATEGORIES,
   classifyAutoCheckinError,
 } from "~/services/checkin/autoCheckin/errors"
-import { AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS } from "~/services/checkin/autoCheckin/providers/shared"
-import type { AutoCheckinProviderResult } from "~/services/checkin/autoCheckin/providers/types"
+import {
+  AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS,
+  createTerminalFailureResult,
+  readPositiveDecimalAmount,
+} from "~/services/checkin/autoCheckin/providers/shared"
+import type { AutoCheckinProviderOutcome } from "~/services/checkin/autoCheckin/providers/types"
 import type { SiteAccount } from "~/types"
 import {
   AUTO_CHECKIN_SKIP_REASON,
   CHECKIN_RESULT_STATUS,
+  type AutoCheckinSkipReason,
+  type CheckInReward,
 } from "~/types/autoCheckin"
 import { normalizeTempWindowRequestSource } from "~/utils/browser/tempWindowRequestSource"
 
@@ -52,14 +65,20 @@ export const createSub2ApiCheckInReadRequest = (
 export const createSub2ApiCheckInMutationRequest = (
   account: SiteAccount,
   context: AutoCheckinProviderContext,
-): ApiServiceRequest => ({
-  ...createAccountApiRequestFromStoredAccount(account).request,
-  tempWindowRequestSource: normalizeTempWindowRequestSource(
-    context.tempWindowRequestSource,
-  ),
-  protectionBypassExecution: context.protectionBypassExecution,
-  ...(context.mutationLifecycle ? { observer: context.mutationLifecycle } : {}),
-})
+): ApiServiceRequest =>
+  bindApiTransportRequest(
+    {
+      ...createAccountApiRequestFromStoredAccount(account).request,
+      tempWindowRequestSource: normalizeTempWindowRequestSource(
+        context.tempWindowRequestSource,
+      ),
+      protectionBypassExecution: context.protectionBypassExecution,
+      ...(context.mutationLifecycle
+        ? { observer: context.mutationLifecycle }
+        : {}),
+    },
+    API_DIRECT_REQUEST_REASONS.CallerManaged,
+  )
 
 export const toSub2ApiCheckInStatus = (
   status: { enabled: boolean; checkedInToday: boolean },
@@ -81,40 +100,65 @@ export const toSub2ApiCheckInStatus = (
 }
 
 export const failedSub2ApiCheckIn = (
-  reasonCode: AutoCheckinProviderResult["reasonCode"],
-  retryable?: boolean,
-): AutoCheckinProviderResult => ({
+  reasonCode: AutoCheckinSkipReason,
+): AutoCheckinProviderOutcome => ({
   status: CHECKIN_RESULT_STATUS.FAILED,
   reasonCode,
-  ...(typeof retryable === "boolean" ? { retryable } : {}),
   messageKey: AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinFailed,
 })
+
+/**
+ * Read an award a Sub2API-family deployment reports as a USD decimal amount.
+ *
+ * This family quotes balances in USD (`convertUsdBalanceToQuota`), so its
+ * check-in award needs the same conversion before it can be stored or shown
+ * next to the account's quota.
+ */
+export function readUsdReward(value: unknown): CheckInReward | undefined {
+  const usd = readPositiveDecimalAmount(value)
+  if (usd === undefined) return undefined
+  const quota = convertUsdBalanceToQuota(usd)
+  return Number.isFinite(quota) && quota > 0 ? { quota } : undefined
+}
 
 /** Shared fallback for single-step methods; Denxio owns its upstream error codes. */
 export const mapSub2ApiCheckInMutationError = (
   error: unknown,
   context: AutoCheckinProviderContext,
-): AutoCheckinProviderResult => {
+): AutoCheckinProviderOutcome => {
+  if (error instanceof Sub2ApiCheckInRecoveryBlockedError) {
+    switch (error.reason) {
+      case SUB2API_CHECK_IN_RECOVERY_REASONS.AlreadyChecked:
+        return {
+          status: CHECKIN_RESULT_STATUS.ALREADY_CHECKED,
+          messageKey:
+            AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.alreadyCheckedToday,
+        }
+      case SUB2API_CHECK_IN_RECOVERY_REASONS.Disabled:
+        return failedSub2ApiCheckIn(AUTO_CHECKIN_SKIP_REASON.METHOD_DISABLED)
+      case SUB2API_CHECK_IN_RECOVERY_REASONS.StatusUnavailable:
+        return failedSub2ApiCheckIn(AUTO_CHECKIN_SKIP_REASON.STATUS_UNAVAILABLE)
+      case SUB2API_CHECK_IN_RECOVERY_REASONS.PreconditionFailed:
+        return failedSub2ApiCheckIn(
+          AUTO_CHECKIN_SKIP_REASON.ACCOUNT_UNAVAILABLE,
+        )
+    }
+  }
   const persistenceStatus = getSub2ApiAuthPersistenceStatus(error)
   if (
     persistenceStatus === SUB2API_AUTH_PERSISTENCE_STATUSES.IDENTITY_MISMATCH
   ) {
     return failedSub2ApiCheckIn(
       AUTO_CHECKIN_SKIP_REASON.AUTHENTICATION_REQUIRED,
-      false,
     )
   }
   if (persistenceStatus === SUB2API_AUTH_PERSISTENCE_STATUSES.ACCOUNT_MISSING) {
-    return failedSub2ApiCheckIn(
-      AUTO_CHECKIN_SKIP_REASON.ACCOUNT_UNAVAILABLE,
-      false,
-    )
+    return failedSub2ApiCheckIn(AUTO_CHECKIN_SKIP_REASON.ACCOUNT_UNAVAILABLE)
   }
   if (persistenceStatus === SUB2API_AUTH_PERSISTENCE_STATUSES.WRITE_FAILED) {
-    return failedSub2ApiCheckIn(
-      AUTO_CHECKIN_SKIP_REASON.STATUS_UNAVAILABLE,
-      false,
-    )
+    return createTerminalFailureResult({
+      reasonCode: AUTO_CHECKIN_SKIP_REASON.ACCOUNT_STATE_WRITE_FAILED,
+    })
   }
 
   const statusCode = error instanceof ApiError ? error.statusCode : undefined

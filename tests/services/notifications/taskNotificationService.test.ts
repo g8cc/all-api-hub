@@ -54,14 +54,14 @@ vi.mock("~/services/permissions/permissionManager", () => ({
   hasPermission: hasPermissionMock,
 }))
 
-vi.mock("~/utils/browser/browserApi", () => ({
+vi.mock("~/utils/browser/notifications", () => ({
   clearNotification: clearNotificationMock,
   createNotification: createNotificationMock,
   hasNotificationsAPI: hasNotificationsAPIMock,
   onNotificationClicked: onNotificationClickedMock,
 }))
 
-vi.mock("~/utils/navigation", () => ({
+vi.mock("~/utils/navigation/optionsPage", () => ({
   openOrFocusOptionsMenuItem: openOrFocusOptionsMenuItemMock,
 }))
 
@@ -287,6 +287,49 @@ describe("taskNotificationService", () => {
           "settings:taskNotifications.notification.title.partialSuccess:settings:taskNotifications.tasks.autoCheckin",
         message:
           "settings:taskNotifications.notification.body.partialSuccess:settings:taskNotifications.tasks.autoCheckin total 4 success 1 already checked 1 failed 1 pending 1 skipped 0",
+      }),
+    )
+  })
+
+  it("preserves all-skipped model-sync content and counts in browser and webhook delivery", async () => {
+    getPreferencesMock.mockResolvedValueOnce({
+      taskNotifications: {
+        ...DEFAULT_TASK_NOTIFICATION_PREFERENCES,
+        channels: {
+          ...DEFAULT_TASK_NOTIFICATION_PREFERENCES.channels,
+          [TASK_NOTIFICATION_CHANNELS.Webhook]: {
+            enabled: true,
+            url: "https://hooks.example.com/model-sync?skipped={skipped}",
+          },
+        },
+      },
+    })
+    const payload = {
+      task: TASK_NOTIFICATION_TASKS.ManagedSiteModelSync,
+      status: TASK_NOTIFICATION_STATUSES.Success,
+      counts: { total: 3, success: 0, failed: 0, skipped: 3 },
+      title: "Model sync: all channels skipped",
+      message: "No models were fetched or updated.",
+    }
+    await expect(notifyTaskResult(payload)).resolves.toBe(true)
+    const expectedContent = {
+      title: payload.title,
+      message: `${payload.message} total 3 success 0 failed 0 skipped 3`,
+    }
+    expect(createNotificationMock).toHaveBeenCalledWith(
+      getTaskNotificationId(TASK_NOTIFICATION_TASKS.ManagedSiteModelSync),
+      expect.objectContaining(expectedContent),
+    )
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://hooks.example.com/model-sync?skipped=3",
+      expect.objectContaining({
+        body: JSON.stringify({
+          source: "all-api-hub",
+          ...expectedContent,
+          task: payload.task,
+          status: payload.status,
+          counts: payload.counts,
+        }),
       }),
     )
   })

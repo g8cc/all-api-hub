@@ -1,33 +1,11 @@
-import type { ManagedSiteMessagesKey } from "~/services/accountSiteDefinitions/contracts"
-import type {
-  ManagedResourceModelSyncBatchOptions,
-  ManagedResourceModelSyncWorkflow,
-} from "~/services/apiAdapters/contracts/managedResourceModelSync"
 import {
   isManagedResourceRef,
   type ManagedResourceRef,
 } from "~/services/apiAdapters/contracts/managedResourceNative"
-import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
-import { ensureLegacyChannelConfigMigrationReady } from "~/services/managedSites/legacyChannelConfigMigration"
-import {
-  assertManagedResourceRefForSite,
-  getManagedResourceRefKey,
-  toManagedUpstreamResourceRef,
-} from "~/services/managedSites/managedResourceIdentity"
-import type { ManagedSiteRuntimeConfig } from "~/services/managedSites/runtimeConfig"
-import {
-  getManagedSiteRuntimeConfigFingerprint,
-  resolveCurrentManagedSiteRuntimeConfig,
-} from "~/services/managedSites/runtimeConfig"
-import {
-  getManagedSiteConfigMissingMessage,
-  getManagedSiteContext,
-  getManagedSiteNoChannelsToSyncMessage,
-  getManagedSiteUnsupportedModelSyncMessage,
-  supportsManagedSiteModelSync,
-} from "~/services/managedSites/utils/managedSite"
-import { ModelRedirectService } from "~/services/models/modelRedirect"
+import { resolveCurrentManagedSiteRuntimeConfig } from "~/services/managedSites/configuration/runtimeConfig"
+import { getManagedSiteContext } from "~/services/managedSites/utils/managedSite"
 import { notifyTaskResult } from "~/services/notifications/taskNotificationService"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import { startProductAnalyticsAction } from "~/services/productAnalytics/actions"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
@@ -39,31 +17,18 @@ import {
   type ProductAnalyticsErrorCategory,
   type ProductAnalyticsManagedSiteType,
 } from "~/services/productAnalytics/contracts"
-import { resolveProductAnalyticsManagedSiteType } from "~/services/productAnalytics/managedSite"
+import { resolveProductAnalyticsManagedSiteType } from "~/services/productAnalytics/facts/managedSite"
 import {
-  createAutomaticProtectionBypassExecution,
   INVALID_PROTECTION_BYPASS_EXECUTION_ERROR,
   isManualModelSyncProtectionBypassExecution,
   PROTECTION_BYPASS_AUTOMATIC_TRIGGERS,
-  PROTECTION_BYPASS_FEATURES,
-  PROTECTION_BYPASS_SURFACES,
-  type ProtectionBypassAutomaticTrigger,
   type ProtectionBypassExecution,
 } from "~/services/protectionBypass/contracts"
 import { ModelSyncMessageTypes } from "~/services/runtimeMessaging/messageTypes"
 import type { ChannelModelFilterRule } from "~/types/channelModelFilters"
-import type {
-  ManagedModelChannel,
-  ManagedModelChannelSummaryListData,
-} from "~/types/managedResourceModels"
 import {
-  ALL_PRESET_STANDARD_MODELS,
-  DEFAULT_MODEL_REDIRECT_PREFERENCES,
-} from "~/types/managedSiteModelRedirect"
-import {
-  type ExecutionItemResult,
+  getModelSyncItemStatus,
   type ExecutionResult,
-  type ScopedExecutionProgress,
 } from "~/types/managedSiteModelSync"
 import {
   getTaskNotificationStatusFromCounts,
@@ -76,25 +41,19 @@ import {
   getAlarm,
   hasAlarmsAPI,
   onAlarm,
-  sendRuntimeMessage,
-} from "~/utils/browser/browserApi"
+} from "~/utils/browser/alarms"
 import { getErrorMessage } from "~/utils/core/error"
 import { createLogger } from "~/utils/core/logger"
 import { t } from "~/utils/i18n/core"
 
-import { channelConfigStorage } from "../../managedSites/channelConfigStorage"
 import { sanitizeChannelFiltersForStorage } from "../../managedSites/channelModelFilterRules"
-import {
-  DEFAULT_PREFERENCES,
-  userPreferences,
-} from "../../preferences/userPreferences"
+import { userPreferences } from "../../preferences/userPreferences"
 import { normalizeChannelProcessingTimeout } from "./channelProcessingTimeout"
+import { ModelSyncExecution } from "./execution"
 import {
   onModelSyncMessage,
   type ModelSyncUpdateSettingsRequest,
 } from "./messaging"
-import { collectModelsFromExecution } from "./modelCollection"
-import { ModelSyncService } from "./modelSyncService"
 import { managedSiteModelSyncStorage } from "./storage"
 
 const logger = createLogger("ManagedSiteModelSync")
@@ -104,17 +63,6 @@ const MODEL_SYNC_BACKGROUND_ANALYTICS_CONTEXT = {
   actionId: PRODUCT_ANALYTICS_ACTION_IDS.ScheduledManagedSiteModelSync,
   entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Background,
 } as const
-
-const resolveModelSyncProtectionExecution = (
-  trigger: ProtectionBypassAutomaticTrigger,
-  execution?: ProtectionBypassExecution,
-): ProtectionBypassExecution =>
-  execution ??
-  createAutomaticProtectionBypassExecution(
-    PROTECTION_BYPASS_FEATURES.ManagedSiteModelSync,
-    trigger,
-    PROTECTION_BYPASS_SURFACES.Background,
-  )
 
 /**
  * Buckets automatic sync failures without exposing raw backend messages.
@@ -178,7 +126,9 @@ function classifyModelSyncError(error: unknown): ProductAnalyticsErrorCategory {
 function classifyModelSyncResultError(
   result: ExecutionResult,
 ): ProductAnalyticsErrorCategory | undefined {
-  const failedItem = result.items.find((item) => !item.ok)
+  const failedItem = result.items.find(
+    (item) => getModelSyncItemStatus(item) === "failed",
+  )
   if (!failedItem) {
     return undefined
   }
@@ -200,66 +150,17 @@ function classifyModelSyncResultError(
   return classifyModelSyncError(failedItem.message ?? "unknown")
 }
 
-interface ProgressOwner {
-  sequence: number
-  configFingerprint: string
-}
-
 /**
  * Scheduler for managed-site model sync.
  * Responsibilities:
  * - Sets up alarms to run sync on a fixed cadence (when alarms API is available).
- * - Orchestrates execution with user preferences (interval, concurrency, retries).
- * - Applies model redirect mappings immediately after successful channel syncs.
+ * - Delegates scoped model-sync execution and progress to its execution owner.
+ * - Persists settings and reschedules the next alarm.
  */
 class ModelSyncScheduler {
   static readonly ALARM_NAME = "managedSiteModelSync"
   private isInitialized = false
-  private currentProgress: ScopedExecutionProgress | null = null
-  private executionSequence = 0
-  private latestProgressSequence = 0
-
-  /**
-   * Build a ModelSyncService instance using persisted preferences and channel configs.
-   * @throws {Error} When New API config is missing.
-   */
-  private async createService(
-    trigger: ProtectionBypassAutomaticTrigger = PROTECTION_BYPASS_AUTOMATIC_TRIGGERS.BackgroundRecovery,
-    protectionBypassExecution?: ProtectionBypassExecution,
-    preferencesSnapshot?: Awaited<
-      ReturnType<typeof userPreferences.getPreferences>
-    >,
-  ): Promise<ModelSyncService> {
-    const userPrefs =
-      preferencesSnapshot ?? (await userPreferences.getPreferences())
-
-    const { messagesKey } = getManagedSiteContext(userPrefs)
-    const managedConfig = resolveCurrentManagedSiteRuntimeConfig(userPrefs)
-
-    if (!managedConfig) {
-      throw new Error(getManagedSiteConfigMissingMessage(t, messagesKey))
-    }
-
-    const config =
-      userPrefs.managedSiteModelSync ??
-      DEFAULT_PREFERENCES.managedSiteModelSync!
-
-    const channelConfigs = await channelConfigStorage.getConfigsForScope({
-      managedSiteType: managedConfig.siteType,
-      scopeKey: managedConfig.config.baseUrl,
-    })
-
-    return new ModelSyncService(
-      managedConfig,
-      config.rateLimit,
-      config.allowedModels,
-      channelConfigs,
-      sanitizeChannelFiltersForStorage(config.globalChannelModelFilters, {
-        idPrefix: "global-channel-filter",
-      }),
-      resolveModelSyncProtectionExecution(trigger, protectionBypassExecution),
-    )
-  }
+  private readonly execution = new ModelSyncExecution()
 
   /**
    * Initialize the scheduler (idempotent).
@@ -288,6 +189,23 @@ class ModelSyncScheduler {
                 getManagedSiteContext(prefs).siteType,
               )
 
+              // A scheduled run without a configured managed-site target can
+              // never do useful work; treat it as not-applicable instead of
+              // executing a doomed sync and reporting a failure.
+              if (!resolveCurrentManagedSiteRuntimeConfig(prefs)) {
+                logger.info(
+                  "Skipping scheduled model sync; managed site not configured",
+                )
+                tracker.complete(PRODUCT_ANALYTICS_RESULTS.Skipped, {
+                  durationMs: Date.now() - startedAt,
+                  insights: {
+                    sourceKind: PRODUCT_ANALYTICS_SOURCE_KINDS.Auto,
+                    ...(managedSiteType ? { managedSiteType } : {}),
+                  },
+                })
+                return
+              }
+
               // Await to keep the MV3 service worker alive while the sync runs.
               const result = await this.executeSync(
                 undefined,
@@ -296,7 +214,9 @@ class ModelSyncScheduler {
               tracker.complete(
                 result.statistics.failureCount > 0
                   ? PRODUCT_ANALYTICS_RESULTS.Failure
-                  : PRODUCT_ANALYTICS_RESULTS.Success,
+                  : result.statistics.total === 0
+                    ? PRODUCT_ANALYTICS_RESULTS.Skipped
+                    : PRODUCT_ANALYTICS_RESULTS.Success,
                 {
                   durationMs: Date.now() - startedAt,
                   errorCategory:
@@ -306,9 +226,14 @@ class ModelSyncScheduler {
                   insights: {
                     sourceKind: PRODUCT_ANALYTICS_SOURCE_KINDS.Auto,
                     ...(managedSiteType ? { managedSiteType } : {}),
-                    itemCount: result.statistics.total,
+                    itemCount:
+                      result.statistics.total +
+                      (result.statistics.skippedCount ?? 0),
                     successCount: result.statistics.successCount,
                     failureCount: result.statistics.failureCount,
+                    ...(result.statistics.skippedCount
+                      ? { skippedCount: result.statistics.skippedCount }
+                      : {}),
                   },
                 },
               )
@@ -319,10 +244,26 @@ class ModelSyncScheduler {
                   failedCount: result.statistics.failureCount,
                 }),
                 counts: {
-                  total: result.statistics.total,
+                  total:
+                    result.statistics.total +
+                    (result.statistics.skippedCount ?? 0),
                   success: result.statistics.successCount,
                   failed: result.statistics.failureCount,
+                  ...(result.statistics.skippedCount
+                    ? { skipped: result.statistics.skippedCount }
+                    : {}),
                 },
+                ...(result.statistics.total === 0 &&
+                result.statistics.skippedCount
+                  ? {
+                      title: t(
+                        "managedSiteModelSync:messages.notification.allSkippedTitle",
+                      ),
+                      message: t(
+                        "managedSiteModelSync:messages.notification.allSkippedBody",
+                      ),
+                    }
+                  : {}),
               })
             } catch (error) {
               logger.error("Scheduled execution failed", error)
@@ -426,407 +367,22 @@ class ModelSyncScheduler {
       logger.error("Failed to create alarm", error)
     }
   }
-
-  async listChannels(): Promise<ManagedModelChannelSummaryListData> {
-    const userPrefs = await userPreferences.getPreferences()
-    const { siteType, messagesKey } = getManagedSiteContext(userPrefs)
-
-    if (!supportsManagedSiteModelSync(siteType)) {
-      throw new Error(getManagedSiteUnsupportedModelSyncMessage(t, siteType))
-    }
-
-    const createSync =
-      getSiteTypeCapabilities(siteType).managedSites?.models?.createSync
-    if (createSync) {
-      const runtimeConfig = resolveCurrentManagedSiteRuntimeConfig(userPrefs)
-      if (!runtimeConfig) {
-        throw new Error(getManagedSiteConfigMissingMessage(t, messagesKey))
-      }
-      return createSync(
-        runtimeConfig.config,
-        resolveModelSyncProtectionExecution(
-          PROTECTION_BYPASS_AUTOMATIC_TRIGGERS.BackgroundRecovery,
-        ),
-      ).listChannels()
-    }
-
-    const service = await this.createService(undefined, undefined, userPrefs)
-    const list = await service.listChannels()
-    return {
-      items: list.items.map(({ ref, name }) => ({ ref, name })),
-      total: list.total,
-    }
+  listChannels(...args: Parameters<ModelSyncExecution["listChannels"]>) {
+    return this.execution.listChannels(...args)
   }
 
-  /**
-   * Execute model sync for all channels (or a filtered subset).
-   * Also generates model redirect mappings immediately after successful channel syncs.
-   * @param resourceRefs Optional subset of scoped channel references; defaults to all.
-   * @returns ExecutionResult with per-channel outcomes and statistics.
-   */
-  async executeSync(
-    resourceRefs?: ManagedResourceRef[],
-    trigger: ProtectionBypassAutomaticTrigger = PROTECTION_BYPASS_AUTOMATIC_TRIGGERS.BackgroundRecovery,
-    protectionBypassExecution?: ProtectionBypassExecution,
-  ): Promise<ExecutionResult> {
-    const executionSequence = ++this.executionSequence
-    logger.info("Starting execution")
-
-    // Get preferences from userPreferences
-    const prefs = await userPreferences.getPreferences()
-    const { siteType, messagesKey } = getManagedSiteContext(prefs)
-    const progressOwner: ProgressOwner = {
-      sequence: executionSequence,
-      configFingerprint: getManagedSiteRuntimeConfigFingerprint(
-        prefs,
-        siteType,
-      ),
-    }
-    const selectedTarget = resolveCurrentManagedSiteRuntimeConfig(prefs)
-    if (resourceRefs !== undefined) {
-      if (
-        !selectedTarget ||
-        !Array.isArray(resourceRefs) ||
-        resourceRefs.length === 0
-      ) {
-        throw new Error(
-          "A configured managed site and non-empty resource selection are required",
-        )
-      }
-      for (const ref of resourceRefs)
-        assertManagedResourceRefForSite(ref, selectedTarget)
-    }
-
-    const config =
-      prefs.managedSiteModelSync ?? DEFAULT_PREFERENCES.managedSiteModelSync!
-    const concurrency = Math.max(1, config.concurrency)
-    const { maxRetries } = config
-    const channelProcessingTimeout = normalizeChannelProcessingTimeout(
-      config.channelProcessingTimeout,
-    )
-
-    const createSync =
-      getSiteTypeCapabilities(siteType).managedSites?.models?.createSync
-    if (createSync) {
-      if (!selectedTarget) {
-        throw new Error(getManagedSiteConfigMissingMessage(t, messagesKey))
-      }
-      return this.executeSyncWithProvider(
-        createSync(
-          selectedTarget.config,
-          resolveModelSyncProtectionExecution(
-            trigger,
-            protectionBypassExecution,
-          ),
-        ),
-        selectedTarget,
-        resourceRefs,
-        messagesKey,
-        { concurrency, maxRetries, channelProcessingTimeout },
-        progressOwner,
-        protectionBypassExecution,
-      )
-    }
-
-    if (!supportsManagedSiteModelSync(siteType)) {
-      throw new Error(getManagedSiteUnsupportedModelSyncMessage(t, siteType))
-    }
-
-    // Initialize the shared runner for providers with individual model operations.
-    if (!selectedTarget) {
-      throw new Error(getManagedSiteConfigMissingMessage(t, messagesKey))
-    }
-    const service = await this.createService(
-      trigger,
-      protectionBypassExecution,
-      prefs,
-    )
-
-    const modelRedirectConfig =
-      prefs.modelRedirect ?? DEFAULT_MODEL_REDIRECT_PREFERENCES
-
-    // List channels
-    const channelListResponse = await service.listChannels()
-    const allChannels = channelListResponse.items
-
-    // Match selected resources within the captured managed-site scope.
-    let channels: ManagedModelChannel[]
-    if (resourceRefs && resourceRefs.length > 0) {
-      channels = allChannels.filter((c) =>
-        resourceRefs.some(
-          (ref) =>
-            getManagedResourceRefKey(ref) === getManagedResourceRefKey(c.ref),
-        ),
-      )
-    } else {
-      channels = allChannels
-    }
-
-    if (channels.length === 0) {
-      throw new Error(getManagedSiteNoChannelsToSyncMessage(t, messagesKey))
-    }
-
-    await ensureLegacyChannelConfigMigrationReady({
-      resourceRefs: channels.map(({ ref }) =>
-        toManagedUpstreamResourceRef(ref),
-      ),
-      bypassBackoff: isManualModelSyncProtectionBypassExecution(
-        protectionBypassExecution,
-      ),
-    })
-    // Migration may have resolved selected rules; reload before model writeback.
-    service.setChannelConfigs(
-      await channelConfigStorage.getConfigsForScope({
-        managedSiteType: selectedTarget.siteType,
-        scopeKey: selectedTarget.config.baseUrl,
-      }),
-    )
-
-    const standardModels =
-      modelRedirectConfig.standardModels.length > 0
-        ? modelRedirectConfig.standardModels
-        : ALL_PRESET_STANDARD_MODELS
-
-    const progress = this.startProgress(progressOwner, channels.length)
-
-    let failureCount = 0
-    let mappingSuccessCount = 0
-    let mappingErrorCount = 0
-
-    let result
-    try {
-      // Execute batch sync
-      result = await service.runBatch(channels, {
-        concurrency,
-        maxRetries,
-        channelProcessingTimeout,
-        onProgress: async (payload) => {
-          if (!payload.lastResult.ok) {
-            failureCount += 1
-          } else {
-            // Generate and apply model redirect mapping immediately after successful sync
-            if (modelRedirectConfig.enabled && standardModels.length > 0) {
-              try {
-                // Find the channel that was just synced
-                const channel = allChannels.find(
-                  (c) =>
-                    getManagedResourceRefKey(c.ref) ===
-                    getManagedResourceRefKey(payload.lastResult.resourceRef),
-                )
-                if (!channel) {
-                  logger.warn("Channel not found", {
-                    resourceRef: payload.lastResult.resourceRef,
-                  })
-                } else {
-                  const actualModels = payload.lastResult.newModels || []
-
-                  const oldModelsSet = new Set(
-                    (payload.lastResult.oldModels ?? [])
-                      .map((model) => model.trim())
-                      .filter(Boolean),
-                  )
-                  const newModelsSet = new Set(
-                    (payload.lastResult.newModels ?? [])
-                      .map((model) => model.trim())
-                      .filter(Boolean),
-                  )
-                  const modelsChanged =
-                    oldModelsSet.size !== newModelsSet.size ||
-                    Array.from(oldModelsSet).some(
-                      (model) => !newModelsSet.has(model),
-                    )
-
-                  const newMapping =
-                    ModelRedirectService.generateModelMappingForChannel(
-                      standardModels,
-                      actualModels,
-                    )
-
-                  // Use unified method for incremental merge and apply
-                  const shouldPruneMissingTargetsOnSync =
-                    modelRedirectConfig.pruneMissingTargetsOnModelSync &&
-                    modelsChanged &&
-                    newModelsSet.size > 0
-
-                  const { prunedCount, updated } =
-                    await ModelRedirectService.applyModelMappingToChannel(
-                      channel,
-                      newMapping,
-                      service,
-                      shouldPruneMissingTargetsOnSync
-                        ? {
-                            pruneMissingTargets: true,
-                            availableModels: actualModels,
-                            modelMappingPolicy:
-                              getSiteTypeCapabilities(siteType).managedSites
-                                ?.models?.modelMappingPolicy,
-                          }
-                        : undefined,
-                    )
-                  mappingSuccessCount++
-                  logger.info("Applied model redirects to channel", {
-                    resourceRef: channel.ref,
-                    channelName: channel.name,
-                    mappingCount: Object.keys(newMapping).length,
-                    modelsChanged,
-                    pruneMissingTargetsOnModelSync:
-                      shouldPruneMissingTargetsOnSync,
-                    prunedCount,
-                    updated,
-                  })
-                }
-              } catch (error) {
-                logger.error("Failed to apply mapping for channel", {
-                  resourceRef: payload.lastResult.resourceRef,
-                  channelName: payload.lastResult.channelName,
-                  error,
-                })
-                mappingErrorCount++
-              }
-            }
-          }
-
-          progress.update(payload.completed, payload.lastResult, failureCount)
-        },
-      })
-
-      // Save execution result
-      await managedSiteModelSyncStorage.saveLastExecution(result)
-
-      // Cache upstream model options for allow-list selection, only if full sync
-      if (!resourceRefs) {
-        const collectedModels = collectModelsFromExecution(result)
-        if (collectedModels.length > 0) {
-          await managedSiteModelSyncStorage.saveChannelUpstreamModelOptions(
-            collectedModels,
-          )
-        }
-      }
-
-      logger.info("Execution completed", {
-        successCount: result.statistics.successCount,
-        total: result.statistics.total,
-      })
-
-      // Log model redirect mapping results
-      if (modelRedirectConfig.enabled && standardModels.length > 0) {
-        logger.info("Model redirect mappings applied", {
-          succeeded: mappingSuccessCount,
-          failed: mappingErrorCount,
-        })
-      }
-
-      return result
-    } finally {
-      progress.finish()
-    }
+  executeSync(...args: Parameters<ModelSyncExecution["executeSync"]>) {
+    return this.execution.executeSync(...args)
   }
 
-  /** Runs a provider-owned sync batch using only scoped selection and result facts. */
-  private async executeSyncWithProvider(
-    workflow: ManagedResourceModelSyncWorkflow,
-    runtimeConfig: ManagedSiteRuntimeConfig,
-    resourceRefs: ManagedResourceRef[] | undefined,
-    messagesKey: ManagedSiteMessagesKey,
-    options: ManagedResourceModelSyncBatchOptions,
-    progressOwner: ProgressOwner,
-    protectionBypassExecution?: ProtectionBypassExecution,
-  ): Promise<ExecutionResult> {
-    const batch = await workflow.prepareBatch(resourceRefs)
-    if (batch.resources.length === 0) {
-      throw new Error(getManagedSiteNoChannelsToSyncMessage(t, messagesKey))
-    }
-
-    const progress = this.startProgress(progressOwner, batch.resources.length)
-
-    let failureCount = 0
-
-    let result
-    try {
-      await ensureLegacyChannelConfigMigrationReady({
-        resourceRefs: batch.resources.map(({ ref }) =>
-          toManagedUpstreamResourceRef(ref),
-        ),
-        bypassBackoff: isManualModelSyncProtectionBypassExecution(
-          protectionBypassExecution,
-        ),
-      })
-      const channelConfigs = await channelConfigStorage.getConfigsForScope({
-        managedSiteType: runtimeConfig.siteType,
-        scopeKey: runtimeConfig.config.baseUrl,
-      })
-      result = await batch.run({
-        ...options,
-        channelConfigs,
-        onProgress: async (payload) => {
-          if (!payload.lastResult.ok) {
-            failureCount += 1
-          }
-
-          progress.update(payload.completed, payload.lastResult, failureCount)
-        },
-      })
-
-      // Save execution result
-      await managedSiteModelSyncStorage.saveLastExecution(result)
-
-      // Cache upstream model options for allow-list selection, only if full sync
-      if (!resourceRefs) {
-        const collectedModels = collectModelsFromExecution(result)
-        if (collectedModels.length > 0) {
-          await managedSiteModelSyncStorage.saveChannelUpstreamModelOptions(
-            collectedModels,
-          )
-        }
-      }
-
-      logger.info("Provider execution completed", {
-        successCount: result.statistics.successCount,
-        total: result.statistics.total,
-      })
-
-      return result
-    } finally {
-      progress.finish()
-    }
+  executeFailedOnly(
+    ...args: Parameters<ModelSyncExecution["executeFailedOnly"]>
+  ) {
+    return this.execution.executeFailedOnly(...args)
   }
 
-  /**
-   * Execute sync for failed channels only
-   * @returns ExecutionResult for retry batch.
-   * @throws {Error} When no previous execution exists or no failed channels are found.
-   */
-  async executeFailedOnly(
-    protectionBypassExecution?: ProtectionBypassExecution,
-  ): Promise<ExecutionResult> {
-    const lastExecution = await managedSiteModelSyncStorage.getLastExecution()
-    if (!lastExecution) {
-      throw new Error("No previous execution found")
-    }
-
-    const failedResourceRefs = lastExecution.items
-      .filter((item) => !item.ok)
-      .flatMap((item) => (item.resourceRef ? [item.resourceRef] : []))
-
-    if (failedResourceRefs.length === 0) {
-      throw new Error("No failed channels to retry")
-    }
-
-    return protectionBypassExecution
-      ? this.executeSync(
-          failedResourceRefs,
-          PROTECTION_BYPASS_AUTOMATIC_TRIGGERS.BackgroundRecovery,
-          protectionBypassExecution,
-        )
-      : this.executeSync(failedResourceRefs)
-  }
-
-  /**
-   * Get current execution progress
-   * @returns Latest progress snapshot or null when idle.
-   */
-  getProgress(): ScopedExecutionProgress | null {
-    return this.currentProgress
+  getProgress(...args: Parameters<ModelSyncExecution["getProgress"]>) {
+    return this.execution.getProgress(...args)
   }
 
   /**
@@ -909,69 +465,6 @@ class ModelSyncScheduler {
     await userPreferences.savePreferences({ managedSiteModelSync: updated })
     await this.setupAlarm()
     logger.info("Settings updated", updated)
-  }
-
-  /** Captures run ownership so older callbacks cannot overwrite or clear newer progress. */
-  private startProgress(owner: ProgressOwner, total: number) {
-    let progress: ScopedExecutionProgress = {
-      configFingerprint: owner.configFingerprint,
-      isRunning: true,
-      total,
-      completed: 0,
-      failed: 0,
-    }
-    // Preserve invocation order even when an earlier inventory request finishes later.
-    if (owner.sequence > this.latestProgressSequence) {
-      this.latestProgressSequence = owner.sequence
-      this.currentProgress = progress
-      this.notifyProgress(progress)
-    }
-
-    return {
-      update: (
-        completed: number,
-        lastResult: ExecutionItemResult,
-        failed: number,
-      ) => {
-        if (this.currentProgress !== progress) return
-
-        progress = {
-          ...progress,
-          completed,
-          lastResult,
-          currentChannel: lastResult.channelName,
-          failed,
-        }
-        this.currentProgress = progress
-        this.notifyProgress(progress)
-      },
-      finish: () => {
-        if (this.currentProgress !== progress) return
-
-        this.currentProgress = null
-        this.notifyProgress({ ...progress, isRunning: false })
-      },
-    }
-  }
-
-  /**
-   * Notify frontend about progress.
-   * Swallows missing-receiver errors because UI may not be open.
-   */
-  private notifyProgress(progress: ScopedExecutionProgress) {
-    try {
-      void sendRuntimeMessage(
-        {
-          type: "MANAGED_SITE_MODEL_SYNC_PROGRESS",
-          payload: progress,
-        },
-        { maxAttempts: 1 },
-      ).catch(() => {
-        // Silent: frontend might not be open
-      })
-    } catch {
-      // Silent: frontend might not be open
-    }
   }
 }
 

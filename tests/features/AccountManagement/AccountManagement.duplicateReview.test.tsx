@@ -8,6 +8,7 @@ import {
   buildDisplaySiteData,
   buildSiteAccount,
 } from "~~/tests/test-utils/factories"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { render, screen, waitFor, within } from "~~/tests/test-utils/render"
 
 const { openEditAccount, loadAccountData, deleteAccount } = vi.hoisted(() => ({
@@ -34,15 +35,19 @@ const displayData = accounts.map((account) =>
   }),
 )
 
-vi.mock("~/features/AccountManagement/hooks/AccountManagementProvider", () => ({
-  AccountManagementProvider: ({ children }: { children: ReactNode }) => (
-    <>{children}</>
-  ),
-}))
-vi.mock("~/features/AccountManagement/hooks/DialogStateContext", () => ({
+vi.mock(
+  "~/features/AccountManagement/workspace/AccountManagementProvider",
+  () => ({
+    AccountManagementProvider: ({ children }: { children: ReactNode }) => (
+      <>{children}</>
+    ),
+  }),
+)
+vi.mock("~/features/AccountManagement/dialogs/useDialogStateContext", () => ({
   useDialogStateContext: () => ({ openAddAccount: vi.fn(), openEditAccount }),
+  useAccountDialogActions: () => ({ openAddAccount: vi.fn(), openEditAccount }),
 }))
-vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
+vi.mock("~/features/AccountManagement/data/AccountDataContext", () => ({
   useAccountDataContext: () => ({
     accounts,
     displayData,
@@ -53,7 +58,7 @@ vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
     isRefreshingDisabledAccounts: false,
   }),
 }))
-vi.mock("~/features/AccountManagement/hooks/AccountActionsContext", () => ({
+vi.mock("~/features/AccountManagement/actions/AccountActionsContext", () => ({
   useAccountActionsContext: () => ({}),
 }))
 vi.mock("~/features/AccountManagement/components/AccountList", () => ({
@@ -106,17 +111,23 @@ describe("account management suspected duplicate review", () => {
       within(review).getAllByText("account:list.site.disabled"),
     ).toHaveLength(2)
     await user.click(
-      within(review).getAllByRole("button", {
-        name: "ui:dialog.dedupeAccounts.suspected.reviewAccount",
-      })[1],
+      atIndex(
+        within(review).getAllByRole("button", {
+          name: "ui:dialog.dedupeAccounts.suspected.reviewAccount",
+        }),
+        1,
+      ),
     )
     expect(openEditAccount).toHaveBeenCalledWith(displayData[1])
     expect(review).toBeVisible()
     expect(deleteAccount).not.toHaveBeenCalled()
     await user.click(
-      within(review).getAllByRole("button", {
-        name: "common:actions.close",
-      })[0],
+      atIndex(
+        within(review).getAllByRole("button", {
+          name: "common:actions.close",
+        }),
+        0,
+      ),
     )
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
@@ -130,9 +141,12 @@ describe("account management suspected duplicate review", () => {
     const review = screen.getByRole("dialog", {
       name: "ui:dialog.dedupeAccounts.title",
     })
-    const deleteSelected = within(review).getAllByRole("button", {
-      name: "ui:dialog.dedupeAccounts.suspected.deleteAccount",
-    })[0]
+    const deleteSelected = atIndex(
+      within(review).getAllByRole("button", {
+        name: "ui:dialog.dedupeAccounts.suspected.deleteAccount",
+      }),
+      0,
+    )
     await user.click(deleteSelected)
     const confirmation = screen.getByRole("dialog", {
       name: "ui:dialog.delete.title",

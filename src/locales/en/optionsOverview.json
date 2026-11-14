@@ -18,7 +18,7 @@
     },
     "actions": {
       "addAccount": "Add account",
-      "addProfile": "Add credential",
+      "addProfile": "Add API credential",
       "editAccount": "Edit account",
       "fixAccount": "Fix account",
       "handleCheckIn": "Handle check-in",
@@ -36,8 +36,8 @@
       "title": "No accounts yet"
     },
     "addProfile": {
-      "description": "Add API credentials so tools and export flows can reuse them.",
-      "title": "No API profiles yet"
+      "description": "The library stores API keys, coding-plan keys and other keys, and monitors balance and usage in one place — including how much of a coding plan's 5-hour / 7-day / monthly quota is left.",
+      "title": "No API credentials yet"
     },
     "autoCheckinGloballyDisabled": {
       "description_one": "{{count}} account has automatic check-in enabled, but nothing runs while the global switch is off. Re-enable it in check-in settings.",
@@ -77,6 +77,10 @@
     },
     "filterAll": "All",
     "severityFilterLabel": "Severity",
+    "siteTypeMismatch": {
+      "description": "This site matches {{suggestedType}}, but the account is set to {{storedType}}. Edit the account and set the Site Type to {{suggestedType}}.",
+      "title": "{{name}} may have the wrong site type"
+    },
     "siteTypeUnknown": {
       "description": "Automatic check-in cannot determine this site's protocol. Edit the account and choose the correct site type, or run auto-detection again.",
       "title": "{{name}} has an unknown site type"
@@ -130,6 +134,7 @@
     "summary": "Auto check-in run summary"
   },
   "automation": {
+    "automaticEnabled": "Automatic execution is on",
     "empty": {
       "autoCheckin": {
         "disabled": "Turn on auto check-in when you want rewards claimed automatically. Future schedules and results will appear here."
@@ -172,11 +177,28 @@
         "strategy": "Sync strategy"
       }
     },
+    "metrics": {
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "success": "Succeeded",
+      "unsupported": "Unsupported"
+    },
     "neverChecked": "Not checked yet",
     "openItem": "Open {{name}}",
     "status": {
-      "enabled": "Enabled"
-    }
+      "disabled": "Disabled",
+      "failed": "Run failed",
+      "limited": "Partially supported",
+      "notRun": "Awaiting first run",
+      "partial": "Partially failed",
+      "ready": "Ready",
+      "running": "Running",
+      "skipped": "Not executed",
+      "success": "Run succeeded",
+      "unknown": "Status unknown",
+      "unsupported": "Not supported"
+    },
+    "statusUnavailable": "Execution status is unavailable. Open the details or refresh to try again."
   },
   "configurationOverview": {
     "accountFoundation": {
@@ -207,12 +229,12 @@
       }
     },
     "credentialAssets": {
-      "description": "API profiles and account keys prepared for use.",
+      "description": "Storage for your keys, plus balance, quota and usage monitoring.",
       "label": "Credential assets",
       "state": {
-        "disabled": "There are no reusable credentials yet. Check account or API profile setup.",
-        "needs_setup": "Add API profiles so tools and export flows can reuse them directly.",
-        "not_applicable": "This environment does not need separate API profiles."
+        "disabled": "There are no reusable credentials yet. Check account or API credential setup.",
+        "needs_setup": "Save one API credential (Base URL + API Key) to monitor balance, quota and usage in one place.",
+        "not_applicable": "This environment does not need separate API credentials."
       }
     },
     "dataHistory": {
@@ -236,7 +258,7 @@
     "subItems": {
       "accounts": "Accounts",
       "apiKeys": "API keys",
-      "apiProfiles": "API profiles",
+      "apiProfiles": "API credentials",
       "autoCheckin": "Auto check-in",
       "balanceHistory": "Balance history",
       "managedSiteChannels": "Channel management",
@@ -281,7 +303,7 @@
       "label": "Attention"
     },
     "profiles": {
-      "label": "Profiles"
+      "label": "Credentials"
     },
     "todayUsage": {
       "label": "Today"

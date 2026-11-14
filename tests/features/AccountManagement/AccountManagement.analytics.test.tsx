@@ -8,11 +8,9 @@ import AccountManagement from "~/features/AccountManagement/AccountManagement"
 import {
   UNIFIED_API_GUIDANCE_ACTION_KINDS,
   UNIFIED_API_GUIDANCE_STATUSES,
-} from "~/features/UnifiedApiGuidance"
-import {
-  DEFAULT_PREFERENCES,
-  type UserPreferences,
-} from "~/services/preferences/userPreferences"
+} from "~/features/UnifiedApiGuidance/model"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { type UserPreferences } from "~/services/preferences/preferencesSchema"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -110,19 +108,25 @@ vi.mock("~/utils/core/logger", () => ({
   createLogger: () => mockLogger,
 }))
 
-vi.mock("~/features/AccountManagement/hooks/AccountManagementProvider", () => ({
-  AccountManagementProvider: ({ children }: { children: ReactNode }) => (
-    <>{children}</>
-  ),
-}))
+vi.mock(
+  "~/features/AccountManagement/workspace/AccountManagementProvider",
+  () => ({
+    AccountManagementProvider: ({ children }: { children: ReactNode }) => (
+      <>{children}</>
+    ),
+  }),
+)
 
-vi.mock("~/features/AccountManagement/hooks/DialogStateContext", () => ({
+vi.mock("~/features/AccountManagement/dialogs/useDialogStateContext", () => ({
   useDialogStateContext: () => ({
+    openAddAccount: openAddAccountMock,
+  }),
+  useAccountDialogActions: () => ({
     openAddAccount: openAddAccountMock,
   }),
 }))
 
-vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
+vi.mock("~/features/AccountManagement/data/AccountDataContext", () => ({
   useAccountDataContext: () => ({
     ...accountDataContextState.current,
     handleRefresh: handleRefreshMock,
@@ -130,14 +134,14 @@ vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
   }),
 }))
 
-vi.mock("~/features/AccountManagement/hooks/AccountActionsContext", () => ({
+vi.mock("~/features/AccountManagement/actions/AccountActionsContext", () => ({
   useAccountActionsContext: () => ({
     handleOpenExternalCheckIns: handleOpenExternalCheckInsMock,
   }),
 }))
 
 vi.mock(
-  "~/features/ApiCredentialProfiles/hooks/useApiCredentialProfiles",
+  "~/features/ApiCredentialProfiles/workspace/useApiCredentialProfiles",
   () => ({
     useApiCredentialProfiles: () => ({
       ...apiCredentialProfilesState.current,
@@ -172,25 +176,26 @@ vi.mock("~/services/productAnalytics/actions", () => ({
     startProductAnalyticsActionMock(...args),
 }))
 
-vi.mock("~/services/productAnalytics/dispatch", async (importOriginal) => {
+vi.mock(
+  "~/services/productAnalytics/runtime/dispatch",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/productAnalytics/runtime/dispatch")
+      >()
+
+    return {
+      ...actual,
+      trackProductAnalyticsEvent: trackProductAnalyticsEventMock,
+    }
+  },
+)
+
+vi.mock("~/utils/navigation/optionsPage", async (importOriginal) => {
   const actual =
-    await importOriginal<
-      typeof import("~/services/productAnalytics/dispatch")
-    >()
+    await importOriginal<typeof import("~/utils/navigation/optionsPage")>()
 
-  return {
-    ...actual,
-    trackProductAnalyticsEvent: trackProductAnalyticsEventMock,
-  }
-})
-
-vi.mock("~/utils/navigation", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/utils/navigation")>()
-
-  return {
-    ...actual,
-    pushWithinOptionsPage: pushWithinOptionsPageMock,
-  }
+  return { ...actual, pushWithinOptionsPage: pushWithinOptionsPageMock }
 })
 
 vi.mock("~/features/AccountManagement/components/AccountList", () => ({

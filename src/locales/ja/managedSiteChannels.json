@@ -175,6 +175,9 @@
         "help": "AxonHub はシステム設定で指定された頻度で、プロバイダー API から有効なチャネルのモデル一覧を更新します。",
         "label": "対応モデルを自動同期"
       },
+      "channelStatusReason": {
+        "label": "無効化の理由"
+      },
       "concurrency": {
         "help": "このアカウントで同時に処理できるリクエストの最大数です。",
         "label": "同時実行数"
@@ -189,10 +192,110 @@
         "label": "追加モデルプレフィックス",
         "placeholder": "例: deepseek"
       },
+      "gptLoadBaseUrl": {
+        "help": "このチャンネルがリクエストを転送する上流アドレス。既知のプロバイダでは空欄にして、ゲートウェイにプロバイダの既定エンドポイントを使わせます。"
+      },
+      "gptLoadKey": {
+        "help": "このグループが使えるキー。ゲートウェイはグループごとにキープールを保持します。ここで行を追加するとキーをインポートし、削除すると破棄します。"
+      },
+      "gptLoadPriceMultiplier": {
+        "help": "チャンネルの報告コストに適用する倍率（例：1.5）。残高・レート制限の集計に使います。",
+        "label": "料金倍率"
+      },
+      "gptLoadProvider": {
+        "help": "このチャンネルが使う gpt-load ドライバ ID（例：openai、anthropic、gemini）。ロードボタンでこのゲートウェイが提供するドライバを読み込めます。"
+      },
+      "gptLoadWeight": {
+        "help": "手動ロードバランスの重み。大きいほど割り当てられるトラフィックが増えます。空欄ならゲートウェイの既定値を使います。",
+        "label": "重み"
+      },
+      "magpieAnthropic": {
+        "help": "Anthropic API のルート URL（ANTHROPIC_BASE_URL）を入力し、/v1/messages は付けないでください。",
+        "label": "Anthropic URL"
+      },
+      "magpieBalancePath": {
+        "help": "応答内の金額（例：data.balance、data.total / 500000）。空欄では Magpie の既定値を使用します。プリセットでは読み取り専用です。",
+        "label": "残高の式"
+      },
+      "magpieBalanceURL": {
+        "help": "Magpie が使う残高 API（任意）。URL 内の {key} に対応します。保存済みの残高用トークンは維持されます。プリセットでは読み取り専用です。",
+        "label": "残高 URL"
+      },
+      "magpieCatalog": {
+        "help": "モデル名と推論レベルに使う models.dev のプロバイダー ID をカンマ区切りで指定します。最初の一致を優先。プリセットでは読み取り専用です。",
+        "label": "モデルカタログ"
+      },
+      "magpieChat": {
+        "help": "Chat Completions のベース URL には /v1 を含め、/chat/completions は付けないでください。",
+        "label": "Chat Completions URL",
+        "required": "選択した API タイプのアドレスを入力してください。"
+      },
+      "magpieGemini": {
+        "help": "Gemini のベース URL には /v1beta を含め、モデル名や generateContent のパスは付けないでください。",
+        "label": "Gemini URL"
+      },
+      "magpieHeaders": {
+        "help": "ヘッダー名と値を行ごとに追加するか、JSON 編集に切り替えます。これらのヘッダーは上流プロバイダーに送信されます。",
+        "label": "カスタムヘッダー"
+      },
+      "magpieMaxConcurrency": {
+        "help": "キーまたはアカウントごとに 0～1000。空欄は Magpie の既定値、0 は無制限です。",
+        "label": "キーごとの同時リクエスト数"
+      },
+      "magpieMaxRPM": {
+        "help": "キーまたはアカウントごとに 0～10000。空欄または 0 は無制限です。",
+        "label": "キーごとの毎分リクエスト数"
+      },
+      "magpieModels": {
+        "help": "検出されたモデルを選択するか、モデルIDを入力して Enter で追加します。接続情報の入力後にモデルを取得できます。選択を空にすると MAGPIE の自動モデルカタログを使用します。"
+      },
+      "magpieModelsURL": {
+        "help": "現在のキーとヘッダーで取得する完全な URL（任意）。空欄ではプロトコルの URL を使用します。プリセットでは読み取り専用です。",
+        "label": "モデル一覧 URL"
+      },
+      "magpiePriceRate": {
+        "help": "表示価格に対する倍率（例：0.8）。0～1000、小数点以下 3 桁まで。空欄または 0 は表示価格を使用します。",
+        "label": "価格倍率"
+      },
+      "magpieProxy": {
+        "help": "空欄はグローバルプロキシを使います。direct は直接接続します。",
+        "label": "プロキシ"
+      },
+      "magpieResponses": {
+        "help": "Responses のベース URL は通常 /v1 で終わります。/responses は付けないでください。",
+        "label": "Responses URL"
+      },
+      "manualModels": {
+        "label": "手動モデル"
+      },
       "notes": {
         "help": "このアップストリームアカウントに関する任意のメモです。",
         "label": "メモ",
         "placeholder": "このアカウントのメモを追加..."
+      },
+      "omnirouteBaseUrl": {
+        "help": "空のままにすると選択した provider の既定エンドポイントを使います。入力すると、ゲートウェイはこのチャネルのリクエストをそのアドレスへ送ります。保存済みのアドレスは消去できないため、変更する場合は新しいアドレスを入力してください。"
+      },
+      "omnirouteDefaultModel": {
+        "help": "リクエストでモデルを指定しない場合に使われます。チャネルはモデル一覧を保存せず、モデルはゲートウェイの provider カタログと別名から決まります。",
+        "label": "既定モデル"
+      },
+      "omnirouteLastError": {
+        "label": "直近のエラー"
+      },
+      "omniroutePrefix": {
+        "help": "入力するとゲートウェイに provider node を作成し、「prefix/model」でアドレスします。空のままなら組み込み provider をそのまま使います。prefix を入力する場合はアドレスも必須です。",
+        "label": "独自のモデルプレフィックス"
+      },
+      "omniroutePriority": {
+        "help": "ゲートウェイはこの数字の昇順でチャネルを選ぶため、小さいほど先に使われます。新規接続はゲートウェイが最後に並べます。",
+        "label": "優先度"
+      },
+      "omnirouteProvider": {
+        "help": "ゲートウェイ組み込みの provider ID です。独自の中継は openai のままアドレスを上書きできます。読み込みボタンで、このゲートウェイが実際に扱う provider を取得できます。"
+      },
+      "omnirouteTestStatus": {
+        "label": "接続テスト"
       },
       "orderingWeight": {
         "help": "AxonHub がチャネルを選択するときは値が大きいほど優先され、同じ値は同じ優先順位になります。",
@@ -261,6 +364,12 @@
         "unsupported": "未対応のチャネル種別",
         "volcengine": "Volcengine",
         "xai": "xAI"
+      },
+      "omnirouteTestStatus": {
+        "failed": "失敗",
+        "ok": "正常",
+        "pending": "未テスト",
+        "unsupported": "テスト非対応"
       },
       "status": {
         "archived": "アーカイブ済み",
@@ -372,6 +481,7 @@
       "validationProbeIds": "各プローブルールで少なくとも 1 つの検証プローブを選択してください。",
       "validationRegex": "無効な正規表現パターンです: {{error}}"
     },
+    "modelSyncExclusionHelp": "保存後は、自動同期でも手動で「すべて実行」をクリックした場合でも、このチャネルをスキップします。「選択分を実行」や行内の「同期」では一度だけ同期できます。「キャンセル」はこのダイアログでの変更を破棄します。",
     "placeholders": {
       "description": "このルールに関する任意メモ",
       "name": "例: GPT-4 を許可",
@@ -410,6 +520,32 @@
     "headerDescription": "自前の AI ゲートウェイのチャネルを管理し、複数の API 接続先を一つの窓口にまとめます。",
     "openChannelConsole": "ゲートウェイのチャネル管理を開く",
     "unconfiguredValueDescription": "設定後は、分散しているアカウントキーや API キーをゲートウェイチャネルとして取り込み、All API Hub で直接確認・管理できます。"
+  },
+  "magpieKeys": {
+    "anyProtocol": "すべてのプロトコル",
+    "enabled": "有効",
+    "help": "キーを追加するか、改行・カンマ・空白で区切った複数のキーを貼り付けます。保存済みキーは主キーのみ表示できます。追加キーの交換は新しいキーを追加してから古いキーを削除してください。変更は保存後に反映されます。",
+    "invalid": "新しいキー、プロトコル、重み（0～1000）を確認し、有効なキーを1つ以上残してください。",
+    "name": "キー名",
+    "order": "順番（フェイルオーバー）",
+    "pace": "時間あたりの残り枠",
+    "primary": "プライマリ",
+    "primaryKey": "プライマリ API キー",
+    "protocol": "プロトコル",
+    "rotate": "ラウンドロビン",
+    "routing": "キールーティング",
+    "smart": "スマート（自動フェイルオーバー）",
+    "title": "キープール",
+    "usage": "使用量が少ない順",
+    "weighted": "重み付き",
+    "weightHelp": "0 または 1 は既定の重み。2～1000 は重み付きルーティングでの配分を変更します。"
+  },
+  "magpieProtocols": {
+    "checkOther": "別の設定済みタイプのアドレスが無効です。そのタイプに切り替えて確認してください。",
+    "configured": "設定済み",
+    "help": "タイプを選んで対応するアドレスを編集します。複数のプロトコルを使う場合は順に設定してください。各タイプのアドレスは個別に保持されます。",
+    "type": "API タイプ",
+    "unmanaged": "Magpie で管理"
   },
   "migration": {
     "actions": {

@@ -12,7 +12,7 @@ import {
   PRODUCT_ANALYTICS_FAILURE_STAGES,
   PRODUCT_ANALYTICS_RESULTS,
 } from "~/services/productAnalytics/contracts"
-import { buildActionFailureDiagnostics } from "~/services/productAnalytics/diagnosticsError"
+import { buildActionFailureDiagnostics } from "~/services/productAnalytics/diagnostics/diagnosticsError"
 import type { DisplaySiteData } from "~/types"
 
 interface OpenExternalCheckInsOptions {
@@ -67,7 +67,6 @@ export async function openExternalCheckIns(
   })
 
   if (!accountsToOpen.length) {
-    analyticsCompleted = true
     tracker?.complete(PRODUCT_ANALYTICS_RESULTS.Skipped)
     options?.onSkipped?.()
     return {
@@ -132,7 +131,6 @@ export async function openExternalCheckIns(
     await runPostOpenSuccessCallback(options?.onSuccess, accountsToOpen)
   } catch (error) {
     if (!analyticsCompleted) {
-      analyticsCompleted = true
       const failure = buildActionFailureDiagnostics({ error })
       tracker?.complete(PRODUCT_ANALYTICS_RESULTS.Failure, {
         diagnostics: { failure },

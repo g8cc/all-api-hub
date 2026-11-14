@@ -2,7 +2,10 @@ import type { AccountSiteType } from "~/constants/siteType"
 import type { SortField } from "~/types"
 
 export const ACCOUNT_MANAGEMENT_TEST_IDS = {
+  nanoGptManagementTokenInput: "nanogpt-management-token-input",
   addAccountButton: "account-management-add-account-button",
+  emptyStateAddAccountButton:
+    "account-management-empty-state-add-account-button",
   externalCheckInButton: "account-management-external-check-in-button",
   headerActions: "account-management-header-actions",
   accountListHeader: "account-management-account-list-header",
@@ -32,8 +35,15 @@ export const ACCOUNT_MANAGEMENT_TEST_IDS = {
   usernameInput: "account-management-username-input",
   userIdInput: "account-management-user-id-input",
   accessTokenInput: "account-management-access-token-input",
+  exchangeRateInput: "account-management-exchange-rate-input",
+  autoCreateAccessTokenButton:
+    "account-management-auto-create-access-token-button",
+  autoCreateAccessTokenError:
+    "account-management-auto-create-access-token-error",
+  aimlApiKeyInput: "account-management-aiml-api-key-input",
   accountFormSectionSiteInfo:
     "account-management-account-form-section-site-info",
+  accountFormSectionLogin: "account-management-account-form-section-login",
   accountFormSectionAuth: "account-management-account-form-section-auth",
   accountFormSectionTagsNotes:
     "account-management-account-form-section-tags-notes",
@@ -61,6 +71,8 @@ export const ACCOUNT_MANAGEMENT_TEST_IDS = {
     "account-management-copy-key-dialog-import-to-managed-site-button",
   copyKeyDialogExportToCCSwitchButton:
     "account-management-copy-key-dialog-export-to-cc-switch-button",
+  copyKeyDialogExportToAiToolboxButton:
+    "account-management-copy-key-dialog-export-to-ai-toolbox-button",
   copyKeyDialogExportToCursorPlusButton:
     "account-management-copy-key-dialog-export-to-cursor-plus-button",
   rowEditButton: "account-management-row-edit-button",
@@ -86,8 +98,6 @@ export const ACCOUNT_MANAGEMENT_TEST_IDS = {
   dedupePreviewDeleteButton: "account-management-dedupe-preview-delete-button",
   dedupeConfirmDeleteButton: "account-management-dedupe-confirm-delete-button",
   bookmarkImportButton: "account-management-bookmark-import-button",
-  bookmarkImportFromAddDialogButton:
-    "account-management-bookmark-import-from-add-dialog-button",
   bookmarkImportDialog: "account-management-bookmark-import-dialog",
   bookmarkImportAllowScanButton:
     "account-management-bookmark-import-allow-scan-button",

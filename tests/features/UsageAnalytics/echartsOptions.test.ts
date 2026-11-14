@@ -7,6 +7,8 @@ import {
   buildLatencyHistogramOption,
   buildLatencyTrendOption,
   buildPieOption,
+} from "~/features/UsageAnalytics/charts/echartsOptions"
+import {
   getAccountTotalsRows,
   getModelTotalsRows,
   getSlowModelRows,
@@ -17,13 +19,14 @@ import {
   resolveLatencyAggregateForSelection,
   resolveLatencyDailyForTokens,
   topNWithOther,
-} from "~/features/UsageAnalytics/charts/echartsOptions"
+} from "~/features/UsageAnalytics/filtering/usageSelection"
 import { computeUsageHistoryExport } from "~/services/history/usageHistory/analytics"
 import {
   createEmptyUsageHistoryAccountStore,
   createEmptyUsageHistoryLatencyAggregate,
 } from "~/services/history/usageHistory/core"
 import type { UsageHistoryStore } from "~/types/usageHistory"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 /**
  * Builds exported analytics data for a single synthetic day selection.
@@ -220,10 +223,10 @@ describe("feature UsageAnalytics echartsOptions", () => {
     accountStore.latencyDailyByToken["token-2"] = { [dayKey]: longBuckets }
 
     const exportData = buildExportData({ account: accountStore }, dayKey)
-    const merged = resolveLatencyDailyForTokens(exportData, [
-      "token-1",
-      "token-2",
-    ])[dayKey]
+    const merged = atIndex(
+      resolveLatencyDailyForTokens(exportData, ["token-1", "token-2"]),
+      dayKey,
+    )
 
     expect(merged).toMatchObject({
       count: 3,

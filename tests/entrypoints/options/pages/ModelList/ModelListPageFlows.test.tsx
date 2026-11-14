@@ -3,9 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Tabs } from "~/components/ui"
 import ModelList from "~/entrypoints/options/pages/ModelList"
-import { MODEL_LIST_BILLING_MODES } from "~/features/ModelList/billingModes"
-import { MODEL_GROUP_ACCESS_STATES } from "~/features/ModelList/groupContext"
-import type { CalculatedModelItem } from "~/features/ModelList/modelListItems"
 import {
   createAccountSource,
   createAllAccountsSource,
@@ -13,9 +10,12 @@ import {
   deriveModelListSourceCapabilities,
   EMPTY_MODEL_MANAGEMENT_CAPABILITIES,
   MODEL_LIST_GROUP_SEMANTICS,
-} from "~/features/ModelList/modelManagementSources"
-import { MODEL_LIST_SORT_MODES } from "~/features/ModelList/sortModes"
-import { DEFAULT_MODEL_LIST_VERIFICATION_RESULT_FILTERS } from "~/features/ModelList/verificationResultFilters"
+} from "~/features/ModelList/catalog/modelManagementSources"
+import { MODEL_LIST_SORT_MODES } from "~/features/ModelList/filtering/sortModes"
+import { MODEL_GROUP_ACCESS_STATES } from "~/features/ModelList/groups/groupContext"
+import type { CalculatedModelItem } from "~/features/ModelList/presentation/modelListItems"
+import { MODEL_LIST_BILLING_MODES } from "~/features/ModelList/pricing/billingModes"
+import { DEFAULT_MODEL_LIST_VERIFICATION_RESULT_FILTERS } from "~/features/ModelList/verification/verificationResultFilters"
 import { CALCULATED_PRICE_KINDS } from "~/services/modelPricing/pricingConstants"
 import { MODEL_VENDOR_FILTER_VALUES } from "~/services/models/modelVendor"
 import {
@@ -36,7 +36,7 @@ const mockAccountSelector = vi.fn()
 const mockTrackProductAnalyticsActionStarted = vi.fn()
 const mockTrackProductAnalyticsActionCompleted = vi.fn()
 
-vi.mock("~/features/ModelList/hooks/useModelListData", () => ({
+vi.mock("~/features/ModelList/catalog/useModelListData", () => ({
   useModelListData: (...args: any[]) => mockUseModelListData(...args),
 }))
 
@@ -45,6 +45,9 @@ vi.mock("~/services/verification/verificationResultHistory", () => ({
   createProfileModelVerificationHistoryTarget: vi.fn(() => "profile-target"),
   serializeVerificationHistoryTarget: vi.fn((target) => String(target)),
   getVerificationSummaryLatencyMs: vi.fn(() => null),
+}))
+
+vi.mock("~/hooks/verification/useVerificationResultHistorySummaries", () => ({
   useVerificationResultHistorySummaries: vi.fn(() => ({
     summariesByKey: {},
   })),
@@ -88,6 +91,16 @@ const PROFILE = {
   updatedAt: 2,
 } as any
 
+const ACCOUNT_PRICING_CONTEXT = {
+  accountId: ACCOUNT.id,
+  account: ACCOUNT,
+  pricing: {
+    success: true,
+    data: [],
+    groupRatios: {},
+    groupAccess: { kind: "not-applicable" as const },
+  },
+}
 const ACCOUNT_SOURCE = createAccountSource(ACCOUNT)
 const ALL_ACCOUNTS_SOURCE = createAllAccountsSource()
 const PROFILE_SOURCE = createProfileSource(PROFILE)
@@ -132,14 +145,14 @@ function withGroupContexts<T extends ModelItemFixture>(
   }
 }
 
-vi.mock("~/features/ModelList/components/AccountSelector", () => ({
+vi.mock("~/features/ModelList/catalog/AccountSelector", () => ({
   AccountSelector: (props: any) => {
     mockAccountSelector(props)
     return <div>Account Selector</div>
   },
 }))
 
-vi.mock("~/features/ModelList/components/StatusIndicator", () => ({
+vi.mock("~/features/ModelList/presentation/StatusIndicator", () => ({
   StatusIndicator: ({ selectedSource, loadPricingData }: any) => (
     <div>
       <div>Status Indicator: {selectedSource?.kind ?? "none"}</div>
@@ -150,7 +163,7 @@ vi.mock("~/features/ModelList/components/StatusIndicator", () => ({
   ),
 }))
 
-vi.mock("~/features/ModelList/components/AccountSummaryBar", () => ({
+vi.mock("~/features/ModelList/catalog/AccountSummaryBar", () => ({
   AccountSummaryBar: ({ items, activeAccountIds, onAccountClick }: any) => (
     <div>
       <div>
@@ -179,7 +192,7 @@ vi.mock("~/features/ModelList/components/AccountSummaryBar", () => ({
   ),
 }))
 
-vi.mock("~/features/ModelList/components/BatchVerifyModelsDialog", () => ({
+vi.mock("~/features/ModelList/verification/BatchVerifyModelsDialog", () => ({
   BatchVerifyModelsDialog: ({ items, onClose }: any) => (
     <div>
       <div>Batch Verify Dialog {items.length}</div>
@@ -190,7 +203,7 @@ vi.mock("~/features/ModelList/components/BatchVerifyModelsDialog", () => ({
   ),
 }))
 
-vi.mock("~/features/ModelList/components/ControlPanel", () => ({
+vi.mock("~/features/ModelList/filtering/ControlPanel", () => ({
   ControlPanel: ({ totalModels, filteredModels, onBatchVerifyModels }: any) => (
     <div>
       Control Panel total:{totalModels} filtered:{filteredModels.length}
@@ -203,19 +216,19 @@ vi.mock("~/features/ModelList/components/ControlPanel", () => ({
   ),
 }))
 
-vi.mock("~/features/ModelList/components/Footer", () => ({
+vi.mock("~/features/ModelList/presentation/Footer", () => ({
   Footer: ({ showPricingNote }: any) => (
     <div>Footer pricing:{String(showPricingNote)}</div>
   ),
 }))
 
-vi.mock("~/features/ModelList/components/ProviderTabs", () => ({
+vi.mock("~/features/ModelList/catalog/ProviderTabs", () => ({
   ProviderTabs: ({ children, effectiveSelectedVendor }: any) => (
     <Tabs value={effectiveSelectedVendor}>{children}</Tabs>
   ),
 }))
 
-vi.mock("~/features/ModelList/components/ModelDisplay", () => ({
+vi.mock("~/features/ModelList/presentation/ModelDisplay", () => ({
   ModelDisplay: ({
     models,
     onVerifyModel,
@@ -242,7 +255,7 @@ vi.mock("~/features/ModelList/components/ModelDisplay", () => ({
       </button>
       <button
         type="button"
-        onClick={() => onVerifyCliSupport(ACCOUNT_SOURCE, "gpt-4")}
+        onClick={() => onVerifyCliSupport(ACCOUNT_SOURCE, "gpt-4", ["vip"])}
       >
         Verify CLI account
       </button>
@@ -267,7 +280,7 @@ vi.mock("~/features/ModelList/components/ModelDisplay", () => ({
   ),
 }))
 
-vi.mock("~/components/dialogs/VerifyApiDialog", () => ({
+vi.mock("~/features/Verification/api", () => ({
   VerifyApiDialog: ({ account, initialModelId, onClose }: any) => (
     <div>
       <div>
@@ -280,15 +293,16 @@ vi.mock("~/components/dialogs/VerifyApiDialog", () => ({
   ),
 }))
 
-vi.mock("~/components/dialogs/VerifyCliSupportDialog", () => ({
+vi.mock("~/features/Verification/cli", () => ({
   VerifyCliSupportDialog: ({
     account,
     profile,
     initialModelId,
+    modelEnableGroups,
     onClose,
   }: any) => (
     <div>
-      <div>
+      <div data-model-groups={JSON.stringify(modelEnableGroups ?? [])}>
         Verify CLI Dialog{" "}
         {account ? `account:${account.id}` : `profile:${profile.id}`}:
         {initialModelId}
@@ -301,7 +315,7 @@ vi.mock("~/components/dialogs/VerifyCliSupportDialog", () => ({
 }))
 
 vi.mock(
-  "~/features/ApiCredentialProfiles/components/VerifyApiCredentialProfileDialog",
+  "~/features/ApiCredentialProfiles/verification/VerifyApiCredentialProfileDialog",
   () => ({
     VerifyApiCredentialProfileDialog: ({
       profile,
@@ -320,7 +334,7 @@ vi.mock(
   }),
 )
 
-vi.mock("~/features/ModelList/components/ModelKeyDialog", () => ({
+vi.mock("~/features/ModelList/keySelection", () => ({
   default: ({ account, modelId, modelEnableGroups, onClose }: any) => (
     <div>
       <div>
@@ -512,9 +526,12 @@ describe("ModelList page flows", () => {
         selectedSource: ALL_ACCOUNTS_SOURCE,
         selectedSourceValue: ALL_ACCOUNTS_SOURCE.value,
         currentAccount: null,
-        sourceCapabilities: ALL_ACCOUNTS_SOURCE.capabilities,
+        sourceCapabilities: {
+          ...ALL_ACCOUNTS_SOURCE.capabilities,
+          supportsPricing: false,
+        },
         pricingData: null,
-        pricingContexts: [{ accountId: ACCOUNT.id }],
+        pricingContexts: [ACCOUNT_PRICING_CONTEXT],
         isFallbackCatalogActive: true,
         accountSummaryCountsByAccountId: new Map([
           [ACCOUNT.id, 2],
@@ -574,9 +591,12 @@ describe("ModelList page flows", () => {
         selectedSource: ALL_ACCOUNTS_SOURCE,
         selectedSourceValue: ALL_ACCOUNTS_SOURCE.value,
         currentAccount: null,
-        sourceCapabilities: ALL_ACCOUNTS_SOURCE.capabilities,
+        sourceCapabilities: {
+          ...ALL_ACCOUNTS_SOURCE.capabilities,
+          supportsPricing: false,
+        },
         pricingData: null,
-        pricingContexts: [{ accountId: ACCOUNT.id }],
+        pricingContexts: [ACCOUNT_PRICING_CONTEXT],
         isFallbackCatalogActive: true,
         accountSummaryCountsByAccountId: new Map([
           [ACCOUNT.id, 2],
@@ -654,7 +674,10 @@ describe("ModelList page flows", () => {
       buildState({
         currentAccount: sharedChatAccount,
         selectedSource: createAccountSource(sharedChatAccount),
-        sourceCapabilities: createAccountSource(sharedChatAccount).capabilities,
+        sourceCapabilities: {
+          ...createAccountSource(sharedChatAccount).capabilities,
+          supportsPricing: false,
+        },
         isFallbackCatalogActive: true,
         fallbackRuntimeKeyName: "SharedChat service credential",
         pricingData: {
@@ -698,7 +721,7 @@ describe("ModelList page flows", () => {
         currentAccount: null,
         sourceCapabilities: ALL_ACCOUNTS_SOURCE.capabilities,
         pricingData: null,
-        pricingContexts: [{ accountId: ACCOUNT.id }],
+        pricingContexts: [ACCOUNT_PRICING_CONTEXT],
         allAccountsFilterAccountIds: ["acc-1"],
         accountSummaryCountsByAccountId: new Map([
           [ACCOUNT.id, 2],
@@ -738,7 +761,7 @@ describe("ModelList page flows", () => {
         currentAccount: null,
         sourceCapabilities: ALL_ACCOUNTS_SOURCE.capabilities,
         pricingData: null,
-        pricingContexts: [{ accountId: ACCOUNT.id }],
+        pricingContexts: [ACCOUNT_PRICING_CONTEXT],
         accountSummaryCountsByAccountId: new Map([[SECOND_ACCOUNT.id, 1]]),
         accountQueryStates: [
           { account: ACCOUNT, errorType: null },
@@ -768,7 +791,7 @@ describe("ModelList page flows", () => {
         currentAccount: null,
         sourceCapabilities: ALL_ACCOUNTS_SOURCE.capabilities,
         pricingData: null,
-        pricingContexts: [{ accountId: ACCOUNT.id }],
+        pricingContexts: [ACCOUNT_PRICING_CONTEXT],
         accountSummaryCountsByAccountId: new Map([
           [ACCOUNT.id, 0],
           [SECOND_ACCOUNT.id, 0],
@@ -858,7 +881,7 @@ describe("ModelList page flows", () => {
         currentAccount: null,
         sourceCapabilities: ALL_ACCOUNTS_SOURCE.capabilities,
         pricingData: null,
-        pricingContexts: [{ accountId: ACCOUNT.id }],
+        pricingContexts: [ACCOUNT_PRICING_CONTEXT],
         allAccountsFilterAccountIds: [ACCOUNT.id],
         accountSummaryCountsByAccountId: new Map(),
         accountQueryStates: [
@@ -1427,7 +1450,7 @@ describe("ModelList page flows", () => {
         currentAccount: null,
         sourceCapabilities: ALL_ACCOUNTS_SOURCE.capabilities,
         pricingData: null,
-        pricingContexts: [{ accountId: ACCOUNT.id }],
+        pricingContexts: [ACCOUNT_PRICING_CONTEXT],
       }),
     )
 
@@ -1483,7 +1506,7 @@ describe("ModelList page flows", () => {
     await user.click(screen.getByRole("button", { name: "Verify CLI account" }))
     expect(
       await screen.findByText("Verify CLI Dialog account:acc-1:gpt-4"),
-    ).toBeInTheDocument()
+    ).toHaveAttribute("data-model-groups", '["vip"]')
     await user.click(screen.getByRole("button", { name: "Close verify CLI" }))
 
     await user.click(screen.getByRole("button", { name: "Verify CLI profile" }))
@@ -1491,6 +1514,6 @@ describe("ModelList page flows", () => {
       await screen.findByText(
         "Verify CLI Dialog profile:profile-1:claude-3-5-sonnet",
       ),
-    ).toBeInTheDocument()
+    ).toHaveAttribute("data-model-groups", "[]")
   })
 })

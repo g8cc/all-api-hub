@@ -5,9 +5,14 @@ import type { RuntimeMessageResponse } from "~/services/runtimeMessaging/result"
 import type {
   SiteAnnouncementCheckResult,
   SiteAnnouncementPreferences,
-  SiteAnnouncementRecord,
+  SiteAnnouncementRecordView,
   SiteAnnouncementSiteState,
 } from "~/types/siteAnnouncements"
+
+import type {
+  SiteAnnouncementsDevFixtureResult,
+  SiteAnnouncementsDevSeedRequest,
+} from "./devFixtures"
 
 export interface SiteAnnouncementsCheckNowRequest {
   accountIds?: string[]
@@ -30,7 +35,7 @@ interface SiteAnnouncementsProtocolMap {
     SiteAnnouncementSiteState[]
   >
   [SiteAnnouncementsMessageTypes.ListRecords](): RuntimeMessageResponse<
-    SiteAnnouncementRecord[]
+    SiteAnnouncementRecordView[]
   >
   [SiteAnnouncementsMessageTypes.CheckNow](
     data?: SiteAnnouncementsCheckNowRequest,
@@ -44,6 +49,10 @@ interface SiteAnnouncementsProtocolMap {
   [SiteAnnouncementsMessageTypes.UpdatePreferences](
     data: SiteAnnouncementsUpdatePreferencesRequest,
   ): RuntimeMessageResponse<SiteAnnouncementPreferences>
+  [SiteAnnouncementsMessageTypes.DebugSeedFixtures](
+    data?: SiteAnnouncementsDevSeedRequest,
+  ): RuntimeMessageResponse<SiteAnnouncementsDevFixtureResult>
+  [SiteAnnouncementsMessageTypes.DebugClearFixtures](): RuntimeMessageResponse<SiteAnnouncementsDevFixtureResult>
 }
 
 export const {

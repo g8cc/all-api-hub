@@ -14,6 +14,7 @@ import {
   getServiceWorker,
 } from "~~/e2e/utils/extensionState"
 import { waitForExtensionRoot } from "~~/e2e/utils/lazyLoading"
+import { captureVisualViews } from "~~/e2e/utils/visualCapture"
 
 test.beforeEach(async ({ page, context }) => {
   installExtensionPageGuards(page)
@@ -51,7 +52,7 @@ test("keeps bulk selection review and actions usable across widths and themes", 
   await page.getByTestId(ids.accountListBulkManageButton).click()
   const toolbar = page.getByTestId("account-bulk-toolbar")
   await toolbar
-    .getByRole("button", { name: "Select visible results", exact: true })
+    .getByRole("button", { name: "Select all in this list", exact: true })
     .click()
   await expect(toolbar.getByRole("button", { name: "Disable 2" })).toBeVisible()
   await page
@@ -71,11 +72,16 @@ test("keeps bulk selection review and actions usable across widths and themes", 
         name: "Copy invite links",
         exact: true,
       })
+      const directCopySiteUrls = toolbar.getByRole("button", {
+        name: "Copy site URLs",
+        exact: true,
+      })
       const directSelect = toolbar.getByRole("button", {
-        name: "Select visible results",
+        name: "Select all in this list",
         exact: true,
       })
       await expect(directCopy).toBeVisible()
+      await expect(directCopySiteUrls).toBeVisible()
       await expect(
         toolbar.getByRole("button", { name: "Delete selected 3" }),
       ).toBeVisible()
@@ -129,7 +135,16 @@ test("keeps bulk selection review and actions usable across widths and themes", 
   await expect(
     toolbar.getByRole("button", { name: "Delete selected 2" }),
   ).toBeVisible()
-  await toolbar.getByRole("button", { name: "Clear selection" }).click()
+  await toolbar.getByRole("button", { name: "Review selection" }).click()
+  await review.getByRole("button", { name: "Clear selection" }).click()
+  await expect(
+    review.getByRole("button", { name: "Close", exact: true }),
+  ).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(review).toBeHidden()
+  await expect(
+    toolbar.getByRole("button", { name: "Exit", exact: true }),
+  ).toBeFocused()
   await expect(
     toolbar.getByRole("button", { name: "Disable 0" }),
   ).toBeDisabled()
@@ -146,7 +161,7 @@ test("keeps bulk selection review and actions usable across widths and themes", 
   // desktop width instead of assuming Chinese labels need a menu at 320px.
   await page.setViewportSize({ width: 1280, height: 900 })
   await toolbar
-    .getByRole("button", { name: "选择当前结果", exact: true })
+    .getByRole("button", { name: "全选当前列表", exact: true })
     .click()
   for (const width of [1280, 960, 480, 320]) {
     await page.setViewportSize({ width, height: 900 })
@@ -155,7 +170,10 @@ test("keeps bulk selection review and actions usable across widths and themes", 
         toolbar.getByRole("button", { name: "复制邀请链接", exact: true }),
       ).toBeVisible()
       await expect(
-        toolbar.getByRole("button", { name: "选择当前结果", exact: true }),
+        toolbar.getByRole("button", { name: "复制站点地址", exact: true }),
+      ).toBeVisible()
+      await expect(
+        toolbar.getByRole("button", { name: "全选当前列表", exact: true }),
       ).toBeVisible()
     }
     await page.mouse.move(0, 0)
@@ -204,14 +222,14 @@ test("bounds tag shortcuts across sizes and keeps hidden selections accessible",
         )
         return Boolean(
           row &&
-            row.height <= 40 &&
-            buttons.every(
-              (r) =>
-                r.left >= row.x &&
-                r.right <= row.x + row.width &&
-                r.top >= row.y &&
-                r.bottom <= row.y + row.height,
-            ),
+          row.height <= 40 &&
+          buttons.every(
+            (r) =>
+              r.left >= row.x &&
+              r.right <= row.x + row.width &&
+              r.top >= row.y &&
+              r.bottom <= row.y + row.height,
+          ),
         )
       })
       .toBe(true)
@@ -243,6 +261,7 @@ test("bounds tag shortcuts across sizes and keeps hidden selections accessible",
 test("retains status filters when collapsed and when moving between mobile and desktop", async ({
   page,
   extensionId,
+  extensionDir,
 }) => {
   await page.setViewportSize({ width: 480, height: 960 })
   await page.goto(`chrome-extension://${extensionId}/options.html#account`)
@@ -253,6 +272,16 @@ test("retains status filters when collapsed and when moving between mobile and d
   const toggle = list.getByRole("button", { name: /^Filters/ })
   await expect(status).toBeHidden()
   await toggle.click()
+  await captureVisualViews({
+    page,
+    ready: status,
+    id: "account-status-filters",
+    extensionDir,
+    views: [
+      { id: "mobile", width: 480, height: 960, theme: "light" },
+      { id: "desktop", width: 1536, height: 960, theme: "light" },
+    ],
+  })
   await status.click()
   await page.getByRole("option", { name: /Disabled/ }).click()
   await toggle.click()
@@ -281,6 +310,11 @@ test("keeps sorting compact on the left and clears it without opening a menu", a
   const menu = page.getByTestId(ids.accountListSortMenuButton)
   const clear = page.getByTestId(ids.accountListClearSortButton)
   await menu.click()
+  await expect(
+    page
+      .getByRole("menuitemradio", { name: "Check-in Requirement", exact: true })
+      .locator("svg.lucide-calendar-check-2"),
+  ).toBeVisible()
   await page
     .getByRole("menuitemradio", { name: "Balance", exact: true })
     .click()

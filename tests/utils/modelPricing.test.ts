@@ -19,10 +19,19 @@ import {
   getBillingModeText,
   getEndpointTypesText,
   isTokenBillingType,
+  projectTokenPrices,
   resolvePriceAmount,
 } from "~/services/models/utils/modelPricing"
 
 describe("modelPricing utils", () => {
+  it("projects partial native-currency token facts without inventing missing prices", () => {
+    expect(projectTokenPrices({})).toBeUndefined()
+    for (const key of ["input", "output", "cacheRead", "cacheWrite"] as const) {
+      expect(
+        projectTokenPrices({ [key]: { amount: 7, currency: "CNY" } }),
+      ).toEqual({ currency: "CNY", prices: { [key]: 7 } })
+    }
+  })
   describe("isTokenBillingType", () => {
     it("should return true for quota_type 0 (token billing)", () => {
       expect(isTokenBillingType(0)).toBe(true)
@@ -55,6 +64,37 @@ describe("modelPricing utils", () => {
         kind: "token",
         usdPerMillionTokens: { input: 60, output: 120 },
       })
+    })
+
+    it("keeps native CNY cache-write prices without relabeling them as USD", () => {
+      const rate = (amount: number) => ({
+        amount,
+        currency: "CNY" as const,
+        unit: PRICE_RATE_UNITS.TOKEN,
+        per: TOKENS_PER_MILLION,
+      })
+      const model: ModelPricing = {
+        ...tokenModel,
+        pricingPlan: {
+          rates: { input: rate(20), output: rate(100), cacheWrite: rate(40) },
+          rules: [],
+          issues: [],
+          source: { kind: PRICING_SOURCE_KINDS.CATALOG },
+          groupMultiplier: PRICING_GROUP_MULTIPLIERS.INCLUDED,
+        },
+      }
+      expect(calculateModelPrice(model, 1)).toMatchObject({
+        kind: "unavailable",
+        perMillionTokens: {
+          input: { amount: 20, currency: "CNY" },
+          output: { amount: 100, currency: "CNY" },
+          cacheWrite: { amount: 40, currency: "CNY" },
+        },
+      })
+      model.pricingPlan!.rates.input!.amount = Infinity
+      expect(calculateModelPrice(model, 1)).not.toHaveProperty(
+        "perMillionTokens",
+      )
     })
 
     it("displays independent plan rates and applies the group exactly once", () => {

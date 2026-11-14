@@ -4,19 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RuntimeActionIds } from "~/constants/runtimeActions"
 import { ensureRedemptionToastUi } from "~/entrypoints/content/shared/uiRoot"
 import { setupWebAiApiCheckContent } from "~/entrypoints/content/webAiApiCheck"
+import { showApiCheckConfirmToast } from "~/entrypoints/content/webAiApiCheck/utils/apiCheckToasts"
 import {
   API_CHECK_MODAL_CLOSE_REASONS,
   API_CHECK_MODAL_CLOSED_EVENT,
   dispatchOpenApiCheckModal,
   waitForApiCheckModalHostReady,
-} from "~/entrypoints/content/webAiApiCheck/events"
-import { showApiCheckConfirmToast } from "~/entrypoints/content/webAiApiCheck/utils/apiCheckToasts"
+} from "~/features/WebAiApiCheck/content/events"
 import { extractApiCheckCredentialsFromText } from "~/services/verification/webAiApiCheck/extractCredentials"
 import {
   sendWebAiApiCheckMessage,
   WebAiApiCheckMessageTypes,
 } from "~/services/verification/webAiApiCheck/messaging"
-import { checkPermissionViaMessage } from "~/utils/browser/browserApi"
+import { checkPermissionViaMessage } from "~/utils/browser/permissions"
 import { encodeUnpaddedBase64 } from "~~/tests/test-utils/encoding"
 import {
   buildApiCheckClipboardText,
@@ -33,13 +33,10 @@ const { logger } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/permissions", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
-  return {
-    ...actual,
-    checkPermissionViaMessage: vi.fn(),
-  }
+    await importOriginal<typeof import("~/utils/browser/permissions")>()
+  return { ...actual, checkPermissionViaMessage: vi.fn() }
 })
 
 vi.mock("~/services/verification/webAiApiCheck/messaging", () => ({
@@ -80,20 +77,17 @@ vi.mock("~/utils/core/logger", () => ({
   createLogger: vi.fn(() => logger),
 }))
 
-vi.mock(
-  "~/entrypoints/content/webAiApiCheck/events",
-  async (importOriginal) => {
-    const actual =
-      await importOriginal<
-        typeof import("~/entrypoints/content/webAiApiCheck/events")
-      >()
-    return {
-      ...actual,
-      dispatchOpenApiCheckModal: vi.fn(),
-      waitForApiCheckModalHostReady: vi.fn().mockResolvedValue(undefined),
-    }
-  },
-)
+vi.mock("~/features/WebAiApiCheck/content/events", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("~/features/WebAiApiCheck/content/events")
+    >()
+  return {
+    ...actual,
+    dispatchOpenApiCheckModal: vi.fn(),
+    waitForApiCheckModalHostReady: vi.fn().mockResolvedValue(undefined),
+  }
+})
 
 /**
  * Creates a clipboard event for tests.
@@ -313,6 +307,116 @@ describe("setupWebAiApiCheckContent", () => {
     cleanup()
   })
 
+  it("prompts for a decoded known key without a URL and preserves it for manual completion", async () => {
+    const apiKey = `${OPENAI_KEY_PREFIX}${"a1b2c3d4".repeat(8)}`
+    vi.mocked(sendWebAiApiCheckMessage).mockResolvedValue({
+      success: true,
+      shouldPrompt: false,
+      enhancedShouldPrompt: true,
+    })
+    vi.mocked(showApiCheckConfirmToast).mockResolvedValue(true)
+    const cleanup = setupWebAiApiCheckContent()
+    try {
+      document.dispatchEvent(
+        makeClipboardEvent("copy", encodeUnpaddedBase64(apiKey)),
+      )
+      await waitFor(() =>
+        expect(dispatchOpenApiCheckModal).toHaveBeenCalledWith(
+          expect.objectContaining({
+            trigger: "autoDetect",
+            extraction: expect.objectContaining({
+              candidates: expect.objectContaining({
+                baseUrls: [],
+                apiKeys: expect.arrayContaining([
+                  expect.objectContaining({ value: apiKey }),
+                ]),
+              }),
+            }),
+          }),
+        ),
+      )
+      expect(showApiCheckConfirmToast).toHaveBeenCalledWith({
+        usesEnhancedResult: true,
+        missingBaseUrl: true,
+      })
+    } finally {
+      cleanup()
+    }
+  })
+
+  it.each([
+    [
+      "enhanced detection disabled",
+      false,
+      encodeUnpaddedBase64(`${OPENAI_KEY_PREFIX}${"a1b2c3d4".repeat(8)}`),
+    ],
+    [
+      "ordinary encoded text",
+      true,
+      encodeUnpaddedBase64("this is an ordinary sentence, not a credential"),
+    ],
+    [
+      "an ambiguous encoded token",
+      true,
+      encodeUnpaddedBase64("a1b2c3d4".repeat(8)),
+    ],
+    [
+      "a plain key without a URL",
+      true,
+      `${OPENAI_KEY_PREFIX}${"a1b2c3d4".repeat(8)}`,
+    ],
+  ])(
+    "does not prompt without a URL for %s",
+    async (_name, enhancedShouldPrompt, text) => {
+      vi.mocked(sendWebAiApiCheckMessage).mockResolvedValue({
+        success: true,
+        shouldPrompt: true,
+        enhancedShouldPrompt,
+      })
+      const cleanup = setupWebAiApiCheckContent()
+      try {
+        document.dispatchEvent(makeClipboardEvent("copy", text))
+        await flushMicrotasks(12)
+        expect(showApiCheckConfirmToast).not.toHaveBeenCalled()
+        expect(dispatchOpenApiCheckModal).not.toHaveBeenCalled()
+      } finally {
+        cleanup()
+      }
+    },
+  )
+
+  it("includes only selected link targets when detecting encoded credentials", async () => {
+    const apiKey = `${OPENAI_KEY_PREFIX}${"a1b2c3d4".repeat(8)}`
+    document.body.innerHTML = `<a href="https://unrelated.example.com">Other post</a><article><p>Discussion: https://discussion.example.com/topic</p><p>API URL：<br><a href="https://proxy.example.com/v1">虾蹬王 - AI API Gateway</a></p><p>API KEY(base64加密)： ${btoa(apiKey)}</p></article>`
+    const range = document.createRange()
+    range.selectNodeContents(document.querySelector("article")!)
+    const selection = document.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    vi.mocked(window.getSelection).mockReturnValue(selection)
+    vi.mocked(sendWebAiApiCheckMessage).mockResolvedValue({
+      success: true,
+      shouldPrompt: true,
+      enhancedShouldPrompt: true,
+    })
+    vi.mocked(showApiCheckConfirmToast).mockResolvedValue(true)
+    const cleanup = setupWebAiApiCheckContent()
+    try {
+      document.dispatchEvent(new Event("pointerup", { bubbles: true }))
+      await waitFor(() => expect(dispatchOpenApiCheckModal).toHaveBeenCalled())
+      const detail = vi.mocked(dispatchOpenApiCheckModal).mock.calls[0]![0]
+      expect(detail.extraction?.candidates.baseUrls[0]?.value).toBe(
+        "https://proxy.example.com",
+      )
+      expect(detail.sourceText).toContain("https://proxy.example.com/v1")
+      expect(detail.sourceText).not.toContain("unrelated.example.com")
+      expect(detail.extraction?.candidates.apiKeys[0]?.value).toBe(apiKey)
+    } finally {
+      cleanup()
+      selection.removeAllRanges()
+    }
+  })
+
   it("passes configured API key cleanup regex patterns into auto-detect extraction", async () => {
     const apiKey = buildApiKey()
     vi.mocked(sendWebAiApiCheckMessage).mockImplementation(
@@ -340,12 +444,55 @@ describe("setupWebAiApiCheckContent", () => {
       expect(extractApiCheckCredentialsFromText).toHaveBeenCalledWith(
         expect.any(String),
         {
+          automaticPrompt: true,
           apiKeyCleanupPatterns: ["\\[\\[remove-me\\]\\]"],
         },
       )
     })
 
     cleanup()
+  })
+
+  it("prompts for a known-format credential in an explicit URL query parameter", async () => {
+    vi.spyOn(window, "getSelection").mockReturnValue({
+      toString: () =>
+        `https://gateway.example.org/connect?api_key=${OPENAI_KEY_PREFIX}QueryFixture123456789&mode=demo`,
+    } as any)
+    vi.mocked(sendWebAiApiCheckMessage).mockResolvedValue({
+      success: true,
+      shouldPrompt: true,
+      enhancedShouldPrompt: true,
+    })
+    vi.mocked(showApiCheckConfirmToast).mockResolvedValue(false)
+    const cleanup = setupWebAiApiCheckContent({ enableContextMenu: false })
+    try {
+      document.dispatchEvent(new Event("pointerup", { bubbles: true }))
+      await waitFor(() => expect(showApiCheckConfirmToast).toHaveBeenCalled())
+    } finally {
+      cleanup()
+    }
+  })
+
+  it("does not prompt for a known-prefix token embedded in an ordinary URL", async () => {
+    vi.spyOn(window, "getSelection").mockReturnValue({
+      toString: () =>
+        `https://files.example.org/${OPENAI_KEY_PREFIX}SyntheticFixture123456789`,
+    } as any)
+    vi.mocked(sendWebAiApiCheckMessage).mockResolvedValue({
+      success: true,
+      shouldPrompt: true,
+      enhancedShouldPrompt: true,
+    })
+    const cleanup = setupWebAiApiCheckContent({ enableContextMenu: false })
+    try {
+      document.dispatchEvent(new Event("pointerup", { bubbles: true }))
+      // Settle the asynchronous shouldPrompt/confirmation chain, if admitted.
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(extractApiCheckCredentialsFromText).toHaveBeenCalled()
+      expect(showApiCheckConfirmToast).not.toHaveBeenCalled()
+    } finally {
+      cleanup()
+    }
   })
 
   it("opens auto-detect for selected text on pointerup and stops after cleanup", async () => {

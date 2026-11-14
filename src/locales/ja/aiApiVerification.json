@@ -1,10 +1,12 @@
 {
   "verifyDialog": {
+    "about": "テストについて",
     "actions": {
       "close": "閉じる",
       "manageModelKey": "モデル対応キーを開く",
       "retry": "再試行",
-      "run": "実行",
+      "runAll": "通常テストを実行",
+      "runAllHint": "通常テストのみ実行します。オンデマンドテストは個別に開始してください。",
       "running": "実行中...",
       "runOne": "実行",
       "stop": "停止",
@@ -16,55 +18,127 @@
       "openai": "OpenAI",
       "openaiCompatible": "OpenAI 互換"
     },
+    "associatedCredentialHint": "このサイトから完全なキーを再取得することはできません。テストには API 認証情報ライブラリで選択したキーに関連付けた完全なキーを使用します。未関連付けの場合は、キー管理で保存または関連付けてください。",
     "details": {
       "input": "入力",
-      "output": "出力"
+      "output": "出力",
+      "result": "実行結果"
     },
     "errors": {
       "unexpected": "予期しないエラー"
     },
+    "generatedImagePreview": "生成画像のプレビュー",
+    "generatedVideoPreview": "生成された動画のプレビュー",
     "history": {
       "clear": "履歴をクリア",
-      "lastVerified": "前回の検証"
+      "lastVerified": "最終テスト",
+      "previousResult": "前回：{{result}}",
+      "storage": {
+        "context": "履歴には測定結果が保存され、各リクエストの詳細は保存されません。",
+        "drawing": "履歴には作品や実行の詳細は保存されません。",
+        "needle": "履歴には測定結果が保存されます。同じサンプル番号と設定でテスト用テキストを再生成できます。",
+        "probe": "履歴にはテスト概要のみ保存され、リクエストやレスポンスの内容は保存されません。"
+      }
     },
-    "idleHint": "検証を開始するにはキーを選択してください。モデル依存のプローブにはモデル ID が必要です。",
+    "intro": {
+      "probes": {
+        "decision": "サンプルの状態を決定 API に送信し、決定値または確率が返されるか確認します。",
+        "embedding": "サンプルテキストを送信し、返されたベクトルとその次元を確認します。",
+        "image-generation": "画像用のプロンプトを送信し、応答を確認して生成画像をプレビューします。",
+        "models": "API からモデル名と件数を取得し、以降のテストで使うモデルを選べます。",
+        "rerank": "クエリと候補文書を送信し、関連度による順位を確認します。",
+        "structured-output": "ok: true を含む JSON をモデルに要求し、フィールドの値と構造を検証します。",
+        "text-generation": "モデルがプロンプトに応答できるか確認します。大文字・小文字を問わず、応答に OK が含まれれば合格です。",
+        "tool-calling": "組み込みのタイムスタンプツールの呼び出しをモデルに要求します。その呼び出しを検出すると合格です。",
+        "video-generation": "動画生成タスクを送信し、状態を待って生成された動画を確認します。",
+        "web-search": "APIがウェブ検索を利用できるか確認し、検索結果と引用を確認します。"
+      },
+      "startHint": "<run>実行</run> を選択して、このテストを開始します。"
+    },
     "loadingRuntimeKeysHint": "キーを読み込み中...",
+    "mediaPreviewUnavailable": "プレビューを読み込めませんでした。",
     "meta": {
       "apiType": "API 種別",
       "apiTypePlaceholder": "API 種別を選択",
+      "configuration": "リクエスト設定",
       "mode": "テスト方式",
       "model": "モデル",
       "modelPlaceholder": "モデル ID を入力",
+      "requestProfile": "クライアントシミュレーション",
       "runtimeKey": "キー",
       "runtimeKeyIncompatible": "このモデルでは使用不可",
       "runtimeKeyPlaceholder": "キーを選択"
+    },
+    "modalityNotice": {
+      "image": "画像生成モデルです。テスト呼び出しは都度クォータを消費します。",
+      "quotaCost": "都度課金",
+      "video": "動画を生成し、再生まで最大2分待機します。停止はローカルの待機のみを終了します。サーバーのタスクは継続し、料金が発生する場合があります。"
     },
     "modes": {
       "nonStreaming": "非ストリーミング",
       "streaming": "ストリーミング"
     },
     "noCompatibleRuntimeKeyHint": "このモデルのグループで使用できるキーがありません。キー管理で有効なグループのキーを作成するか選択してください。",
-    "notRunYet": "未実行",
+    "openGeneratedMedia": "生成されたメディアを開く",
     "probes": {
+      "decision": "ディシジョン",
+      "embedding": "埋め込み",
+      "image-generation": "画像生成",
       "models": "モデル一覧",
-      "structured-output": "構造化出力（スキーマ JSON）",
+      "rerank": "リランカー",
+      "structured-output": "構造化出力",
       "text-generation": "テキスト生成",
       "tool-calling": "ツール / 関数呼び出し",
-      "web-search": "Web 検索 / grounding"
+      "video-generation": "動画生成タスク",
+      "web-search": "Web 検索"
+    },
+    "requestProfiles": {
+      "claude": "Claude Code",
+      "codex": "Codex CLI",
+      "default": "通常の API",
+      "enhancedBadge": "強化",
+      "enhancedCostHint": "入力使用量が増える場合があります",
+      "enhancedHint": "既知の識別プロンプト、SDK ヘッダー、キャッシュ、セッション情報を追加します。入力使用量が増える場合があり、サイトでの許可は保証されません。",
+      "enhancedLabel": "CLI シミュレーションの強化",
+      "gemini": "Gemini CLI",
+      "hint": "クライアントを選択すると、既定のプロトコルが設定されます。後から手動で変更することもできます。クライアントの API リクエストを模擬し、端末上の CLI は起動しません。",
+      "protocolMismatch": "クライアントの既定プロトコル（{{apiType}}）と異なるため、互換性がない場合があります。",
+      "shortcutHint": "{{client}} が選択されています。テストを実行するか、別のクライアントに切り替えられます。",
+      "shortcutTooltip": "この API の CLI クライアントへの対応状況をテストします"
     },
     "requiresModelId": "このテストを実行するにはモデル ID を入力してください。",
+    "sections": {
+      "onDemand": "個別テスト",
+      "routine": "通常テスト"
+    },
     "selectedRuntimeKeyIncompatibleHint": "選択中のキーはこのモデルのグループでは使用できません。互換性のあるキーを選択してから検証してください。",
+    "source": {
+      "account": "アカウント：{{name}}",
+      "profile": "認証情報：{{name}}"
+    },
     "status": {
+      "emptyResponse": "本文なし",
       "fail": "失敗",
+      "inconclusive": "確認できず",
       "pass": "成功",
+      "paused": "一時停止",
       "pending": "保留中",
+      "stopped": "停止済み",
+      "timeout": "リクエストがタイムアウト",
       "unsupported": "未対応",
-      "unverified": "未検証"
+      "unverified": "未テスト"
     },
     "summaries": {
+      "decisionSucceeded": "ディシジョン検証に成功しました。",
+      "decisionUnexpectedResponse": "ディシジョン API の応答が予期されない形式です。",
+      "embeddingSucceeded": "埋め込みの生成に成功しました（次元: {{dimension}}）。",
+      "embeddingUnexpectedResponse": "埋め込みレスポンスが予期しない形式です。",
+      "embeddingUnsupportedAnthropic": "Anthropic はネイティブの埋め込みモデルに対応していません。",
       "endpointNotFound": "エンドポイントが見つかりません (404): この API は未対応の可能性があります",
       "forbidden": "禁止されています (403): アクセスが拒否されました",
       "httpError": "HTTP エラー ({{status}})",
+      "imageGenerationNoData": "画像データが返されませんでした。",
+      "imageGenerationSucceeded": "画像生成に成功しました。",
       "modelsFetched": "{{count}} 件のモデルを取得しました。",
       "modelsFetched_other": "{{count}} 件のモデルを取得しました。",
       "modelsProbeUnsupportedForApiType": "この API 種別では models プローブはサポートされていません。",
@@ -74,6 +148,11 @@
       "noModelIdProvidedToRunProbes": "プローブを実行するためのモデル ID が指定されていません。",
       "noModelsReturned": "モデルが返されませんでした。",
       "noToolCallDetected": "ツール呼び出しが検出されませんでした（モデルがツールに対応していない可能性があります）。",
+      "probeRequiresOpenAiProtocol": "このテストには OpenAI 互換 API エンドポイントが必要です。サービスが対応している場合のみ、そのプロトコルを選択してください。",
+      "requestProfileIncompatible": "選択したクライアントの模擬は、この API プロトコルまたはテストに対応していません。",
+      "requestTimedOut": "リクエストがタイムアウトし、結果を確認できませんでした。時間をおいて再試行してください。タイムアウトはモデルがこの機能に非対応であることを意味しません。",
+      "rerankSucceeded": "リランクテストに成功しました。",
+      "rerankUnexpectedResponse": "リランカーレスポンスが予期しない形式です。",
       "stopped": "ユーザーが停止しました。",
       "structuredOutputInvalid": "出力が不正です。",
       "structuredOutputSucceeded": "構造化出力に成功しました。",
@@ -81,6 +160,12 @@
       "textGenerationUnexpectedResponse": "予期しない応答テキストです。",
       "toolCallSucceeded": "ツール呼び出しに成功しました。",
       "unauthorized": "認証されていません (401): 無効なキーまたは認証不足です",
+      "videoGenerationSucceeded": "動画を生成しました。",
+      "videoGenerationTimedOut": "動画の生成が2分以内に完了しませんでした。サーバーのタスクは実行中の可能性があります。",
+      "videoNoPlayableResult": "動画タスクは完了しましたが、再生可能な URL が返されませんでした。",
+      "videoNoTaskReturned": "動画タスク ID が返されませんでした。",
+      "videoTaskAccepted": "動画生成タスクが受付されました。",
+      "videoUnexpectedResponse": "動画タスクが失敗したか、無効な応答が返されました。",
       "webSearchGroundingNoResults": "Web 検索 / grounding の結果がありません。",
       "webSearchGroundingSucceeded": "Web 検索 / grounding に成功しました。",
       "webSearchNoResults": "Web 検索結果がありません。",
@@ -89,8 +174,227 @@
       "webSearchUnsupportedAnthropic": "Anthropic エンドポイントでは Web 検索プローブはサポートされていません。",
       "webSearchUnsupportedForApiType": "この API 種別では Web 検索プローブはサポートされていません。"
     },
-    "title": "API 検証",
+    "title": "API テスト",
+    "tools": {
+      "agent": {
+        "calls": "ツール実行履歴",
+        "completed": "SVG ファイルを生成しました。描画の品質はご自身で判断してください。",
+        "files": "ワークスペースのファイル",
+        "hint": "モデルが描画を確認・改善します。利用量が増える場合があります。",
+        "label": "Agent テストモード",
+        "noArtifact": "モデルは pelican.svg に完全な SVG を書き込みませんでした。最終回答は成果物として使用しません。",
+        "summary": "ターン数: {{steps}} · ツール呼び出し: {{calls}} · {{seconds}} 秒"
+      },
+      "context": {
+        "about": "モデルコンテキストテストの説明",
+        "acceptedTitle": "モデルコンテキスト：約 {{tokens}} tokens を検証済み",
+        "comparison": "メタデータの宣言値 {{expected}} tokens",
+        "continue": "探測を続ける",
+        "counter": "トークナイザー：{{encoding}}。",
+        "coverage": "コンテキスト ≈{{percent}}%",
+        "description": "モデルの宣言値をテスト上限とし、不明な場合は最大 1M tokens をテストします。各バッチの累積入力予算は約 8M tokens で、一時停止後に続行できます。",
+        "details": "テストの詳細",
+        "discard": "中断したテストを破棄",
+        "discardWarning": "中断したテストの保存件数が上限に達しました。続行するには実行中でない記録を破棄してください。課金状況は不明です。実行中のテストは保持されます。",
+        "emptyResponse": "応答は正常終了しましたが本文がなく、入力の受理は未確認です。",
+        "errorTitle": "テストを完了できませんでした",
+        "estimated": "モデルのエンコーディングは推定です。",
+        "hint": "モデルが受け付ける入力コンテキスト長をテストします。結果は API とリクエスト設定に依存し、コンテキストウィンドウ全体を保証するものではありません。",
+        "historyError": "履歴を利用できません。今回の結果は表示されています。",
+        "incompleteResponse": "判定可能な応答がありません。終了理由：{{reason}}。",
+        "interrupted": "リクエストが中断され、課金状況は不明です。自動再試行はしていません。新しいテストを開始すると追加の使用量が発生する可能性があります。",
+        "lower": "最大受理入力：ローカルテキスト {{tokens}} トークン",
+        "maskedHistoryHint": "このマスクされたキーの過去の測定結果です。現在の認証情報は再検証されていません。",
+        "matched": "モデルのエンコーディングを照合済みです。リクエスト全体のトークン数は異なる場合があります。",
+        "measuredBadge": "約 {{tokens}} tokens を受信済み",
+        "measurementDetails": "測定の根拠",
+        "outputLimited": "入力は受理されました。出力は長さ制限で切り詰められましたが、入力の受理結果は有効です。",
+        "pausedTitle": "テストを一時停止しました",
+        "progress": "リクエスト: {{requests}} · 累積入力予算の使用量: 約 {{tokens}} トークン（失敗したリクエストを含む）",
+        "reasons": {
+          "bracketed": "現在の接続の入力境界を概算で確認しました。",
+          "budget": "このバッチのリクエスト数または累積入力予算に達しました。続行すると使用量を追加し、現在位置から再開します。",
+          "inconclusive": "容量の上限を確認できませんでした。再試行するか実行詳細で原因を確認してください。",
+          "test-limit": "この長さの入力は受理されました。実際の容量はさらに大きい可能性があります。",
+          "timeout": "リクエストがタイムアウトし、入力が受け付けられたか確認できませんでした。タイムアウトだけではモデルの容量超過とは判断できません。時間をおいて再試行してください。再試行では長文を再送信するため、利用料金が発生する場合があります。"
+        },
+        "reportedUsage": "報告された使用量：入力 {{input}} + 出力 {{output}} = 合計 {{total}} トークン",
+        "requestDetails": "リクエストと使用量",
+        "resultLabel": "コンテキスト容量の結果",
+        "run": "コンテキストを測定",
+        "startHint": "長いテキストを送信し API 使用量が発生します。予算に達すると一時停止します。",
+        "stoppedTitle": "テストを停止しました",
+        "title": "モデルコンテキストテスト",
+        "unableTitle": "入力容量を確認できませんでした",
+        "upper": "容量による拒否：ローカル文字列で{{tokens}}トークン"
+      },
+      "errors": {
+        "unexpected": "リクエストに失敗しました：{{message}}"
+      },
+      "needle": {
+        "automatic": "自動",
+        "automaticLimit": "自動（{{limit}}）",
+        "budget": "入力は約 {{tokens}} トークン、出力は別途消費します。テストには API の利用枠を使用します。",
+        "cancelledCell": "キャンセル済み",
+        "cancelledUnknown": "判定可能な結果は得られませんでした。",
+        "capacityRunning": "利用可能なコンテキストを確認中です。完了後にテストの長さを更新します。",
+        "capped": "各リクエストの入力は最大 1M tokens です。",
+        "cell": "ローカル入力 {{tokens}} tokens · 実際の位置 {{depth}}% · {{latency}} ms",
+        "cellDetails": "セルの詳細",
+        "cumulativeScore": "累計結果：判定可能な回答 {{graded}} 件中 {{hits}} 件が一致",
+        "custom": "カスタム",
+        "customLimit": "カスタム長（tokens）",
+        "description": "長いテキスト内の異なる位置から、指定した情報を見つけられるか確認します。",
+        "errors": {
+          "busy": "別のページでこの接続のテストが実行中です。",
+          "failed": "大海の針テストを完了できませんでした：{{detail}}",
+          "metadata": "コンテキスト情報を読み込めません。再試行してください。",
+          "request": "モデルと有効な認証情報を選択してください。"
+        },
+        "exactLengths": "正確な長さ：{{lengths}} トークン",
+        "exactTotal": "推定入力合計：{{tokens}} トークン",
+        "expected": "期待する回答：{{value}}",
+        "invalid": "テキスト長は 1,024～1,048,576、サンプル番号は 0～4,294,967,295 の整数を入力してください。",
+        "length": "Tokens",
+        "lengthRule": "8K から長さを倍増させ、最後に入力上限 {{limit}} を追加します。",
+        "limit": "テキストの最大長（トークン）",
+        "limitation": "一致はこのサンプルのみを検証します。不一致だけでは、入力の切り捨て、容量の縮小、モデルの相違を断定できません。",
+        "matrix": "入力長と位置ごとの検索結果",
+        "matrixHint": "状態をクリックすると詳細を表示し、そのセルを実行・再テストできます。行・列のボタンは結果があるセルも含めて範囲全体を実行します。停止は対応するセル・行・列だけに作用します。",
+        "notRun": "未実行",
+        "notScheduled": "今回は対象外",
+        "outcomes": {
+          "contextLimit": "上限超過",
+          "error": "エラー",
+          "hit": "一致",
+          "incomplete": "不完全",
+          "interrupted": "結果不明",
+          "miss": "不一致"
+        },
+        "planDetails": "長さの決め方",
+        "planned": "実行予定",
+        "plannedLengths": "テキストの長さ（トークン）",
+        "positionRule": "各長さの {{positions}} の位置で、前半・中央・後半の情報を取得できるか確認します。",
+        "preparing": "テスト計画を準備中…",
+        "preparingCellState": "準備中",
+        "previewPositions": "各長さの {{positions}} の位置を1回ずつテストします。",
+        "previewTitle": "今回のテストのプレビュー",
+        "previousResult": "前回の結果（今回の実行前）",
+        "probeFirst": "利用可能なコンテキストを確認",
+        "progress": "直近の実行：{{completed}}/{{total}} 件のリクエストを処理",
+        "quick": "最も長いテキストのみテスト",
+        "quickHint": "予定されている最長の入力の3か所のみ実行します。他の長さは今回の対象外ですが、行または列ごとに追加テストできます。",
+        "randomSample": "毎回ランダムに生成",
+        "reasons": {
+          "budget": "予算に到達",
+          "complete": "完了",
+          "error": "リクエスト失敗",
+          "interrupted": "中断、結果不明"
+        },
+        "reference": {
+          "context": "モデル情報のコンテキスト：{{tokens}}（未検証）",
+          "input": "モデル情報の入力上限：{{tokens}}（未検証）",
+          "measured": "以前受け付けた入力：{{tokens}}（最大容量は不明）",
+          "unknown": "コンテキスト上限が不明なため、自動モードは暫定的に {{tokens}} tokens を使用します。検査後に自動値を更新します。"
+        },
+        "reproduce": "サンプル {{seed}} · トークナイザー：{{encoding}}。",
+        "requestCount_other": "{{count}} 件のリクエスト",
+        "requestDetails": "リクエストと回答の詳細",
+        "resultDetails": "テスト設定と再現情報",
+        "retestCell": "このセルを再テスト",
+        "retestColumn": "{{depth}}% 列を再テスト（{{requests}}）",
+        "retestRow": "{{length}} 行を再テスト（{{requests}}）",
+        "retry": "再試行",
+        "run": "検索テストを開始",
+        "runCell": "このセルを実行",
+        "runColumn": "{{depth}}% 列を実行（{{requests}}）",
+        "runRow": "{{length}} 行を実行（{{requests}}）",
+        "savedResult": "保存済みの結果",
+        "scopeProgress": "{{completed}}/{{total}} 処理済み",
+        "score": "{{hits}}/{{total}} 一致",
+        "seedHint": "空欄なら毎回新しいサンプルを生成します。同じ番号と設定で同じテキストを再テストできます。",
+        "seedInput": "テストサンプル番号（任意）",
+        "singleLengthRule": "今回は {{limit}} の長さだけをテストします。",
+        "sources": {
+          "custom": "指定した最大入力長 {{limit}} を基にテストします。",
+          "declaredContext": "モデル情報の総コンテキストは {{context}} です。返信用に {{reserve}} を確保し、入力上限を {{input}} とします。現在の API では未検証です。",
+          "declaredInput": "モデル情報に個別の入力上限 {{input}} があり、これを基に長さを選びます。現在の API では未検証です。",
+          "fallback": "利用可能なモデルの長さ情報や入力の受付記録がないため、既定の上限 {{limit}} を使用します。テスト設定で変更するか、先に利用可能なコンテキストを確認できます。",
+          "measured": "この接続が以前受け付けた入力を基に、今回は {{limit}} までテストします。モデルの最大容量を示すものではありません。"
+        },
+        "stopCapacity": "容量測定を停止",
+        "stopCell": "{{length}} · {{depth}}% を停止",
+        "stopColumn": "{{depth}}% 列を停止",
+        "stopFailed": "停止できませんでした。再試行してください。",
+        "stoppingCell": "停止中…",
+        "stopRow": "{{length}} 行を停止",
+        "title": "大海から針を探す",
+        "tokenUnits": "このテストでは 1K = 1,024 トークン、1M = 1,048,576 トークンです。"
+      },
+      "pelican": {
+        "analysis": "図形 {{shapes}} 個 · 円/楕円 {{wheels}} 個 · viewBox {{viewBox}}",
+        "description": "自転車に乗ったペリカンの SVG を描かせ、見比べられるようにします。判定は目視で行います。",
+        "noSvg": "モデルは SVG を返しませんでした。",
+        "outcomes": {
+          "error": "実行失敗",
+          "generated": "描画を生成済み",
+          "no-artifact": "描画成果物なし"
+        },
+        "previewAlt": "生成された描画",
+        "previewFailed": "SVG を表示できません。属性の重複など、XML 形式に誤りがある可能性があります。元の回答またはワークスペースのファイルを開いて確認してください。",
+        "raw": "生の回答",
+        "run": "描画テストを実行",
+        "title": "描画テスト",
+        "unsafe": "回答にスクリプトや外部参照が含まれていたため、描画しませんでした。"
+      },
+      "prompts": {
+        "editorLabel": "{{probe}} のプロンプト",
+        "label": "プロンプト",
+        "resetOne": "この項目を既定に戻す",
+        "saveFailed": "プロンプトを保存できませんでした：{{message}}",
+        "sharedHint": "保存したプロンプトはすべてのテスト入口で共有されます。"
+      },
+      "questionAnswer": {
+        "comparison": "回答の比較",
+        "comparisonHint": "最終回答のテキストのみを比較します。推論の妥当性は回答全文で確認してください。",
+        "description": "独自の質問でモデルの回答や推論を確認できます。参照回答を入力すると、最終回答を比較できます。",
+        "draftChanged": "質問または参考回答が変更されています。前回の実行結果を表示しています。変更後の内容を比較するには再実行してください。",
+        "finalAnswer": "抽出された最終回答",
+        "loadFailed": "問答設定を読み込めませんでした。保存済みの下書きを読み込むには再試行してください。",
+        "notIdentified": "抽出できませんでした",
+        "outcomes": {
+          "empty": "回答なし",
+          "incomplete": "回答が不完全",
+          "manual": "回答を受信",
+          "matched": "参考回答と一致",
+          "mismatched": "参考回答と不一致",
+          "ungraded": "最終回答が不明確"
+        },
+        "question": "質問",
+        "questionRequired": "テストを実行するには質問を入力してください。",
+        "reference": "参考回答（任意）",
+        "requestFailed": "リクエスト失敗",
+        "reset": "質問と参考回答をリセット",
+        "response": "モデルの回答",
+        "rules": {
+          "extraction": "参考回答を入力すると、モデルに最終行を FINAL_ANSWER: で始めるよう要求し、コロン以降を最終回答として抽出します。 参考回答が空欄の場合は、判定せずに回答のみを表示します。",
+          "matching": "前後の空白を除去し、全角文字などの互換文字を正規化してから完全一致を判定します。例：２１ は 21 と一致しますが、21個 は 21 と一致しません。大文字・小文字、句読点、途中の空白は区別します。",
+          "privacy": "参考回答はローカルでのみ使用し、モデルには送信しません。",
+          "title": "比較ルール",
+          "unavailable": "指定形式の最終回答がない場合、回答全文が参考回答と一致するときのみ一致と判定します。それ以外は最終回答が不明確であると表示します。空の回答や不完全な出力は別途表示します。"
+        },
+        "run": "問答テストを実行",
+        "runQuestion": "今回使用した質問",
+        "runReference": "今回の参考回答",
+        "saveFailed": "設定を保存できませんでした。現在の下書きでテストできます。",
+        "saving": "保存中…",
+        "title": "問答テスト"
+      },
+      "settingsTitle": "テスト設定",
+      "stop": "停止",
+      "stopped": "途中で停止したため、結果は保存していません。"
+    },
     "unsupportedProbeForApiType": "{{probe}} プローブはこの API 種別ではサポートされていません。",
-    "warning": "対応が検出された場合は実際に対応している可能性が高いですが、未検出でも実際には対応している場合があります。結果は参考情報として扱い、最終的には実際のツール利用結果を優先してください。"
+    "warning": "結果は、このテストで使用した API、モデル、リクエスト設定にのみ適用されます。"
   }
 }

@@ -9,30 +9,35 @@ import {
 } from "react"
 import { useTranslation } from "react-i18next"
 
-import { ClaudeCodeRouterImportDialog } from "~/components/ClaudeCodeRouterImportDialog"
-import { CursorPlusExportDialog } from "~/components/CursorPlusExportDialog"
-import { useChannelDialog } from "~/components/dialogs/ChannelDialog"
-import {
-  EXPORT_ACTION_TARGETS,
-  ExportActionsMenu,
-} from "~/components/ExportActionsMenu"
-import { KelivoExportDialog } from "~/components/KelivoExportDialog"
-import { ManagedSiteImportButton } from "~/components/ManagedSiteImportButton"
 import { IconButton } from "~/components/ui"
 import { useFeatureGuidanceContext } from "~/contexts/FeatureGuidanceContext"
 import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
 import { ACCOUNT_MANAGEMENT_TEST_IDS } from "~/features/AccountManagement/testIds"
+import { ClaudeCodeRouterImportDialog } from "~/features/CredentialExport/ClaudeCodeRouterImportDialog"
+import { CursorPlusExportDialog } from "~/features/CredentialExport/CursorPlusExportDialog"
+import {
+  createDeeplinkExportMenuActions,
+  DEEPLINK_EXPORT_TARGETS,
+  type DeeplinkExportTarget,
+} from "~/features/CredentialExport/DeeplinkExportDialog"
+import {
+  EXPORT_ACTION_TARGETS,
+  ExportActionsMenu,
+} from "~/features/CredentialExport/ExportActionsMenu"
+import { KelivoExportDialog } from "~/features/CredentialExport/KelivoExportDialog"
 import type { KeyResourceActionPolicy } from "~/features/KeyManagement/presentation/keyResourceCard"
+import { useChannelDialog } from "~/features/ManagedSiteChannels/editor/ChannelDialog"
+import { ManagedSiteImportButton } from "~/features/ManagedSiteWidgets/ManagedSiteImportButton"
 import {
   collectAccountRuntimeKeySecrets,
   getAccountRuntimeKeyExportId,
   isServiceCredentialRuntimeKey,
   type AccountRuntimeKey,
   type ServiceCredentialRuntimeKey,
-} from "~/services/accounts/accountRuntimeKeys"
+} from "~/services/accounts/keys/accountRuntimeKeys"
 import { resolveDisplayAccountRuntimeKeySecret } from "~/services/accounts/utils/apiServiceRequest"
 import { createAccountRuntimeKeyExportSource } from "~/services/accounts/utils/credentialExport"
-import { buildApiCredentialProfileName } from "~/services/apiCredentialProfiles/accountTokenProfileName"
+import { buildApiCredentialProfileName } from "~/services/apiCredentialProfiles/accountImport/accountTokenProfileName"
 import {
   createProfileCredentialExportData,
   createProfileCredentialExportSource,
@@ -68,20 +73,23 @@ interface RuntimeKeyActionControlsProps {
   copiedRuntimeKeyId: string | null
   onCopyKey: (runtimeKey: AccountRuntimeKey) => void
   account: DisplaySiteData
-  onOpenCCSwitchDialog?: (source: CredentialExportSource) => void
+  onOpenDeeplinkExport?: (
+    target: DeeplinkExportTarget,
+    source: CredentialExportSource,
+  ) => void
 }
 
 // Kilo Code export dialogs and the Cherry Studio integration are only needed
 // after the user picks those export targets; keep their bundles out of the
 // popup's first-paint import graph.
 const LazyKiloCodeExportDialog = lazy(() =>
-  import("~/components/KiloCodeExportDialog").then((m) => ({
+  import("~/features/KiloCodeExport/KiloCodeExportDialog").then((m) => ({
     default: m.KiloCodeExportDialog,
   })),
 )
 const LazyKiloCodeProfileExportDialog = lazy(() =>
   import(
-    "~/features/ApiCredentialProfiles/components/KiloCodeProfileExportDialog"
+    "~/features/ApiCredentialProfiles/export/KiloCodeProfileExportDialog"
   ).then((m) => ({ default: m.KiloCodeProfileExportDialog })),
 )
 
@@ -116,7 +124,7 @@ export function RuntimeKeyActionControls({
   copiedRuntimeKeyId,
   onCopyKey,
   account,
-  onOpenCCSwitchDialog,
+  onOpenDeeplinkExport,
 }: RuntimeKeyActionControlsProps) {
   const { t } = useTranslation(["ui", "keyManagement", "settings"])
   const { managedSiteType, claudeCodeRouterBaseUrl, claudeCodeRouterApiKey } =
@@ -247,8 +255,8 @@ export function RuntimeKeyActionControls({
     }
   }
 
-  const handleExportToCCSwitch = () => {
-    onOpenCCSwitchDialog?.(exportSource)
+  const handleOpenDeeplinkExport = (target: DeeplinkExportTarget) => {
+    onOpenDeeplinkExport?.(target, exportSource)
   }
 
   const markGatewayGuidanceComplete = () => {
@@ -423,14 +431,16 @@ export function RuntimeKeyActionControls({
                 [EXPORT_ACTION_TARGETS.Kelivo]: {
                   onSelect: handleOpenKelivoExportDialog,
                 },
-                ...(onOpenCCSwitchDialog
-                  ? {
-                      [EXPORT_ACTION_TARGETS.CCSwitch]: {
-                        testId:
+                ...(onOpenDeeplinkExport
+                  ? createDeeplinkExportMenuActions({
+                      testIds: {
+                        [DEEPLINK_EXPORT_TARGETS.CCSwitch]:
                           ACCOUNT_MANAGEMENT_TEST_IDS.copyKeyDialogExportToCCSwitchButton,
-                        onSelect: handleExportToCCSwitch,
+                        [DEEPLINK_EXPORT_TARGETS.AiToolbox]:
+                          ACCOUNT_MANAGEMENT_TEST_IDS.copyKeyDialogExportToAiToolboxButton,
                       },
-                    }
+                      onSelect: handleOpenDeeplinkExport,
+                    })
                   : {}),
                 [EXPORT_ACTION_TARGETS.CursorPlus]: {
                   testId:

@@ -65,7 +65,7 @@ AI の時代には、節約したり別のモデルを試したりするため�
 ### 🛠️ 上級ユーザー（Key コレクター）
 
 - **キー管理**：[独立した URL+Key を API 認証情報庫に保存](./api-credential-profiles.md)
-- **可用性テスト**：[API と CLI の互換性を一括検証](./web-ai-api-check.md)
+- **可用性テスト**：[ウェブページの API テストとクライアント互換性チェック](./web-ai-api-check.md)
 - **デバイス間同期**：[暗号化 WebDAV バックアップを設定](./webdav-sync.md)
 
 ### 👑 サイト管理者（運営者向け）
@@ -136,13 +136,13 @@ AI の時代には、節約したり別のモデルを試したりするため�
 
 <div class="readme-sponsor">
   <div class="readme-sponsor-logo">
-    <a href="https://www.packyapi.com/register?aff=all-api-hub">
+    <a href="https://www.packyapi.ai/register?aff=all-api-hub">
       <img src="../../../resources/partners/packycode.png" alt="PackyCode">
     </a>
   </div>
   <p class="readme-sponsor-copy">
     PackyCode は、Claude Code、Codex、Gemini など、多数の中継サービスを提供する、信頼性と効率性に優れた API 中継サービスプロバイダーです。PackyCode
-    は、当ソフトウェアのユーザーに特別割引を提供しています。<a href="https://www.packyapi.com/register?aff=all-api-hub">こちらのリンク</a>から登録し、初回チャージ時に "all-api-hub" プロモコードを入力すると、10% オフになります（<a href="./sponsor-guides/packycode.md">設定ガイド</a>）。
+    は、当ソフトウェアのユーザーに特別割引を提供しています。<a href="https://www.packyapi.ai/register?aff=all-api-hub">こちらのリンク</a>から登録し、初回チャージ時に "all-api-hub" プロモコードを入力すると、10% オフになります（<a href="./sponsor-guides/packycode.md">設定ガイド</a>）。
   </p>
 </div>
 
@@ -163,32 +163,6 @@ AI の時代には、節約したり別のモデルを試したりするため�
 
 <div class="readme-sponsor">
   <div class="readme-sponsor-logo">
-    <a href="https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB">
-      <img src="../../../resources/partners/xuanshu-api.png" alt="XuanShu API">
-    </a>
-  </div>
-  <p class="readme-sponsor-copy">
-    XuanShu API は、企業、技術チーム、個人開発者向けの次世代 AI モデルルーティングゲートウェイです。Claude、GPT、Grok など世界トップクラスのモデルへ、エンタープライズ級の安定性を備えた API で一括アクセスできます。モデル料金は通常価格の 10% から 60% まで。<a href="https://www.xuanshuapi.com/register?aff=ALL-API-HUB&promo=ALL-API-HUB">こちらのリンク</a>から登録するとチャージ特典が追加され、初回チャージはさらにお得です。法人のお客様は法人銀行振込と請求書発行に対応しています（<a href="./service-guides/xuanshuapi.md">設定ガイド</a>）。
-  </p>
-</div>
-
-<hr class="readme-sponsor-divider">
-
-<div class="readme-sponsor">
-  <div class="readme-sponsor-logo">
-    <a href="https://www.aicodemirror.ai/register?invitecode=7IQNR8">
-      <img src="../../../resources/partners/aicodemirror.png" alt="AICodeMirror">
-    </a>
-  </div>
-  <p class="readme-sponsor-copy">
-    AICodeMirror は Claude Code / Codex / Gemini CLI 向けの公式高安定中継サービスを提供し、エンタープライズ級の高同時実行、迅速な請求書発行、24 時間 365 日の専任技術サポートに対応しています。Claude Code / Codex / Gemini の公式チャネルを通常価格の 38% / 2% / 9% 程度から利用でき、チャージ時の追加割引もあります。All API Hub ユーザー向け特典として、<a href="https://www.aicodemirror.ai/register?invitecode=7IQNR8">こちらのリンク</a>から登録すると初回チャージが 20% オフになり、エンタープライズ顧客は最大 25% オフを受けられます。
-  </p>
-</div>
-
-<hr class="readme-sponsor-divider">
-
-<div class="readme-sponsor">
-  <div class="readme-sponsor-logo">
     <a href="https://sui-xiang.com/">
       <img src="../../../resources/partners/suixiang.jpg" alt="Suixiang AI Relay">
     </a>
@@ -200,17 +174,27 @@ AI の時代には、節約したり別のモデルを試したりするため�
 
 <hr class="readme-sponsor-divider">
 
+<div class="readme-sponsor">
+  <div class="readme-sponsor-logo">
+    <a href="https://88api.ai/register?aff=XcTj">
+      <img src="../../../resources/partners/88api.jpg" alt="88API Token集約プラットフォーム">
+    </a>
+  </div>
+  <p class="readme-sponsor-copy">
+    <strong>88API Token集約プラットフォーム</strong> 香港企業が運営する、開発者・クリエイター・AI アプリユーザー向けのマルチモデル API プラットフォームです。統一 API でテキスト・画像・音声・動画モデルに接続し、AI コーディング、翻訳、コンテンツ制作、ナレーション、画像生成、動画生成に対応します。CC Switch で直接 Provider を追加・切り替えでき、主要な国際決済、請求書発行、安定した企業向けサービスにも対応します。 <a href="https://88api.ai/register?aff=XcTj">専用リンクから登録すると、特典クレジットを受け取れます！</a>
+  </p>
+</div>
 
 <hr class="readme-sponsor-divider">
 
 <div class="readme-sponsor">
   <div class="readme-sponsor-logo">
-    <a href="https://go.apimart.ai/gh-all-api-hub">
-      <img src="../../../resources/partners/apimart.png" alt="APIMart">
+    <a href="https://dzhsmartai.com/">
+      <img class="readme-sponsor-logo-small" src="../../../resources/partners/ccccccapi.jpg" alt="ccccccapi">
     </a>
   </div>
   <p class="readme-sponsor-copy">
-    <strong>APIMart</strong> は AI 画像・動画生成に特化した低価格 API プラットフォームです。GPT-Image-2 は <strong>1 枚 $0.006</strong> から、1 ドルで 160 枚以上の画像を生成できます。画像と動画をひとつの非同期 API でカバーし、タスクを送信して ID を取得、ポーリングまたはコールバックで結果を取得できます。数万枚のバッチ処理もタイムアウトなしで実行でき、モデルを切り替えてもコードの変更は不要です。従量課金・月額料金なし。<a href="https://go.apimart.ai/gh-all-api-hub">こちらのリンク</a>から登録して利用を始められます。
+    <strong>ccccccapi</strong> ChatGPT、Claude、Gemini、Deepseek などに対応。ネット最安値で、お財布にもやさしい。<a href="https://dzhsmartai.com/">仲間なら、お得に使い倒そう！</a>
   </p>
 </div>
 

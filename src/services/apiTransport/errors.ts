@@ -21,8 +21,18 @@ export const API_ERROR_CODES = {
   JSON_PARSE_ERROR: "JSON_PARSE_ERROR",
   BUSINESS_ERROR: "BUSINESS_ERROR",
   NETWORK_ERROR: "NETWORK_ERROR",
+  REQUEST_RECOVERY_POLICY_MISSING: "REQUEST_RECOVERY_POLICY_MISSING",
   TOKEN_SECRET_UNAVAILABLE: "TOKEN_SECRET_UNAVAILABLE",
   ACCOUNT_IDENTITY_MISMATCH: "ACCOUNT_IDENTITY_MISMATCH",
+  ACCOUNT_CREDENTIAL_RECOVERY_FAILED: "ACCOUNT_CREDENTIAL_RECOVERY_FAILED",
+  COOKIE_PERMISSION_REQUIRED: "COOKIE_PERMISSION_REQUIRED",
+  COOKIE_REQUEST_UNAVAILABLE: "COOKIE_REQUEST_UNAVAILABLE",
+  /**
+   * The deployment issues an account credential only to a browser session that
+   * passed its own step-up verification, which a background request cannot
+   * produce. The user completes the same action on the deployment itself.
+   */
+  ACCESS_TOKEN_VERIFICATION_REQUIRED: "ACCESS_TOKEN_VERIFICATION_REQUIRED",
   FEATURE_UNSUPPORTED: "FEATURE_UNSUPPORTED",
   UNKNOWN: "UNKNOWN",
 } as const
@@ -63,6 +73,7 @@ export class ApiError extends Error {
       this.endpoint ??= cause.endpoint
       this.code ??= cause.code
       this.upstreamCode ??= cause.upstreamCode
+      this.unattributedMessage ??= cause.unattributedMessage
     }
   }
 
@@ -72,4 +83,41 @@ export class ApiError extends Error {
    * could have been recovered via temp-window fallback but the feature was unavailable.
    */
   public originalCode?: ApiErrorCode
+
+  /**
+   * True when the message is not text the site sent: it was recovered from, or
+   * replaced by, a body that is not the site's JSON answer (an interceptor page,
+   * a proxy notice). It can still be the best copy to show, but no policy may
+   * read it as the site claiming an authentication or permission problem.
+   *
+   * Unset means the site's own JSON answer or the raising caller supplied it.
+   */
+  public unattributedMessage?: boolean
+}
+
+/** Recognizes a site's explicit authentication rejection, excluding protection pages. */
+export function isAuthenticationRequiredError(
+  error: unknown,
+): error is ApiError & { statusCode: 401 } {
+  return (
+    error instanceof ApiError &&
+    error.statusCode === 401 &&
+    !error.unattributedMessage &&
+    error.code !== API_ERROR_CODES.ROBOT_CHALLENGE &&
+    error.code !== API_ERROR_CODES.CONTENT_TYPE_MISMATCH
+  )
+}
+
+/**
+ * Returns whether an error's message cannot be attributed to the site.
+ *
+ * Reads the marker structurally: errors crossing a transport or message
+ * boundary are not guaranteed to be `ApiError` instances.
+ */
+export function hasUnattributedMessage(error: unknown): boolean {
+  return (
+    Boolean(error) &&
+    typeof error === "object" &&
+    (error as { unattributedMessage?: unknown }).unattributedMessage === true
+  )
 }

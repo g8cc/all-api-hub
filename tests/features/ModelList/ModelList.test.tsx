@@ -1,69 +1,89 @@
 import { render as rtlRender, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { ReactElement, ReactNode } from "react"
+import type { ReactElement, ReactNode, Ref } from "react"
+import { memo, useState } from "react"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  ALL_ACCOUNTS_SOURCE_VALUE,
+  MODEL_MANAGEMENT_SOURCE_KINDS,
+} from "~/features/ModelList/catalog/modelManagementSources"
+import {
   MODEL_GROUP_ACCESS_STATES,
   type ActiveModelGroupContext,
   type ModelGroupContext,
-} from "~/features/ModelList/groupContext"
+} from "~/features/ModelList/groups/groupContext"
 import ModelList from "~/features/ModelList/ModelList"
-import type { CalculatedModelItem } from "~/features/ModelList/modelListItems"
-import {
-  ALL_ACCOUNTS_SOURCE_VALUE,
-  MODEL_MANAGEMENT_SOURCE_KINDS,
-} from "~/features/ModelList/modelManagementSources"
+import type { CalculatedModelItem } from "~/features/ModelList/presentation/modelListItems"
+import { usePricingScenarioNavigation } from "~/features/ModelList/pricing/pricingScenarioNavigation"
 import { MODEL_LIST_TEST_IDS } from "~/features/ModelList/testIds"
 import { MODEL_VENDOR_FILTER_VALUES } from "~/services/models/modelVendor"
 import { buildCheckInConfig } from "~~/tests/test-utils/checkIn"
 import { testI18n } from "~~/tests/test-utils/i18n"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
-const { mockUseModelListData, openKeysPageMock, replaceWithinOptionsPageMock } =
-  vi.hoisted(() => ({
-    mockUseModelListData: vi.fn(),
-    openKeysPageMock: vi.fn(),
-    replaceWithinOptionsPageMock: vi.fn(),
-  }))
+const {
+  mockUseModelListData,
+  openKeysPageMock,
+  replaceWithinOptionsPageMock,
+  modelDisplayRenderSpy,
+  emptyVerificationSummaries,
+} = vi.hoisted(() => ({
+  mockUseModelListData: vi.fn(),
+  openKeysPageMock: vi.fn(),
+  replaceWithinOptionsPageMock: vi.fn(),
+  modelDisplayRenderSpy: vi.fn(),
+  emptyVerificationSummaries: {},
+}))
 
-vi.mock("~/features/ModelList/hooks/useModelListData", () => ({
+vi.mock("~/features/ModelList/catalog/useModelListData", () => ({
   useModelListData: (...args: unknown[]) => mockUseModelListData(...args),
 }))
 
 vi.mock("~/utils/navigation", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/utils/navigation")>()
 
-  return {
-    ...actual,
-    openKeysPage: openKeysPageMock,
-    replaceWithinOptionsPage: replaceWithinOptionsPageMock,
-  }
+  return { ...actual, openKeysPage: openKeysPageMock }
+})
+vi.mock("~/utils/navigation/optionsPage", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/utils/navigation/optionsPage")>()
+
+  return { ...actual, replaceWithinOptionsPage: replaceWithinOptionsPageMock }
 })
 
 vi.mock(
-  "~/services/verification/verificationResultHistory",
+  "~/hooks/verification/useVerificationResultHistorySummaries",
   async (importOriginal) => {
     const original =
       await importOriginal<
-        typeof import("~/services/verification/verificationResultHistory")
+        typeof import("~/hooks/verification/useVerificationResultHistorySummaries")
       >()
 
     return {
       ...original,
-      useVerificationResultHistorySummaries: () => ({ summariesByKey: {} }),
+      useVerificationResultHistorySummaries: () => ({
+        summariesByKey: emptyVerificationSummaries,
+      }),
     }
   },
 )
 
-vi.mock("~/features/ModelList/components/AccountSelector", () => ({
+vi.mock("~/features/ModelList/catalog/AccountSelector", () => ({
   AccountSelector: ({
     setSelectedSourceValue,
+    selectorTriggerRef,
+    selectorOpen,
   }: {
     setSelectedSourceValue: (value: string) => void
+    selectorTriggerRef?: Ref<HTMLButtonElement>
+    selectorOpen?: boolean
   }) => (
     <div data-testid="account-selector">
       <button
+        ref={selectorTriggerRef}
+        aria-expanded={selectorOpen}
         type="button"
         onClick={() => setSelectedSourceValue("account:account-1")}
       >
@@ -88,15 +108,15 @@ vi.mock("~/features/ModelList/components/AccountSelector", () => ({
   ),
 }))
 
-vi.mock("~/features/ModelList/components/AccountSummaryBar", () => ({
+vi.mock("~/features/ModelList/catalog/AccountSummaryBar", () => ({
   AccountSummaryBar: () => <div data-testid="account-summary-bar" />,
 }))
 
-vi.mock("~/features/ModelList/components/BatchVerifyModelsDialog", () => ({
+vi.mock("~/features/ModelList/verification/BatchVerifyModelsDialog", () => ({
   BatchVerifyModelsDialog: () => <div data-testid="batch-verify-dialog" />,
 }))
 
-vi.mock("~/features/ModelList/components/ControlPanel", () => ({
+vi.mock("~/features/ModelList/filtering/ControlPanel", () => ({
   ControlPanel: ({
     getFilteredResultCount,
   }: {
@@ -133,11 +153,11 @@ vi.mock("~/features/ModelList/components/ControlPanel", () => ({
   ),
 }))
 
-vi.mock("~/features/ModelList/components/Footer", () => ({
+vi.mock("~/features/ModelList/presentation/Footer", () => ({
   Footer: () => <div data-testid="model-list-footer" />,
 }))
 
-vi.mock("~/features/ModelList/components/ProviderTabs", async () => {
+vi.mock("~/features/ModelList/catalog/ProviderTabs", async () => {
   const { Tabs } = await import("~/components/ui")
 
   return {
@@ -155,31 +175,68 @@ vi.mock("~/features/ModelList/components/ProviderTabs", async () => {
   }
 })
 
-vi.mock("~/features/ModelList/components/StatusIndicator", () => ({
+vi.mock("~/features/ModelList/presentation/StatusIndicator", () => ({
   StatusIndicator: () => <div data-testid="status-indicator" />,
 }))
 
-vi.mock("~/features/ModelList/components/ModelDisplay", () => ({
-  ModelDisplay: ({
-    models,
-    onVerifyModel,
-  }: {
-    models?: Array<{ model: { model_name: string } }>
-    onVerifyModel?: (...args: any[]) => void
-  }) => (
-    <button
-      type="button"
-      onClick={() => onVerifyModel?.(ACCOUNT_SOURCE, "gpt-test", ["vip"])}
-    >
-      open-api-verification
-      {models?.map(({ model }) => (
-        <span key={model.model_name}>{model.model_name}</span>
-      ))}
-    </button>
+vi.mock("~/features/ModelList/presentation/ModelDisplay", () => ({
+  ModelDisplay: memo(
+    ({
+      models,
+      onVerifyModel,
+      onModelGroupChange,
+      modelGroupOverrides,
+      handleGroupClick,
+    }: {
+      models?: Array<{ model: { model_name: string } }>
+      onVerifyModel?: (...args: any[]) => void
+      onModelGroupChange?: (key: string, group: string | undefined) => void
+      modelGroupOverrides?: Record<string, string>
+      handleGroupClick: (group: string) => void
+    }) => {
+      modelDisplayRenderSpy()
+      const navigation = usePricingScenarioNavigation()
+      return (
+        <div>
+          <button type="button" onClick={() => navigation?.configure()}>
+            configure-pricing
+          </button>
+          <button type="button" onClick={() => handleGroupClick("vip")}>
+            select-filter-group
+          </button>
+          <button
+            onClick={() =>
+              onModelGroupChange?.("account:account-1:gpt-test", "vip")
+            }
+          >
+            select-model-group
+          </button>
+          <button
+            onClick={() =>
+              onModelGroupChange?.("account:account-1:gpt-test", undefined)
+            }
+          >
+            clear-model-group
+          </button>
+          <output aria-label="model group">
+            {modelGroupOverrides?.["account:account-1:gpt-test"] ?? "automatic"}
+          </output>
+          <button
+            type="button"
+            onClick={() => onVerifyModel?.(ACCOUNT_SOURCE, "gpt-test", ["vip"])}
+          >
+            open-api-verification
+            {models?.map(({ model }) => (
+              <span key={model.model_name}>{model.model_name}</span>
+            ))}
+          </button>
+        </div>
+      )
+    },
   ),
 }))
 
-vi.mock("~/components/dialogs/VerifyApiDialog", () => ({
+vi.mock("~/features/Verification/api", () => ({
   VerifyApiDialog: ({
     initialModelId,
     modelEnableGroups,
@@ -199,12 +256,12 @@ vi.mock("~/components/dialogs/VerifyApiDialog", () => ({
   ),
 }))
 
-vi.mock("~/components/dialogs/VerifyCliSupportDialog", () => ({
+vi.mock("~/features/Verification/cli", () => ({
   VerifyCliSupportDialog: () => <div data-testid="verify-cli-dialog" />,
 }))
 
 vi.mock(
-  "~/features/ApiCredentialProfiles/components/VerifyApiCredentialProfileDialog",
+  "~/features/ApiCredentialProfiles/verification/VerifyApiCredentialProfileDialog",
   () => ({
     VerifyApiCredentialProfileDialog: () => (
       <div data-testid="verify-profile-dialog" />
@@ -212,7 +269,7 @@ vi.mock(
   }),
 )
 
-vi.mock("~/features/ModelList/components/ModelKeyDialog", () => ({
+vi.mock("~/features/ModelList/keySelection", () => ({
   default: ({
     modelId,
     modelEnableGroups,
@@ -379,6 +436,178 @@ function createModelListData() {
 }
 
 describe("ModelList", () => {
+  it.each(["default", "verification-latency-asc"])(
+    "configures pricing from %s and preserves the latest price sort",
+    async (sortMode) => {
+      const fixture = { ...createModelListData(), sortMode }
+      mockUseModelListData.mockReturnValue(fixture)
+      const user = userEvent.setup()
+      const { rerender } = render(<ModelList />)
+
+      await user.click(
+        screen.getByRole("button", { name: "configure-pricing" }),
+      )
+      expect(fixture.setSortMode).toHaveBeenCalledWith("model-cheapest-first")
+
+      for (const priceSort of [
+        "price-asc",
+        "price-desc",
+        "model-cheapest-first",
+      ]) {
+        fixture.setSortMode.mockClear()
+        mockUseModelListData.mockReturnValue({
+          ...fixture,
+          sortMode: priceSort,
+        })
+        rerender(<ModelList />)
+        await user.click(
+          screen.getByRole("button", { name: "configure-pricing" }),
+        )
+        expect(fixture.setSortMode).not.toHaveBeenCalled()
+      }
+    },
+  )
+
+  it.each([false, true])(
+    "reuses the model display across parent and dialog updates (all accounts: %s)",
+    async (allAccounts) => {
+      const fixture = createModelListData()
+      mockUseModelListData.mockReturnValue({
+        ...fixture,
+        ...(allAccounts
+          ? {
+              selectedSource: {
+                kind: MODEL_MANAGEMENT_SOURCE_KINDS.ALL_ACCOUNTS,
+                value: ALL_ACCOUNTS_SOURCE_VALUE,
+                capabilities: CAPABILITIES,
+              },
+              pricingContexts: [
+                { account: ACCOUNT, pricing: fixture.pricingData },
+              ],
+            }
+          : {}),
+      })
+      const user = userEvent.setup()
+      const { rerender } = render(<ModelList />)
+      modelDisplayRenderSpy.mockClear()
+
+      rerender(<ModelList />)
+      expect(modelDisplayRenderSpy).not.toHaveBeenCalled()
+      await user.click(
+        screen.getByRole("button", { name: "open-api-verification" }),
+      )
+      expect(screen.getByTestId("verify-api-dialog")).toHaveTextContent(
+        "gpt-test",
+      )
+      expect(modelDisplayRenderSpy).not.toHaveBeenCalled()
+      await user.click(
+        screen.getByRole("button", { name: "select-filter-group" }),
+      )
+      expect(fixture.setSelectedGroups).toHaveBeenCalledWith(["vip"])
+    },
+  )
+
+  it("selects and clears a model group in the all-account scope", async () => {
+    mockUseModelListData.mockImplementation(() => {
+      const [modelGroupOverrides, setModelGroupOverrides] = useState({})
+      return {
+        ...createModelListData(),
+        selectedSourceValue: ALL_ACCOUNTS_SOURCE_VALUE,
+        selectedSource: {
+          kind: MODEL_MANAGEMENT_SOURCE_KINDS.ALL_ACCOUNTS,
+          value: ALL_ACCOUNTS_SOURCE_VALUE,
+          capabilities: CAPABILITIES,
+        },
+        currentAccount: null,
+        pricingContexts: [
+          { account: ACCOUNT, pricing: createModelListData().pricingData },
+        ],
+        modelGroupOverrides,
+        setModelGroupOverrides,
+      }
+    })
+    const user = userEvent.setup()
+    render(<ModelList />)
+    await user.click(screen.getByText("select-model-group"))
+    expect(screen.getByLabelText("model group")).toHaveTextContent("vip")
+    await user.click(screen.getByText("clear-model-group"))
+    expect(screen.getByLabelText("model group")).toHaveTextContent("automatic")
+  })
+
+  it("reveals and opens the source selector when models have no selected source", async () => {
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView")
+    const user = userEvent.setup()
+    mockUseModelListData.mockReturnValue({
+      ...createModelListData(),
+      selectedSource: null,
+      selectedSourceValue: "",
+      currentAccount: null,
+    })
+    render(<ModelList />)
+
+    await user.click(
+      screen.getByRole("button", {
+        name: testI18n.t("modelList:selectSource"),
+      }),
+    )
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "auto",
+      block: "nearest",
+    })
+    expect(scrollIntoView.mock.instances).toContain(
+      screen.getByRole("button", { name: "select-account-source" }),
+    )
+    expect(
+      screen.getByRole("button", { name: "select-account-source" }),
+    ).toHaveAttribute("aria-expanded", "true")
+  })
+
+  it.each([true, false])(
+    "shows one notice for local route fallback with catalog-only status %s",
+    (catalogOnly) => {
+      const fixture = createModelListData()
+      mockUseModelListData.mockReturnValue({
+        ...fixture,
+        isFallbackCatalogActive: catalogOnly,
+        sourceCapabilities: { ...CAPABILITIES, supportsPricing: !catalogOnly },
+        pricingData: {
+          ...fixture.pricingData,
+          model_list_source: {
+            kind: "catalog-fallback",
+            inferenceRouteFallback: true,
+          },
+        },
+      })
+      const view = render(<ModelList />)
+      expect(
+        screen.getByText(
+          testI18n.t("modelList:inferenceRouteFallbackNotice.description"),
+        ),
+      ).toBeVisible()
+      expect(screen.getAllByRole("alert")).toHaveLength(1)
+      if (catalogOnly) {
+        expect(
+          screen.getByText(
+            testI18n.t("modelList:fallbackSourceNotice.description"),
+          ),
+        ).toBeVisible()
+      }
+      mockUseModelListData.mockReturnValue({
+        ...fixture,
+        isFallbackCatalogActive: catalogOnly,
+        sourceCapabilities: { ...CAPABILITIES, supportsPricing: !catalogOnly },
+      })
+      view.rerender(<ModelList />)
+      expect(
+        screen.queryByText(
+          testI18n.t("modelList:inferenceRouteFallbackNotice.description"),
+        ),
+      ).not.toBeInTheDocument()
+      expect(screen.queryAllByRole("alert")).toHaveLength(catalogOnly ? 1 : 0)
+    },
+  )
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseModelListData.mockReturnValue(createModelListData())
@@ -428,6 +657,24 @@ describe("ModelList", () => {
         ),
       ),
     ).toBeInTheDocument()
+  })
+
+  it("does not label a priced runtime catalog as discovery-only", () => {
+    mockUseModelListData.mockReturnValue({
+      ...createModelListData(),
+      isFallbackCatalogActive: true,
+    })
+    render(<ModelList />)
+    expect(
+      screen.queryByText(
+        testI18n.t("modelList:fallbackSourceNotice.description"),
+      ),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        testI18n.t("modelList:runtimeKeyFallbackSourceNotice.description"),
+      ),
+    ).not.toBeInTheDocument()
   })
 
   it("renders the personalized catalog fallback notice with model data", () => {
@@ -494,6 +741,18 @@ describe("ModelList", () => {
     },
   )
 
+  it("exposes the selected source identity for live model-catalog verification", () => {
+    mockUseModelListData.mockReturnValue({
+      ...createModelListData(),
+      selectedSourceValue: "account:live-fixture",
+    })
+    render(<ModelList />)
+    expect(screen.getByTestId(MODEL_LIST_TEST_IDS.page)).toHaveAttribute(
+      "data-model-source",
+      "account:live-fixture",
+    )
+  })
+
   it("does not show the key-management title shortcut for non-account sources", () => {
     mockUseModelListData.mockReturnValue({
       ...createModelListData(),
@@ -540,7 +799,10 @@ describe("ModelList", () => {
     render(<ModelList />)
 
     await user.click(
-      screen.getAllByRole("button", { name: "open-api-verification" })[0],
+      atIndex(
+        screen.getAllByRole("button", { name: "open-api-verification" }),
+        0,
+      ),
     )
     expect(screen.getByTestId("verify-api-dialog")).toHaveTextContent(
       "gpt-test",

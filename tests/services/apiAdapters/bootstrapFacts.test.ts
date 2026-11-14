@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ACCOUNT_SITE_TYPES, SITE_TYPES } from "~/constants/siteType"
-import { getSiteName } from "~/services/accounts/siteName"
-import { aihubmixAccountBootstrap } from "~/services/apiAdapters/aihubmix/accountBootstrap"
-import { createNewApiAccountBootstrap } from "~/services/apiAdapters/newApi/accountBootstrap"
-import { createNewApiAccountCompletion } from "~/services/apiAdapters/newApi/accountCompletion"
+import { getSiteName } from "~/services/accounts/identity/siteName"
+import { aihubmixAccountBootstrap } from "~/services/apiAdapters/aihubmix/account/accountBootstrap"
+import { createNewApiAccountBootstrap } from "~/services/apiAdapters/newApi/account/accountBootstrap"
+import { createNewApiAccountCompletion } from "~/services/apiAdapters/newApi/account/accountCompletion"
 import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
-import { sub2ApiAccountBootstrap } from "~/services/apiAdapters/sub2api/accountBootstrap"
+import { sub2ApiAccountBootstrap } from "~/services/apiAdapters/sub2api/account/accountBootstrap"
 import { voApiV2AccountBootstrap } from "~/services/apiAdapters/voapiV2/accountBootstrap"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 
 import { createAccountCompletionHelpersMock } from "./checkInFixtures"
@@ -28,12 +29,36 @@ vi.mock("~/services/apiService/newApiFamily/request", () => ({
 }))
 
 const request = {
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://bootstrap.example.com",
   auth: { authType: AuthTypeEnum.None },
 }
 
 describe("provider-neutral bootstrap facts", () => {
   beforeEach(() => vi.resetAllMocks())
+
+  it.each([SITE_TYPES.APIYI, SITE_TYPES.LAOZHANG])(
+    "reads existing %s credentials without issuing or rotating one",
+    async (siteType) => {
+      requestData.mockResolvedValue({
+        id: 42,
+        username: "owner",
+        access_token: null,
+      })
+      const bootstrap = createNewApiAccountBootstrap(siteType)
+      await expect(
+        bootstrap.getOrCreateAccessToken({
+          ...request,
+          auth: { authType: AuthTypeEnum.Cookie, userId: "42" },
+        }),
+      ).resolves.toMatchObject({ username: "owner", access_token: "" })
+      expect(requestData).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+        credentialRecovery: "read",
+        endpoint: "/api/user/self",
+      })
+      expect(requestEnvelope).not.toHaveBeenCalled()
+    },
+  )
 
   it.each([
     SITE_TYPES.NEW_API,
@@ -74,8 +99,58 @@ describe("provider-neutral bootstrap facts", () => {
         message: "ok",
         data: { site_name: "Portal", private_field: "ignored" },
       })
+      const bootstrapRequest =
+        siteType === SITE_TYPES.XIAOEN
+          ? {
+              directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
+              baseUrl: "https://free.supxh.xin",
+              auth: {
+                authType: AuthTypeEnum.Cookie,
+                cookie: "auth_token=bootstrap-fixture",
+                userId: "xiaoen-fixture-user",
+              },
+            }
+          : request
+      if (siteType === SITE_TYPES.XIAOEN) {
+        fetchApi.mockResolvedValue({
+          success: true,
+          data: {
+            id: "xiaoen-fixture-user",
+            username: "owner",
+            private_field: "ignored",
+          },
+        })
+      }
+      if (siteType === SITE_TYPES.PMAPI) {
+        // PM-API's own envelope (`{data, message, success}`) on its status route.
+        fetchApi.mockResolvedValue({
+          success: true,
+          message: "",
+          data: {
+            name: "Portal",
+            checkin_enabled: false,
+            private_field: "ignored",
+          },
+        })
+      }
       const bootstrap = getSiteTypeCapabilities(siteType).account!.bootstrap!
-      const facts = await bootstrap.loadBootstrapFacts(request)
+      const facts = await bootstrap.loadBootstrapFacts(bootstrapRequest)
+      if (siteType === SITE_TYPES.XIAOEN) {
+        expect(facts).toEqual({
+          displayName: "肖恩 AI",
+          checkInSupported: true,
+        })
+        expect(fetchApi).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            baseUrl: bootstrapRequest.baseUrl,
+            cookieSession: expect.objectContaining({
+              cookieHeader: "auth_token=bootstrap-fixture",
+            }),
+          }),
+          expect.objectContaining({ endpoint: "/api/auth/me" }),
+          false,
+        )
+      }
       expect(Object.keys(facts).length).toBeGreaterThan(0)
       for (const key of Object.keys(facts)) {
         expect([

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { clearNewApiAccessTokenDialectsForTests } from "~/services/apiService/newApiFamily/default/accessTokenDialect"
 import {
   createAccessToken,
   defaultAccountBootstrapImplementation,
@@ -9,6 +10,11 @@ import {
   fetchUserInfo,
   getOrCreateAccessToken,
 } from "~/services/apiService/newApiFamily/default/accountBootstrap"
+import { ApiError } from "~/services/apiTransport/errors"
+import {
+  API_DIRECT_REQUEST_REASONS,
+  API_OPERATION_SEMANTICS,
+} from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 
 const { mockFetchApiData } = vi.hoisted(() => ({
@@ -36,6 +42,7 @@ vi.mock("~/utils/i18n/core", () => ({
 
 describe("newApiFamily accountBootstrap", () => {
   const request = {
+    directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
     baseUrl: "https://bootstrap.example.invalid",
     accountId: "account-1",
     auth: {
@@ -47,6 +54,7 @@ describe("newApiFamily accountBootstrap", () => {
 
   beforeEach(() => {
     mockFetchApiData.mockReset()
+    clearNewApiAccessTokenDialectsForTests()
   })
 
   it("fetchUserInfo returns the normalized public shape", async () => {
@@ -145,14 +153,14 @@ describe("newApiFamily accountBootstrap", () => {
     })
   })
 
-  it("createAccessToken prevents transport replay for every token generation", async () => {
+  it("createAccessToken declares the GET token generation as a mutation", async () => {
     mockFetchApiData.mockResolvedValueOnce("new-token")
 
     await expect(createAccessToken(request)).resolves.toBe("new-token")
     expect(mockFetchApiData).toHaveBeenCalledWith(request, {
       endpoint: "/api/user/token",
       currentTabTransport: "disabled",
-      tempWindowFallback: { statusCodes: [], codes: [] },
+      operationSemantics: API_OPERATION_SEMANTICS.Mutation,
     })
   })
 
@@ -177,6 +185,11 @@ describe("newApiFamily accountBootstrap", () => {
         username: "alice",
         access_token: "",
       })
+      // The deployment does not own the scoped access-token routes, so the
+      // dashboard token is rotated as older builds require.
+      .mockRejectedValueOnce(
+        new ApiError("HTTP 404", 404, "/api/user/access_tokens"),
+      )
       .mockResolvedValueOnce("generated-token")
       .mockResolvedValueOnce({ id: 1, username: "alice" })
 
@@ -184,10 +197,10 @@ describe("newApiFamily accountBootstrap", () => {
       username: "alice",
       access_token: "generated-token",
     })
-    expect(mockFetchApiData).toHaveBeenNthCalledWith(2, request, {
+    expect(mockFetchApiData).toHaveBeenNthCalledWith(3, request, {
       endpoint: "/api/user/token",
       currentTabTransport: "disabled",
-      tempWindowFallback: { statusCodes: [], codes: [] },
+      operationSemantics: API_OPERATION_SEMANTICS.Mutation,
     })
   })
 
@@ -220,6 +233,9 @@ describe("newApiFamily accountBootstrap", () => {
         username: "alice",
         access_token: "",
       })
+      .mockRejectedValueOnce(
+        new ApiError("HTTP 404", 404, "/api/user/access_tokens"),
+      )
       .mockResolvedValueOnce("   ")
 
     await expect(getOrCreateAccessToken(request)).rejects.toMatchObject({
@@ -327,6 +343,7 @@ describe("newApiFamily accountBootstrap", () => {
     expect(implementation.extractDefaultExchangeRate(siteStatus)).toBe(7.2)
 
     expect(mockFetchApiData).toHaveBeenCalledWith(request, {
+      credentialRecovery: "read",
       endpoint: "/api/user/self",
     })
   })

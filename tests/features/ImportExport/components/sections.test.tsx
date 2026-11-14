@@ -3,10 +3,10 @@ import type { ReactNode } from "react"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import ExportSection from "~/features/ImportExport/components/ExportSection"
-import ImportSection from "~/features/ImportExport/components/ImportSection"
-import { WebDAVDecryptPasswordModal } from "~/features/ImportExport/components/WebDAVDecryptPasswordModal"
+import ExportSection from "~/features/ImportExport/backup/ExportSection"
+import ImportSection from "~/features/ImportExport/backup/ImportSection"
 import { IMPORT_EXPORT_TEST_IDS } from "~/features/ImportExport/testIds"
+import { WebDAVDecryptPasswordModal } from "~/features/ImportExport/webdav/WebDAVDecryptPasswordModal"
 import enImportExport from "~/locales/en/importExport.json"
 import es419ImportExport from "~/locales/es-419/importExport.json"
 import jaImportExport from "~/locales/ja/importExport.json"
@@ -21,6 +21,7 @@ import {
   PRODUCT_ANALYTICS_SURFACE_IDS,
 } from "~/services/productAnalytics/contracts"
 import { testI18n } from "~~/tests/test-utils/i18n"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const {
   mockStartProductAnalyticsAction,
@@ -145,9 +146,9 @@ describe("ImportExport section components", () => {
       name: "common:actions.export",
     })
 
-    fireEvent.click(buttons[0])
-    fireEvent.click(buttons[1])
-    fireEvent.click(buttons[2])
+    fireEvent.click(atIndex(buttons, 0))
+    fireEvent.click(atIndex(buttons, 1))
+    fireEvent.click(atIndex(buttons, 2))
 
     expect(mockStartProductAnalyticsAction).toHaveBeenNthCalledWith(1, {
       featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ImportExport,
@@ -185,9 +186,12 @@ describe("ImportExport section components", () => {
     )
 
     fireEvent.click(
-      screen.getAllByRole("button", {
-        name: "common:actions.export",
-      })[0],
+      atIndex(
+        screen.getAllByRole("button", {
+          name: "common:actions.export",
+        }),
+        0,
+      ),
     )
 
     await vi.waitFor(() => {

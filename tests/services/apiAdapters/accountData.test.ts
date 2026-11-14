@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
 import type { AccountData } from "~/services/accounts/accountDataModel"
-import { aihubmixAccountData } from "~/services/apiAdapters/aihubmix/accountData"
-import { createNewApiAccountData } from "~/services/apiAdapters/newApi/accountData"
-import { sub2ApiAccountData } from "~/services/apiAdapters/sub2api/accountData"
+import { aihubmixAccountData } from "~/services/apiAdapters/aihubmix/account/accountData"
+import { createNewApiAccountData } from "~/services/apiAdapters/newApi/account/accountData"
+import { sub2ApiAccountData } from "~/services/apiAdapters/sub2api/account/accountData"
 import { voApiV2AccountData } from "~/services/apiAdapters/voapiV2/accountData"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 
 import { createCheckInConfig } from "./checkInFixtures"
@@ -35,20 +36,24 @@ vi.mock("~/services/apiService/newApiFamily/variants/doneHub", () => ({
   refreshAccountData: vi.fn(),
 }))
 
-vi.mock("~/services/apiService/sub2api", async (importOriginal) => ({
-  ...(await importOriginal()),
-  fetchAccountData: mockSub2ApiFetchAccountData,
-}))
+vi.mock(
+  "~/services/apiService/sub2api/account/accountData",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    fetchAccountData: mockSub2ApiFetchAccountData,
+  }),
+)
 
 vi.mock("~/services/apiService/aihubmix", () => ({
   fetchAccountData: mockAihubmixFetchAccountData,
 }))
 
-vi.mock("~/services/apiService/voapiV2", () => ({
+vi.mock("~/services/apiService/voapiV2/accountData", () => ({
   fetchVoApiV2AccountData: mockVoApiV2FetchAccountData,
 }))
 
 const request = {
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://api.example.invalid",
   accountId: "account-1",
   siteType: SITE_TYPES.NEW_API,

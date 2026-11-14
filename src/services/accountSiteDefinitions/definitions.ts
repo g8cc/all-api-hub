@@ -1,4 +1,8 @@
 import {
+  ACCOUNT_LOGIN_METHODS,
+  ACCOUNT_PASSWORD_IDENTITIES,
+} from "~/constants/accountLogin"
+import {
   AXON_HUB_DETAIL_FIELD_IDS,
   AXON_HUB_TABLE_FIELD_IDS,
 } from "~/constants/axonHub"
@@ -10,10 +14,16 @@ import {
   CLI_PROXY_API_DETAIL_FIELDS,
   CLI_PROXY_API_TABLE_FIELDS,
 } from "~/constants/cliProxyApi"
+import { AI_ROUTER_HOSTNAMES } from "~/constants/deploymentApiOrigins"
 import {
   DONE_HUB_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
   DONE_HUB_MANAGED_RESOURCE_TABLE_FIELD_IDS,
 } from "~/constants/doneHub"
+import {
+  GPT_LOAD_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
+  GPT_LOAD_MANAGED_RESOURCE_TABLE_FIELD_IDS,
+} from "~/constants/gptLoad"
+import { MAGPIE_DETAIL_FIELDS, MAGPIE_TABLE_FIELDS } from "~/constants/magpie"
 import {
   NEW_API_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
   NEW_API_MANAGED_RESOURCE_TABLE_FIELD_IDS,
@@ -22,6 +32,10 @@ import {
   OCTOPUS_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
   OCTOPUS_MANAGED_RESOURCE_TABLE_FIELD_IDS,
 } from "~/constants/octopus"
+import {
+  OMNIROUTE_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
+  OMNIROUTE_MANAGED_RESOURCE_TABLE_FIELD_IDS,
+} from "~/constants/omniroute"
 import { SETTINGS_ANCHORS } from "~/constants/settingsAnchors"
 import {
   SUB2API_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
@@ -39,7 +53,7 @@ import {
   ACCOUNT_SITE_SUPPLEMENTAL_AUTH_KINDS,
   ACCOUNT_SITE_TOKEN_FORM_NETWORK_LIMIT_POLICIES,
 } from "~/services/accounts/accountSiteProfile/contracts"
-import { createUnsupportedTodayStatsAvailability } from "~/services/accounts/accountTodayStats"
+import { createUnsupportedTodayStatsAvailability } from "~/services/accounts/metrics/accountTodayStats"
 import {
   ACCOUNT_TODAY_METRIC_REASONS,
   ACCOUNT_TODAY_METRIC_STATUSES,
@@ -51,7 +65,9 @@ import {
   ACCOUNT_SITE_DEFINITION_SCOPES,
   ACCOUNT_SITE_MANUAL_ADD_GUIDE_ANCHORS,
   MANAGED_RESOURCE_KINDS,
+  type AccountSiteBackendFamily,
   type AccountSiteDefinition,
+  type AccountSiteLoginConfig,
   type ManagedResourceProductPolicy,
   type RegisteredAccountSiteDefinition,
 } from "./contracts"
@@ -60,15 +76,85 @@ import {
   AIHUBMIX_HOSTNAMES,
   AIHUBMIX_LOGIN_PATH,
   AIHUBMIX_WEB_ORIGIN,
+  AIMLAPI_API_BASE_URL,
+  AIMLAPI_BILLING_PATH,
+  AIMLAPI_DISPLAY_NAME,
+  AIMLAPI_HOSTNAMES,
+  AIMLAPI_KEYS_PATH,
+  AIMLAPI_LOGIN_PATH,
+  AIMLAPI_MODELS_PATH,
+  AIMLAPI_USAGE_PATH,
+  AIMLAPI_WEB_ORIGIN,
   APIYI_HOSTNAME,
+  CUBENCE_API_ORIGIN,
+  CUBENCE_HOSTNAMES,
+  CUBENCE_WEB_ORIGIN,
+  DAHL_HOSTNAMES,
+  DAHL_WEB_ORIGIN,
+  DAYA_API_BASE_URL,
+  DAYA_HOSTNAMES,
+  DAYA_WEB_ORIGIN,
+  EMRANK_API_BASE_URL,
+  EMRANK_DISPLAY_NAME,
+  EMRANK_HOSTNAMES,
+  EMRANK_WEB_ORIGIN,
+  FOXCODE_HOSTNAMES,
+  FOXCODE_INFERENCE_ORIGIN,
+  FOXCODE_WEB_ORIGIN,
+  FREEMODEL_ANTHROPIC_BASE_URL,
+  FREEMODEL_HOSTNAMES,
+  FREEMODEL_OPENAI_BASE_URL,
+  FREEMODEL_WEB_ORIGIN,
+  GRSAI_ACCOUNT_PATH,
+  GRSAI_API_BASE_URL,
+  GRSAI_DISPLAY_NAME,
+  GRSAI_HOSTNAMES,
+  KIMI_API_BASE_URL,
+  KIMI_CONSOLE_ORIGIN,
+  KIMI_DISPLAY_NAME,
+  KIMI_GLOBAL_API_BASE_URL,
+  KIMI_GLOBAL_CONSOLE_ORIGIN,
+  KIMI_GLOBAL_DISPLAY_NAME,
+  KIMI_GLOBAL_HOSTNAMES,
+  KIMI_HOSTNAMES,
+  KRILL_HOSTNAMES,
+  KRILL_WEB_ORIGIN,
+  LAOZHANG_HOSTNAMES,
   MODELFLARE_HOSTNAME,
   MODELFLARE_USER_ID_HEADER_NAME,
+  NANOGPT_DISPLAY_NAME,
+  NANOGPT_HOSTNAMES,
+  NANOGPT_INFERENCE_BASE_URL,
+  NANOGPT_WEB_ORIGIN,
+  NOVITA_DISPLAY_NAME,
+  NOVITA_HOSTNAMES,
+  NOVITA_WEB_ORIGIN,
+  OPENROUTER_API_BASE_URL,
   OPENROUTER_DISPLAY_NAME,
   OPENROUTER_HOSTNAMES,
   OPENROUTER_WEB_ORIGIN,
+  PMAPI_DISPLAY_NAME,
+  PMAPI_HOSTNAMES,
+  RELAYFOR_DISPLAY_NAME,
+  RELAYFOR_HOSTNAMES,
+  RELAYFOR_LOGIN_PATH,
+  REQUESTY_API_BASE_URL,
+  REQUESTY_DISPLAY_NAME,
+  REQUESTY_HOSTNAMES,
+  REQUESTY_WEB_ORIGIN,
+  RIGHTCODE_DISPLAY_NAME,
+  RIGHTCODE_HOSTNAMES,
+  RIGHTCODE_LOGIN_PATH,
   SHAREDCHAT_HOSTNAMES,
   SHAREDCHAT_WEB_ORIGIN,
   SITE_TYPES,
+  VERCEL_ACCESS_TOKENS_PATH,
+  VERCEL_AI_GATEWAY_API_BASE_URL,
+  VERCEL_AI_GATEWAY_DISPLAY_NAME,
+  VERCEL_AI_GATEWAY_HOSTNAMES,
+  VERCEL_WEB_ORIGIN,
+  XIAOEN_HOSTNAMES,
+  XIAOEN_WEB_ORIGIN,
 } from "./identifiers"
 
 /**
@@ -83,7 +169,25 @@ function makeTitleRegex(name: string): RegExp {
 const NEW_API_USAGE_PATH = "/console/log"
 const NEW_API_CHECKIN_PATH = "/console/personal"
 // https://github.com/QuantumNous/new-api/blob/387a40914853310d69adc2f52474134ced5f4811/web/src/features/security/index.tsx
-const NEW_API_ACCESS_TOKEN_PATH = "/security#security-access"
+const NEW_API_CREDENTIALS_PATH = "/security#security-access"
+
+// Preserve the existing compatibility allowlist for forks without a recorded
+// callback source. Verified upstreams below declare their own completion paths.
+const NEW_API_COMPATIBLE_LOGIN = {
+  methods: ["github", "linuxdo"],
+  protocols: {
+    newApi: {
+      userIdHeader: "New-Api-User",
+      completionPaths: [
+        "/console",
+        "/console/token",
+        "/dashboard",
+        "/app/tokens",
+      ],
+    },
+  },
+} as const satisfies AccountSiteLoginConfig
+
 const SHAREDCHAT_CODEX_DASHBOARD_PATH =
   "/list/#/vibe-code/dashboard?activeMenu=dashboard&service=codex"
 
@@ -113,12 +217,16 @@ const LEGACY_MANAGED_CHANNEL_POLICY = {
   tableFieldIds: [],
   detailFieldIds: [],
   settingsTarget: { tabId: "managedSite" },
-} as const satisfies Omit<ManagedResourceProductPolicy, "consoleRoutes">
+} as const satisfies Omit<
+  ManagedResourceProductPolicy,
+  "consoleRoutes" | "legacyNumericChannelConfig"
+>
 
 export const ACCOUNT_SITE_TYPE_ORDER = [
   SITE_TYPES.ONE_API,
   SITE_TYPES.NEW_API,
   SITE_TYPES.APIYI,
+  SITE_TYPES.LAOZHANG,
   SITE_TYPES.MODELFLARE,
   SITE_TYPES.ANYROUTER,
   SITE_TYPES.VELOERA,
@@ -134,20 +242,44 @@ export const ACCOUNT_SITE_TYPE_ORDER = [
   SITE_TYPES.SUB2API,
   SITE_TYPES.AIHUBMIX,
   SITE_TYPES.SHAREDCHAT,
+  SITE_TYPES.FREEMODEL,
+  SITE_TYPES.DAHL,
+  SITE_TYPES.FOXCODE,
+  SITE_TYPES.XIAOEN,
+  SITE_TYPES.EMRANK,
+  SITE_TYPES.KRILL,
+  SITE_TYPES.DAYA,
+  SITE_TYPES.PMAPI,
+  SITE_TYPES.CUBENCE,
+  SITE_TYPES.RIGHT_CODE,
+  SITE_TYPES.RELAYFOR,
+  SITE_TYPES.REQUESTY,
   SITE_TYPES.OPENROUTER,
+  SITE_TYPES.KIMI,
+  SITE_TYPES.KIMI_GLOBAL,
+  SITE_TYPES.GRSAI,
+  SITE_TYPES.VERCEL_AI_GATEWAY,
+  SITE_TYPES.NOVITA,
+  SITE_TYPES.AIMLAPI,
+  SITE_TYPES.NANOGPT,
   SITE_TYPES.UNKNOWN,
 ] as const
 
 export type AccountSiteDefinitionType = (typeof ACCOUNT_SITE_TYPE_ORDER)[number]
 
-// GitHub stars snapshot (2026-09-11), descending; refresh deliberately rather
-// than fetching popularity during UI rendering. Counts from each upstream repo:
-// CLIProxyAPI 51356, new-api 47873, sub2api 41221, axonhub 5203,
-// claude-code-hub 3365, octopus 2619, Veloera 1638, done-hub 805.
+// GitHub stars snapshot (2026-10-15), descending; refresh deliberately rather
+// than fetching popularity during UI rendering. Sources: github.com/<repo>:
+// diegosouzapw/OmniRoute 76741, router-for-me/CLIProxyAPI 55296,
+// QuantumNous/new-api 50001, Wei-Shaw/sub2api 44078, yetone/magpie 13144,
+// tbphp/gpt-load 7097, looplj/axonhub 5359, ding113/claude-code-hub 3396,
+// bestruirui/octopus 2707, Veloera/Veloera 1630, deanxv/done-hub 809.
 export const MANAGED_SITE_TYPE_ORDER = [
+  SITE_TYPES.OMNIROUTE,
   SITE_TYPES.CLI_PROXY_API,
   SITE_TYPES.NEW_API,
   SITE_TYPES.SUB2API,
+  SITE_TYPES.MAGPIE,
+  SITE_TYPES.GPT_LOAD,
   SITE_TYPES.AXON_HUB,
   SITE_TYPES.CLAUDE_CODE_HUB,
   SITE_TYPES.OCTOPUS,
@@ -159,10 +291,452 @@ export type ManagedSiteDefinitionType = (typeof MANAGED_SITE_TYPE_ORDER)[number]
 
 const ACCOUNT_SITE_DEFINITIONS = [
   {
+    siteType: SITE_TYPES.XIAOEN,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Xiaoen,
+    onboarding: {
+      displayName: "肖恩 AI",
+      detection: { hostnames: XIAOEN_HOSTNAMES },
+      routes: {
+        loginPath: "/login",
+        usagePath: "/dashboard/models",
+        adminCredentialsPath: "/dashboard/keys",
+        pricingPath: "/dashboard/models",
+        checkInPath: "/dashboard",
+        accessTokenPath: null,
+        redeemPath: null,
+        siteAnnouncementsPath: "/dashboard/messages",
+      },
+    },
+    productProfile: {
+      metrics: {
+        deferredTodayStatsAvailability:
+          createUnsupportedTodayStatsAvailability(),
+        legacyTodayStatsAvailability: createUnsupportedTodayStatsAvailability(),
+      },
+      auth: {
+        usesBrowserCookieSession: true,
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.Cookie],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.Cookie,
+        defaultAuthHostnames: XIAOEN_HOSTNAMES,
+      },
+      identity: {
+        usernameRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: XIAOEN_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: XIAOEN_WEB_ORIGIN,
+        duplicateOrigin: XIAOEN_WEB_ORIGIN,
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.EMRANK,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Emrank,
+    onboarding: {
+      displayName: EMRANK_DISPLAY_NAME,
+      detection: { hostnames: EMRANK_HOSTNAMES },
+      routes: {
+        loginPath: "/login",
+        usagePath: "/requests",
+        adminCredentialsPath: "/api-keys",
+        pricingPath: "/models",
+        checkInPath: "/account",
+        accessTokenPath: null,
+        redeemPath: "/account",
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      metrics: {
+        deferredTodayStatsAvailability:
+          createUnsupportedTodayStatsAvailability(),
+        legacyTodayStatsAvailability: createUnsupportedTodayStatsAvailability(),
+      },
+      auth: {
+        // https://emrank.tech: only the HttpOnly `__Host-gateway_session`
+        // console session is verified; PAT/system-token auth stays out of scope.
+        usesBrowserCookieSession: true,
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.Cookie],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.Cookie,
+        defaultAuthHostnames: EMRANK_HOSTNAMES,
+      },
+      identity: {
+        usernameRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      createdToken: {
+        secretHandling:
+          ACCOUNT_SITE_CREATED_TOKEN_SECRET_HANDLING.OneTimeSecretDialog,
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: EMRANK_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: EMRANK_WEB_ORIGIN,
+        duplicateOrigin: EMRANK_WEB_ORIGIN,
+        inferenceApiBaseUrls: { openAiCompatible: EMRANK_API_BASE_URL },
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.KRILL,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Krill,
+    onboarding: {
+      displayName: "Krill AI",
+      detection: { hostnames: KRILL_HOSTNAMES },
+      routes: {
+        loginPath: "/login",
+        usagePath: "/app/logs",
+        adminCredentialsPath: "/app/keys",
+        pricingPath: "/app/pricing",
+        checkInPath: null,
+        accessTokenPath: null,
+        redeemPath: "/app",
+        siteAnnouncementsPath: "/app/announcements",
+      },
+    },
+    productProfile: {
+      auth: {
+        usesBrowserCookieSession: true,
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.Cookie],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.Cookie,
+        defaultAuthHostnames: KRILL_HOSTNAMES,
+      },
+      identity: {
+        usernameRequired: false,
+        storedUserIdentityFields: ["id", "email"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        // Channels gate billing routes, so the catalogue carries no model groups.
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: KRILL_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: KRILL_WEB_ORIGIN,
+        duplicateOrigin: KRILL_WEB_ORIGIN,
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.DAYA,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Daya,
+    onboarding: {
+      displayName: "Daya API",
+      detection: { hostnames: DAYA_HOSTNAMES },
+      routes: {
+        loginPath: "/login",
+        usagePath: "/console/usage",
+        adminCredentialsPath: "/keys",
+        pricingPath: "/catalog/models",
+        checkInPath: "/rewards",
+        accessTokenPath: null,
+        // The purchase page hosts the current unified code application form.
+        redeemPath: "/purchase",
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      auth: {
+        // Only the `daya_sid` console Cookie session is verified; the frontend
+        // client exposes no personal-access-token or refresh contract.
+        usesBrowserCookieSession: true,
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.Cookie],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.Cookie,
+        defaultAuthHostnames: DAYA_HOSTNAMES,
+      },
+      identity: {
+        usernameRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        // Group selection changes billing multipliers, not the model list.
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: DAYA_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: DAYA_WEB_ORIGIN,
+        duplicateOrigin: DAYA_WEB_ORIGIN,
+        managedChannelOrigin: DAYA_API_BASE_URL,
+        inferenceApiBaseUrls: { openAiCompatible: DAYA_API_BASE_URL },
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.PMAPI,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Pmapi,
+    onboarding: {
+      displayName: PMAPI_DISPLAY_NAME,
+      detection: { hostnames: PMAPI_HOSTNAMES },
+      routes: {
+        // PM-API (pmcat.top, pap.pmcat.top) is one program with independent
+        // deployments. Its SPA routes on the hash (verified live: the plain
+        // `/console` paths render the public landing page), so every page
+        // route keeps the `/#/` prefix.
+        loginPath: "/#/login",
+        usagePath: "/#/console",
+        checkInPath: "/#/console/wallet",
+        adminCredentialsPath: "/#/console/tokens",
+        pricingPath: "/#/pricing",
+        accessTokenPath: null,
+        redeemPath: "/#/console/wallet",
+        siteAnnouncementsPath: "/",
+      },
+    },
+    productProfile: {
+      auth: {
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        usernameRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        // Groups are a real billing/routing dimension for PM-API (a token
+        // group selects routing, the group ratio multiplies prices), like
+        // the New API family.
+        groupSemantics:
+          ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.ACCOUNT_OR_RUNTIME_KEY,
+      },
+      urls: {
+        // Both deployments are enumerated; each install keeps its own saved
+        // URL, so no storage origin is pinned.
+        recognizedHostnames: PMAPI_HOSTNAMES,
+        inferFromHostname: true,
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.CUBENCE,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Cubence,
+    onboarding: {
+      displayName: "Cubence",
+      detection: { hostnames: CUBENCE_HOSTNAMES },
+      routes: {
+        pricingPath: "/dashboard/model-plaza",
+        loginPath: "/auth/login",
+        usagePath: "/dashboard/analytics",
+        adminCredentialsPath: "/dashboard/keys",
+        checkInPath: null,
+        accessTokenPath: null,
+        redeemPath: "/dashboard/subscription",
+        siteAnnouncementsPath: "/dashboard",
+      },
+    },
+    productProfile: {
+      auth: {
+        // https://cubence.com/dashboard: only a console cookie session is verified.
+        usesBrowserCookieSession: true,
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.Cookie],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.Cookie,
+        defaultAuthHostnames: CUBENCE_HOSTNAMES,
+      },
+      identity: {
+        usernameRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      urls: {
+        recognizedHostnames: CUBENCE_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: CUBENCE_WEB_ORIGIN,
+        managedChannelOrigin: CUBENCE_API_ORIGIN,
+        duplicateOrigin: CUBENCE_WEB_ORIGIN,
+        inferenceApiBaseUrls: {
+          openAiCompatible: `${CUBENCE_API_ORIGIN}/v1`,
+          anthropic: CUBENCE_API_ORIGIN,
+        },
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.FREEMODEL,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.FreeModel,
+    onboarding: {
+      displayName: "FreeModel",
+      detection: { hostnames: FREEMODEL_HOSTNAMES },
+      routes: {
+        loginPath: "/",
+        usagePath: "/dashboard/usage",
+        adminCredentialsPath: "/dashboard/keys",
+        checkInPath: null,
+        accessTokenPath: null,
+        redeemPath: null,
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      metrics: {
+        deferredTodayStatsAvailability:
+          createUnsupportedTodayStatsAvailability(),
+        legacyTodayStatsAvailability: createUnsupportedTodayStatsAvailability(),
+      },
+      auth: {
+        // freemodel.dev console APIs validate the live browser cookie session.
+        usesBrowserCookieSession: true,
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.Cookie],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.Cookie,
+        defaultAuthHostnames: FREEMODEL_HOSTNAMES,
+      },
+      identity: {
+        usernameRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: FREEMODEL_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: FREEMODEL_WEB_ORIGIN,
+        managedChannelOrigin: FREEMODEL_OPENAI_BASE_URL,
+        duplicateOrigin: FREEMODEL_WEB_ORIGIN,
+        inferenceApiBaseUrls: {
+          openAiCompatible: FREEMODEL_OPENAI_BASE_URL,
+          anthropic: FREEMODEL_ANTHROPIC_BASE_URL,
+        },
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.FOXCODE,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.FoxCode,
+    onboarding: {
+      displayName: "FoxCode",
+      detection: { hostnames: FOXCODE_HOSTNAMES },
+      routes: {
+        loginPath: "/auth/login",
+        usagePath: "/usage",
+        adminCredentialsPath: "/api-keys",
+        pricingPath: "/model-square",
+        checkInPath: null,
+        accessTokenPath: null,
+        redeemPath: "/redeem",
+        siteAnnouncementsPath: "/dashboard",
+      },
+    },
+    productProfile: {
+      auth: {
+        usesBrowserCookieSession: true,
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.Cookie],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.Cookie,
+        defaultAuthHostnames: FOXCODE_HOSTNAMES,
+      },
+      identity: {
+        usernameRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        groupSemantics:
+          ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.ACCOUNT_OR_RUNTIME_KEY,
+      },
+      urls: {
+        recognizedHostnames: FOXCODE_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: FOXCODE_WEB_ORIGIN,
+        duplicateOrigin: FOXCODE_WEB_ORIGIN,
+        managedChannelOrigin: FOXCODE_INFERENCE_ORIGIN,
+        inferenceApiBaseUrls: {
+          openAiCompatible: `${FOXCODE_INFERENCE_ORIGIN}/v1`,
+          anthropic: FOXCODE_INFERENCE_ORIGIN,
+        },
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.DAHL,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Dahl,
+    onboarding: {
+      displayName: "Dahl",
+      detection: { hostnames: DAHL_HOSTNAMES },
+      routes: {
+        loginPath: "/account",
+        usagePath: "/account#profile",
+        adminCredentialsPath: "/account",
+        pricingPath: "/pricing/",
+        checkInPath: null,
+        accessTokenPath: null,
+        redeemPath: null,
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      metrics: {
+        deferredTodayStatsAvailability:
+          createUnsupportedTodayStatsAvailability(),
+        legacyTodayStatsAvailability: createUnsupportedTodayStatsAvailability(),
+      },
+      auth: {
+        usesBrowserCookieSession: true,
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.Cookie],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.Cookie,
+        defaultAuthHostnames: DAHL_HOSTNAMES,
+      },
+      identity: {
+        usernameRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: DAHL_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: DAHL_WEB_ORIGIN,
+        duplicateOrigin: DAHL_WEB_ORIGIN,
+        managedChannelOrigin: `${DAHL_WEB_ORIGIN}/v1`,
+        inferenceApiBaseUrls: { openAiCompatible: `${DAHL_WEB_ORIGIN}/v1` },
+      },
+    },
+  },
+  {
     siteType: SITE_TYPES.ONE_API,
     tokenKey: { optionalSkPrefix: true },
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: { titlePatterns: [makeTitleRegex(SITE_TYPES.ONE_API)] },
       routes: {
@@ -181,16 +755,41 @@ const ACCOUNT_SITE_DEFINITIONS = [
   {
     siteType: SITE_TYPES.NEW_API,
     tokenKey: { optionalSkPrefix: true },
+    accountLogin: {
+      ...NEW_API_COMPATIBLE_LOGIN,
+      passwordIdentity: ACCOUNT_PASSWORD_IDENTITIES.UsernameOrEmail,
+      methods: [
+        "github",
+        "linuxdo",
+        "discord",
+        "oidc",
+        ACCOUNT_LOGIN_METHODS.Password,
+      ],
+      // QuantumNous/new-api: v1.0.0-rc.37 web/src/routes/oauth/$provider.tsx;
+      // earlier web/src/components/OAuth2Callback.js completes under /console.
+      protocols: {
+        newApi: {
+          ...NEW_API_COMPATIBLE_LOGIN.protocols.newApi,
+          completionPaths: ["/console", "/console/token", "/dashboard"],
+        },
+      },
+    },
     scopes: ACCOUNT_AND_MANAGED_SCOPES,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     managedResource: {
       ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: true,
       consoleRoutes: { channels: "/channels", tokens: "/keys" },
       tableFieldIds: NEW_API_MANAGED_RESOURCE_TABLE_FIELD_IDS,
       detailFieldIds: NEW_API_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
     },
     onboarding: {
       manualAddGuideAnchor: ACCOUNT_SITE_MANUAL_ADD_GUIDE_ANCHORS.NewApi,
+      accessTokenVerificationGuide: {
+        copy: "security",
+        showRotationWarning: true,
+      },
       detection: {
         titlePatterns: [makeTitleRegex(SITE_TYPES.NEW_API)],
         compatUserIdHeaderNames: ["New-API-User"],
@@ -201,9 +800,9 @@ const ACCOUNT_SITE_DEFINITIONS = [
         pricingSearchParam: "search",
         usagePath: NEW_API_USAGE_PATH,
         checkInPath: NEW_API_CHECKIN_PATH,
-        adminCredentialsPath: NEW_API_CHECKIN_PATH,
+        adminCredentialsPath: NEW_API_CREDENTIALS_PATH,
         loginPath: "/login",
-        accessTokenPath: NEW_API_ACCESS_TOKEN_PATH,
+        accessTokenPath: NEW_API_CREDENTIALS_PATH,
         redeemPath: "/console/topup",
         siteAnnouncementsPath: "/",
       },
@@ -214,8 +813,14 @@ const ACCOUNT_SITE_DEFINITIONS = [
     tokenKey: { optionalSkPrefix: true },
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: { hostnames: [APIYI_HOSTNAME] },
+      browserUserStorage: "apiyi",
+      accessTokenVerificationGuide: {
+        copy: "apiyi",
+        showRotationWarning: false,
+      },
       routes: {
         // https://api.apiyi.com/account/pricing (v29.8.9)
         pricingPath: "/account/pricing",
@@ -231,10 +836,52 @@ const ACCOUNT_SITE_DEFINITIONS = [
     },
   },
   {
+    siteType: SITE_TYPES.LAOZHANG,
+    tokenKey: { optionalSkPrefix: true },
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
+    onboarding: {
+      displayName: "LaoZhang API",
+      browserUserStorage: "apiyi",
+      accessTokenVerificationGuide: {
+        copy: "laozhang",
+        showRotationWarning: false,
+      },
+      detection: {
+        hostnames: LAOZHANG_HOSTNAMES,
+        titlePatterns: [/\blaozhang\s*api\b/i],
+      },
+      // https://api2.laozhang.ai/account/profile, observed v31.1.5.
+      routes: {
+        pricingPath: "/account/pricing",
+        usagePath: "/log",
+        redeemPath: "/account/topup/recharge",
+        adminCredentialsPath: "/account/profile",
+        accessTokenPath: "/account/profile",
+        loginPath: "/login",
+        checkInPath: null,
+        siteAnnouncementsPath: "/account",
+      },
+    },
+    productProfile: {
+      auth: {
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: LAOZHANG_HOSTNAMES,
+      },
+      urls: {
+        recognizedHostnames: LAOZHANG_HOSTNAMES,
+        inferFromHostname: true,
+        duplicateOrigin: "https://api.laozhang.ai",
+      },
+    },
+  },
+  {
     siteType: SITE_TYPES.MODELFLARE,
     tokenKey: { optionalSkPrefix: true },
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: {
         hostnames: [MODELFLARE_HOSTNAME],
@@ -246,7 +893,7 @@ const ACCOUNT_SITE_DEFINITIONS = [
         checkInPath: NEW_API_CHECKIN_PATH,
         adminCredentialsPath: NEW_API_CHECKIN_PATH,
         loginPath: "/login",
-        accessTokenPath: NEW_API_ACCESS_TOKEN_PATH,
+        accessTokenPath: NEW_API_CREDENTIALS_PATH,
         redeemPath: "/console/topup",
         siteAnnouncementsPath: "/",
       },
@@ -262,9 +909,21 @@ const ACCOUNT_SITE_DEFINITIONS = [
   },
   {
     siteType: SITE_TYPES.ANYROUTER,
+    // anyrouter.top public status and native login bundle verified 2026-11-04.
+    accountLogin: {
+      methods: ["github", "linuxdo", ACCOUNT_LOGIN_METHODS.Password],
+      supportsCredentialRecovery: true,
+      protocols: {
+        newApi: {
+          userIdHeader: "New-Api-User",
+          completionPaths: ["/console", "/console/token"],
+        },
+      },
+    },
     tokenKey: { optionalSkPrefix: true },
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: { titlePatterns: [/\bany\s*router\b/i] },
       routes: {
@@ -288,8 +947,24 @@ const ACCOUNT_SITE_DEFINITIONS = [
     siteType: SITE_TYPES.SUB2API,
     scopes: ACCOUNT_AND_MANAGED_SCOPES,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Sub2Api,
+    legacyAccountTokenScope: "account",
+    accountLogin: {
+      passwordIdentity: ACCOUNT_PASSWORD_IDENTITIES.Email,
+      supportsCredentialRecovery: true,
+      // Wei-Shaw/sub2api@881f320: public settings and native OAuth start routes.
+      methods: [
+        "github",
+        "google",
+        "linuxdo",
+        "oidc",
+        "dingtalk",
+        "wechat",
+        ACCOUNT_LOGIN_METHODS.Password,
+      ],
+    },
     managedResource: {
       ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: true,
       consoleRoutes: { channels: "/admin/accounts", tokens: "/keys" },
       labelKey: "settings:managedSite.sub2api",
       getStartedUrl: "https://github.com/Wei-Shaw/sub2api#deployment",
@@ -304,7 +979,13 @@ const ACCOUNT_SITE_DEFINITIONS = [
     onboarding: {
       displayName: "Sub2API",
       manualAddGuideAnchor: ACCOUNT_SITE_MANUAL_ADD_GUIDE_ANCHORS.Sub2Api,
-      detection: { titlePatterns: [makeTitleRegex(SITE_TYPES.SUB2API)] },
+      detection: {
+        titlePatterns: [makeTitleRegex(SITE_TYPES.SUB2API)],
+        // AI-ROUTER is a split-origin fork: its browser origin answers neither
+        // the title match nor the `/api/v1/auth/me` shape probe, so the hostname
+        // has to be registered explicitly.
+        hostnames: AI_ROUTER_HOSTNAMES,
+      },
       routes: {
         // https://github.com/Wei-Shaw/sub2api/blob/main/frontend/src/router/index.ts
         pricingPath: "/model-plaza",
@@ -337,12 +1018,19 @@ const ACCOUNT_SITE_DEFINITIONS = [
         displayCapabilitiesSource:
           ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Response,
       },
+      urls: {
+        // Only enumerated deployments are recognized by hostname; other Sub2API
+        // forks stay title/probe detected so a self-hosted install is never
+        // mistaken for a registered one.
+        recognizedHostnames: AI_ROUTER_HOSTNAMES,
+      },
     },
   },
   {
     siteType: SITE_TYPES.AIHUBMIX,
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Aihubmix,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: {
         titlePatterns: [makeTitleRegex(SITE_TYPES.AIHUBMIX)],
@@ -455,9 +1143,181 @@ const ACCOUNT_SITE_DEFINITIONS = [
     },
   },
   {
+    siteType: SITE_TYPES.RIGHT_CODE,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.RightCode,
+    onboarding: {
+      displayName: RIGHTCODE_DISPLAY_NAME,
+      detection: {
+        hostnames: RIGHTCODE_HOSTNAMES,
+      },
+      // Console routes verified against the deployment's own router table; the
+      // deployment serves the same console on right.codes, www.right.codes and
+      // rightapi.ai. https://docs.rightapi.ai/docs/rc_quick_start/models.html
+      routes: {
+        loginPath: RIGHTCODE_LOGIN_PATH,
+        usagePath: "/use-logs",
+        adminCredentialsPath: "/api-keys",
+        siteAnnouncementsPath: "/dashboard",
+        pricingPath: "/models",
+        // Right Code has no check-in flow, and its activation-code redemption
+        // contract is not verified yet, so neither page is offered.
+        checkInPath: null,
+        accessTokenPath: null,
+        redeemPath: null,
+      },
+    },
+    productProfile: {
+      auth: {
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        usernameRequired: true,
+        // The console never shows the numeric account id, and the token alone
+        // authenticates every call, so manual adds must not demand it.
+        userIdRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Response,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      tokenForm: {
+        // Keys carry no network restrictions; only channel, models and quota.
+        networkLimitPolicy:
+          ACCOUNT_SITE_TOKEN_FORM_NETWORK_LIMIT_POLICIES.IpList,
+      },
+      // The three delivery domains are equivalent; accounts keep whichever host
+      // they were detected on instead of being rewritten to a canonical origin.
+      urls: {
+        recognizedHostnames: RIGHTCODE_HOSTNAMES,
+        inferFromHostname: true,
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.RELAYFOR,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.RelayFor,
+    onboarding: {
+      displayName: RELAYFOR_DISPLAY_NAME,
+      detection: {
+        hostnames: RELAYFOR_HOSTNAMES,
+        titlePatterns: [makeTitleRegex("RelayFor")],
+      },
+      routes: {
+        loginPath: RELAYFOR_LOGIN_PATH,
+        usagePath: "/console/#usage",
+        adminCredentialsPath: "/console/#tokens",
+        siteAnnouncementsPath: "/console/#overview",
+        pricingPath: "/console/#models",
+        checkInPath: "/console/#overview",
+        accessTokenPath: null,
+        redeemPath: "/console/#redeem",
+      },
+    },
+    productProfile: {
+      auth: {
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        usernameRequired: true,
+        userIdRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Response,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      tokenForm: {
+        networkLimitPolicy:
+          ACCOUNT_SITE_TOKEN_FORM_NETWORK_LIMIT_POLICIES.IpList,
+      },
+      urls: {
+        recognizedHostnames: RELAYFOR_HOSTNAMES,
+        inferFromHostname: true,
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.REQUESTY,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Requesty,
+    onboarding: {
+      displayName: REQUESTY_DISPLAY_NAME,
+      // The manage key is the only credential; the Clerk console session is
+      // not API-accessible, so the form guides manual key creation.
+      accountForm: {
+        defaultSiteName: REQUESTY_DISPLAY_NAME,
+        accessTokenLabelKey: "form.requestyManageKey",
+        accessTokenGuidanceTitleKey: "form.requestyManageKeyGuidanceTitle",
+        accessTokenGuidanceKey: "form.requestyManageKeyGuidance",
+        // The console's Clerk session can mint a manage key from a temp
+        // window; failures fall back to the guidance above.
+        autoCreateAccessToken: true,
+      },
+      detection: { hostnames: REQUESTY_HOSTNAMES },
+      // Console routes observed on app.requesty.ai, 2026-10-21. The management
+      // API lives on api-v2.requesty.ai, not the console origin.
+      routes: {
+        loginPath: "/sign-in",
+        usagePath: "/analytics",
+        adminCredentialsPath: "/api-keys",
+        pricingPath: "/model-library",
+        checkInPath: null,
+        accessTokenPath: "/api-keys",
+        redeemPath: "/billing",
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      auth: {
+        // Only the manage API key is a verified background credential; the
+        // console's Clerk session is not documented for API use.
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        usernameRequired: false,
+        userIdRequired: false,
+        storedUserIdentityFields: [],
+      },
+      metrics: {
+        deferredTodayStatsAvailability:
+          createUnsupportedTodayStatsAvailability(),
+        legacyTodayStatsAvailability: createUnsupportedTodayStatsAvailability(),
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: REQUESTY_HOSTNAMES,
+        storageOrigin: REQUESTY_WEB_ORIGIN,
+        duplicateOrigin: REQUESTY_WEB_ORIGIN,
+        managedChannelOrigin: REQUESTY_API_BASE_URL,
+        inferenceApiBaseUrls: {
+          openAiCompatible: REQUESTY_API_BASE_URL,
+        },
+      },
+    },
+  },
+  {
     siteType: SITE_TYPES.VO_API_V2,
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.VoApiV2,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: {
         titlePatterns: [/^(?:.* - )?VoAPI公益站$/i],
@@ -498,6 +1358,10 @@ const ACCOUNT_SITE_DEFINITIONS = [
       accountForm: {
         fixedSiteUrl: OPENROUTER_WEB_ORIGIN,
         defaultSiteName: OPENROUTER_DISPLAY_NAME,
+        accessTokenLabelKey: "form.openrouterManagementKey",
+        accessTokenGuidanceTitleKey:
+          "form.openrouterManagementKeyGuidanceTitle",
+        accessTokenGuidanceKey: "form.openrouterManagementKeyGuidance",
       },
       manualAddGuideAnchor: ACCOUNT_SITE_MANUAL_ADD_GUIDE_ANCHORS.OpenRouter,
       detection: { hostnames: OPENROUTER_HOSTNAMES },
@@ -539,6 +1403,381 @@ const ACCOUNT_SITE_DEFINITIONS = [
         recognizedHostnames: OPENROUTER_HOSTNAMES,
         storageOrigin: OPENROUTER_WEB_ORIGIN,
         duplicateOrigin: OPENROUTER_WEB_ORIGIN,
+        managedChannelOrigin: OPENROUTER_API_BASE_URL,
+        inferenceApiBaseUrls: {
+          openAiCompatible: OPENROUTER_API_BASE_URL,
+        },
+      },
+    },
+  },
+
+  {
+    siteType: SITE_TYPES.KIMI,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.KimiOpenPlatform,
+    onboarding: {
+      displayName: KIMI_DISPLAY_NAME,
+      accountForm: {
+        fixedSiteUrl: KIMI_CONSOLE_ORIGIN,
+        defaultSiteName: KIMI_DISPLAY_NAME,
+      },
+      detection: { hostnames: KIMI_HOSTNAMES },
+      routes: {
+        loginPath: "/console/account",
+        usagePath: "/console/account",
+        adminCredentialsPath: "/console/api-keys",
+        checkInPath: null,
+        accessTokenPath: null,
+        redeemPath: null,
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      authSession: {
+        kind: ACCOUNT_SITE_SUPPLEMENTAL_AUTH_KINDS.KimiRefreshToken,
+      },
+      metrics: {
+        deferredTodayStatsAvailability:
+          createUnsupportedTodayStatsAvailability(),
+        legacyTodayStatsAvailability: createUnsupportedTodayStatsAvailability(),
+      },
+      auth: {
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        usernameRequired: false,
+        userIdRequired: true,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Response,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: KIMI_HOSTNAMES,
+        storageOrigin: KIMI_CONSOLE_ORIGIN,
+        duplicateOrigin: KIMI_CONSOLE_ORIGIN,
+        managedChannelOrigin: KIMI_API_BASE_URL,
+        inferenceApiBaseUrls: {
+          openAiCompatible: KIMI_API_BASE_URL,
+          anthropic: "https://api.moonshot.cn/anthropic",
+        },
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.KIMI_GLOBAL,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.KimiOpenPlatform,
+    onboarding: {
+      displayName: KIMI_GLOBAL_DISPLAY_NAME,
+      accountForm: {
+        fixedSiteUrl: KIMI_GLOBAL_CONSOLE_ORIGIN,
+        defaultSiteName: KIMI_GLOBAL_DISPLAY_NAME,
+      },
+      detection: { hostnames: KIMI_GLOBAL_HOSTNAMES },
+      routes: {
+        loginPath: "/console/account",
+        usagePath: "/console/account",
+        adminCredentialsPath: "/console/api-keys",
+        checkInPath: null,
+        accessTokenPath: null,
+        redeemPath: null,
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      authSession: {
+        kind: ACCOUNT_SITE_SUPPLEMENTAL_AUTH_KINDS.KimiRefreshToken,
+      },
+      metrics: {
+        deferredTodayStatsAvailability:
+          createUnsupportedTodayStatsAvailability(),
+        legacyTodayStatsAvailability: createUnsupportedTodayStatsAvailability(),
+      },
+      auth: {
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        usernameRequired: false,
+        userIdRequired: true,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Response,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: KIMI_GLOBAL_HOSTNAMES,
+        storageOrigin: KIMI_GLOBAL_CONSOLE_ORIGIN,
+        duplicateOrigin: KIMI_GLOBAL_CONSOLE_ORIGIN,
+        managedChannelOrigin: KIMI_GLOBAL_API_BASE_URL,
+        inferenceApiBaseUrls: {
+          openAiCompatible: KIMI_GLOBAL_API_BASE_URL,
+          anthropic: "https://api.moonshot.ai/anthropic",
+        },
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.GRSAI,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Grsai,
+    onboarding: {
+      displayName: GRSAI_DISPLAY_NAME,
+      detection: { hostnames: GRSAI_HOSTNAMES },
+      // Console routes verified against the deployment's own router table. The
+      // console is served on grsai.com and grsai.ai; it has no separate sign-in
+      // route (/login, /sign-in and /register all answer 404), so /dashboard
+      // owns the signed-out state and is what "open the console" means.
+      routes: {
+        loginPath: GRSAI_ACCOUNT_PATH,
+        usagePath: "/dashboard/consumption-log",
+        adminCredentialsPath: "/dashboard/api-keys",
+        siteAnnouncementsPath: null,
+        pricingPath: "/dashboard/models",
+        // No check-in flow, no separate access-token page, no activation codes.
+        checkInPath: null,
+        accessTokenPath: null,
+        redeemPath: null,
+      },
+    },
+    productProfile: {
+      auth: {
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        // The console identifies an account by its sign-in email and never
+        // exposes a separate display name; the saved session token alone
+        // authenticates every call, so manual adds must not demand an id.
+        usernameRequired: false,
+        userIdRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Response,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      tokenForm: {
+        // Keys carry no network restrictions; only quota and expiry.
+        networkLimitPolicy:
+          ACCOUNT_SITE_TOKEN_FORM_NETWORK_LIMIT_POLICIES.IpList,
+      },
+      // The two console domains are equivalent; accounts keep whichever host
+      // they were detected on instead of being rewritten to a canonical origin.
+      urls: {
+        recognizedHostnames: GRSAI_HOSTNAMES,
+        inferFromHostname: true,
+        inferenceApiBaseUrls: {
+          openAiCompatible: GRSAI_API_BASE_URL,
+        },
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.AIMLAPI,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.AiMlApi,
+    onboarding: {
+      displayName: AIMLAPI_DISPLAY_NAME,
+      accessTokenVerificationGuide: {
+        copy: "aimlapi",
+        showRotationWarning: false,
+      },
+      accountForm: {
+        fixedSiteUrl: AIMLAPI_WEB_ORIGIN,
+        defaultSiteName: AIMLAPI_DISPLAY_NAME,
+        accessTokenLabelKey: "form.aimlApiManagementKey",
+        accessTokenGuidanceTitleKey: "form.aimlApiManagementKeyGuidanceTitle",
+        accessTokenGuidanceKey: "form.aimlApiManagementKeyGuidance",
+      },
+      detection: { hostnames: AIMLAPI_HOSTNAMES },
+      // Console routes verified 2026-10-24 against the Nuxt router table: the
+      // signed-out entry is /app/auth, keys live at /app/keys, usage at
+      // /app/usage and the promo-code form at /app/billing. Pricing is only
+      // published on the marketing catalogue, not in the console.
+      routes: {
+        loginPath: AIMLAPI_LOGIN_PATH,
+        usagePath: AIMLAPI_USAGE_PATH,
+        adminCredentialsPath: AIMLAPI_KEYS_PATH,
+        accessTokenPath: AIMLAPI_KEYS_PATH,
+        pricingPath: AIMLAPI_MODELS_PATH,
+        redeemPath: AIMLAPI_BILLING_PATH,
+        // No check-in programme and no site announcement feed were observed.
+        checkInPath: null,
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      // Balance and usage come from the account's regular API key, so today's
+      // statistics are only available on the deferred path that has the account.
+      metrics: {
+        deferredTodayStatsAvailability: {
+          consumption: {
+            status: ACCOUNT_TODAY_METRIC_STATUSES.Complete,
+          },
+          requests: { status: ACCOUNT_TODAY_METRIC_STATUSES.Complete },
+          tokens: { status: ACCOUNT_TODAY_METRIC_STATUSES.Complete },
+          income: {
+            status: ACCOUNT_TODAY_METRIC_STATUSES.Unavailable,
+            reason: ACCOUNT_TODAY_METRIC_REASONS.Unsupported,
+          },
+        },
+        legacyTodayStatsAvailability: {
+          consumption: {
+            status: ACCOUNT_TODAY_METRIC_STATUSES.Unavailable,
+            reason: ACCOUNT_TODAY_METRIC_REASONS.Unsupported,
+          },
+          requests: {
+            status: ACCOUNT_TODAY_METRIC_STATUSES.Unavailable,
+            reason: ACCOUNT_TODAY_METRIC_REASONS.Unsupported,
+          },
+          tokens: {
+            status: ACCOUNT_TODAY_METRIC_STATUSES.Unavailable,
+            reason: ACCOUNT_TODAY_METRIC_REASONS.Unsupported,
+          },
+          income: {
+            status: ACCOUNT_TODAY_METRIC_STATUSES.Unavailable,
+            reason: ACCOUNT_TODAY_METRIC_REASONS.Unsupported,
+          },
+        },
+      },
+      authSession: {
+        // Key management and billing reject each other's credential class, so
+        // the account stores a regular API key beside its management key.
+        kind: ACCOUNT_SITE_SUPPLEMENTAL_AUTH_KINDS.SecondaryApiKey,
+        secondaryCredential: "api-key",
+      },
+      auth: {
+        // Only the management key is a console credential: the console has no
+        // personal-access-token route, and its session JWT lives ~10 hours and
+        // rotates single-use, so it is not saved as an account credential.
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        // The numeric user id comes from `/v2/billing/detail`, which needs the
+        // regular API key; accounts without one fall back to the key prefix.
+        usernameRequired: false,
+        userIdRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      createdToken: {
+        // `POST /v1/keys` returns the only copy of the plaintext secret.
+        secretHandling: ACCOUNT_SITE_CREATED_TOKEN_SECRET_HANDLING.ResponseKey,
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      tokenForm: {
+        // Keys expose model scopes, an expiry and a spend limit, but no
+        // network restrictions.
+        networkLimitPolicy:
+          ACCOUNT_SITE_TOKEN_FORM_NETWORK_LIMIT_POLICIES.IpList,
+      },
+      urls: {
+        recognizedHostnames: AIMLAPI_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: AIMLAPI_WEB_ORIGIN,
+        duplicateOrigin: AIMLAPI_WEB_ORIGIN,
+        managedChannelOrigin: `${AIMLAPI_API_BASE_URL}/v1`,
+        inferenceApiBaseUrls: {
+          openAiCompatible: `${AIMLAPI_API_BASE_URL}/v1`,
+          anthropic: AIMLAPI_API_BASE_URL,
+        },
+      },
+    },
+  },
+  {
+    siteType: SITE_TYPES.VERCEL_AI_GATEWAY,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.VercelAiGateway,
+    onboarding: {
+      displayName: VERCEL_AI_GATEWAY_DISPLAY_NAME,
+      accountForm: {
+        fixedSiteUrl: VERCEL_WEB_ORIGIN,
+        defaultSiteName: VERCEL_AI_GATEWAY_DISPLAY_NAME,
+        accessTokenLabelKey: "form.vercelAccessToken",
+        accessTokenGuidanceTitleKey: "form.vercelAccessTokenGuidanceTitle",
+        accessTokenGuidanceKey: "form.vercelAccessTokenGuidance",
+      },
+      // `vercel.com` serves every Vercel product; only the AI Gateway account
+      // surface is adapted, so detection stays hostname-scoped and the account
+      // form pins the AI Gateway dashboard.
+      manualAddGuideAnchor:
+        ACCOUNT_SITE_MANUAL_ADD_GUIDE_ANCHORS.VercelAiGateway,
+      // The token page issues a fresh token; it never rotates an existing one.
+      accessTokenVerificationGuide: {
+        copy: "vercel",
+        showRotationWarning: false,
+      },
+      detection: { hostnames: VERCEL_AI_GATEWAY_HOSTNAMES },
+      routes: {
+        // `/ai-gateway` console routes are team-scoped (`/<team>/~/ai-gateway`);
+        // the saved account URL cannot carry a slug. The adapter resolves usage
+        // and key-management routes from the saved team identity.
+        loginPath: "/login",
+        usagePath: null,
+        adminCredentialsPath: null,
+        pricingPath: "/ai-gateway/models",
+        checkInPath: null,
+        accessTokenPath: VERCEL_ACCESS_TOKENS_PATH,
+        redeemPath: null,
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      metrics: {
+        deferredTodayStatsAvailability:
+          createUnsupportedTodayStatsAvailability(),
+        legacyTodayStatsAvailability: createUnsupportedTodayStatsAvailability(),
+      },
+      auth: {
+        // A Vercel access token is the only credential that can manage AI
+        // Gateway keys; credits also accept it when the request names the team.
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        usernameRequired: false,
+        userIdRequired: true,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      createdToken: {
+        secretHandling:
+          ACCOUNT_SITE_CREATED_TOKEN_SECRET_HANDLING.OneTimeSecretDialog,
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: VERCEL_AI_GATEWAY_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: VERCEL_WEB_ORIGIN,
+        duplicateOrigin: VERCEL_WEB_ORIGIN,
+        inferenceApiBaseUrls: {
+          openAiCompatible: VERCEL_AI_GATEWAY_API_BASE_URL,
+        },
       },
     },
   },
@@ -551,6 +1790,7 @@ const MANAGED_ONLY_SITE_DEFINITIONS = [
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Unsupported,
     managedResource: {
       ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: true,
       consoleRoutes: {
         channels: "/management.html",
         tokens: "/management.html",
@@ -568,6 +1808,7 @@ const MANAGED_ONLY_SITE_DEFINITIONS = [
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Unsupported,
     managedResource: {
       ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: true,
       consoleRoutes: { channels: "/model", tokens: "/keys" },
       labelKey: "settings:managedSite.octopus",
       getStartedUrl: "https://github.com/bestruirui/octopus#-quick-start",
@@ -582,6 +1823,7 @@ const MANAGED_ONLY_SITE_DEFINITIONS = [
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Unsupported,
     managedResource: {
       ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: false,
       consoleRoutes: { channels: "/channels", tokens: "/api-keys" },
       labelKey: "settings:managedSite.axonHub",
       getStartedUrl:
@@ -601,6 +1843,7 @@ const MANAGED_ONLY_SITE_DEFINITIONS = [
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Unsupported,
     managedResource: {
       ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: true,
       consoleRoutes: {
         channels: "/settings/providers",
         tokens: "/dashboard/users",
@@ -613,16 +1856,107 @@ const MANAGED_ONLY_SITE_DEFINITIONS = [
       detailFieldIds: CLAUDE_CODE_HUB_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
     },
   },
+  {
+    // OmniRoute is a self-hosted TypeScript fork of 9router, but it has diverged
+    // far enough that the two share no usable contract: scoped bearer tokens
+    // (no cookie session), connection-level base-URL overrides, and masked
+    // channel reads all exist only here. Not a CLIProxyAPI alias either — that
+    // integration is `/v0/management` + `X-Management-Key`.
+    siteType: SITE_TYPES.OMNIROUTE,
+    scopes: MANAGED_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Unsupported,
+    managedResource: {
+      ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: true,
+      consoleRoutes: {
+        channels: "/dashboard/providers",
+        tokens: "/dashboard/api-manager",
+      },
+      labelKey: "settings:managedSite.omniroute",
+      getStartedUrl: "https://github.com/diegosouzapw/OmniRoute#-quick-start",
+      messagesKey: "omniroute",
+      tableFieldIds: OMNIROUTE_MANAGED_RESOURCE_TABLE_FIELD_IDS,
+      detailFieldIds: OMNIROUTE_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
+      settingsTarget: {
+        ...LEGACY_MANAGED_CHANNEL_POLICY.settingsTarget,
+        anchor: SETTINGS_ANCHORS.OMNIROUTE,
+      },
+    },
+  },
+  {
+    // gpt-load is a self-hosted Go AI gateway. It owns no upstream account of
+    // its own (no balance, plan, or check-in) and exposes no enumerable official
+    // hostname, so it is managed-only with no account scope and no detection.
+    // Its management object is a group: one channel driver, a credential pool,
+    // and a model list. Not a New API-family alias: its control plane is
+    // `/api/*` behind the root AUTH_KEY bearer, with a `{code,message,data}`
+    // envelope whose error `code` is a string.
+    siteType: SITE_TYPES.GPT_LOAD,
+    scopes: MANAGED_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Unsupported,
+    managedResource: {
+      ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: true,
+      consoleRoutes: {
+        channels: "/groups",
+        tokens: "/access-keys",
+      },
+      labelKey: "settings:managedSite.gptLoad",
+      getStartedUrl: "https://github.com/tbphp/gpt-load#-quick-start",
+      messagesKey: "gptLoad",
+      tableFieldIds: GPT_LOAD_MANAGED_RESOURCE_TABLE_FIELD_IDS,
+      detailFieldIds: GPT_LOAD_MANAGED_RESOURCE_DETAIL_FIELD_IDS,
+      settingsTarget: {
+        ...LEGACY_MANAGED_CHANNEL_POLICY.settingsTarget,
+        anchor: SETTINGS_ANCHORS.GPT_LOAD,
+      },
+    },
+  },
+  {
+    // Magpie Web owns native providers; desktop sign-ins do not give this
+    // managed-only integration a saved-account capability.
+    siteType: SITE_TYPES.MAGPIE,
+    scopes: MANAGED_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Unsupported,
+    managedResource: {
+      ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: false,
+      consoleRoutes: { channels: "/?view=providers", tokens: "/?view=gateway" },
+      labelKey: "settings:managedSite.magpie",
+      getStartedUrl: "https://usemagpie.ai/docs/start",
+      messagesKey: "magpie",
+      tableFieldIds: MAGPIE_TABLE_FIELDS,
+      detailFieldIds: MAGPIE_DETAIL_FIELDS,
+      settingsTarget: {
+        ...LEGACY_MANAGED_CHANNEL_POLICY.settingsTarget,
+        anchor: SETTINGS_ANCHORS.MAGPIE,
+      },
+    },
+  },
 ] as const satisfies readonly AccountSiteDefinition[]
 
 const ACCOUNT_SITE_DEFINITION_OVERRIDES = [
   {
     siteType: SITE_TYPES.VELOERA,
     tokenKey: { optionalSkPrefix: true },
+    accountLogin: {
+      ...NEW_API_COMPATIBLE_LOGIN,
+      methods: ["github", "linuxdo", "oidc"],
+      // github.com/Veloera/Veloera: middleware/auth.go and
+      // web/src/components/OAuth2Callback.js own this session/header contract.
+      protocols: {
+        newApi: {
+          userIdHeader: "Veloera-User",
+          completionPaths: ["/app/tokens"],
+        },
+      },
+    },
     scopes: ACCOUNT_AND_MANAGED_SCOPES,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     managedResource: {
       ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: true,
       consoleRoutes: { channels: "/admin/channels", tokens: "/app/tokens" },
       labelKey: "settings:managedSite.veloera",
       getStartedUrl: "https://github.com/Veloera/Veloera#部署",
@@ -651,8 +1985,10 @@ const ACCOUNT_SITE_DEFINITION_OVERRIDES = [
     tokenKey: { optionalSkPrefix: true },
     scopes: ACCOUNT_AND_MANAGED_SCOPES,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     managedResource: {
       ...LEGACY_MANAGED_CHANNEL_POLICY,
+      legacyNumericChannelConfig: true,
       consoleRoutes: { channels: "/panel/channel", tokens: "/panel/token" },
       labelKey: "settings:managedSite.doneHub",
       getStartedUrl: "https://github.com/deanxv/done-hub#部署",
@@ -675,6 +2011,76 @@ const ACCOUNT_SITE_DEFINITION_OVERRIDES = [
       },
     },
   },
+  {
+    siteType: SITE_TYPES.NOVITA,
+    balanceDetailsCopy: "novita",
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.Novita,
+    onboarding: {
+      displayName: NOVITA_DISPLAY_NAME,
+      accountForm: {
+        fixedSiteUrl: NOVITA_WEB_ORIGIN,
+        defaultSiteName: NOVITA_DISPLAY_NAME,
+        preserveUserExchangeRateOnDetection: true,
+        accessTokenLabelKey: "form.novitaApiKey",
+        accessTokenGuidanceTitleKey: "form.novitaApiKeyGuidanceTitle",
+        accessTokenGuidanceKey: "form.novitaApiKeyGuidance",
+      },
+      accessTokenVerificationGuide: {
+        copy: "novita",
+        showRotationWarning: false,
+      },
+      detection: { hostnames: NOVITA_HOSTNAMES },
+      routes: {
+        // Novita has no standalone login page; the console shows the
+        // sign-in modal, so it doubles as the login destination.
+        loginPath: "/console",
+        usagePath: "/console",
+        adminCredentialsPath: "/settings/key-management",
+        pricingPath: "/pricing",
+        checkInPath: null,
+        accessTokenPath: "/settings/key-management",
+        redeemPath: null,
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      metrics: {
+        deferredTodayStatsAvailability:
+          createUnsupportedTodayStatsAvailability(),
+        legacyTodayStatsAvailability: createUnsupportedTodayStatsAvailability(),
+      },
+      auth: {
+        // Automatic onboarding saves the verified console bearer for account
+        // management. A manually supplied sk_ key retains OpenAPI reads; it
+        // cannot create, rename or delete keys. Never export a console bearer.
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        usernameRequired: false,
+        userIdRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Profile,
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: NOVITA_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: NOVITA_WEB_ORIGIN,
+        duplicateOrigin: NOVITA_WEB_ORIGIN,
+        inferenceApiBaseUrls: {
+          openAiCompatible: "https://api.novita.ai/openai/v1",
+          anthropic: "https://api.novita.ai/anthropic",
+        },
+      },
+    },
+  },
 ] as const satisfies readonly RegisteredAccountSiteDefinition[]
 
 const COMPATIBLE_ACCOUNT_SITE_DEFINITIONS = [
@@ -683,6 +2089,7 @@ const COMPATIBLE_ACCOUNT_SITE_DEFINITIONS = [
     tokenKey: { optionalSkPrefix: true },
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: { titlePatterns: [makeTitleRegex(SITE_TYPES.ONE_HUB)] },
       routes: {
@@ -701,13 +2108,24 @@ const COMPATIBLE_ACCOUNT_SITE_DEFINITIONS = [
   {
     siteType: SITE_TYPES.V_API,
     tokenKey: { optionalSkPrefix: true },
+    accountLogin: {
+      ...NEW_API_COMPATIBLE_LOGIN,
+      protocols: {
+        newApi: {
+          ...NEW_API_COMPATIBLE_LOGIN.protocols.newApi,
+          userIdHeader: "X-Api-User",
+        },
+      },
+    },
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: {
         titlePatterns: [makeTitleRegex(SITE_TYPES.V_API)],
         compatUserIdHeaderNames: ["X-Api-User"],
       },
+      browserUserStorage: "v-api",
       routes: {
         usagePath: "/panel/log",
         checkInPath: "/panel/profile",
@@ -724,6 +2142,7 @@ const COMPATIBLE_ACCOUNT_SITE_DEFINITIONS = [
     tokenKey: { optionalSkPrefix: true },
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: {
         titlePatterns: [makeTitleRegex(SITE_TYPES.VO_API)],
@@ -743,8 +2162,10 @@ const COMPATIBLE_ACCOUNT_SITE_DEFINITIONS = [
   {
     siteType: SITE_TYPES.SUPER_API,
     tokenKey: { optionalSkPrefix: true },
+    accountLogin: NEW_API_COMPATIBLE_LOGIN,
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       routes: {
         loginPath: "/login",
@@ -761,8 +2182,19 @@ const COMPATIBLE_ACCOUNT_SITE_DEFINITIONS = [
   {
     siteType: SITE_TYPES.RIX_API,
     tokenKey: { optionalSkPrefix: true },
+    // Retains the existing Rix session contract; no canonical source is recorded.
+    accountLogin: {
+      ...NEW_API_COMPATIBLE_LOGIN,
+      protocols: {
+        newApi: {
+          ...NEW_API_COMPATIBLE_LOGIN.protocols.newApi,
+          userIdHeader: "Rix-Api-User",
+        },
+      },
+    },
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: {
         titlePatterns: [makeTitleRegex(SITE_TYPES.RIX_API)],
@@ -774,16 +2206,41 @@ const COMPATIBLE_ACCOUNT_SITE_DEFINITIONS = [
         redeemPath: "/topup",
         loginPath: "/login",
         adminCredentialsPath: NEW_API_CHECKIN_PATH,
-        accessTokenPath: null,
+        // Rix API 6.x issues its account credential from the console's admin-keys
+        // page, which is also where the site states its two-factor / passkey /
+        // phone requirement for that action.
+        accessTokenPath: "/admin-keys",
         siteAnnouncementsPath: "/",
+      },
+    },
+    productProfile: {
+      identity: {
+        usernameRequired: true,
+        // Rix API 6.x omits `id` from its self DTO (observed 2026-09-26 on
+        // platform.ephone.ai and the vendor demo platform.rixapi.com), so a
+        // manually added account has no numeric id to supply. `id` stays first
+        // because older deployments still expose it.
+        userIdRequired: false,
+        storedUserIdentityFields: ["id", "username"],
       },
     },
   },
   {
     siteType: SITE_TYPES.NEO_API,
     tokenKey: { optionalSkPrefix: true },
+    // Retains the existing Neo session contract; no canonical source is recorded.
+    accountLogin: {
+      ...NEW_API_COMPATIBLE_LOGIN,
+      protocols: {
+        newApi: {
+          ...NEW_API_COMPATIBLE_LOGIN.protocols.newApi,
+          userIdHeader: "neo-api-user",
+        },
+      },
+    },
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       routes: {
         loginPath: "/login",
@@ -803,8 +2260,10 @@ const COMPATIBLE_ACCOUNT_SITE_DEFINITIONS = [
   {
     siteType: SITE_TYPES.WONG_GONGYI,
     tokenKey: { optionalSkPrefix: true },
+    accountLogin: NEW_API_COMPATIBLE_LOGIN,
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       detection: { titlePatterns: [/wong\s*公益站/i] },
       routes: {
@@ -819,16 +2278,95 @@ const COMPATIBLE_ACCOUNT_SITE_DEFINITIONS = [
     },
   },
   {
+    siteType: SITE_TYPES.NANOGPT,
+    scopes: ACCOUNT_SCOPE,
+    adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NanoGPT,
+    onboarding: {
+      displayName: NANOGPT_DISPLAY_NAME,
+      accountForm: {
+        fixedSiteUrl: NANOGPT_WEB_ORIGIN,
+        defaultSiteName: NANOGPT_DISPLAY_NAME,
+        accessTokenLabelKey: "form.nanoGptApiKey",
+        clearAccessTokenOnSiteChange: true,
+        accessTokenGuidanceTitleKey: "form.nanoGptApiKeyGuidanceTitle",
+        accessTokenGuidanceKey: "form.nanoGptApiKeyGuidance",
+      },
+      accessTokenVerificationGuide: {
+        copy: "nanogpt",
+        showRotationWarning: false,
+      },
+      detection: { hostnames: NANOGPT_HOSTNAMES },
+      // Verified 2026-10-25 on the deployment: /join owns the signed-out state
+      // (/usage and /invitations 307 there), /api is the API-key page, and
+      // /pricing is the public list-price table. NanoGPT has no check-in,
+      // redemption or account-wide announcement surface.
+      routes: {
+        loginPath: "/join",
+        usagePath: "/usage",
+        adminCredentialsPath: "/api",
+        pricingPath: "/pricing",
+        checkInPath: null,
+        accessTokenPath: "/api",
+        redeemPath: null,
+        siteAnnouncementsPath: null,
+      },
+    },
+    productProfile: {
+      metrics: {
+        // The only usage contract is a key-scoped, UTC-day aggregate with no
+        // "today" series, so per-day statistics stay explicitly unsupported.
+        deferredTodayStatsAvailability:
+          createUnsupportedTodayStatsAvailability(),
+        legacyTodayStatsAvailability: createUnsupportedTodayStatsAvailability(),
+      },
+      auth: {
+        // Inference API keys are the only durable credential: console sessions
+        // are HttpOnly cookies and management tokens cannot read cash balance.
+        allowedAuthTypes: [ACCOUNT_SITE_AUTH_TYPES.AccessToken],
+        defaultAuthType: ACCOUNT_SITE_AUTH_TYPES.AccessToken,
+        defaultAuthHostnames: [],
+      },
+      identity: {
+        // A key cannot reveal the console display name, so manual adds may leave
+        // it empty. The account id saved for this credential is the Nano deposit
+        // address that `check-balance` returns; detection fills it in, and a
+        // manual add without it still stores a usable key-only account.
+        usernameRequired: false,
+        userIdRequired: false,
+        storedUserIdentityFields: ["id", "username"],
+      },
+      modelList: {
+        statusScope: ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES.Account,
+        displayCapabilitiesSource:
+          ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES.Response,
+        // The provider-wide catalog has no selectable billing groups.
+        groupSemantics: ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS.NOT_APPLICABLE,
+      },
+      urls: {
+        recognizedHostnames: NANOGPT_HOSTNAMES,
+        inferFromHostname: true,
+        storageOrigin: NANOGPT_WEB_ORIGIN,
+        duplicateOrigin: NANOGPT_WEB_ORIGIN,
+        managedChannelOrigin: NANOGPT_INFERENCE_BASE_URL,
+        inferenceApiBaseUrls: {
+          openAiCompatible: NANOGPT_INFERENCE_BASE_URL,
+        },
+      },
+    },
+  },
+
+  {
     siteType: SITE_TYPES.UNKNOWN,
     scopes: ACCOUNT_SCOPE,
     adapterFamily: ACCOUNT_SITE_ADAPTER_FAMILIES.NewApiFamily,
+    legacyAccountTokenScope: "account",
     onboarding: {
       routes: {
         loginPath: "/login",
         usagePath: NEW_API_USAGE_PATH,
         checkInPath: NEW_API_CHECKIN_PATH,
         adminCredentialsPath: NEW_API_CHECKIN_PATH,
-        accessTokenPath: NEW_API_ACCESS_TOKEN_PATH,
+        accessTokenPath: NEW_API_CREDENTIALS_PATH,
         redeemPath: "/console/topup",
         siteAnnouncementsPath: "/",
       },
@@ -843,3 +2381,13 @@ export const SITE_TYPE_DEFINITIONS: readonly AccountSiteDefinition[] = [
   ...COMPATIBLE_ACCOUNT_SITE_DEFINITIONS,
   ...MANAGED_ONLY_SITE_DEFINITIONS,
 ]
+
+/** Derives family membership from account registrations without a second site list. */
+export type AccountSiteTypeForAdapterFamily<
+  Family extends AccountSiteBackendFamily,
+> = Extract<
+  | (typeof ACCOUNT_SITE_DEFINITIONS)[number]
+  | (typeof ACCOUNT_SITE_DEFINITION_OVERRIDES)[number]
+  | (typeof COMPATIBLE_ACCOUNT_SITE_DEFINITIONS)[number],
+  { adapterFamily: Family }
+>["siteType"]

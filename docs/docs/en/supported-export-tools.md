@@ -16,6 +16,7 @@
 | CC Switch | A cross-platform desktop assistant for Claude Code, Codex, Gemini CLI, Grok CLI, Hermes, OpenCode, and OpenClaw. | [GitHub](https://github.com/farion1231/cc-switch)                                           |
 | Kilo Code | Kilo is an integrated Agentic Engineering platform.                                                              | [Official Website](https://kilocode.ai/) / [GitHub](https://github.com/Kilo-Org/kilocode)   |
 | Roo Code  | Roo Code allows an entire AI development team to reside directly within your code editor.                        | [Official Website](https://roocode.com/) / [GitHub](https://github.com/RooCodeInc/Roo-Code) |
+| AI Toolbox  | A desktop utility for developers and AI coding assistants, supporting configuration switching across Claude Code, Codex, Grok, Kimi, Gemini, and more. | [GitHub](https://github.com/coulsontl/ai-toolbox) |
 | Cursor++  | Use Anthropic, OpenAI, Gemini, and other models in Cursor with your own API keys.                                | [Official Website](https://ccursor.cometix.dev/)                                            |
 
 ## Gateways and Routing Tools
@@ -42,7 +43,7 @@ Both the QR code and Kelivo Mobile import code contain the API key in plain text
 
 From the actions for an account key or API credential, select **Export Cursor++ Provider Configuration**. All API Hub reads the OpenAI-compatible model list and generates the `provider` object used by Cursor++ 0.0.13. The object includes a stable provider ID, name, `baseUrl`, API-key authentication, and a model list with `defaultOn: true`.
 
-Before exporting, you can search or remove discovered models and enter or paste multiple model IDs. The export uses the account's existing OpenAI-compatible address by default. If the selected native protocol uses a different path, you can edit the provider Base URL directly.
+Before exporting, you can search or remove discovered models and enter or paste multiple model IDs. The Base URL is filled in automatically for the selected protocol: the two OpenAI protocols use the versioned address, while Anthropic and Gemini use the protocol root, because their SDKs add the version segment themselves. You can still edit it if needed.
 
 Cursor++ currently supports these protocol types:
 
@@ -94,9 +95,12 @@ If you have also set up an AI relay or aggregation backend, All API Hub can dire
 
 | Product         | Official Description                                                                                                                                                                                   | Official Link                                                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| [OmniRoute](./omniroute-integration.md) | Self-hosted AI gateway with extensive built-in providers, supporting scoped access tokens and per-connection upstream address overrides. | [GitHub](https://github.com/diegosouzapw/OmniRoute) |
 | [CLIProxyAPI](./cliproxyapi-integration.md) | Encapsulates Gemini CLI, Antigravity, ChatGPT Codex, Claude Code, Qwen Code, and iFlow into API services compatible with OpenAI / Gemini / Claude / Codex. | [Documentation](https://help.router-for.me/) / [GitHub](https://github.com/router-for-me/CLIProxyAPI)                             |
 | New API         | A unified AI model aggregation and distribution center.                                                                                                                                                | [Official Website](https://www.newapi.ai/) / [GitHub](https://github.com/QuantumNous/new-api)   |
 | Sub2API         | Sub2API-CRS2 is an all-in-one open-source relay service that provides unified access to Claude, OpenAI, Gemini, and Antigravity subscriptions.                                                         | [GitHub](https://github.com/Wei-Shaw/sub2api)                                                   |
+| Magpie          | A model gateway for AI coding tools that lets you switch models from the menu bar for Codex, Claude Code, and others. | [GitHub](https://github.com/yetone/magpie) |
+| [gpt-load](./gpt-load-integration.md) | Lightweight self-hosted AI gateway (written in Go) where groups represent channel drivers and key pools. | [GitHub](https://github.com/tbphp/gpt-load) |
 | AxonHub         | Open-source AI Gateway, callable via any SDK with 100+ LLMs, built-in failover, load balancing, cost control, and full-link tracing.                                                                   | [Official Website](https://axonhub.onrender.com/) / [GitHub](https://github.com/looplj/axonhub) |
 | Claude Code Hub | A multi-vendor AI API proxy and operations platform for teams, unifying access to Claude, OpenAI Compatible, Codex, and Gemini, with support for elastic scheduling, monitoring, and price management. | [GitHub](https://github.com/ding113/claude-code-hub)                                            |
 | Octopus         | An LLM API aggregation service for individuals.                                                                                                                                                        | [GitHub](https://github.com/bestruirui/octopus)                                                 |

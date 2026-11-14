@@ -1,6 +1,7 @@
 export { verificationResultHistoryStorage } from "./storage"
 export type { VerificationOwnerReconcileInput } from "./storage"
 export type {
+  DrawingVerificationSummary,
   ApiVerificationHistoryConfig,
   ApiVerificationHistoryDisplayStatus,
   ApiVerificationHistorySummary,
@@ -9,10 +10,6 @@ export type {
   PersistedApiVerificationStatus,
 } from "./types"
 export { API_VERIFICATION_HISTORY_STATUSES } from "./types"
-export {
-  useLatestProfileVerificationSummaries,
-  useVerificationResultHistorySummaries,
-} from "./useVerificationResultHistorySummaries"
 export {
   createAccountModelVerificationHistoryTarget,
   createProfileModelVerificationHistoryTarget,

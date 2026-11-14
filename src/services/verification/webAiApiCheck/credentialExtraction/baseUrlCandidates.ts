@@ -1,3 +1,5 @@
+import { toProtocolRoot } from "~/services/aiApi/protocolAddress"
+import type { ApiVerificationApiType } from "~/services/verification/aiApiVerification/types"
 import { normalizeHttpUrl } from "~/utils/core/url"
 import {
   normalizeUrlForBasePath,
@@ -18,6 +20,10 @@ import {
   type ApiCheckCandidateReason,
   type InternalApiCheckCandidate,
 } from "./candidateContract"
+
+const HTTP_URL_PATTERN_SOURCE = String.raw`\bhttps?:\/\/[^\s'"]+`
+const BARE_DOMAIN_PATTERN_SOURCE =
+  /(^|[\s("'`[{<])([a-z0-9][a-z0-9.-]*\.[a-z]{2,}(?:[/?#][^\s'"]*)?)/.source
 
 const COMMON_NON_URL_FILE_EXTENSIONS = new Set([
   "css",
@@ -68,7 +74,7 @@ function normalizeBaseUrlByStrippingPathSegment(
     let lastMatchIndex = -1
 
     for (let index = segments.length - 1; index >= 0; index -= 1) {
-      if (segments[index].toLowerCase() === normalizedSegmentToStrip) {
+      if (segments[index]?.toLowerCase() === normalizedSegmentToStrip) {
         lastMatchIndex = index
         break
       }
@@ -95,6 +101,17 @@ export function normalizeOpenAiFamilyBaseUrl(baseUrl: string): string | null {
  */
 export function normalizeGoogleFamilyBaseUrl(baseUrl: string): string | null {
   return normalizeBaseUrlByStrippingPathSegment(baseUrl, "v1beta")
+}
+
+/**
+ * Normalize a base URL for probe execution, keeping behavior consistent across api types.
+ */
+export function normalizeProbeBaseUrl(params: {
+  apiType: ApiVerificationApiType
+  baseUrl: string
+}): string | null {
+  const normalized = normalizeApiCheckBaseUrl(params.baseUrl)
+  return normalized ? toProtocolRoot(params.apiType, normalized) : null
 }
 
 /**
@@ -139,6 +156,31 @@ function isLikelyBareDomainCandidate(raw: string): boolean {
   if (!hasPath && COMMON_NON_URL_FILE_EXTENSIONS.has(tld)) return false
 
   return true
+}
+
+/** Separate URL sources before free-form key cleanup or token guessing. */
+export function splitApiCheckTextSources(input: string): {
+  text: string
+  urls: string[]
+} {
+  const urls: string[] = []
+  let text = input.replace(new RegExp(HTTP_URL_PATTERN_SOURCE, "gi"), (url) => {
+    urls.push(url)
+    return "\n"
+  })
+  text = text.replace(
+    new RegExp(BARE_DOMAIN_PATTERN_SOURCE, "gi"),
+    (match: string, leading: string, raw: string, offset: number) => {
+      if (
+        !isLikelyBareDomainCandidate(raw) ||
+        isEmailAddressLike(text, offset, offset + match.length)
+      )
+        return match
+      urls.push(`https://${raw}`)
+      return `${leading}\n`
+    },
+  )
+  return { text, urls }
 }
 
 /**
@@ -212,7 +254,7 @@ export function extractBaseUrlCandidates(
     pushNormalizedFamilyCandidates(raw, labeledReasons, confidence)
   }
 
-  const urlPattern = /\bhttps?:\/\/[^\s'"]+/gi
+  const urlPattern = new RegExp(HTTP_URL_PATTERN_SOURCE, "gi")
   for (const match of rawInput.matchAll(urlPattern)) {
     const raw = trimWrappingPunctuation(match[0] ?? "")
     pushNormalizedFamilyCandidates(raw, [
@@ -220,8 +262,7 @@ export function extractBaseUrlCandidates(
     ])
   }
 
-  const bareDomainPattern =
-    /(^|[\s("'`[{<])([a-z0-9][a-z0-9.-]*\.[a-z]{2,}(?:\/[^\s'"]*)?)/gi
+  const bareDomainPattern = new RegExp(BARE_DOMAIN_PATTERN_SOURCE, "gi")
   for (const match of rawInput.matchAll(bareDomainPattern)) {
     const raw = trimWrappingPunctuation(match[2] ?? "")
     const startIndex = match.index ?? 0

@@ -6,16 +6,25 @@ import {
   CHECK_IN_METHOD_TODAY_STATUSES,
 } from "~/constants/checkIn"
 import { SITE_TYPES } from "~/services/accountSiteDefinitions/identifiers"
-import { fetchSub2ApiProDailyCheckInStatus } from "~/services/apiService/sub2api"
-import { SUB2API_AUTH_PERSISTENCE_STATUSES } from "~/services/apiService/sub2api/authSession"
+import { SUB2API_AUTH_PERSISTENCE_STATUSES } from "~/services/apiService/sub2api/auth/authSession"
+import { fetchBaiApiCheckInStatus } from "~/services/apiService/sub2api/checkin/baiApiCheckIn"
+import { fetchClawhudDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/clawhudCheckIn"
+import { fetchDaiguaDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/daiguaCheckIn"
 import {
   DENXIO_DAILY_CHECK_IN_ERROR_CODES,
   fetchDenxioDailyCheckInStatus,
   performDenxioDailyCheckIn,
-} from "~/services/apiService/sub2api/denxioCheckIn"
-import { fetchGeniusProgrammerDailyCheckInStatus } from "~/services/apiService/sub2api/geniusProgrammerCheckIn"
+} from "~/services/apiService/sub2api/checkin/denxioCheckIn"
+import { fetchFreeApiDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/freeApiCheckIn"
+import { fetchGeniusProgrammerDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/geniusProgrammerCheckIn"
+import { fetchSub2ApiProDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/proCheckInExecution"
+import { fetchToolcodeDailyCheckInStatus } from "~/services/apiService/sub2api/checkin/toolcodeCheckIn"
+import {
+  probeXiaobaiCodeCheckInStatus,
+  XIAOBAI_CODE_STATUS_OUTCOMES,
+} from "~/services/apiService/sub2api/checkin/xiaobaiCodeCheckIn"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
-import { discoverCheckInMethods } from "~/services/checkin/autoCheckin/discovery"
+import { discoverCheckInMethods } from "~/services/checkin/autoCheckin/discovery/discovery"
 import { denxioProvider } from "~/services/checkin/autoCheckin/providers/denxio"
 import { PROTECTION_BYPASS_USER_COMMANDS } from "~/services/protectionBypass/contracts"
 import { AuthTypeEnum } from "~/types"
@@ -26,11 +35,11 @@ import { createAutoCheckinMutationLifecycle } from "~~/tests/test-utils/autoChec
 import { buildSiteAccount } from "~~/tests/test-utils/factories"
 
 vi.mock(
-  "~/services/apiService/sub2api/denxioCheckIn",
+  "~/services/apiService/sub2api/checkin/denxioCheckIn",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("~/services/apiService/sub2api/denxioCheckIn")
+        typeof import("~/services/apiService/sub2api/checkin/denxioCheckIn")
       >()
     return {
       ...actual,
@@ -40,18 +49,118 @@ vi.mock(
   },
 )
 
-vi.mock("~/services/apiService/sub2api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/services/apiService/sub2api")>()),
-  fetchSub2ApiProDailyCheckInStatus: vi.fn(),
-}))
-
 vi.mock(
-  "~/services/apiService/sub2api/geniusProgrammerCheckIn",
+  "~/services/apiService/sub2api/checkin/xiaobaiCodeCheckIn",
   async (importOriginal) => ({
     ...(await importOriginal<
-      typeof import("~/services/apiService/sub2api/geniusProgrammerCheckIn")
+      typeof import("~/services/apiService/sub2api/checkin/xiaobaiCodeCheckIn")
+    >()),
+    probeXiaobaiCodeCheckInStatus: vi.fn(),
+  }),
+)
+vi.mock(
+  "~/services/apiService/sub2api/checkin/baiApiCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/baiApiCheckIn")
+    >()),
+    fetchBaiApiCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/proCheckInExecution",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/proCheckInExecution")
+    >()),
+    fetchSub2ApiProDailyCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/geniusProgrammerCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/geniusProgrammerCheckIn")
     >()),
     fetchGeniusProgrammerDailyCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/toolcodeCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/toolcodeCheckIn")
+    >()),
+    fetchToolcodeDailyCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/hiyoCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/hiyoCheckIn")
+    >()),
+    fetchHiyoDailyCheckInStatus: vi
+      .fn()
+      .mockRejectedValue(new ApiError("unsupported Hiyo protocol", 404)),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/clawhudCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/clawhudCheckIn")
+    >()),
+    fetchClawhudDailyCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/sidruneCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/sidruneCheckIn")
+    >()),
+    fetchSidruneDailyCheckInStatus: vi
+      .fn()
+      .mockRejectedValue(new ApiError("unsupported Sidrune protocol", 404)),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/daiguaCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/daiguaCheckIn")
+    >()),
+    fetchDaiguaDailyCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/freeApiCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/freeApiCheckIn")
+    >()),
+    fetchFreeApiDailyCheckInStatus: vi.fn(),
+  }),
+)
+
+vi.mock(
+  "~/services/apiService/sub2api/checkin/nexavlinksCheckIn",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/checkin/nexavlinksCheckIn")
+    >()),
+    fetchNexaVlinksDailyCheckInStatus: vi
+      .fn()
+      .mockRejectedValue(new ApiError("unsupported NexaVlinks protocol", 404)),
   }),
 )
 
@@ -91,6 +200,17 @@ const notCheckedStatus = {
 describe("Denxio daily check-in method Adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // This fixture's host does not serve the daily rewards module.
+    vi.mocked(fetchBaiApiCheckInStatus).mockRejectedValue(
+      new ApiError("unsupported", 404),
+    )
+    vi.mocked(fetchToolcodeDailyCheckInStatus).mockRejectedValue(
+      new ApiError("unsupported", 404),
+    )
+    // A host that does not serve the app answers its SPA shell, not the app.
+    vi.mocked(probeXiaobaiCodeCheckInStatus).mockResolvedValue({
+      outcome: XIAOBAI_CODE_STATUS_OUTCOMES.Absent,
+    })
     vi.mocked(fetchGeniusProgrammerDailyCheckInStatus).mockRejectedValue(
       new ApiError("unsupported", 404),
     )
@@ -103,6 +223,15 @@ describe("Denxio daily check-in method Adapter", () => {
       rewardAmount: 0.5,
     })
     vi.mocked(fetchSub2ApiProDailyCheckInStatus).mockRejectedValue(
+      new ApiError("unsupported", 404),
+    )
+    vi.mocked(fetchClawhudDailyCheckInStatus).mockRejectedValue(
+      new ApiError("unsupported", 404),
+    )
+    vi.mocked(fetchDaiguaDailyCheckInStatus).mockRejectedValue(
+      new ApiError("unsupported", 404),
+    )
+    vi.mocked(fetchFreeApiDailyCheckInStatus).mockRejectedValue(
       new ApiError("unsupported", 404),
     )
   })
@@ -259,7 +388,7 @@ describe("Denxio daily check-in method Adapter", () => {
         }),
       ).resolves.toMatchObject({
         status,
-        ...(reasonCode ? { reasonCode, retryable: false } : {}),
+        ...(reasonCode ? { reasonCode } : {}),
       })
     },
   )
@@ -270,7 +399,10 @@ describe("Denxio daily check-in method Adapter", () => {
       "authentication_required",
     ],
     [SUB2API_AUTH_PERSISTENCE_STATUSES.ACCOUNT_MISSING, "account_unavailable"],
-    [SUB2API_AUTH_PERSISTENCE_STATUSES.WRITE_FAILED, "status_unavailable"],
+    [
+      SUB2API_AUTH_PERSISTENCE_STATUSES.WRITE_FAILED,
+      "account_state_write_failed",
+    ],
   ] as const)(
     "stops after auth persistence result %s",
     async (persistenceStatus, reasonCode) => {
@@ -288,7 +420,11 @@ describe("Denxio daily check-in method Adapter", () => {
       ).resolves.toMatchObject({
         status: CHECKIN_RESULT_STATUS.FAILED,
         reasonCode,
-        retryable: false,
+        ...(persistenceStatus === SUB2API_AUTH_PERSISTENCE_STATUSES.WRITE_FAILED
+          ? {
+              messageKey: "autoCheckin:skipReasons.account_state_write_failed",
+            }
+          : {}),
       })
     },
   )
@@ -338,40 +474,34 @@ describe("Denxio daily check-in method Adapter", () => {
   })
 
   it.each([
-    [new ApiError("unauthorized", 401), "authentication_required", undefined],
+    [new ApiError("unauthorized", 401), "authentication_required"],
     [
       Object.assign(new Error("unauthorized"), { statusCode: 401 }),
       "authentication_required",
-      undefined,
     ],
-    [new ApiError("missing", 404), "method_unsupported", false],
-    [new ApiError("not allowed", 405), "method_unsupported", false],
-    [new ApiError("forbidden", 403), "permission_denied", undefined],
-    [new TypeError("Failed to fetch"), "network_error", undefined],
+    [new ApiError("missing", 404), "method_unsupported"],
+    [new ApiError("not allowed", 405), "method_unsupported"],
+    [new ApiError("forbidden", 403), "permission_denied"],
+    [new TypeError("Failed to fetch"), "network_error"],
     [
       Object.assign(new Error("timed out"), { name: "TimeoutError" }),
       "timeout",
-      undefined,
     ],
-    [new ApiError("unavailable", 503), "source_unavailable", undefined],
-    [new Error("unexpected"), "status_unavailable", undefined],
-  ] as const)(
-    "maps mutation failure to %s",
-    async (error, reasonCode, retryable) => {
-      vi.mocked(performDenxioDailyCheckIn).mockRejectedValue(error)
+    [new ApiError("unavailable", 503), "source_unavailable"],
+    [new Error("unexpected"), "status_unavailable"],
+  ] as const)("maps mutation failure to %s", async (error, reasonCode) => {
+    vi.mocked(performDenxioDailyCheckIn).mockRejectedValue(error)
 
-      await expect(
-        denxioProvider.checkIn(createAccount(), {
-          ...executionContext(),
-          statusProof: notCheckedStatus,
-        }),
-      ).resolves.toMatchObject({
-        status: CHECKIN_RESULT_STATUS.FAILED,
-        reasonCode,
-        ...(typeof retryable === "boolean" ? { retryable } : {}),
-      })
-    },
-  )
+    await expect(
+      denxioProvider.checkIn(createAccount(), {
+        ...executionContext(),
+        statusProof: notCheckedStatus,
+      }),
+    ).resolves.toMatchObject({
+      status: CHECKIN_RESULT_STATUS.FAILED,
+      reasonCode,
+    })
+  })
 
   it.each([
     DENXIO_DAILY_CHECK_IN_ERROR_CODES.NoSponsor,
@@ -395,7 +525,6 @@ describe("Denxio daily check-in method Adapter", () => {
     ).resolves.toMatchObject({
       status: CHECKIN_RESULT_STATUS.FAILED,
       reasonCode: "status_unavailable",
-      retryable: false,
       rawMessage: "controlled session error",
     })
   })

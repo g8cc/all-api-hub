@@ -1,14 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import { PROTECTION_BYPASS_USER_COMMANDS } from "~/services/protectionBypass/contracts"
 import { userCommandExecution } from "~~/tests/services/protectionBypass/fixtures"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { modelResourceRef } from "~~/tests/test-utils/managedModelResource"
 
-vi.mock("~/services/managedSites/legacyChannelConfigMigration", () => ({
-  ensureLegacyChannelConfigMigrationReady: (...args: unknown[]) =>
-    mocks.ensureMigration(...args),
-}))
+vi.mock(
+  "~/services/preferences/preferencesDefaults",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/preferences/preferencesDefaults")
+      >()
+    return {
+      ...actual,
+      DEFAULT_PREFERENCES: {
+        managedSiteModelSync: {
+          enabled: true,
+          interval: 60_000,
+          concurrency: 1,
+          maxRetries: 1,
+          rateLimit: { requestsPerMinute: 10, burst: 2 },
+          allowedModels: [],
+          globalChannelModelFilters: [],
+        },
+      },
+    }
+  },
+)
+
+vi.mock(
+  "~/services/managedSites/configuration/legacyChannelConfigMigration",
+  () => ({
+    ensureLegacyChannelConfigMigrationReady: (...args: unknown[]) =>
+      mocks.ensureMigration(...args),
+  }),
+)
 
 const mocks = vi.hoisted(() => ({
   ensureMigration: vi.fn(),
@@ -39,9 +67,8 @@ const mocks = vi.hoisted(() => ({
   modelSyncServiceCtor: vi.fn(),
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+vi.mock("~/utils/browser/alarms", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/utils/browser/alarms")>()
   return {
     ...actual,
     clearAlarm: mocks.clearAlarm,
@@ -49,29 +76,22 @@ vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
     getAlarm: mocks.getAlarm,
     hasAlarmsAPI: mocks.hasAlarmsAPI,
     onAlarm: mocks.onAlarm,
-    sendRuntimeMessage: mocks.sendRuntimeMessage,
   }
+})
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
+  return { ...actual, sendRuntimeMessage: mocks.sendRuntimeMessage }
 })
 
 vi.mock("~/services/preferences/userPreferences", () => ({
-  DEFAULT_PREFERENCES: {
-    managedSiteModelSync: {
-      enabled: true,
-      interval: 60_000,
-      concurrency: 1,
-      maxRetries: 1,
-      rateLimit: { requestsPerMinute: 10, burst: 2 },
-      allowedModels: [],
-      globalChannelModelFilters: [],
-    },
-  },
   userPreferences: {
     getPreferences: mocks.getPreferences,
     savePreferences: mocks.savePreferences,
   },
 }))
 
-vi.mock("~/services/managedSites/channelConfigStorage", () => ({
+vi.mock("~/services/managedSites/configuration/channelConfigStorage", () => ({
   channelConfigStorage: {
     getConfigsForScope: mocks.channelConfigGetConfigsForScope,
   },
@@ -107,17 +127,68 @@ vi.mock("~/services/models/modelSync/modelCollection", () => ({
   collectModelsFromExecution: mocks.collectModelsFromExecution,
 }))
 
-vi.mock("~/services/apiService/octopus", () => ({
+vi.mock("~/services/apiService/octopus/channels", () => ({
   listChannels: mocks.octopusListChannels,
+}))
+vi.mock("~/services/apiService/octopus/models", () => ({
   fetchGroups: mocks.octopusFetchGroups,
   fetchAvailableModels: mocks.octopusFetchAvailableModels,
 }))
 
-vi.mock("~/services/apiAdapters/managedResources/octopusModelSync", () => ({
+vi.mock("~/services/apiAdapters/managedResources/octopus/modelSync", () => ({
   createOctopusModelSyncCapability: mocks.createOctopusModelSyncCapability,
 }))
 
 describe("modelSyncScheduler additional scheduler flows", () => {
+  it("passes saved exclusions into provider batch preparation and completes an empty batch", async () => {
+    mocks.getPreferences.mockResolvedValue({
+      managedSiteType: "octopus",
+      octopus: {
+        baseUrl: "https://example.com",
+        username: "admin",
+        password: "test",
+      },
+      managedSiteModelSync: DEFAULT_PREFERENCES.managedSiteModelSync,
+    })
+    const ref = modelResourceRef(1, { siteType: "octopus" })
+    mocks.channelConfigGetConfigsForScope.mockResolvedValue({
+      excluded: {
+        resourceRef: {
+          managedSiteType: ref.siteType,
+          scopeKey: ref.scopeKey,
+          resourceId: ref.resourceId,
+        },
+        modelSyncExcluded: true,
+      },
+    })
+    mocks.prepareOctopusBatch.mockResolvedValue({
+      resources: [],
+      skippedResources: [{ ref, name: "Excluded provider channel" }],
+      run: mocks.runOctopusBatch,
+    })
+    const { modelSyncScheduler } = await import(
+      "~/services/models/modelSync/scheduler"
+    )
+    const result = await modelSyncScheduler.executeSync()
+    expect(mocks.prepareOctopusBatch).toHaveBeenCalledWith(undefined, [ref])
+    expect(result.statistics).toMatchObject({
+      total: 0,
+      successCount: 0,
+      failureCount: 0,
+    })
+    expect(result.statistics.skippedCount).toBe(1)
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        resourceRef: ref,
+        channelName: "Excluded provider channel",
+        skipReason: "excluded",
+      }),
+    ])
+    expect(mocks.runOctopusBatch).not.toHaveBeenCalled()
+    expect(mocks.ensureMigration).not.toHaveBeenCalled()
+    expect(mocks.saveLastExecution).toHaveBeenCalledWith(result)
+  })
+
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
@@ -311,7 +382,7 @@ describe("modelSyncScheduler additional scheduler flows", () => {
     await modelSyncScheduler.executeSync([modelResourceRef(1)])
     expect(mocks.setChannelConfigs).toHaveBeenCalledWith(migratedConfigs)
     expect(mocks.setChannelConfigs.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.runBatch.mock.invocationCallOrder[0],
+      atIndex(mocks.runBatch.mock.invocationCallOrder, 0),
     )
   })
 
@@ -455,7 +526,10 @@ describe("modelSyncScheduler additional scheduler flows", () => {
         surface: "background",
       },
     )
-    const [, , , , sanitizedFilters] = mocks.modelSyncServiceCtor.mock.calls[0]
+    const sanitizedFilters = atIndex(
+      atIndex(mocks.modelSyncServiceCtor.mock.calls, 0),
+      4,
+    )
     expect(sanitizedFilters[0]).not.toHaveProperty("apiKey")
   })
 })

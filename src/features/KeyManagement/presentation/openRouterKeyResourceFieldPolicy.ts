@@ -1,15 +1,20 @@
 import type { TFunction } from "i18next"
 
 import {
+  ACCOUNT_KEY_RESOURCE_EDITOR_MODES as editorModes,
+  type AccountKeyResourceEditorMode,
+} from "~/features/KeyManagement/constants"
+import { ACCOUNT_KEY_AUTOMATIC_NAME_KINDS } from "~/features/KeyManagement/presentation/accountKeyResourceEditorPresentation"
+import {
   defineResourceEditorFieldPolicy,
   type ResourceEditorFieldPolicy,
-} from "~/features/ResourceEditor/resourceFieldPolicy"
+} from "~/features/ResourceEditor/model/resourceFieldPolicy"
 import type { EditableResourceProjection } from "~/services/apiAdapters/contracts/accountKeyResource"
 import {
   OPENROUTER_KEY_FIELD_IDS,
   OPENROUTER_KEY_LIMIT_MODES,
   OPENROUTER_KEY_LIMIT_RESETS,
-} from "~/services/apiAdapters/openrouter/keyResourceFields"
+} from "~/services/apiAdapters/openrouter/keys/keyResourceFields"
 
 import type { AccountKeyResourceEditorPresentation } from "./accountKeyResourceEditorPresentation"
 
@@ -19,7 +24,7 @@ type OpenRouterKeyEditorSection =
   | "lifecycle"
   | "advanced"
 
-type OpenRouterKeyEditorMode = "create" | "edit"
+type OpenRouterKeyEditorMode = AccountKeyResourceEditorMode
 
 const field = OPENROUTER_KEY_FIELD_IDS
 
@@ -212,11 +217,11 @@ const policies: Readonly<
     ResourceEditorFieldPolicy<OpenRouterKeyEditorSection>
   >
 > = {
-  create: defineResourceEditorFieldPolicy({
+  [editorModes.Create]: defineResourceEditorFieldPolicy({
     fields: commonFields,
     hiddenFields: [],
   }),
-  edit: defineResourceEditorFieldPolicy({
+  [editorModes.Edit]: defineResourceEditorFieldPolicy({
     fields: editFields,
     hiddenFields: [],
   }),
@@ -278,9 +283,10 @@ const semanticSummary = (
 
 /** OpenRouter workspace membership and BYOK rules stay behind its presentation contract. */
 export function getOpenRouterKeyResourceEditorPresentation(
-  mode: "create" | "edit",
+  mode: AccountKeyResourceEditorMode,
 ): AccountKeyResourceEditorPresentation {
   return {
+    automaticName: { kind: ACCOUNT_KEY_AUTOMATIC_NAME_KINDS.Fixed },
     policy: getOpenRouterKeyResourceFieldPolicy(mode),
     sectionOrder: OPENROUTER_KEY_EDITOR_SECTION_ORDER,
     sectionLabelResolvers: OPENROUTER_KEY_EDITOR_SECTION_LABEL_RESOLVERS,

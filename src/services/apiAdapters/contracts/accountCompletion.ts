@@ -1,4 +1,3 @@
-import type { AccountLoginProvider } from "~/constants/accountLogin"
 import type { AutoDetectFailureReason } from "~/constants/autoDetect"
 import type { AccountAutoDetectRecoveryData } from "~/services/accounts/autoDetect/recovery"
 import type {
@@ -52,8 +51,11 @@ export type AccountCompletionHelpers = {
   trimString(value: unknown): string
   createInitialCheckInConfig(input: {
     supported: boolean
-    /** Login provider proven by the remote account binding, when unambiguous. */
-    loginCheckInProvider?: AccountLoginProvider
+    /**
+     * Overrides the site-type default when the deployment cannot complete an
+     * automated claim unattended (for example a captcha-gated check-in).
+     */
+    automaticExecutionEnabled?: boolean
   }): AutoDetectCompletionData["checkIn"]
   handleCheckInSupportFetchFailure(error: unknown): false
   captureRecoveryData(data: AccountAutoDetectRecoveryData): void

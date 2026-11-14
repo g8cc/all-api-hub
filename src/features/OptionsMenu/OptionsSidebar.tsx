@@ -1,4 +1,4 @@
-import { motion } from "framer-motion"
+import { motion, useReducedMotion } from "framer-motion"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import { useEffect, type ComponentType } from "react"
 import { useTranslation } from "react-i18next"
@@ -14,6 +14,7 @@ import {
   getMenuCategoryLabel,
   getMenuItemLabel,
 } from "~/features/OptionsMenu/getMenuItemLabel"
+import { OptionsSidebarFooter } from "~/features/OptionsMenu/OptionsSidebarFooter"
 import {
   PRODUCT_TOUR_CATEGORY_TARGETS,
   PRODUCT_TOUR_TARGET_ATTRIBUTE,
@@ -30,6 +31,7 @@ export interface SidebarProps {
   isCollapsePending?: boolean
   activeMenuItem: string
   onMenuItemClick: (itemId: string) => void
+  onMenuItemPreload?: (itemId: OptionsPageMenuItemId) => void
   isMobileOpen?: boolean
   onMobileClose?: () => void
   isCollapsed?: boolean
@@ -48,6 +50,7 @@ const MOBILE_WIDTH = 256
  * @param props.isCollapsePending Whether the desktop layout preference is saving.
  * @param props.activeMenuItem Currently selected menu id.
  * @param props.onMenuItemClick Callback fired when user picks another menu item.
+ * @param props.onMenuItemPreload Starts loading a page before it is selected.
  * @param props.isMobileOpen Whether the drawer is visible on mobile screens.
  * @param props.onMobileClose Close handler for the mobile drawer mask.
  * @param props.isCollapsed Whether the sidebar is collapsed on desktop.
@@ -58,6 +61,7 @@ function OptionsSidebar({
   isCollapsePending = false,
   activeMenuItem,
   onMenuItemClick,
+  onMenuItemPreload,
   isMobileOpen,
   onMobileClose,
   isCollapsed = false,
@@ -65,6 +69,7 @@ function OptionsSidebar({
 }: SidebarProps) {
   const { t } = useTranslation("ui")
   const { preferences } = useUserPreferencesContext()
+  const shouldReduceMotion = useReducedMotion()
   const shouldShowCollapsedState = isCollapsed && !isMobileOpen
 
   const menuGroups = menuItems.reduce<
@@ -140,7 +145,8 @@ function OptionsSidebar({
       <motion.aside
         initial={false}
         animate={{ width: targetWidth }}
-        style={{ width: targetWidth, height: sidebarHeight, top: sidebarTop }}
+        transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: "easeOut" }}
+        style={{ height: sidebarHeight, top: sidebarTop }}
         className={cn(
           "shrink-0 transform transition-transform duration-300 ease-in-out motion-reduce:transition-none",
           Z_INDEX.sidebar,
@@ -163,12 +169,12 @@ function OptionsSidebar({
             aria-disabled={isCollapsePending}
             onClick={handleCollapseButtonClick}
             style={{ top: "calc(50vh - var(--options-header-height))" }}
-            className="border-sidebar-border bg-sidebar text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground absolute right-0 z-10 hidden h-13 w-6 translate-x-1/2 -translate-y-1/2 rounded-full border shadow-sm md:inline-flex"
+            className="border-sidebar-border bg-sidebar text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground absolute right-0 z-10 hidden h-8 w-5 translate-x-1/2 -translate-y-1/2 rounded-full border p-0 shadow-xs md:inline-flex"
           >
             {shouldShowCollapsedState ? (
-              <ChevronRight className="size-3.5" />
+              <ChevronRight className="size-3" />
             ) : (
-              <ChevronLeft className="size-3.5" />
+              <ChevronLeft className="size-3" />
             )}
           </Button>
         )}
@@ -253,6 +259,10 @@ function OptionsSidebar({
                           <li key={item.id}>
                             <button
                               onClick={() => onMenuItemClick(item.id)}
+                              onPointerEnter={() =>
+                                onMenuItemPreload?.(item.id)
+                              }
+                              onFocus={() => onMenuItemPreload?.(item.id)}
                               aria-current={isActive ? "page" : undefined}
                               title={
                                 shouldShowCollapsedState ? label : undefined
@@ -265,7 +275,7 @@ function OptionsSidebar({
                                 shouldShowCollapsedState &&
                                   "justify-center px-0",
                                 isActive
-                                  ? "bg-surface-subtle text-primary-soft-foreground dark:bg-primary-soft"
+                                  ? "bg-primary-soft text-primary-soft-foreground"
                                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                               )}
                             >
@@ -273,7 +283,7 @@ function OptionsSidebar({
                                 className={cn(
                                   "size-4 shrink-0",
                                   isActive
-                                    ? "text-primary"
+                                    ? "text-primary-soft-foreground"
                                     : "text-sidebar-foreground/70 group-hover:text-sidebar-accent-foreground",
                                 )}
                               />
@@ -294,6 +304,11 @@ function OptionsSidebar({
                 )
               })}
             </nav>
+
+            <OptionsSidebarFooter
+              isCollapsed={shouldShowCollapsedState}
+              onMenuItemClick={onMenuItemClick}
+            />
           </div>
         </div>
       </motion.aside>

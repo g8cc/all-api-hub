@@ -2,21 +2,39 @@ import type { TFunction } from "i18next"
 import { describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { getManagedSiteTargetOptions } from "~/services/managedSites/channelMigrationTargets"
+import { getManagedSiteTargetOptions } from "~/services/managedSites/migration/channelMigrationTargets"
 import {
+  getManagedSiteConfigMissingMessage,
   getManagedSiteContext,
   getManagedSiteContextForType,
   getManagedSiteLabel,
   getManagedSiteLabelKey,
   getManagedSiteMessagesKeyFromSiteType,
+  getManagedSiteNoChannelsToSyncMessage,
   getManagedSiteUnsupportedModelSyncMessage,
 } from "~/services/managedSites/utils/managedSite"
-import {
-  DEFAULT_PREFERENCES,
-  type UserPreferences,
-} from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { type UserPreferences } from "~/services/preferences/preferencesSchema"
 
 describe("managedSite", () => {
+  it("uses gpt-load recovery messages", () => {
+    const t = ((key: string) => key) as TFunction
+    expect(getManagedSiteConfigMissingMessage(t, "gptLoad")).toBe(
+      "messages:gptLoad.configMissing",
+    )
+    expect(getManagedSiteNoChannelsToSyncMessage(t, "gptLoad")).toBe(
+      "messages:gptLoad.noChannelsToSync",
+    )
+  })
+  it("uses OmniRoute recovery messages", () => {
+    const t = ((key: string) => key) as TFunction
+    expect(getManagedSiteConfigMissingMessage(t, "omniroute")).toBe(
+      "messages:omniroute.configMissing",
+    )
+    expect(getManagedSiteNoChannelsToSyncMessage(t, "omniroute")).toBe(
+      "messages:omniroute.noChannelsToSync",
+    )
+  })
   it.each([
     [SITE_TYPES.NEW_API, "settings:managedSite.newApi", "newapi"],
     [SITE_TYPES.VELOERA, "settings:managedSite.veloera", "veloera"],

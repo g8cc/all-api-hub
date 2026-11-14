@@ -1,4 +1,5 @@
 import { SITE_TYPES } from "~/constants/siteType"
+import { MANAGED_RESOURCE_SEARCH_INVENTORY_MODES } from "~/services/apiAdapters/contracts/managedResourceMatching"
 import type { ManagedResourceMatchingCapability } from "~/services/apiAdapters/contracts/managedResourceMatching"
 import type {
   ManagedSiteCapabilities,
@@ -10,26 +11,30 @@ import {
   toManagedResourceMatchCandidate,
   toManagedResourceMatchList,
   toNativeNumericMatchCandidates,
-} from "~/services/apiAdapters/managedResources/matchingInputs"
-import { requireManagedResourceChannelId } from "~/services/apiAdapters/managedResources/resourceIds"
+} from "~/services/apiAdapters/managedResources/shared/matchingInputs"
+import { requireManagedResourceChannelId } from "~/services/apiAdapters/managedResources/shared/resourceIds"
+import {
+  veloeraChannelOperations,
+  veloeraManagedResourceModels,
+} from "~/services/apiAdapters/managedResources/veloera/operations"
 import {
   fetchAccountAvailableModels,
   fetchSiteUserGroups,
 } from "~/services/apiService/newApiFamily/default/keyManagement"
 import { listAllChannels } from "~/services/apiService/veloera"
-import { sharePendingConfigRead } from "~/services/apiTransport/requestScheduling"
+import { shareInventoryRead } from "~/services/apiTransport/inventoryReads"
 import {
   checkValidVeloeraConfig,
   prepareChannelFormData,
 } from "~/services/managedSites/providers/veloera"
 import type { VeloeraConfig } from "~/types/veloeraConfig"
 
-import {
-  veloeraChannelOperations,
-  veloeraManagedResourceModels,
-} from "../managedResources/veloeraOperations"
 import { createManagedSiteConfigCapability } from "./config"
-import { toManagedSiteApiServiceRequest } from "./request"
+import { createManagedSiteApiServiceRequest } from "./request"
+
+const createProviderRequest = createManagedSiteApiServiceRequest(
+  SITE_TYPES.VELOERA,
+)
 
 const veloeraManagedSiteConfig: ManagedSiteConfigCapability<VeloeraConfig> =
   createManagedSiteConfigCapability(SITE_TYPES.VELOERA, checkValidVeloeraConfig)
@@ -37,13 +42,11 @@ const veloeraManagedSiteConfig: ManagedSiteConfigCapability<VeloeraConfig> =
 const veloeraManagedSiteQueries: ManagedSiteQueriesCapability<VeloeraConfig> = {
   siteUserGroups: {
     fetch: async (config, options) =>
-      await fetchSiteUserGroups(
-        toManagedSiteApiServiceRequest(config, options),
-      ),
+      await fetchSiteUserGroups(createProviderRequest(config, options)),
   },
   accountAvailableModels: {
     fetch: async (config) =>
-      await fetchAccountAvailableModels(toManagedSiteApiServiceRequest(config)),
+      await fetchAccountAvailableModels(createProviderRequest(config)),
   },
 }
 
@@ -51,15 +54,19 @@ const veloeraManagedSiteChannelDrafts: ManagedSiteChannelDraftsCapability = {
   prepareFormData: prepareChannelFormData,
 }
 
-const readMatchingInventory = sharePendingConfigRead(
-  (config: VeloeraConfig, options) =>
-    listAllChannels(toManagedSiteApiServiceRequest(config, options), {
-      signal: options.signal,
-      requireCompleteInventory: true,
-    }),
+const readMatchingInventory = shareInventoryRead(
+  async (config: VeloeraConfig, options) =>
+    toManagedResourceMatchList(
+      await listAllChannels(createProviderRequest(config, options), {
+        signal: options.signal,
+        requireCompleteInventory: true,
+      }),
+      { siteType: SITE_TYPES.VELOERA, config },
+    ),
 )
 
 const matching: ManagedResourceMatchingCapability<VeloeraConfig> = {
+  searchInventoryMode: MANAGED_RESOURCE_SEARCH_INVENTORY_MODES.FULL,
   fetchSecretKey: async (config, ref, options) =>
     veloeraChannelOperations.fetchSecretKey(
       config,
@@ -77,11 +84,7 @@ const matching: ManagedResourceMatchingCapability<VeloeraConfig> = {
       toManagedResourceMatchCandidate(candidate, target),
     )
   },
-  search: async (config, _keyword, options) =>
-    toManagedResourceMatchList(await readMatchingInventory(config, options), {
-      siteType: SITE_TYPES.VELOERA,
-      config,
-    }),
+  search: (config, _keyword, options) => readMatchingInventory(config, options),
 }
 
 export const veloeraManagedSiteCapabilities = {

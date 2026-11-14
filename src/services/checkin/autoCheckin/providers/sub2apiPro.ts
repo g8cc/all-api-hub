@@ -2,11 +2,11 @@ import {
   CHECK_IN_METHOD_AVAILABILITIES,
   CHECK_IN_METHOD_TODAY_STATUSES,
 } from "~/constants/checkIn"
+import { SUB2API_PRO_DAILY_CHECK_IN_RESULT_KINDS } from "~/services/apiService/sub2api/checkin/checkIn"
 import {
   fetchSub2ApiProDailyCheckInStatus,
   performSub2ApiProDailyCheckIn,
-} from "~/services/apiService/sub2api"
-import { SUB2API_PRO_DAILY_CHECK_IN_RESULT_KINDS } from "~/services/apiService/sub2api/checkIn"
+} from "~/services/apiService/sub2api/checkin/proCheckInExecution"
 import { detectWithStatusReadback } from "~/services/checkin/autoCheckin/providers/detection"
 import { AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS } from "~/services/checkin/autoCheckin/providers/shared"
 import type { SiteAccount } from "~/types"
@@ -25,6 +25,7 @@ import {
   failedSub2ApiCheckIn,
   getSub2ApiCheckInReadiness,
   mapSub2ApiCheckInMutationError,
+  readUsdReward,
   toSub2ApiCheckInStatus,
 } from "./sub2apiShared"
 
@@ -37,7 +38,6 @@ const readStatus = async (context: AutoCheckinProviderReadContext) => {
 
 export const sub2apiProProvider: AutoCheckinProvider = {
   requiresAuthoritativeStatusBeforeMutation: true,
-  retryAfterUncertainNotChecked: true,
 
   getReadiness: getSub2ApiCheckInReadiness,
 
@@ -67,6 +67,7 @@ export const sub2apiProProvider: AutoCheckinProvider = {
             status: CHECKIN_RESULT_STATUS.SUCCESS,
             messageKey:
               AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinSuccessful,
+            reward: readUsdReward(result.data.rewardAmount),
             data: result.data,
           }
         case SUB2API_PRO_DAILY_CHECK_IN_RESULT_KINDS.AlreadyChecked:
@@ -84,12 +85,10 @@ export const sub2apiProProvider: AutoCheckinProvider = {
         case SUB2API_PRO_DAILY_CHECK_IN_RESULT_KINDS.RecoveryStatusUnavailable:
           return failedSub2ApiCheckIn(
             AUTO_CHECKIN_SKIP_REASON.STATUS_UNAVAILABLE,
-            false,
           )
         case SUB2API_PRO_DAILY_CHECK_IN_RESULT_KINDS.RecoveryPreconditionFailed:
           return failedSub2ApiCheckIn(
             AUTO_CHECKIN_SKIP_REASON.ACCOUNT_UNAVAILABLE,
-            false,
           )
       }
     } catch (error) {

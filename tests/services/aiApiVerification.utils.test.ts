@@ -41,6 +41,33 @@ vi.mock(
 )
 
 describe("aiApiVerification utils", () => {
+  it.each([
+    {
+      error: new DOMException("signal timed out", "TimeoutError"),
+      timeout: true,
+    },
+    { error: { cause: { code: "ETIMEDOUT" } }, timeout: true },
+    { error: { statusCode: 408 }, timeout: true },
+    { error: { statusCode: 504 }, timeout: true },
+    { error: new DOMException("Stopped", "AbortError"), timeout: false },
+    { error: new Error("timeout is not supported"), timeout: false },
+  ])(
+    "uses structured timeout evidence for readable failures: $error",
+    async ({ error, timeout }) => {
+      const { buildSafeProbeFailureDiagnostics } = await import(
+        "~/services/verification/aiApiVerification/utils"
+      )
+      const diagnostic = buildSafeProbeFailureDiagnostics(
+        error,
+        "safe diagnostic",
+      )
+      if (timeout)
+        expect(diagnostic.summaryKey).toBe(
+          "verifyDialog.summaries.requestTimedOut",
+        )
+      else expect(diagnostic.summaryKey).toBeUndefined()
+    },
+  )
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
@@ -85,6 +112,12 @@ describe("aiApiVerification utils", () => {
     )
     expect(summaryKeyFromHttpStatus(404)).toBe(
       "verifyDialog.summaries.endpointNotFound",
+    )
+    expect(summaryKeyFromHttpStatus(408)).toBe(
+      "verifyDialog.summaries.requestTimedOut",
+    )
+    expect(summaryKeyFromHttpStatus(504)).toBe(
+      "verifyDialog.summaries.requestTimedOut",
     )
     expect(summaryKeyFromHttpStatus(500)).toBeUndefined()
   })
@@ -134,34 +167,43 @@ describe("aiApiVerification utils", () => {
     expect(inferStructuredHttpStatus({ statusCode: 401.5 })).toBeUndefined()
   })
 
-  it("normalizes verification base URLs", async () => {
-    const {
-      coerceBaseUrlToAnthropicV1,
-      coerceBaseUrlToGoogleV1beta,
-      coerceBaseUrlToV1,
-    } = await import("~/services/verification/aiApiVerification/utils")
+  it("normalizes verification base URLs to a versioned protocol mount", async () => {
+    const { toVersionedProtocolMount } = await import(
+      "~/services/aiApi/protocolAddress"
+    )
 
-    expect(coerceBaseUrlToV1("https://proxy.example.com/api/")).toBe(
-      "https://proxy.example.com/api/v1",
-    )
-    expect(coerceBaseUrlToAnthropicV1("https://anthropic.example.com/v1")).toBe(
-      "https://anthropic.example.com/v1",
-    )
     expect(
-      coerceBaseUrlToV1(
+      toVersionedProtocolMount(
+        "openai-compatible",
+        "https://proxy.example.com/api/",
+      ),
+    ).toBe("https://proxy.example.com/api/v1")
+    expect(
+      toVersionedProtocolMount("anthropic", "https://anthropic.example.com/v1"),
+    ).toBe("https://anthropic.example.com/v1")
+    expect(
+      toVersionedProtocolMount(
+        "openai-compatible",
         "https://volcengine-coding-plan.example.invalid/api/coding/v3/",
       ),
     ).toBe("https://volcengine-coding-plan.example.invalid/api/coding/v3")
-    expect(coerceBaseUrlToV1("example.invalid/api/coding/v3/")).toBe(
-      "example.invalid/api/coding/v3",
-    )
     expect(
-      coerceBaseUrlToAnthropicV1(
+      toVersionedProtocolMount(
+        "openai-compatible",
+        "example.invalid/api/coding/v3/",
+      ),
+    ).toBe("https://example.invalid/api/coding/v3")
+    expect(
+      toVersionedProtocolMount(
+        "anthropic",
         "https://volcengine-coding-plan.example.invalid/api/coding/v3/",
       ),
     ).toBe("https://volcengine-coding-plan.example.invalid/api/coding/v3/v1")
     expect(
-      coerceBaseUrlToGoogleV1beta("https://generativelanguage.googleapis.com"),
+      toVersionedProtocolMount(
+        "google",
+        "https://generativelanguage.googleapis.com",
+      ),
     ).toBe("https://generativelanguage.googleapis.com/v1beta")
   })
 })

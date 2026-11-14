@@ -6,9 +6,9 @@ import PopupInterruptionHintBanner from "~/components/PopupInterruptionHintBanne
 import { SelectViewportResizeProvider } from "~/components/ui/select"
 import { ProductAnalyticsScope } from "~/contexts/ProductAnalyticsScopeContext"
 import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
-import { AccountManagementProvider } from "~/features/AccountManagement/hooks/AccountManagementProvider"
+import { AccountManagementProvider } from "~/features/AccountManagement/workspace/AccountManagementProvider"
 import { DevPanel, DevPanelProvider } from "~/features/DevPanel"
-import { useProductAnalyticsPageView } from "~/hooks/useProductAnalyticsPageView"
+import { useProductAnalyticsPageView } from "~/hooks/analytics/useProductAnalyticsPageView"
 import { cn } from "~/lib/utils"
 import { markPopupClosedDuringCriticalFlow } from "~/services/popupInterruptionHint"
 import {
@@ -22,9 +22,9 @@ import {
   type ProductAnalyticsPageId,
 } from "~/services/productAnalytics/contracts"
 import {
+  isDesktopDevice,
   isExtensionPopup,
   isExtensionSidePanel,
-  isMobileDevice,
 } from "~/utils/browser"
 
 import ActionButtons from "./components/ActionButtons"
@@ -34,6 +34,7 @@ import PopupViewSwitchTabs, {
 } from "./components/PopupViewSwitchTabs"
 import { getPopupViewTestId, POPUP_TEST_IDS } from "./testIds"
 import { usePopupViewRegistry } from "./viewRegistry"
+import { POPUP_VIEW_TYPES } from "./viewTypes"
 
 /**
  * Maps popup tab state to the fixed analytics page id enum.
@@ -42,11 +43,11 @@ function mapPopupViewToAnalyticsPageId(
   view: PopupViewType,
 ): ProductAnalyticsPageId {
   switch (view) {
-    case "bookmarks":
+    case POPUP_VIEW_TYPES.Bookmarks:
       return PRODUCT_ANALYTICS_PAGE_IDS.PopupBookmarks
-    case "apiCredentialProfiles":
+    case POPUP_VIEW_TYPES.ApiCredentialProfiles:
       return PRODUCT_ANALYTICS_PAGE_IDS.PopupApiCredentialProfiles
-    case "accounts":
+    case POPUP_VIEW_TYPES.Accounts:
     default:
       return PRODUCT_ANALYTICS_PAGE_IDS.PopupAccounts
   }
@@ -60,17 +61,17 @@ function mapPopupViewToAnalyticsAction(view: PopupViewType): {
   actionId: ProductAnalyticsActionId
 } {
   switch (view) {
-    case "bookmarks":
+    case POPUP_VIEW_TYPES.Bookmarks:
       return {
         featureId: PRODUCT_ANALYTICS_FEATURE_IDS.BookmarkManagement,
         actionId: PRODUCT_ANALYTICS_ACTION_IDS.SelectBookmarksView,
       }
-    case "apiCredentialProfiles":
+    case POPUP_VIEW_TYPES.ApiCredentialProfiles:
       return {
         featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ApiCredentialProfiles,
         actionId: PRODUCT_ANALYTICS_ACTION_IDS.SelectApiCredentialProfilesView,
       }
-    case "accounts":
+    case POPUP_VIEW_TYPES.Accounts:
     default:
       return {
         featureId: PRODUCT_ANALYTICS_FEATURE_IDS.AccountManagement,
@@ -87,12 +88,15 @@ function PopupContent({ inPopup }: { inPopup: boolean }) {
   const { t } = useTranslation(["bookmark", "apiCredentialProfiles"])
   const { isLoading } = useUserPreferencesContext()
   const inSidePanel = isExtensionSidePanel()
-  const onMobile = isMobileDevice()
-  const [activeView, setActiveView] = useState<PopupViewType>("accounts")
+  const isDesktopPopup = inPopup && isDesktopDevice()
+  const [activeView, setActiveView] = useState<PopupViewType>(
+    POPUP_VIEW_TYPES.Accounts,
+  )
   const [scrollParent, setScrollParent] = useState<HTMLDivElement | null>(null)
   const viewConfig = usePopupViewRegistry({
+    onSelectView: setActiveView,
     isPopup: inPopup,
-    scrollParent: inPopup && !onMobile ? scrollParent : null,
+    scrollParent: isDesktopPopup ? scrollParent : null,
   })
 
   const activeViewConfig = viewConfig[activeView]
@@ -102,6 +106,15 @@ function PopupContent({ inPopup }: { inPopup: boolean }) {
   const viewTabsSurface = inSidePanel
     ? PRODUCT_ANALYTICS_SURFACE_IDS.SidepanelViewTabs
     : PRODUCT_ANALYTICS_SURFACE_IDS.PopupViewTabs
+  const statsSurfaceId = inSidePanel
+    ? PRODUCT_ANALYTICS_SURFACE_IDS.SidepanelStats
+    : PRODUCT_ANALYTICS_SURFACE_IDS.PopupStats
+  const statsSection =
+    !isLoading && activeViewConfig.statsSection ? (
+      <ProductAnalyticsScope entrypoint={entrypoint} surfaceId={statsSurfaceId}>
+        {activeViewConfig.statsSection}
+      </ProductAnalyticsScope>
+    ) : null
 
   useProductAnalyticsPageView({
     entrypoint,
@@ -123,19 +136,16 @@ function PopupContent({ inPopup }: { inPopup: boolean }) {
     }
   }, [inPopup])
 
-  const popupWidthClass = onMobile ? "w-full" : inSidePanel ? "" : "w-full"
-
-  const popupHeightClass = onMobile ? "" : inSidePanel ? "" : "h-full"
-
   return (
     <DevPanelProvider surface={inSidePanel ? "sidepanel" : "popup"}>
       <div
         ref={setScrollParent}
         data-testid={POPUP_TEST_IDS.scrollContainer}
         className={cn(
-          "dark:bg-background bg-card flex flex-col overflow-y-auto",
-          popupWidthClass,
-          popupHeightClass,
+          "bg-background flex w-full flex-col overflow-y-auto",
+          // Desktop action popups scroll inside their bounded document. Other
+          // surfaces fill the viewport and retain document scrolling.
+          isDesktopPopup ? "h-full" : "min-h-dvh",
         )}
       >
         <HeaderSection
@@ -144,7 +154,14 @@ function PopupContent({ inPopup }: { inPopup: boolean }) {
         />
         <PopupInterruptionHintBanner surfaceClassName="rounded-none border-x-0 shadow-none" />
 
-        <section className="border-border from-theme-50/50 dark:from-theme-900/20 to-theme-50/30 dark:to-theme-900/10 space-y-density-2 py-density-3 sm:py-density-4 shrink-0 border-b bg-linear-to-br px-3 sm:px-4">
+        <section
+          className={cn(
+            "border-border from-theme-50/50 dark:from-theme-900/20 to-theme-50/30 dark:to-theme-900/10 shrink-0 border-b bg-linear-to-br px-3 sm:px-4",
+            statsSection
+              ? "space-y-density-2 py-density-3 sm:py-density-4"
+              : "py-density-2 sm:py-density-2.5",
+          )}
+        >
           <div className="gap-y-density-2 flex items-center justify-between gap-x-2">
             <ProductAnalyticsScope
               entrypoint={entrypoint}
@@ -152,6 +169,7 @@ function PopupContent({ inPopup }: { inPopup: boolean }) {
             >
               <PopupViewSwitchTabs
                 value={activeView}
+                fullWidth={!activeViewConfig.headerAction}
                 onChange={(nextView) => {
                   setActiveView(nextView)
                   viewConfig[nextView].preload?.()
@@ -164,30 +182,33 @@ function PopupContent({ inPopup }: { inPopup: boolean }) {
                 getAnalyticsAction={mapPopupViewToAnalyticsAction}
               />
             </ProductAnalyticsScope>
-            <ProductAnalyticsScope
-              entrypoint={entrypoint}
-              featureId={PRODUCT_ANALYTICS_FEATURE_IDS.ShareSnapshots}
-              surfaceId={
-                inSidePanel
-                  ? PRODUCT_ANALYTICS_SURFACE_IDS.SidepanelHeader
-                  : PRODUCT_ANALYTICS_SURFACE_IDS.PopupHeader
-              }
-            >
-              {activeViewConfig.headerAction}
-            </ProductAnalyticsScope>
+            {activeViewConfig.headerAction ? (
+              <ProductAnalyticsScope
+                entrypoint={entrypoint}
+                featureId={PRODUCT_ANALYTICS_FEATURE_IDS.ShareSnapshots}
+                surfaceId={
+                  inSidePanel
+                    ? PRODUCT_ANALYTICS_SURFACE_IDS.SidepanelHeader
+                    : PRODUCT_ANALYTICS_SURFACE_IDS.PopupHeader
+                }
+              >
+                {activeViewConfig.headerAction}
+              </ProductAnalyticsScope>
+            ) : null}
           </div>
-          {!isLoading && activeViewConfig.statsSection
-            ? activeViewConfig.statsSection
-            : null}
+          {statsSection}
         </section>
 
         <div className="flex-1" data-testid={getPopupViewTestId(activeView)}>
-          <ActionButtons
-            primaryActionLabel={activeViewConfig.primaryActionLabel}
-            onPrimaryAction={activeViewConfig.onPrimaryAction}
-            primaryActionTestId={activeViewConfig.primaryActionTestId}
-            primaryAnalyticsAction={activeViewConfig.primaryAnalyticsAction}
-          />
+          {activeViewConfig.showActionBar !== false && (
+            <ActionButtons
+              primaryActionLabel={activeViewConfig.primaryActionLabel}
+              onPrimaryAction={activeViewConfig.onPrimaryAction}
+              primaryActionTestId={activeViewConfig.primaryActionTestId}
+              primaryAnalyticsAction={activeViewConfig.primaryAnalyticsAction}
+              showAccountActions={activeViewConfig.showAccountActions}
+            />
+          )}
 
           {activeViewConfig.content}
         </div>

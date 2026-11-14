@@ -1,6 +1,12 @@
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
+
+// Initialize provider registrations before measuring the shared snapshot queries.
+import "~/services/checkin/autoCheckin/providers"
+
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
+import { fetchAccountDataWithCheckInStatus } from "~/services/accounts/refresh/fetchAccountData"
 import { fetchSupportCheckIn } from "~/services/apiService/newApiFamily/variants/veloera"
 import {
   createChannel,
@@ -16,9 +22,10 @@ import {
   updateChannelModels,
 } from "~/services/apiService/veloera"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
-import { getSelectedCheckInStatus } from "~/services/checkin/autoCheckin/inspection"
+import { getSelectedCheckInStatus } from "~/services/checkin/autoCheckin/discovery/inspection"
 import { AuthTypeEnum, SiteHealthStatus } from "~/types"
 import { buildCheckInConfig } from "~~/tests/test-utils/checkIn"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 import { createCheckInConfig } from "../../apiAdapters/checkInFixtures"
 
@@ -126,6 +133,7 @@ describe("apiService veloera channel APIs", () => {
 
     const result = await fetchChannel(
       {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "http://managed.internal",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -162,6 +170,7 @@ describe("apiService veloera channel APIs", () => {
 
     await createChannel(
       {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "http://managed.internal",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -172,9 +181,9 @@ describe("apiService veloera channel APIs", () => {
       payload as any,
     )
 
-    expect(JSON.parse(mockFetchApi.mock.calls[0][1].options.body)).toEqual(
-      payload,
-    )
+    expect(
+      JSON.parse(atIndex(mockFetchApi.mock.calls, 0)[1].options.body),
+    ).toEqual(payload)
   })
 
   it("listAllChannels should paginate from p=0 and return the provider inventory", async () => {
@@ -182,6 +191,7 @@ describe("apiService veloera channel APIs", () => {
     const token = "token"
     const userId = 1
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl,
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -203,9 +213,9 @@ describe("apiService veloera channel APIs", () => {
 
     expect(mockFetchApiData).toHaveBeenCalledTimes(2)
 
-    const firstCallEndpoint = mockFetchApiData.mock.calls[0][1]
+    const firstCallEndpoint = atIndex(mockFetchApiData.mock.calls, 0)[1]
       .endpoint as string
-    const secondCallEndpoint = mockFetchApiData.mock.calls[1][1]
+    const secondCallEndpoint = atIndex(mockFetchApiData.mock.calls, 1)[1]
       .endpoint as string
 
     expect(firstCallEndpoint).toContain("/api/channel/?")
@@ -223,6 +233,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("fetchChannel should call the detail endpoint and normalize the payload", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -260,6 +271,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("normalizes consumed Veloera fields and preserves additional provider data", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -297,6 +309,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("fetchChannelModels should call the Veloera fetch_models endpoint", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -322,6 +335,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("fetchDraftChannelModels should probe an unsaved Veloera channel", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -362,6 +376,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("fetchDraftChannelModels should reject unsupported payloads", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.invalid",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -389,6 +404,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("fetchChannelModels should reject unsupported payloads", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -409,6 +425,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("updateChannelModels should write the models field", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -439,6 +456,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("updateChannelModels should reject failed Veloera responses", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -462,6 +480,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("updateChannelModelMapping should write models and model_mapping", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -494,6 +513,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("updateChannelModelMapping should reject failed Veloera responses", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -520,6 +540,7 @@ describe("apiService veloera channel APIs", () => {
     const token = "token"
     const userId = 1
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl,
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -543,8 +564,8 @@ describe("apiService veloera channel APIs", () => {
     })
 
     expect(mockFetchApi).toHaveBeenCalledTimes(1)
-    const callRequest = mockFetchApi.mock.calls[0][0]
-    const callOptions = mockFetchApi.mock.calls[0][1]
+    const callRequest = atIndex(mockFetchApi.mock.calls, 0)[0]
+    const callOptions = atIndex(mockFetchApi.mock.calls, 0)[1]
     expect(callRequest.baseUrl).toBe(baseUrl)
     expect(callOptions.endpoint).toBe("/api/channel")
     expect(callRequest.auth.accessToken).toBe(token)
@@ -571,6 +592,7 @@ describe("apiService veloera channel APIs", () => {
     const token = "token"
     const userId = 1
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl,
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -592,8 +614,8 @@ describe("apiService veloera channel APIs", () => {
     })
 
     expect(mockFetchApi).toHaveBeenCalledTimes(1)
-    const callRequest = mockFetchApi.mock.calls[0][0]
-    const callOptions = mockFetchApi.mock.calls[0][1]
+    const callRequest = atIndex(mockFetchApi.mock.calls, 0)[0]
+    const callOptions = atIndex(mockFetchApi.mock.calls, 0)[1]
     expect(callRequest.baseUrl).toBe(baseUrl)
     expect(callOptions.endpoint).toBe("/api/channel")
     expect(callRequest.auth.accessToken).toBe(token)
@@ -615,6 +637,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("deleteChannel should issue a DELETE request", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -637,6 +660,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("deleteChannel should report Veloera delete failures", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -671,6 +695,7 @@ describe("apiService veloera channel APIs", () => {
     "$operation mutation preserves ApiError details as cause without logging it",
     async ({ invoke }) => {
       const request = {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -724,6 +749,7 @@ describe("apiService veloera channel APIs", () => {
     "$operation mutation uses fixed copy when the thrown message is blank",
     async ({ invoke, message }) => {
       const request = {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -739,6 +765,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("reads Veloera check-in support from its public status field", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: { authType: AuthTypeEnum.AccessToken },
     }
@@ -755,6 +782,7 @@ describe("apiService veloera channel APIs", () => {
   it("aggregates quota, usage, income, and detected check-in state for account refreshes", async () => {
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(123456)
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -770,7 +798,10 @@ describe("apiService veloera channel APIs", () => {
 
     mockFetchApiData.mockResolvedValueOnce({ can_check_in: false })
 
-    const result = await fetchAccountData(request as any)
+    const result = await fetchAccountDataWithCheckInStatus(
+      { fetchData: fetchAccountData },
+      request as any,
+    )
 
     expect(result).toMatchObject({
       quota: 100,
@@ -797,6 +828,7 @@ describe("apiService veloera channel APIs", () => {
 
   it("preserves the last known check-in status when detection is disabled", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -817,6 +849,7 @@ describe("apiService veloera channel APIs", () => {
     mockFetchApiData.mockResolvedValueOnce({ can_check_in: true })
 
     const result = await refreshAccountData({
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -840,6 +873,7 @@ describe("apiService veloera channel APIs", () => {
     })
 
     const result = await refreshAccountData({
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,

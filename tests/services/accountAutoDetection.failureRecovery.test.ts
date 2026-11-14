@@ -8,7 +8,9 @@ import {
 import { NEW_API_DASHBOARD_TRANSIENT_AUTH_KIND } from "~/services/accountSiteOnboarding/contracts"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
 import { AuthTypeEnum } from "~/types"
+import { getDocsAutoDetectUrl } from "~/utils/navigation/docsLinks"
 import { createDeferred } from "~~/tests/test-utils/deferred"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const {
   accountAutoDetectionMocks,
@@ -24,23 +26,23 @@ vi.mock(
 )
 vi.mock("~/utils/core/logger", accountAutoDetectionModuleMocks.logger)
 vi.mock(
-  "~/utils/browser/browserApi",
+  "~/utils/browser/runtimeMessages",
   accountAutoDetectionModuleMocks.browserApi,
 )
 vi.mock(
-  "~/services/apiAdapters/openrouter/managementKeyActionClient",
+  "~/services/apiAdapters/openrouter/keys/managementKeyActionClient",
   accountAutoDetectionModuleMocks.openRouterManagementKeyActionClient,
 )
 vi.mock(
-  "~/services/apiAdapters/newApi/accountBootstrap",
+  "~/services/apiAdapters/newApi/account/accountBootstrap",
   accountAutoDetectionModuleMocks.newApiAccountBootstrap,
 )
 vi.mock(
-  "~/services/apiAdapters/sub2api/accountBootstrap",
+  "~/services/apiAdapters/sub2api/account/accountBootstrap",
   accountAutoDetectionModuleMocks.sub2ApiAccountBootstrap,
 )
 vi.mock(
-  "~/services/apiAdapters/aihubmix/accountBootstrap",
+  "~/services/apiAdapters/aihubmix/account/accountBootstrap",
   accountAutoDetectionModuleMocks.aihubmixAccountBootstrap,
 )
 vi.mock(
@@ -48,7 +50,7 @@ vi.mock(
   accountAutoDetectionModuleMocks.sharedChat,
 )
 vi.mock(
-  "~/services/checkin/autoCheckin/discovery",
+  "~/services/checkin/autoCheckin/discovery/discovery",
   accountAutoDetectionModuleMocks.checkInDiscovery,
 )
 
@@ -73,6 +75,320 @@ describe("accountAutoDetection", () => {
   beforeEach(() => {
     resetAccountAutoDetectionMocks()
   })
+
+  it.each([
+    [401, AUTO_DETECT_FAILURE_REASONS.CookieSessionRejected],
+    [403, AUTO_DETECT_FAILURE_REASONS.CookieSessionUnavailable],
+  ] as const)(
+    "preserves the help document for Cookie validation HTTP %s",
+    async (status, reason) => {
+      mockAutoDetectSmart.mockResolvedValueOnce({
+        success: true,
+        data: { userId: "42", siteType: SITE_TYPES.NEW_API },
+      })
+      mockFetchUserInfo.mockRejectedValueOnce(
+        new ApiError("Cookie validation failed", status, "/api/user/self"),
+      )
+      mockLoadBootstrapFacts.mockResolvedValueOnce({ checkInSupported: false })
+
+      const result = await autoDetectAccount(
+        "https://cookie.example.invalid",
+        AuthTypeEnum.Cookie,
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        autoDetectFailureReason: reason,
+        detailedError: { helpDocUrl: getDocsAutoDetectUrl() },
+      })
+      expect(result.detailedError).not.toHaveProperty("recoveryAction")
+      expect(mockGetOrCreateAccessToken).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    [
+      undefined,
+      API_ERROR_CODES.NETWORK_ERROR,
+      AutoDetectErrorType.NETWORK_ERROR,
+      "networkError",
+    ],
+    [403, API_ERROR_CODES.HTTP_403, AutoDetectErrorType.FORBIDDEN, "forbidden"],
+    [408, API_ERROR_CODES.HTTP_OTHER, AutoDetectErrorType.TIMEOUT, "timeout"],
+    [
+      503,
+      API_ERROR_CODES.HTTP_OTHER,
+      AutoDetectErrorType.SERVER_ERROR,
+      "serverError",
+    ],
+    [
+      429,
+      API_ERROR_CODES.HTTP_429,
+      AutoDetectErrorType.RATE_LIMITED,
+      "rateLimited",
+    ],
+  ] as const)(
+    "preserves credential failure %s / %s alongside manual recovery",
+    async (status, code, type, messageKey) => {
+      mockAutoDetectSmart.mockResolvedValueOnce({
+        success: true,
+        data: { userId: "42", siteType: SITE_TYPES.NEW_API },
+      })
+      mockGetOrCreateAccessToken.mockRejectedValueOnce(
+        new ApiError(
+          "reflected-private-token",
+          status,
+          "/api/user/token",
+          code,
+        ),
+      )
+      mockLoadBootstrapFacts.mockResolvedValueOnce({ checkInSupported: false })
+
+      const result = await autoDetectAccount(
+        "https://panel.example.invalid",
+        AuthTypeEnum.AccessToken,
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        message: `messages:autodetect.${messageKey}`,
+        autoDetectFailureReason: AUTO_DETECT_FAILURE_REASONS.TokenFetchFailed,
+        detailedError: {
+          type,
+          message: `messages:autodetect.${messageKey}`,
+          recoveryAction: "access_token",
+          canUseApiCredentialFallback: false,
+        },
+        recoveryData: { userId: "42", authType: AuthTypeEnum.AccessToken },
+      })
+      expect(JSON.stringify(result)).not.toContain("reflected-private-token")
+      expect(mockGetOrCreateAccessToken).toHaveBeenCalledOnce()
+    },
+  )
+
+  it.each([
+    [
+      "network",
+      new ApiError(
+        "private-network-detail",
+        undefined,
+        "/api/user/self",
+        API_ERROR_CODES.NETWORK_ERROR,
+      ),
+      "unavailable",
+    ],
+    ["timeout", new Error("private timeout detail"), "unavailable"],
+    [
+      "server",
+      new ApiError(
+        "private-server-detail",
+        500,
+        "/api/user/self",
+        API_ERROR_CODES.HTTP_OTHER,
+      ),
+      "unavailable",
+    ],
+    [
+      "forbidden",
+      new ApiError(
+        "private-forbidden-detail",
+        403,
+        "/api/user/self",
+        API_ERROR_CODES.HTTP_403,
+      ),
+      "unavailable",
+    ],
+    [
+      "rate limit",
+      new ApiError(
+        "private-limit-detail",
+        429,
+        "/api/user/self",
+        API_ERROR_CODES.HTTP_429,
+      ),
+      "unavailable",
+    ],
+    [
+      "permission",
+      new ApiError(
+        "private-permission-detail",
+        undefined,
+        "/api/user/self",
+        API_ERROR_CODES.COOKIE_PERMISSION_REQUIRED,
+      ),
+      "permissionRequired",
+    ],
+    [
+      "unsupported",
+      new ApiError(
+        "private-transport-detail",
+        undefined,
+        "/api/user/self",
+        API_ERROR_CODES.COOKIE_REQUEST_UNAVAILABLE,
+      ),
+      "unsupported",
+    ],
+    [
+      "protection",
+      new ApiError(
+        "private-challenge-detail",
+        401,
+        "/api/user/self",
+        API_ERROR_CODES.ROBOT_CHALLENGE,
+      ),
+      "unavailable",
+    ],
+    [
+      "interceptor",
+      Object.assign(
+        new ApiError(
+          "private-proxy-detail",
+          401,
+          "/api/user/self",
+          API_ERROR_CODES.HTTP_401,
+        ),
+        { unattributedMessage: true },
+      ),
+      "unavailable",
+    ],
+  ])(
+    "keeps Cookie %s failures inconclusive and actionable",
+    async (_label, error, messageKey) => {
+      mockAutoDetectSmart.mockResolvedValueOnce({
+        success: true,
+        data: {
+          userId: "42",
+          user: { id: 42, username: "owner" },
+          siteType: SITE_TYPES.NEW_API,
+        },
+      })
+      mockFetchUserInfo.mockRejectedValueOnce(error)
+      mockLoadBootstrapFacts.mockResolvedValueOnce({ checkInSupported: false })
+
+      const result = await autoDetectAccount(
+        "https://cookie.example.invalid",
+        AuthTypeEnum.Cookie,
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        autoDetectFailureReason: "cookie_session_unavailable",
+        detailedError: {
+          message: `accountDialog:cookieValidation.${messageKey}`,
+          canUseApiCredentialFallback: false,
+        },
+        recoveryData: { authType: AuthTypeEnum.Cookie, userId: "42" },
+      })
+      expect(JSON.stringify(result)).not.toContain("private-")
+      expect(mockGetOrCreateAccessToken).not.toHaveBeenCalled()
+    },
+  )
+
+  it("does not claim security verification for an unstructured token failure", async () => {
+    mockAutoDetectSmart.mockResolvedValueOnce({
+      success: true,
+      data: {
+        userId: "42",
+        user: { id: 42, username: "gemai-user" },
+        siteType: SITE_TYPES.NEW_API,
+      },
+    })
+    mockGetOrCreateAccessToken.mockRejectedValueOnce(
+      new ApiError(
+        "Unauthorized, insufficient privileges",
+        200,
+        "/api/user/token",
+      ),
+    )
+    mockLoadBootstrapFacts.mockResolvedValueOnce({
+      displayName: "Gemai",
+      checkInSupported: false,
+    })
+    const result = await autoDetectAccount(
+      "https://custom.example.invalid",
+      AuthTypeEnum.AccessToken,
+    )
+    expect(result).toMatchObject({
+      success: false,
+      autoDetectFailureReason: "token_fetch_failed",
+      detailedError: {
+        type: "unknown",
+        message: "messages:operations.detection.getAccessTokenFailedDetailed",
+        recoveryAction: "access_token",
+        canUseApiCredentialFallback: false,
+      },
+      recoveryData: {
+        siteType: SITE_TYPES.NEW_API,
+        userId: "42",
+        username: "gemai-user",
+        authType: AuthTypeEnum.AccessToken,
+      },
+    })
+  })
+
+  it.each([
+    {
+      authType: AuthTypeEnum.AccessToken,
+      status: 401,
+      identityMismatch: false,
+    },
+    { authType: AuthTypeEnum.AccessToken, status: 403, identityMismatch: true },
+    { authType: AuthTypeEnum.Cookie, status: 401, identityMismatch: false },
+  ])(
+    "keeps authentication and identity failures separate from manual token recovery: $authType $status $identityMismatch",
+    async ({ authType, status, identityMismatch }) => {
+      mockAutoDetectSmart.mockResolvedValueOnce({
+        success: true,
+        data: {
+          userId: "42",
+          user: { id: 42, username: "owner" },
+          siteType: SITE_TYPES.NEW_API,
+        },
+      })
+      const failure = new ApiError(
+        "Account unavailable",
+        status,
+        "/api/user/self",
+        identityMismatch
+          ? API_ERROR_CODES.ACCOUNT_IDENTITY_MISMATCH
+          : undefined,
+      )
+      if (authType === AuthTypeEnum.Cookie)
+        mockFetchUserInfo.mockRejectedValueOnce(failure)
+      else mockGetOrCreateAccessToken.mockRejectedValueOnce(failure)
+      mockLoadBootstrapFacts.mockResolvedValueOnce({ checkInSupported: false })
+      const result = await autoDetectAccount(
+        "https://custom.example.invalid",
+        authType,
+      )
+      expect(result.success).toBe(false)
+      expect(result.detailedError?.type).not.toBe(
+        AutoDetectErrorType.ACCESS_TOKEN_VERIFICATION_REQUIRED,
+      )
+      expect(result.recoveryData?.authType).toBe(authType)
+      expect(result.detailedError).not.toHaveProperty("recoveryAction")
+      if (authType === AuthTypeEnum.AccessToken && !identityMismatch) {
+        expect(result.detailedError).toMatchObject({
+          type: AutoDetectErrorType.UNAUTHORIZED,
+          message: "messages:autodetect.notLoggedIn",
+          actionText: "messages:autodetect.loginThisSite",
+        })
+        expect(result.message).toBe(result.detailedError?.message)
+      }
+      if (authType === AuthTypeEnum.Cookie && !identityMismatch) {
+        expect(result.autoDetectFailureReason).toBe(
+          AUTO_DETECT_FAILURE_REASONS.CookieSessionRejected,
+        )
+        expect(result.message).toBe(
+          "messages:operations.detection.cookieSessionRejected",
+        )
+      }
+      if (identityMismatch)
+        expect(result.autoDetectFailureReason).toBe(
+          AUTO_DETECT_FAILURE_REASONS.AccountIdentityMismatch,
+        )
+    },
+  )
 
   it.each([
     "SECURITY_PROOF_REQUIRED",
@@ -155,7 +471,7 @@ describe("accountAutoDetection", () => {
       upstreamCode: "SECURITY_PROOF_REQUIRED",
     },
   ])(
-    "keeps unrelated token failures out of New API verification guidance: $siteType $endpoint $upstreamCode",
+    "offers manual recovery without changing the token failure reason: $siteType $endpoint $upstreamCode",
     async ({ siteType, endpoint, upstreamCode }) => {
       mockAutoDetectSmart.mockResolvedValueOnce({
         success: true,
@@ -180,9 +496,11 @@ describe("accountAutoDetection", () => {
       expect(result.autoDetectFailureReason).toBe(
         AUTO_DETECT_FAILURE_REASONS.TokenFetchFailed,
       )
-      expect(result.detailedError?.type).not.toBe(
-        AutoDetectErrorType.ACCESS_TOKEN_VERIFICATION_REQUIRED,
-      )
+      expect(result.detailedError).toMatchObject({
+        type: AutoDetectErrorType.FORBIDDEN,
+        message: "messages:autodetect.forbidden",
+        recoveryAction: "access_token",
+      })
     },
   )
 
@@ -241,7 +559,9 @@ describe("accountAutoDetection", () => {
     })
     expect(JSON.stringify(result)).not.toContain(reflectedMessage)
     expect(loggerMock.error).toHaveBeenCalledTimes(1)
-    const [logMessage, logError] = loggerMock.error.mock.calls[0]
+    const logged = atIndex(loggerMock.error.mock.calls, 0)
+    const logMessage = atIndex(logged, 0)
+    const logError = atIndex(logged, 1)
     expect(String(logMessage)).not.toContain(dashboardToken)
     expect(String(logMessage)).not.toContain(reflectedMessage)
     expect(logError).toMatchObject({
@@ -253,6 +573,23 @@ describe("accountAutoDetection", () => {
     const serializedLogError = JSON.stringify(snapshotOwnProperties(logError))
     expect(serializedLogError).not.toContain(dashboardToken)
     expect(serializedLogError).not.toContain(reflectedMessage)
+  })
+
+  it("keeps user-ID recovery guidance when all detection sources return no identity", async () => {
+    mockAutoDetectSmart.mockResolvedValueOnce({
+      success: false,
+      error: "messages:operations.detection.getUserIdFailed",
+    })
+    const result = await autoDetectAccount(
+      "https://example.com",
+      AuthTypeEnum.Cookie,
+    )
+    expect(result).toMatchObject({
+      success: false,
+      message: "messages:operations.detection.getUserIdFailedDetailed",
+      detailedError: { type: AutoDetectErrorType.INVALID_RESPONSE },
+    })
+    expect(mockGetOrCreateAccessToken).not.toHaveBeenCalled()
   })
 
   it("returns a get-user-id failure when detection succeeds without a user id", async () => {
@@ -377,6 +714,8 @@ describe("accountAutoDetection", () => {
       autoDetectFailureReason: AUTO_DETECT_FAILURE_REASONS.AccessTokenMissing,
       detailedError: expect.objectContaining({
         type: AutoDetectErrorType.INVALID_RESPONSE,
+        recoveryAction: "access_token",
+        canUseApiCredentialFallback: false,
       }),
     })
   })
@@ -410,6 +749,8 @@ describe("accountAutoDetection", () => {
       autoDetectFailureReason: AUTO_DETECT_FAILURE_REASONS.AccessTokenMissing,
       detailedError: expect.objectContaining({
         type: AutoDetectErrorType.INVALID_RESPONSE,
+        recoveryAction: "access_token",
+        canUseApiCredentialFallback: false,
       }),
     })
   })

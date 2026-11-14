@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
 import CheckinRedeemTab from "~/features/BasicSettings/components/tabs/CheckinRedeem/CheckinRedeemTab"
-import NewApiSettings from "~/features/BasicSettings/components/tabs/ManagedSite/NewApiSettings"
+import NewApiSettings from "~/features/BasicSettings/components/tabs/ManagedSite/providers/NewApiSettings"
 import WebAiApiCheckTab from "~/features/BasicSettings/components/tabs/WebAiApiCheck/WebAiApiCheckTab"
 import { SITE_ROUTE_KINDS } from "~/services/accounts/utils/siteRouteResolver"
 import {
@@ -27,13 +27,9 @@ const {
   showUpdateToastMock: vi.fn(),
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
-  return {
-    ...actual,
-    createTab: createTabMock,
-  }
+vi.mock("~/utils/browser/tabs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/utils/browser/tabs")>()
+  return { ...actual, createTab: createTabMock }
 })
 
 vi.mock("~/services/accounts/utils/siteRouteResolver", () => ({

@@ -1,9 +1,10 @@
 import { act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ReactNode } from "react"
-import { lazy } from "react"
+import { lazy, Suspense } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { DEV_MENU_ITEM_IDS } from "~/constants/devOptionsMenuIds"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import App from "~/entrypoints/options/App"
 import { OPTIONS_TEST_IDS } from "~/entrypoints/options/testIds"
@@ -19,6 +20,7 @@ const {
   mockedOptionsSearchDialog,
   mockedUseProductAnalyticsPageView,
   mockedUseSearchHotkeys,
+  mockedPreloadOptionsPage,
   mockUseHashNavigationState,
   mockedUpdateAppearance,
 } = vi.hoisted(() => ({
@@ -27,6 +29,7 @@ const {
   mockedOptionsSearchDialog: vi.fn(),
   mockedUseProductAnalyticsPageView: vi.fn(),
   mockedUseSearchHotkeys: vi.fn(),
+  mockedPreloadOptionsPage: vi.fn(),
   mockUseHashNavigationState: {
     activeMenuItem: "overview",
     routeParams: { source: "test" },
@@ -36,6 +39,25 @@ const {
 
 vi.mock("~/components/AppLayout", () => ({
   AppLayout: ({ children }: { children: ReactNode }) => children,
+}))
+
+vi.mock("~/features/OptionsMenu/OptionsPageTransition", () => ({
+  OptionsPageTransition: ({
+    children,
+    fallback,
+    arrivalAnchor,
+  }: {
+    children: ReactNode
+    fallback: ReactNode
+    arrivalAnchor?: boolean
+  }) => (
+    <div data-testid="options-page-transition">
+      <span data-testid="options-page-transition-arrival-anchor">
+        {String(Boolean(arrivalAnchor))}
+      </span>
+      <Suspense fallback={fallback}>{children}</Suspense>
+    </div>
+  ),
 }))
 
 vi.mock("~/contexts/FeatureGuidanceContext", () => ({
@@ -76,7 +98,7 @@ vi.mock("~/entrypoints/options/hooks/useHashNavigation", () => ({
   }),
 }))
 
-vi.mock("~/hooks/useProductAnalyticsPageView", () => ({
+vi.mock("~/hooks/analytics/useProductAnalyticsPageView", () => ({
   useProductAnalyticsPageView: mockedUseProductAnalyticsPageView,
 }))
 
@@ -166,6 +188,7 @@ vi.mock("~/features/OptionsSearch/OptionsSearchDialog", () => ({
 }))
 
 vi.mock("~/entrypoints/options/constants", () => ({
+  preloadOptionsPage: mockedPreloadOptionsPage,
   menuItems: Object.values(MENU_ITEM_IDS).map((id) => {
     const MockPage = ({
       routeParams,
@@ -191,11 +214,21 @@ vi.mock("~/entrypoints/options/constants", () => ({
 }))
 
 describe("options App", () => {
+  it("falls back to settings for a locked developer deep link", async () => {
+    mockUseHashNavigationState.activeMenuItem =
+      DEV_MENU_ITEM_IDS.BROWSER_API_LAB
+    render(<App />, {
+      withThemeProvider: false,
+      withUserPreferencesProvider: false,
+    })
+    expect(await screen.findByText("basic settings fallback")).toBeVisible()
+  })
   beforeEach(() => {
     mockedHandleMenuItemChange.mockReset()
     mockedOptionsSearchDialog.mockReset()
     mockedUseProductAnalyticsPageView.mockReset()
     mockedUseSearchHotkeys.mockReset()
+    mockedPreloadOptionsPage.mockReset().mockResolvedValue(undefined)
     mockedUpdateAppearance.mockReset().mockResolvedValue({ ok: true })
     mockUseHashNavigationState.activeMenuItem = "overview"
     mockUseHashNavigationState.routeParams = { source: "test" }
@@ -283,6 +316,51 @@ describe("options App", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument()
   })
 
+  it("preloads the active page and ignores a failed preload", async () => {
+    mockUseHashNavigationState.activeMenuItem = MENU_ITEM_IDS.ACCOUNT
+    mockedPreloadOptionsPage.mockRejectedValueOnce(
+      new Error("account page chunk unavailable"),
+    )
+
+    render(<App />, {
+      withReleaseUpdateStatusProvider: false,
+      withThemeProvider: false,
+      withUserPreferencesProvider: false,
+    })
+
+    expect(mockedPreloadOptionsPage).toHaveBeenCalledExactlyOnceWith(
+      MENU_ITEM_IDS.ACCOUNT,
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId(OPTIONS_TEST_IDS.app)).toBeInTheDocument(),
+    )
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("preloads a clicked page and ignores a failed preload", async () => {
+    const user = userEvent.setup()
+
+    render(<App />, {
+      withReleaseUpdateStatusProvider: false,
+      withThemeProvider: false,
+      withUserPreferencesProvider: false,
+    })
+    mockedPreloadOptionsPage.mockClear()
+    mockedPreloadOptionsPage.mockRejectedValueOnce(
+      new Error("account page chunk unavailable"),
+    )
+
+    await user.click(screen.getByRole("button", { name: "sidebar account" }))
+
+    expect(mockedPreloadOptionsPage).toHaveBeenCalledExactlyOnceWith(
+      MENU_ITEM_IDS.ACCOUNT,
+    )
+    expect(mockedHandleMenuItemChange).toHaveBeenCalledWith(
+      MENU_ITEM_IDS.ACCOUNT,
+    )
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
   it.each([
     [MENU_ITEM_IDS.OVERVIEW, PRODUCT_ANALYTICS_PAGE_IDS.OptionsOverview],
     [
@@ -342,6 +420,30 @@ describe("options App", () => {
         entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
         pageId,
       })
+      if (activeMenuItem === "unknown-menu-id") {
+        expect(mockedPreloadOptionsPage).not.toHaveBeenCalled()
+      }
+    },
+  )
+
+  it.each([
+    [{ source: "test" }, "false"],
+    [{ source: "test", anchor: "bookmarks" }, "true"],
+    [{ source: "test", highlight: "webdav" }, "true"],
+  ])(
+    "tells the page transition whether route params %o target an anchor",
+    async (routeParams, expected) => {
+      mockUseHashNavigationState.routeParams = routeParams
+
+      render(<App />, {
+        withReleaseUpdateStatusProvider: false,
+        withThemeProvider: false,
+        withUserPreferencesProvider: false,
+      })
+
+      expect(
+        screen.getByTestId("options-page-transition-arrival-anchor"),
+      ).toHaveTextContent(expected)
     },
   )
 })

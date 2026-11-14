@@ -1,4 +1,5 @@
 import { DEFAULT_CHANNEL_FIELDS } from "~/constants/managedSiteChannelDraft"
+import { MANAGED_SITE_CHANNEL_DRAFT_PURPOSES } from "~/services/apiAdapters/contracts/managedSiteCapabilities"
 import type { ManagedSiteChannelDraftRequestOptions } from "~/services/apiAdapters/contracts/managedSiteCapabilities"
 import type { ManagedSiteOperationContext } from "~/services/managedSites/operationContext"
 import { normalizeList } from "~/utils/core/string"
@@ -33,7 +34,10 @@ export async function resolveDefaultChannelGroups({
 }: ResolveDefaultChannelGroupsParams): Promise<string[]> {
   // Native import seeds do not consume draft groups. The editor loads its own
   // group options, so querying here would duplicate that request.
-  if (purpose === "matching" || purpose === "native-editor") {
+  if (
+    purpose === MANAGED_SITE_CHANNEL_DRAFT_PURPOSES.MATCHING ||
+    purpose === MANAGED_SITE_CHANNEL_DRAFT_PURPOSES.NATIVE_EDITOR
+  ) {
     return [...DEFAULT_CHANNEL_FIELDS.groups]
   }
 
@@ -90,7 +94,8 @@ async function resolveDefaultChannelGroupsUncached({
       return [preferredDefaultGroup]
     }
 
-    return siteGroups.length > 0 ? [siteGroups[0]] : fallbackGroups
+    const [firstSiteGroup] = siteGroups
+    return firstSiteGroup !== undefined ? [firstSiteGroup] : fallbackGroups
   } catch (error) {
     onError?.(error)
     return fallbackGroups

@@ -5,7 +5,7 @@ import {
   TEMP_CONTEXT_TASK_KINDS,
 } from "~/services/protectionBypass/contracts"
 import { AuthTypeEnum } from "~/types"
-import { sendRuntimeMessage } from "~/utils/browser/browserApi"
+import { sendRuntimeMessage } from "~/utils/browser/runtimeMessages"
 import { executeProtectionBypassTask } from "~/utils/browser/tempWindowFetch"
 import { getCurrentTempWindowRequestSource } from "~/utils/browser/tempWindowRequestSource"
 import { safeRandomUUID } from "~/utils/core/identifier"
@@ -66,6 +66,9 @@ export async function collectFeedbackCluesInBrowser(
               baseUrl: origin,
               siteType: input.siteType,
               ...(auth ? { auth } : {}),
+              ...(input.routePaths?.length
+                ? { routePaths: input.routePaths }
+                : {}),
             },
           },
         },

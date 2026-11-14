@@ -26,12 +26,10 @@ import {
   DEFAULT_REDEMPTION_ASSIST_PREFERENCES,
   DEFAULT_WEB_AI_API_CHECK_PREFERENCES,
 } from "~/services/preferences/contentScriptFeatureDefaults"
-import {
-  DEFAULT_PREFERENCES,
-  userPreferences,
-  type PreferenceWriteResult,
-  type UserPreferences,
-} from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { type UserPreferences } from "~/services/preferences/preferencesSchema"
+import { type PreferenceWriteResult } from "~/services/preferences/preferencesStore"
+import { userPreferences } from "~/services/preferences/userPreferences"
 import { DEFAULT_SORTING_PRIORITY_CONFIG } from "~/services/preferences/utils/sortingPriority"
 import { DEFAULT_AXON_HUB_CONFIG } from "~/types/axonHubConfig"
 import { DEFAULT_BALANCE_HISTORY_PREFERENCES } from "~/types/dailyBalanceHistory"
@@ -80,17 +78,14 @@ vi.mock("~/utils/core/logger", () => ({
   createLogger: () => loggerMocks,
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
 
-  return {
-    ...actual,
-    sendRuntimeMessage: sendRuntimeMessageMock,
-  }
+  return { ...actual, sendRuntimeMessage: sendRuntimeMessageMock }
 })
 
-vi.mock("~/services/accounts/autoRefreshMessaging", () => ({
+vi.mock("~/services/accounts/refresh/autoRefreshMessaging", () => ({
   AutoRefreshMessageTypes: {
     UpdateSettings: "autoRefresh:updateSettings",
   },
@@ -130,11 +125,11 @@ vi.mock("~/services/siteAnnouncements/messaging", () => ({
     typedMessageMocks.sendSiteAnnouncementsMessageMock,
 }))
 
-vi.mock("~/services/webdav/webdavAutoSyncMessaging", () => ({
+vi.mock("~/services/webdav/autoSync/webdavAutoSyncMessaging", () => ({
   sendWebdavAutoSyncMessage: typedMessageMocks.sendWebdavAutoSyncMessageMock,
 }))
 
-vi.mock("~/services/productAnalytics/settings", () => ({
+vi.mock("~/services/productAnalytics/configuration/settings", () => ({
   trackSettingsSnapshotEvents: (...args: unknown[]) =>
     trackSettingsSnapshotEventsMock(...args),
 }))
@@ -173,12 +168,16 @@ vi.mock("~/services/preferences/userPreferences", async (importOriginal) => {
       resetAxonHubConfig: vi.fn(),
       resetClaudeCodeHubConfig: vi.fn(),
       resetSub2ApiManagedSiteConfig: vi.fn(),
+      resetOmniRouteConfig: vi.fn(),
+      resetGptLoadConfig: vi.fn(),
+      resetMagpieConfig: vi.fn(),
       resetNewApiModelSyncConfig: vi.fn(),
       resetCliProxyApiConfig: vi.fn(),
       resetClaudeCodeRouterConfig: vi.fn(),
       resetAutoCheckinConfig: vi.fn(),
       resetRedemptionAssist: vi.fn(),
       resetWebAiApiCheck: vi.fn(),
+      mutateWebAiApiCheckSiteRules: vi.fn(),
       resetModelRedirectConfig: vi.fn(),
       resetWebdavConfig: vi.fn(),
       resetSortingPriorityConfig: vi.fn(),
@@ -187,10 +186,7 @@ vi.mock("~/services/preferences/userPreferences", async (importOriginal) => {
   }
 })
 
-const mockedUserPreferences = userPreferences as unknown as Record<
-  string,
-  ReturnType<typeof vi.fn>
->
+const mockedUserPreferences = vi.mocked(userPreferences)
 const mockedSendRuntimeMessage = sendRuntimeMessageMock
 const {
   sendAutoCheckinMessageMock: mockedSendAutoCheckinMessage,
@@ -272,6 +268,146 @@ const renderProvider = async (
 }
 
 describe("UserPreferencesContext", () => {
+  it("publishes rule edits only after persistence succeeds", async () => {
+    const context = await renderProvider()
+    const before = latestContext!.preferences
+    const command = { type: "priority", priority: "whitelist" } as const
+    mockedUserPreferences.mutateWebAiApiCheckSiteRules.mockResolvedValueOnce(
+      preferenceWriteFailure,
+    )
+    await act(async () => {
+      expectFailedWrite(await context.mutateWebAiApiCheckSiteRules(command))
+    })
+    expect(latestContext!.preferences).toBe(before)
+    const saved = clonePreferences()
+    saved.webAiApiCheck!.autoDetect.siteRules = {
+      priority: "whitelist",
+      whitelist: [],
+      blacklist: [],
+    }
+    mockedUserPreferences.mutateWebAiApiCheckSiteRules.mockResolvedValueOnce({
+      ok: true,
+      preferences: saved,
+    })
+    await act(async () => {
+      expect((await context.mutateWebAiApiCheckSiteRules(command)).ok).toBe(
+        true,
+      )
+    })
+    expect(
+      latestContext!.preferences.webAiApiCheck!.autoDetect.siteRules,
+    ).toEqual(saved.webAiApiCheck!.autoDetect.siteRules)
+    expect(
+      mockedUserPreferences.mutateWebAiApiCheckSiteRules,
+    ).toHaveBeenLastCalledWith(command)
+  })
+  it("reloads a Magpie reset only after its credential write succeeds", async () => {
+    const context = await renderProvider()
+    await act(async () => {
+      expect(
+        (
+          await context.updateMagpieConfig({
+            baseUrl: "https://magpie.test",
+            webKey: "test-key",
+          })
+        ).ok,
+      ).toBe(true)
+    })
+    mockedUserPreferences.resetMagpieConfig.mockResolvedValue(
+      preferenceWriteFailure,
+    )
+    await act(async () => {
+      expectFailedWrite(await context.resetMagpieConfig())
+    })
+    expect(preferencePersistence.getPersistedPreferences().magpie?.webKey).toBe(
+      "test-key",
+    )
+    mockedUserPreferences.resetMagpieConfig.mockImplementation(async () => {
+      const preferences = deepOverride(
+        preferencePersistence.getPersistedPreferences(),
+        { magpie: DEFAULT_PREFERENCES.magpie },
+      )
+      preferencePersistence.setPersistedPreferences(preferences)
+      return { ok: true, preferences }
+    })
+    await act(async () => {
+      expect((await context.resetMagpieConfig()).ok).toBe(true)
+    })
+    expect(preferencePersistence.getPersistedPreferences().magpie).toEqual(
+      DEFAULT_PREFERENCES.magpie,
+    )
+    expect(latestContext?.preferences?.magpie).toEqual(
+      DEFAULT_PREFERENCES.magpie,
+    )
+  })
+  it("persists gpt-load fields and reloads reset state only after a successful write", async () => {
+    const context = await renderProvider()
+    await act(async () => {
+      expect(
+        (await context.updateGptLoadBaseUrl("http://lan.invalid")).ok,
+      ).toBe(true)
+      expect((await context.updateGptLoadManagementKey("fake-key")).ok).toBe(
+        true,
+      )
+    })
+    expect(preferencePersistence.getPersistedPreferences().gptLoad).toEqual({
+      baseUrl: "http://lan.invalid",
+      managementKey: "fake-key",
+    })
+    mockedUserPreferences.resetGptLoadConfig.mockImplementation(async () => {
+      const preferences = deepOverride(
+        preferencePersistence.getPersistedPreferences(),
+        { gptLoad: DEFAULT_PREFERENCES.gptLoad },
+      )
+      preferencePersistence.setPersistedPreferences(preferences)
+      return { ok: true, preferences }
+    })
+    await act(async () => {
+      expect((await context.resetGptLoadConfig()).ok).toBe(true)
+    })
+    expect(latestContext?.gptLoadManagementKey).toBe("")
+    await act(async () => {
+      expect(
+        (await context.updateGptLoadBaseUrl("http://retained.lan")).ok,
+      ).toBe(true)
+    })
+    mockedUserPreferences.resetGptLoadConfig.mockResolvedValue(
+      preferenceWriteFailure,
+    )
+    await act(async () => {
+      expectFailedWrite(await context.resetGptLoadConfig())
+    })
+    expect(latestContext?.gptLoadBaseUrl).toBe("http://retained.lan")
+  })
+  it("persists an OmniRoute token and reloads the reset configuration only after successful writes", async () => {
+    const context = await renderProvider()
+    await act(async () => {
+      expect((await context.updateOmniRouteToken("oma_test")).ok).toBe(true)
+    })
+    expect(
+      preferencePersistence.getPersistedPreferences().omniroute?.token,
+    ).toBe("oma_test")
+    mockedUserPreferences.resetOmniRouteConfig.mockImplementation(async () => {
+      const preferences = deepOverride(
+        preferencePersistence.getPersistedPreferences(),
+        { omniroute: DEFAULT_PREFERENCES.omniroute },
+      )
+      preferencePersistence.setPersistedPreferences(preferences)
+      return { ok: true, preferences }
+    })
+    await act(async () => {
+      expect((await context.resetOmniRouteConfig()).ok).toBe(true)
+    })
+    expect(latestContext?.omniRouteToken).toBe("")
+    mockedUserPreferences.resetOmniRouteConfig.mockResolvedValue({
+      ok: false,
+      reason: { type: "storage-error", error: new Error("offline") },
+    })
+    await act(async () => {
+      expect((await context.resetOmniRouteConfig()).ok).toBe(false)
+    })
+    expect(latestContext?.omniRouteToken).toBe("")
+  })
   beforeEach(() => {
     latestContext = null
     vi.clearAllMocks()
@@ -1954,6 +2090,7 @@ describe("UserPreferencesContext", () => {
     preferences.webAiApiCheck = {
       ...DEFAULT_WEB_AI_API_CHECK_PREFERENCES,
       autoDetect: {
+        ...DEFAULT_WEB_AI_API_CHECK_PREFERENCES.autoDetect,
         enabled: true,
         enhanced: { enabled: true },
         urlWhitelist: {

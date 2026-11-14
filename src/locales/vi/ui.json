@@ -8,6 +8,57 @@
     "tokenBased": "Tính phí theo lượng"
   },
   "dialog": {
+    "aiToolbox": {
+      "actions": {
+        "export": "Xuất"
+      },
+      "appOptions": {
+        "claude": "Claude Code",
+        "claudedesktop": "Claude Desktop",
+        "codex": "Codex",
+        "dsh": "DeepSeek Harness",
+        "gemini": "Gemini CLI",
+        "grok": "Grok CLI",
+        "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "omp": "Oh My Pi",
+        "openclaw": "OpenClaw",
+        "opencode": "OpenCode",
+        "pi": "Pi"
+      },
+      "description": "Nhập cấu hình trang web hiện tại vào AI Toolbox bằng một cú nhấp chuột thông qua liên kết sâu",
+      "descriptions": {
+        "apiFormat": "AI Toolbox sẽ tái tạo nhà cung cấp cho ứng dụng đích. Chỉ chọn giao thức khi nhà cung cấp này không dùng giao thức mặc định của ứng dụng.",
+        "model": "Nếu khả dụng, danh sách mô hình sẽ tự động được lấy từ /v1/models để lựa chọn; bạn cũng có thể nhập trực tiếp tên mô hình tùy chỉnh."
+      },
+      "fields": {
+        "apiFormat": "Giao thức API",
+        "app": "Ứng dụng đích",
+        "baseUrl": "Địa chỉ cơ sở API",
+        "homepage": "Địa chỉ trang chủ",
+        "model": "Mô hình mặc định (tùy chọn)",
+        "name": "Tên nhà cung cấp",
+        "notes": "Ghi chú (tùy chọn)"
+      },
+      "formatOptions": {
+        "anthropicMessages": "Anthropic Messages",
+        "automatic": "Tự động (mặc định của ứng dụng)",
+        "geminiNative": "Gemini Native",
+        "openAIChat": "OpenAI Chat Completions",
+        "openAIResponses": "OpenAI Responses"
+      },
+      "modelOptions": {
+        "none": "Không đặt mô hình mặc định"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com",
+        "homepage": "https://example.com",
+        "model": "Ví dụ claude-3-opus",
+        "name": "Ví dụ Acme Relay",
+        "notes": "Thêm hướng dẫn nhập"
+      },
+      "title": "Xuất sang AI Toolbox"
+    },
     "bookmarkAccountImport": {
       "actions": {
         "allowAndScan": "Chọn dấu trang và bắt đầu nhập hàng loạt",
@@ -18,21 +69,25 @@
         "collapseFolder": "Thu gọn thư mục",
         "expandAll": "Mở rộng tất cả",
         "expandFolder": "Mở rộng thư mục",
-        "importSelected_other": "Nhập mục đã chọn ({{count}})",
+        "importSelected_other": "Thêm các mục đã chọn ({{count}})",
         "invertSelected": "Đảo chọn",
-        "openAddAccount": "Mở Thêm tài khoản",
+        "openAddAccount": "Hoàn tất thủ công",
+        "retryFailed": "Thử lại các mục chưa hoàn tất",
         "scanSelected": "Quét phạm vi đã chọn",
         "selectAll": "Chọn tất cả"
       },
       "apiUnavailable": "Trình duyệt này không cung cấp cây dấu trang cho tiện ích.",
+      "bestEffortHelp": "Chúng tôi sẽ cố gắng thêm tự động. Một số trang có thể cần bạn đăng nhập, xác minh hoặc bổ sung thông tin.",
       "bookmarkCount_one": "{{count}} dấu trang",
       "bookmarkCount_other": "{{count}} dấu trang",
-      "description": "Quét hàng loạt URL dấu trang trong trình duyệt và xem lại các ứng viên trang tài khoản trước khi nhập.",
+      "description": "Thêm cùng lúc tài khoản từ các trang đã lưu trong dấu trang.",
       "empty": "Trình duyệt không trả về dấu trang nào.",
       "failures": {
-        "detection": "Tự động phát hiện không đọc được trang này.",
-        "save": "Không thể lưu tài khoản.",
-        "unknown": "Nhập thất bại."
+        "detection": "Cần bổ sung một số thông tin tài khoản. Thử lại hoặc hoàn tất thủ công.",
+        "login": "Đăng nhập trang này rồi thử thêm lại.",
+        "save": "Kiểm tra và bổ sung thông tin tài khoản trước khi thêm.",
+        "unknown": "Chưa hoàn tất việc thêm. Thử lại hoặc hoàn tất thủ công.",
+        "verification": "Trang này cần xác minh. Chọn “Hoàn tất thủ công” để tiếp tục."
       },
       "folderCount_one": "{{count}} thư mục",
       "folderCount_other": "{{count}} thư mục",
@@ -41,16 +96,17 @@
       "includeExisting": "Bao gồm các trang đã có tài khoản đã lưu",
       "initialSteps": {
         "chooseScope": "Chọn thư mục dấu trang",
-        "review": "Xem lại ứng viên nhập",
+        "review": "Kiểm tra các trang cần thêm",
         "skipExisting": "Bỏ qua tài khoản đã có theo mặc định"
       },
-      "initialValue": "Quét hàng loạt dấu trang trình duyệt và biến các trang trung chuyển đã lưu thành ứng viên tài khoản. Bạn chọn thư mục dấu trang trước, xem lại ứng viên trước khi nhập, và tài khoản đã có sẽ được bỏ qua theo mặc định.",
+      "initialValue": "Chọn dấu trang của các trang trung chuyển, kiểm tra danh sách rồi thêm cùng lúc. Tài khoản hiện có được bỏ qua theo mặc định.",
       "noCandidates": "Không tìm thấy URL dấu trang web nào có thể nhập.",
       "permissionDenied": "Chưa cấp quyền dấu trang. Bạn có thể thử lại mà không cần đóng hộp thoại này.",
       "permissionNeeded": "Quyền truy cập dấu trang là tùy chọn và chỉ được yêu cầu cho lần nhập hàng loạt này.",
       "readFailed": "Không thể đọc cây dấu trang của trình duyệt.",
+      "recoveryHelp": "Với tài khoản còn lại, đăng nhập rồi thử lại hoặc chọn “Hoàn tất thủ công” để tiếp tục.",
       "reloadFailed": "Quá trình nhập đã hoàn tất, nhưng không thể tải lại dữ liệu tài khoản. Hãy làm mới danh sách tài khoản và thử lại nếu tài khoản mới chưa hiển thị.",
-      "resultSummary": "Đã nhập {{success}}, thất bại {{failed}}, bỏ qua {{skipped}}.",
+      "resultSummary": "Đã thêm {{success}}, chưa hoàn tất {{failed}}, bỏ qua {{skipped}}.",
       "scanning": "Đang quét dấu trang trong trình duyệt...",
       "scopeHelp": "Quá trình quét chỉ tạo bản xem trước ứng viên. Bạn có thể quay lại đây để điều chỉnh lựa chọn trước khi nhập.",
       "searchEmpty": "Không có phạm vi dấu trang phù hợp",
@@ -61,7 +117,7 @@
       "status": {
         "duplicate_other": "Mặc định bỏ qua. Số kết quả khớp tài khoản đã lưu: {{count}}",
         "imported": "Đã nhập",
-        "ready": "Sẵn sàng nhập"
+        "ready": "Chờ thêm"
       },
       "title": "Nhập tài khoản từ dấu trang",
       "untitledFolder": "Thư mục chưa đặt tên"
@@ -71,13 +127,20 @@
         "export": "Xuất"
       },
       "appOptions": {
+        "agy": "Antigravity",
         "claude": "Claude",
+        "claudeDesktop": "Claude Desktop",
         "codex": "Codex",
+        "dsh": "DeepSeek Harness",
         "gemini": "Gemini",
         "grokbuild": "Grok CLI",
         "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "mcode": "MiniMax Code",
+        "omp": "Oh My Pi",
         "openclaw": "OpenClaw",
-        "opencode": "OpenCode"
+        "opencode": "OpenCode",
+        "pi": "Pi"
       },
       "description": "Nhập cấu hình trang web hiện tại vào CC Switch bằng một cú nhấp chuột thông qua liên kết sâu",
       "descriptions": {
@@ -87,7 +150,7 @@
         "app": "Ứng dụng đích",
         "endpoint": "Địa chỉ API",
         "homepage": "Địa chỉ trang chủ",
-        "model": "Mô hình mặc định (tùy chọn)",
+        "model": "Mô hình mặc định",
         "name": "Tên nhà cung cấp",
         "notes": "Ghi chú (tùy chọn)"
       },
@@ -95,7 +158,9 @@
         "none": "Không đặt mô hình mặc định"
       },
       "notices": {
+        "claudeDesktop": "Yêu cầu CC Switch v4.0.26 trở lên. Sử dụng định dạng API Anthropic. Tên mô hình bắt đầu bằng claude- hoặc không chỉ định mô hình sẽ được nhập dưới dạng kết nối trực tiếp; tên khác được nhập dưới dạng ánh xạ mô hình qua bộ định tuyến cục bộ của CC Switch.",
         "hermes": "CC Switch nhập Hermes bằng giao thức Chat Completions. Khi xuất, tên nhà cung cấp được chuyển thành mã định danh hợp lệ chỉ gồm chữ thường, chữ số và dấu gạch nối. Để sử dụng định dạng khác như Anthropic Messages hoặc Codex Responses, hãy điều chỉnh trong CC Switch sau khi nhập.",
+        "modelRequired": "Yêu cầu CC Switch v4.0.26 trở lên. Chọn hoặc nhập mô hình trước khi xuất. Sử dụng định dạng API OpenAI Chat Completions.",
         "openclaw": "CC Switch hiện không hỗ trợ định dạng API của dịch vụ OpenClaw AI thông qua nhập bên ngoài; nếu cần, vui lòng điều chỉnh thủ công trong CC Switch sau khi nhập.",
         "opencode": "CC Switch hiện không hỗ trợ định dạng API của dịch vụ OpenCode AI thông qua nhập bên ngoài; nếu cần, vui lòng điều chỉnh thủ công trong CC Switch sau khi nhập."
       },
@@ -146,6 +211,7 @@
       "keyCopied": "Đã sao chép API Key vào khay nhớ tạm",
       "loadFailed": "Tải danh sách API Key thất bại: {{error}}",
       "loading": "Đang lấy danh sách API Key...",
+      "managementConfigurationRequired": "Cần token quản lý để tải và quản lý danh sách khóa của trang web. Các khóa API đã lưu vẫn có thể được sử dụng độc lập.",
       "noKeyFoundAfterCreate": "Tạo thành công nhưng không lấy được API Key, vui lòng thử lại.",
       "noKeys": "Chưa có dữ liệu API Key",
       "noKeysDescription": "Tài khoản này hiện không có API Key khả dụng, bạn có thể tạo nhanh API Key mặc định hoặc tạo tùy chỉnh rồi sao chép.",
@@ -280,11 +346,15 @@
     "expand": "Mở rộng",
     "firefox": {
       "confirm": "Xác nhận",
+      "howOpenOptions": "Tiếp tục ở trang đầy đủ",
       "howOpenSidebar": "Cách mở thanh bên",
       "limitation": "Giới hạn tính năng trên trình duyệt Firefox",
+      "openFailed": "Không thể mở bảng bên hoặc trang đầy đủ. Vui lòng thử lại.",
+      "openOptions": "Tiếp tục ở trang đầy đủ",
       "openSidebar": "Mở thanh bên",
-      "popupLimitation": "Không thể sử dụng bình thường tính năng này trong cửa sổ bật lên của trình duyệt Firefox. Vui lòng sử dụng chế độ thanh bên để thêm tài khoản",
-      "sidebarInstruction": "Nhấp vào biểu tượng tiện ích trong thanh công cụ của trình duyệt, sau đó chọn \"Thanh bên\" để mở chế độ thanh bên",
+      "optionsInstruction": "Dùng nút bên dưới để mở trang quản lý tài khoản đầy đủ của tiện ích.",
+      "popupLimitation": "Cửa sổ bật lên của Firefox có thể đóng khi mở trang khác. Hãy thêm tài khoản trong bảng bên hoặc trang đầy đủ.",
+      "sidebarInstruction": "Dùng nút bên dưới để tiếp tục trong bảng bên. Nếu không mở được, trang đầy đủ sẽ mở thay thế.",
       "warningTitle": "Nhắc nhở giới hạn tính năng"
     },
     "kelivo": {
@@ -413,27 +483,32 @@
       "titleWithCookieInterceptor": "Làm mới tự động cần xác minh trang web"
     },
     "updateLog": {
-      "autoOpenSetting": "Tự động mở nhật ký cập nhật",
-      "disableAutoOpen": "Không tự động mở nữa",
-      "enableAutoOpen": "Bật lại tự động mở",
       "loading": "Đang tải nhật ký cập nhật...",
-      "missingSection": "Tải bản xem trước nhật ký cập nhật thất bại (v{{version}}). Bạn có thể mở toàn bộ nhật ký cập nhật để xem.",
-      "openFullChangelog": "Mở toàn bộ nhật ký cập nhật",
-      "starPrompt": "All API Hub hữu ích với bạn? Hãy gắn sao trên GitHub để theo dõi các cập nhật",
+      "missingSection": "Nhật ký của v{{version}} đang tải chậm. Bạn có thể mở nhật ký đầy đủ.",
+      "openFullChangelog": "Xem nhật ký đầy đủ",
+      "starPrompt": "Tặng một Star trên GitHub để ủng hộ việc cải tiến liên tục",
       "title": "Nội dung cập nhật",
       "updatedTo": "Đã cập nhật lên v{{version}}"
     }
   },
   "feedback": {
     "bugReport": "Báo cáo lỗi",
+    "clickAnywhereToClose": "Nhấp vào bất kỳ đâu để đóng",
     "community": "Nhóm cộng đồng",
+    "communityUnavailable": "Không thể tải liên kết cộng đồng. Mở trang cộng đồng để xem lời mời mới nhất.",
     "discussion": "Tham gia thảo luận",
     "featureRequest": "Đề xuất tính năng",
     "languageRequest": "Yêu cầu ngôn ngữ mới",
+    "openCommunityPage": "Mở trang cộng đồng",
     "siteSupportRequest": "Phản hồi trang web chưa được hỗ trợ",
+    "sponsor": "Tài trợ",
+    "sponsorTitle": "Xem nhà tài trợ và hỗ trợ",
     "starOnGithub": "Gắn sao trên GitHub",
     "trigger": "Phản hồi",
-    "triggerTooltip": "Mở lối tắt phản hồi"
+    "triggerTooltip": "Mở lối tắt phản hồi",
+    "wechat": "Nhóm WeChat",
+    "wechatHelp": "Lời mời vào nhóm đã hết hạn hoặc nhóm đã đầy? Quét mã QR cá nhân trong ảnh để kết bạn và nhờ mời vào nhóm, hoặc truy cập trang cộng đồng.",
+    "wechatUnavailable": "Không thể tải mã QR."
   },
   "modelListInput": {
     "actions": {
@@ -485,6 +560,7 @@
     "basic": "Cài đặt",
     "batchCheckin": "Điểm danh hàng loạt",
     "bookmark": "Quản lý dấu trang",
+    "browserApiLab": "Phòng thử nghiệm API trình duyệt (Dev)",
     "categories": {
       "api": "API",
       "automation": "Tự động hóa",
@@ -540,10 +616,12 @@
   "popupInterruption": {
     "actions": {
       "keepPopup": "Tiếp tục dùng popup",
-      "useSidepanel": "Dùng thanh bên"
+      "useOptions": "Tiếp tục ở trang đầy đủ",
+      "useSidepanel": "Tiếp tục trong bảng bên"
     },
-    "description": "Cửa sổ bật lên đã đóng khi đang tự động nhận diện tài khoản. Hãy dùng thanh bên để thêm tài khoản ổn định hơn.",
-    "settingName": "Hành vi khi bấm thanh công cụ",
+    "description": "Cửa sổ bật lên đã đóng khi đang tự động nhận diện tài khoản. Tiếp tục trong bảng bên; nếu không mở được, trang đầy đủ sẽ được sử dụng.",
+    "openFailed": "Không thể mở bảng bên hoặc trang đầy đủ. Vui lòng thử lại.",
+    "optionsDescription": "Cửa sổ bật lên đã đóng khi đang tự động nhận diện tài khoản. Tiếp tục thêm tài khoản ở trang đầy đủ.",
     "title": "Tự động nhận diện có thể đã bị gián đoạn"
   },
   "repeatableInput": {
@@ -560,6 +638,12 @@
   },
   "searchableSelect": {
     "empty": "Không tìm thấy mục phù hợp",
+    "fetchDetails": "Chi tiết lỗi",
+    "fetchEmpty": "Yêu cầu thành công nhưng không trả về mô hình nào.",
+    "fetchEmptyLabel": "Danh sách trống",
+    "fetchFailed": "Không thể lấy danh sách.",
+    "fetchSuccess_other": "Đã lấy {{count}} mô hình.",
+    "manualInputHint": "Bạn có thể nhập trực tiếp ID mô hình.",
     "noOptions": "Hiện không có tùy chọn nào",
     "noOptionsAllowCustom": "Hiện không có tùy chọn, bạn có thể nhập để tạo",
     "searchPlaceholder": "Tìm kiếm...",
@@ -567,6 +651,7 @@
   },
   "secretList": {
     "add": "Thêm khóa",
+    "clearedState": "Khóa đã lưu sẽ bị xóa",
     "collapse": "Thu gọn API Key {{number}}",
     "configured": "Đã cấu hình",
     "enableKey": "Bật khóa này",
@@ -574,6 +659,7 @@
     "hide": "Ẩn khóa",
     "keepPlaceholder": "Để trống để giữ khóa đã lưu",
     "loadFailed": "Không thể tải khóa này. Vui lòng thử lại.",
+    "maskedOnly": "Chỉ có giá trị đã che của khóa đã lưu này.",
     "newPlaceholder": "Nhập khóa API",
     "newState": "Mới, chưa lưu",
     "previousDisableReason": "Lý do vô hiệu hóa trước đó: {{reason}}",
@@ -586,6 +672,12 @@
     "show": "Hiện khóa",
     "title": "Khóa API"
   },
+  "sidebarFooter": {
+    "community": "Cộng đồng",
+    "docs": "Tài liệu",
+    "github": "GitHub",
+    "sponsor": "Tài trợ"
+  },
   "starPromotion": {
     "actions": {
       "alreadyStarred": "Tôi đã gắn sao rồi",
@@ -594,7 +686,7 @@
       "star": "Gắn sao"
     },
     "cardDescription": "All API Hub hoàn toàn mã nguồn mở, không ngừng hỗ trợ thêm nhiều trang và cải thiện trải nghiệm. Một sao giúp duy trì việc bảo trì và để nhiều người cần nó hơn tìm thấy nó.",
-    "cardTitle": "All API Hub có hữu ích không?"
+    "cardTitle": "Ủng hộ việc cải tiến liên tục"
   },
   "textEntries": {
     "add": "Thêm dòng",

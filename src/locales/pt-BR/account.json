@@ -39,6 +39,7 @@
     "modelManagement": "Lista de modelos",
     "openAllExternalCheckIn": "Abra todos os check-ins externos",
     "openAllExternalCheckInHint": "Abra check-ins externos não verificados. Ctrl/Cmd: abre tudo. Shift: abrir em uma nova janela. Ctrl/Cmd+Shift: abre tudo em uma nova janela.",
+    "openSite": "Abrir site",
     "pin": "Fixar conta",
     "pinned": "Fixado",
     "quickCheckin": "Check-in rápido",
@@ -58,7 +59,7 @@
   "addFirstAccount": "Adicione sua primeira conta",
   "bulk": {
     "clearAll": "Limpar seleção",
-    "clearVisible": "Limpar seleção visível",
+    "clearVisible": "Desmarcar todos nesta lista",
     "copyInviteLinks": "Copiar links de convite",
     "copyInviteLinksClipboardFailed": "O acesso à área de transferência foi bloqueado. Copie os links de convite gerados manualmente.",
     "copyInviteLinksClipboardFailedWithReasons": "O acesso à área de transferência foi bloqueado. Copie os links de convite gerados manualmente. Outras contas: {{reasonSummary}}.",
@@ -69,6 +70,12 @@
     "copyInviteLinksSuccess_many": "Links de convite {{count}} copiados.",
     "copyInviteLinksSuccess_other": "Links de convite {{count}} copiados.",
     "copyInviteLinksUnsupported": "A seleção atual não suporta links de convite.",
+    "copySiteUrls": "Copiar URL dos sites",
+    "copySiteUrlsClipboardFailed": "O navegador não conseguiu escrever na área de transferência. Copie as URL dos sites manualmente na lista de contas.",
+    "copySiteUrlsNone": "As contas selecionadas não têm URLs de sites para copiar.",
+    "copySiteUrlsSuccess_one": "URL do site {{count}} copiada.",
+    "copySiteUrlsSuccess_many": "URLs de {{count}} sites copiadas.",
+    "copySiteUrlsSuccess_other": "URLs de {{count}} sites copiadas.",
     "deleteConfirmAction": "Excluir selecionado",
     "deleteConfirmDescription_one": "Você está prestes a excluir {{count}} conta selecionada. Revise a seleção antes de confirmar.",
     "deleteConfirmDescription_many": "Você está prestes a excluir {{count}} contas selecionadas. Revise a seleção antes de confirmar.",
@@ -104,13 +111,15 @@
     "selectedSummary_other": "{{selected}} selecionadas",
     "selectionEmpty": "Nenhuma conta selecionada",
     "selectionScope": "Seleção",
-    "selectVisible": "Selecione resultados visíveis"
+    "selectVisible": "Selecionar todos nesta lista"
   },
-  "currentLoginAdded": "⚠️O login atual para {{siteName}} já está na sua lista",
-  "currentSiteAdded": "⚠️{{siteName}} já tem uma conta salva",
-  "currentSiteAddedCount_one": "⚠️Este site já possui {{count}} conta salva",
-  "currentSiteAddedCount_many": "⚠️Este site já possui {{count}} contas salvas",
-  "currentSiteAddedCount_other": "⚠️Este site já possui {{count}} contas salvas",
+  "currentLoginAdded": "O login atual para {{siteName}} já está na sua lista",
+  "currentSiteAdded": "{{siteName}} já tem uma conta salva",
+  "currentSiteAddedCount_one": "Este site já possui {{count}} conta salva",
+  "currentSiteAddedCount_many": "Este site já possui {{count}} contas salvas",
+  "currentSiteAddedCount_other": "Este site já possui {{count}} contas salvas",
+  "currentSiteFilterAction": "Ver",
+  "currentSiteFilterHint": "Clique para filtrar as contas deste site na sua lista",
   "description": "Gerencie contas de sites e consulte saldos, uso e status.",
   "emptyState": "Nenhuma conta ainda",
   "emptyStateDescription": "Adicione uma conta para gerenciar saldos, integridade, chaves de API e uso em um só lugar.",
@@ -118,10 +127,14 @@
     "checkIn": {
       "all": "Todos os estados de check-in",
       "checked-in": "Check-in",
+      "configuration": "Configuração / método indisponível",
+      "manual": "Não é possível consultar",
       "not-checked-in": "Não fez check-in",
-      "outdated": "Status desatualizado",
+      "outdated": "Aguardando atualização",
+      "pending": "Ainda não consultado",
       "placeholder": "Status do check-in",
-      "status-unavailable": "Status indisponível",
+      "query-failed": "Falha na consulta",
+      "site-disabled": "Desativado pelo site",
       "unsupported": "Não suportado"
     },
     "disabled": {
@@ -248,7 +261,21 @@
     "resetSort": "Redefinir ordem padrão",
     "site": {
       "checkedInToday": "Check-in hoje, clique para visualizar",
-      "checkInStatusOutdated": "O status do check-in não foi detectado hoje (horário da última verificação: {{time}}). Clique para atualizar",
+      "checkInAccountDisabled": "Conta desativada; check-in automático pausado",
+      "checkInAutomationBlocked": "O check-in automático está bloqueado: {{reason}}",
+      "checkInAutomationDisabled": "O check-in automático da conta está desativado",
+      "checkInAutomationEnabled": "O check-in automático da conta está ativado",
+      "checkInAutomationGloballyDisabled": "O check-in automático da conta está ativado, mas a opção global está desativada",
+      "checkInLastKnownChecked": "Última confirmação de check-in realizado: {{time}}",
+      "checkInLastKnownNotChecked": "Última confirmação de check-in pendente: {{time}}",
+      "checkInNeedsConfiguration": "O check-in automático precisa de configuração: {{reason}}. Clique para editar a conta",
+      "checkInNeedsRedetection": "O método de check-in precisa ser detectado novamente: {{reason}}. Clique para detectar",
+      "checkInRefreshPartial": "Os dados de {{accountName}} foram atualizados, mas o status do check-in não. Tente novamente",
+      "checkInSiteDisabled": "O site desativou o check-in. Clique para abrir o site",
+      "checkInStatusFailed": "Não foi possível atualizar o status do check-in (tentativa: {{time}}). Clique para tentar novamente",
+      "checkInStatusManual": "Este método não permite consultar o status. Clique para verificar no site",
+      "checkInStatusOutdated": "O status do check-in precisa ser atualizado (última confirmação: {{time}}). Clique para atualizar",
+      "checkInStatusPending": "O status do check-in ainda não foi consultado. Clique para atualizar",
       "currentSite": "Site atual",
       "currentSiteBoostHint": "Corresponde à conta conectada no site atual e aparece antes das outras contas. Contas desativadas ficam no final.",
       "currentSiteExists": "Mesmo site da guia atual",
@@ -267,7 +294,13 @@
     "sortMenu": "Ordenar por",
     "toggleSortOrder": "Alternar ordem"
   },
+  "popupOnboarding": {
+    "signInHint": "Entre no seu site de API e adicione uma conta por detecção automática ou manualmente."
+  },
   "refresh": {
+    "checkInStatusFailed_one": "Não foi possível atualizar o status de check-in de {{count}} conta. Tente novamente",
+    "checkInStatusFailed_many": "Não foi possível atualizar o status de check-in de {{count}} contas. Tente novamente",
+    "checkInStatusFailed_other": "Não foi possível atualizar o status de check-in de {{count}} contas. Tente novamente",
     "refreshComplete": "Atualização concluída: {{success}} com sucesso, {{failed}} com falha",
     "refreshDisabledComplete": "Verificação de contas desativadas concluída: {{restored}} restauradas, {{stillDisabled}} ainda desativadas",
     "refreshDisabledCompleteWithFailures": "Verificação de contas desativadas concluída: {{restored}} restauradas, {{stillDisabled}} ainda desativadas, {{failed}} com falha",
@@ -293,6 +326,15 @@
       "description": "Cadastre-se no site de um provedor e siga as orientações do cartão para adicionar uma conta, salvar credenciais de API ou favoritar o site.",
       "title": "Explore os provedores disponíveis"
     },
+    "openWorkflowFailed": "Não foi possível abrir a configuração. Tente novamente.",
+    "popupApiCredentialProfiles": {
+      "description": "Precisa de API para desenvolvedores ou cota do Coding Plan? Preencha o URL base e obtenha chaves rapidamente:",
+      "title": "Provedores e assinaturas recomendados"
+    },
+    "popupBookmarks": {
+      "description": "Adicione aos favoritos com um clique para acesso rápido a qualquer momento:",
+      "title": "Sites recomendados"
+    },
     "recommendedProviders": "Fornecedores recomendados",
     "supportStatus": {
       "fallbackApiCredentialProfiles": "Adicionar como credencial",
@@ -303,17 +345,44 @@
     }
   },
   "stats": {
+    "allowanceExpiry": "Expira: {{time}}",
+    "allowanceReset": "Redefine: {{time}}",
+    "allowances": "Detalhes da cota",
+    "allowanceScope": "Grupo de cota: {{scope}}",
     "completion": "Conclusão",
     "estimatedTodayIncome": "Renda estimada",
+    "groupAllowance": "Cota do grupo",
+    "nativeCredits": "créditos",
+    "nativeCreditsDetail": "Permanentes {{permanent, number}} · Hoje {{daily, number}} (expiram diariamente)",
+    "novitaBalance": {
+      "available": "Saldo disponível",
+      "cash": "Saldo de recargas",
+      "creditLimit": "Limite de crédito (dívida máxima)",
+      "description": "O saldo disponível é informado pela Novita. O saldo de recargas corresponde aos fundos recarregados restantes; o limite de crédito é a dívida máxima permitida. Atualmente, a extensão não inclui os saldos da Novita no saldo total, no histórico de saldo e nas estimativas de receita.",
+      "title": "Detalhes do saldo"
+    },
+    "permanentAllowance": "Permanente",
     "prompt": "Prompt",
-    "subscriptionInactive": "Inativo ou expirado",
+    "scopedAllowances": "Cotas de grupos e assinaturas podem ter restrições de uso. As cotas nativas são excluídas do saldo total, do histórico de saldo e das estimativas de receita.",
     "subscriptionRemainingCount": "Solicitações de assinatura restantes",
+    "subscriptionRemainingTokens": "Tokens restantes (saldo da conta e chaves); o valor em dólares equivale ao preço publicado e inclui tokens gratuitos.",
+    "subscriptionState": {
+      "active": "Assinatura ativa",
+      "expired": "Assinatura expirada",
+      "grace": "Período de carência da assinatura",
+      "inactive": "Nenhuma assinatura ativa",
+      "unavailable": "Status da assinatura indisponível"
+    },
     "subscriptionStatus": "Status da assinatura",
     "subscriptionTitle": "Assinatura",
+    "timedAllowance": "Cota temporária",
+    "timedDetailsUnavailable": "Não foi possível carregar as cotas temporárias. Atualize a conta.",
     "todayConsumption": "Consumo de hoje",
     "todayIncome": "Renda de hoje",
+    "tokenCredit": "tokens",
     "totalBalance": "Saldo total",
     "trustedTodayIncome": "Renda confirmada",
+    "unlockedModels": "Modelos desbloqueados: {{models}}",
     "usageRequests": "Solicitações de período",
     "usageTokens": "Tokens de período"
   },

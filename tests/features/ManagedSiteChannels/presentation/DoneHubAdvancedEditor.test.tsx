@@ -8,16 +8,17 @@ import {
   DONE_HUB_MANAGED_RESOURCE_FIELD_IDS as fields,
 } from "~/constants/doneHub"
 import { SITE_TYPES } from "~/constants/siteType"
-import { ManagedResourceEditorBody } from "~/features/ManagedSiteChannels/presentation/ManagedResourceEditorBody"
-import { getManagedResourceFieldPolicy } from "~/features/ManagedSiteChannels/presentation/managedResourceFieldPolicy"
+import { ManagedResourceEditorBody } from "~/features/ManagedSiteChannels/editor/ManagedResourceEditorBody"
+import { getManagedResourceFieldPolicy } from "~/features/ManagedSiteChannels/editor/managedResourceFieldPolicy"
 import enChannelDialog from "~/locales/en/channelDialog.json"
 import enCommon from "~/locales/en/common.json"
 import enManaged from "~/locales/en/managedSiteChannels.json"
 import enUi from "~/locales/en/ui.json"
 import { MANAGED_RESOURCE_KINDS } from "~/services/accountSiteDefinitions/contracts"
 import type { EditableResourceProjection } from "~/services/apiAdapters/contracts/managedResourceNative"
-import { withDoneHubAdvancedEditor } from "~/services/apiAdapters/managedResources/doneHubEditor"
+import { withDoneHubAdvancedEditor } from "~/services/apiAdapters/managedResources/doneHub/editor"
 import { createResourceTestI18n } from "~~/tests/test-utils/i18n"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { render } from "~~/tests/test-utils/render"
 
 const i18n = await createResourceTestI18n({
@@ -179,9 +180,8 @@ describe("DoneHub advanced editor interactions", () => {
     })
     await user.type(streaming, "custom-stream-model")
     await user.keyboard("{Enter}")
-    expect(
-      screen.getByText("custom-stream-model", { exact: true }),
-    ).toBeVisible()
+    expect(screen.getByTitle("custom-stream-model")).toBeVisible()
+    await user.keyboard("{Escape}")
     const models = screen.getByRole("button", { name: "Models" })
     await user.click(models)
     expect(testModel).not.toBeVisible()
@@ -212,7 +212,7 @@ describe("DoneHub advanced editor interactions", () => {
       enManaged.editor.doneHub.proxy.invalid,
     )
     await user.clear(proxy)
-    await user.type(proxy, "socks5://proxy.example:1080")
+    await user.paste("socks5://proxy.example:1080")
     const headers = screen.getByRole("group", {
       name: "Custom request headers",
     })
@@ -237,7 +237,9 @@ describe("DoneHub advanced editor interactions", () => {
     expect(parameters).toBeVisible()
     await user.clear(parameters)
     await user.paste('{"temperature":0.5}')
-    await user.click(screen.getAllByRole("button", { name: "Format JSON" })[1])
+    await user.click(
+      atIndex(screen.getAllByRole("button", { name: "Format JSON" }), 1),
+    )
     expect(parameters).toHaveValue('{\n  "temperature": 0.5\n}')
     await user.click(
       screen.getByRole("switch", { name: "Forward extra body fields" }),
@@ -248,14 +250,21 @@ describe("DoneHub advanced editor interactions", () => {
     expect(
       screen.getByRole("switch", { name: "Forward extra body fields" }),
     ).toBeChecked()
+  })
+
+  it("keeps API compatibility enabled while opening routing fields", async () => {
+    const user = userEvent.setup()
+    renderEditor()
     await user.click(screen.getByRole("button", { name: "API compatibility" }))
     await user.click(
       screen.getByRole("switch", { name: "Responses API compatibility" }),
     )
-    await user.type(
-      screen.getByRole("textbox", { name: "Responses request path" }),
-      "/custom/responses",
-    )
+    const responsePath = screen.getByRole("textbox", {
+      name: "Responses request path",
+    })
+    await user.click(responsePath)
+    await user.paste("/custom/responses")
+    expect(responsePath).toHaveValue("/custom/responses")
     expect(
       screen.getByRole("switch", { name: "Responses API compatibility" }),
     ).toBeChecked()

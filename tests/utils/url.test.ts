@@ -9,9 +9,9 @@ import {
   normalizeHttpUrl,
   parseTabFromUrl,
   sanitizeOriginUrl,
-  stripTrailingOpenAIV1,
   updateUrlWithTab,
 } from "~/utils/core/url"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 describe("joinUrl", () => {
   it("should join base and path with single slash", () => {
@@ -170,28 +170,6 @@ describe("sanitizeOriginUrl", () => {
 
   it("preserves explicit non-http schemes for parsing and still rejects them", () => {
     expect(sanitizeOriginUrl("mailto:test@example.com")).toBeUndefined()
-  })
-})
-
-describe("stripTrailingOpenAIV1", () => {
-  it("strips a trailing /v1 segment", () => {
-    expect(stripTrailingOpenAIV1("https://x.test/v1")).toBe("https://x.test")
-    expect(stripTrailingOpenAIV1("https://x.test/v1/")).toBe("https://x.test")
-    expect(stripTrailingOpenAIV1("https://x.test/openai/v1")).toBe(
-      "https://x.test/openai",
-    )
-  })
-
-  it("does not strip non-v1 endings", () => {
-    expect(stripTrailingOpenAIV1("https://x.test")).toBe("https://x.test")
-    expect(stripTrailingOpenAIV1("https://x.test/v1beta")).toBe(
-      "https://x.test/v1beta",
-    )
-  })
-
-  it("falls back safely when the input is not an absolute url", () => {
-    expect(stripTrailingOpenAIV1("example.com/v1/")).toBe("example.com")
-    expect(stripTrailingOpenAIV1("example.com/api")).toBe("example.com/api")
   })
 })
 
@@ -379,7 +357,7 @@ describe("updateUrlWithTab", () => {
     updateUrlWithTab("settings")
     expect(window.history.replaceState).toHaveBeenCalled()
     const call = vi.mocked(window.history.replaceState).mock.calls[0]
-    const url = call[2] as string
+    const url = atIndex(call, 2) as string
     expect(url).toContain("tab=settings")
   })
 
@@ -398,7 +376,7 @@ describe("updateUrlWithTab", () => {
   it("should add hash with hashPage option", () => {
     updateUrlWithTab("settings", { hashPage: "config" })
     const call = vi.mocked(window.history.replaceState).mock.calls[0]
-    const url = call[2] as string
+    const url = atIndex(call, 2) as string
     expect(url).toContain("#config")
     expect(url).toContain("?tab=settings")
   })
@@ -406,7 +384,7 @@ describe("updateUrlWithTab", () => {
   it("should preserve a pre-prefixed hashPage value", () => {
     updateUrlWithTab("settings", { hashPage: "#config" })
     const call = vi.mocked(window.history.replaceState).mock.calls[0]
-    const url = call[2] as string
+    const url = atIndex(call, 2) as string
     expect(url).toContain("#config")
   })
 
@@ -416,7 +394,7 @@ describe("updateUrlWithTab", () => {
     ;(window.location as any).search = "?page=1"
     updateUrlWithTab("profile")
     const call = vi.mocked(window.history.replaceState).mock.calls[0]
-    const url = call[2] as string
+    const url = atIndex(call, 2) as string
     expect(url).toContain("page=1")
     expect(url).toContain("tab=profile")
   })
@@ -519,7 +497,7 @@ describe("navigateToAnchor", () => {
 
     expect(window.history.replaceState).toHaveBeenCalled()
     const call = vi.mocked(window.history.replaceState).mock.calls[0]
-    const url = call[2] as string
+    const url = atIndex(call, 2) as string
     expect(url).toContain("#config")
     expect(url).toContain("?tab=settings")
   })

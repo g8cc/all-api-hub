@@ -1,10 +1,12 @@
 {
   "verifyDialog": {
+    "about": "Información de la prueba",
     "actions": {
       "close": "Cerrar",
       "manageModelKey": "Abrir configuración de clave de modelo",
       "retry": "Reintentar",
-      "run": "Ejecutar",
+      "runAll": "Ejecutar pruebas habituales",
+      "runAllHint": "Solo ejecuta las pruebas habituales. Inicia las pruebas bajo demanda por separado.",
       "running": "Ejecutando...",
       "runOne": "Ejecutar",
       "stop": "Detener",
@@ -16,55 +18,127 @@
       "openai": "OpenAI",
       "openaiCompatible": "Compatible con OpenAI"
     },
+    "associatedCredentialHint": "Este sitio no permite recuperar la clave completa. Las pruebas usan la clave completa guardada en la biblioteca de credenciales API y vinculada a la clave seleccionada. Si no hay ninguna vinculada, primero guarda o vincula la clave en la administración de claves.",
     "details": {
       "input": "Entrada",
-      "output": "Salida"
+      "output": "Salida",
+      "result": "Resultado de ejecución"
     },
     "errors": {
       "unexpected": "Error inesperado"
     },
+    "generatedImagePreview": "Vista previa de la imagen generada",
+    "generatedVideoPreview": "Vista previa del video generado",
     "history": {
       "clear": "Borrar historial",
-      "lastVerified": "Última verificación"
+      "lastVerified": "Última prueba",
+      "previousResult": "Anterior: {{result}}",
+      "storage": {
+        "context": "El historial conserva las mediciones, sin detalles de cada solicitud.",
+        "drawing": "El historial no conserva el dibujo ni los detalles de ejecución.",
+        "needle": "El historial conserva las mediciones. El mismo número de muestra y configuración permiten generar de nuevo el texto de prueba.",
+        "probe": "El historial conserva el resumen, sin el contenido de las solicitudes ni las respuestas."
+      }
     },
-    "idleHint": "Selecciona una clave para iniciar la verificación. El id del modelo es obligatorio para pruebas dependientes del modelo.",
+    "intro": {
+      "probes": {
+        "decision": "Envía un estado de ejemplo al endpoint de decisiones y comprueba si devuelve un valor de decisión o probabilidades.",
+        "embedding": "Envía un texto de ejemplo y revisa el vector devuelto y sus dimensiones.",
+        "image-generation": "Envía una instrucción para generar una imagen, revisa la respuesta y previsualiza la imagen.",
+        "models": "Obtén los nombres y la cantidad de modelos del endpoint para elegir modelos en las siguientes pruebas.",
+        "rerank": "Envía una consulta y documentos candidatos y comprueba su orden de relevancia.",
+        "structured-output": "Pide al modelo un JSON que contenga ok: true y valida el valor del campo y la estructura.",
+        "text-generation": "Comprueba si el modelo responde a una instrucción. La prueba pasa si la respuesta contiene OK, sin distinguir mayúsculas y minúsculas.",
+        "tool-calling": "Pide al modelo que llame a la herramienta integrada de marca de tiempo. La prueba pasa al detectar esa llamada.",
+        "video-generation": "Envía una tarea de generación de video, espera su estado y revisa el video generado.",
+        "web-search": "Comprueba si la API puede usar la búsqueda web y revisa los resultados y las citas."
+      },
+      "startHint": "Selecciona <run>Ejecutar</run> para iniciar esta prueba."
+    },
     "loadingRuntimeKeysHint": "Cargando claves...",
+    "mediaPreviewUnavailable": "No se pudo cargar la vista previa.",
     "meta": {
       "apiType": "Tipo de API",
       "apiTypePlaceholder": "Seleccionar tipo de API",
+      "configuration": "Configuración de la solicitud",
       "mode": "Modo de prueba",
       "model": "Modelo",
       "modelPlaceholder": "Ingresa id de modelo",
+      "requestProfile": "Simulación del cliente",
       "runtimeKey": "Clave",
       "runtimeKeyIncompatible": "No disponible para este modelo",
       "runtimeKeyPlaceholder": "Seleccionar clave"
+    },
+    "modalityNotice": {
+      "image": "Este es un modelo de generación de imágenes; las llamadas de prueba consumen cuota por solicitud.",
+      "quotaCost": "Por llamada",
+      "video": "Crea un video y espera hasta dos minutos para reproducirlo. Detener solo interrumpe la espera local; la tarea del servidor puede continuar y generar cargos."
     },
     "modes": {
       "nonStreaming": "Sin streaming",
       "streaming": "Con streaming"
     },
     "noCompatibleRuntimeKeyHint": "No hay ninguna clave disponible para el grupo de este modelo. Crea o elige una clave para un grupo habilitado en Administración de claves.",
-    "notRunYet": "Aún no ejecutado",
+    "openGeneratedMedia": "Abrir contenido generado",
     "probes": {
+      "decision": "Modelo de decisión",
+      "embedding": "Embeddings",
+      "image-generation": "Generación de imágenes",
       "models": "Lista de modelos",
-      "structured-output": "Salida estructurada (schema JSON)",
+      "rerank": "Reclasificador",
+      "structured-output": "Salida estructurada",
       "text-generation": "Generación de texto",
       "tool-calling": "Llamadas a herramientas/funciones",
-      "web-search": "Búsqueda web / grounding"
+      "video-generation": "Tarea de video",
+      "web-search": "Búsqueda web"
+    },
+    "requestProfiles": {
+      "claude": "Claude Code",
+      "codex": "Codex CLI",
+      "default": "API normal",
+      "enhancedBadge": "Mejorada",
+      "enhancedCostHint": "Puede aumentar el uso de entrada",
+      "enhancedHint": "Agrega prompts de identidad, encabezados SDK y características conocidas de caché y sesión. Puede aumentar el uso de entrada; la aceptación depende del sitio.",
+      "enhancedLabel": "Simulación CLI mejorada",
+      "gemini": "Gemini CLI",
+      "hint": "Al seleccionar un cliente se establece su protocolo predeterminado. Puedes cambiarlo manualmente después. Las pruebas simulan las solicitudes de API del cliente sin iniciar una CLI en tu dispositivo.",
+      "protocolMismatch": "Difiere del protocolo predeterminado del cliente ({{apiType}}); podría no ser compatible.",
+      "shortcutHint": "{{client}} está seleccionado. Ejecuta una prueba o elige otro cliente.",
+      "shortcutTooltip": "Prueba la compatibilidad de esta API con clientes CLI"
     },
     "requiresModelId": "Ingresa un id de modelo para ejecutar esta prueba.",
+    "sections": {
+      "onDemand": "Pruebas opcionales",
+      "routine": "Pruebas habituales"
+    },
     "selectedRuntimeKeyIncompatibleHint": "La clave seleccionada no está disponible para el grupo de este modelo. Elige una clave compatible antes de ejecutar la verificación.",
+    "source": {
+      "account": "Cuenta: {{name}}",
+      "profile": "Credencial: {{name}}"
+    },
     "status": {
+      "emptyResponse": "Sin texto de respuesta",
       "fail": "Falló",
+      "inconclusive": "Sin confirmar",
       "pass": "Correcto",
+      "paused": "En pausa",
       "pending": "Pendiente",
+      "stopped": "Detenido",
+      "timeout": "Solicitud agotó el tiempo",
       "unsupported": "No compatible",
-      "unverified": "Sin verificar"
+      "unverified": "Sin probar"
     },
     "summaries": {
+      "decisionSucceeded": "La prueba de decisión se realizó con éxito.",
+      "decisionUnexpectedResponse": "Respuesta inesperada de la interfaz de decisión.",
+      "embeddingSucceeded": "Embedding generado con éxito (dimensión: {{dimension}}).",
+      "embeddingUnexpectedResponse": "Respuesta inesperada de embedding.",
+      "embeddingUnsupportedAnthropic": "Anthropic no admite modelos nativos de embeddings.",
       "endpointNotFound": "Endpoint no encontrado (404): es posible que esta API no sea compatible",
       "forbidden": "Prohibido (403): acceso denegado",
       "httpError": "Error HTTP ({{status}})",
+      "imageGenerationNoData": "No se devolvieron datos de imagen.",
+      "imageGenerationSucceeded": "Generación de imagen exitosa.",
       "modelsFetched": "Se obtuvieron {{count}} modelos.",
       "modelsFetched_one": "Se obtuvo {{count}} modelo.",
       "modelsFetched_many": "Se obtuvieron {{count}} modelos.",
@@ -76,6 +150,11 @@
       "noModelIdProvidedToRunProbes": "No se proporcionó id de modelo para ejecutar las pruebas.",
       "noModelsReturned": "No se devolvieron modelos.",
       "noToolCallDetected": "No se detectó llamada a herramienta (es posible que el modelo no admita herramientas).",
+      "probeRequiresOpenAiProtocol": "Esta prueba requiere un endpoint de API compatible con OpenAI. Selecciona ese protocolo solo si tu servicio lo ofrece.",
+      "requestProfileIncompatible": "Esta simulación de cliente no admite el protocolo de API o la prueba seleccionados.",
+      "requestTimedOut": "La solicitud agotó el tiempo sin un resultado concluyente. Inténtalo más tarde; esto no demuestra que el modelo no admita esta función.",
+      "rerankSucceeded": "Reclasificación exitosa.",
+      "rerankUnexpectedResponse": "Respuesta inesperada de reclasificación.",
       "stopped": "Detenido por el usuario.",
       "structuredOutputInvalid": "Salida no válida.",
       "structuredOutputSucceeded": "Salida estructurada correcta.",
@@ -83,6 +162,12 @@
       "textGenerationUnexpectedResponse": "Texto de respuesta inesperado.",
       "toolCallSucceeded": "Llamada a herramienta correcta.",
       "unauthorized": "No autorizado (401): clave inválida o autenticación faltante",
+      "videoGenerationSucceeded": "Video generado correctamente.",
+      "videoGenerationTimedOut": "El video no terminó en dos minutos. La tarea del servidor puede seguir ejecutándose.",
+      "videoNoPlayableResult": "La tarea de video terminó sin una URL reproducible.",
+      "videoNoTaskReturned": "No se devolvió ID de tarea de video.",
+      "videoTaskAccepted": "Tarea de video aceptada.",
+      "videoUnexpectedResponse": "La tarea de video falló o devolvió una respuesta no válida.",
       "webSearchGroundingNoResults": "Sin resultados de búsqueda web/grounding.",
       "webSearchGroundingSucceeded": "Búsqueda web/grounding correcta.",
       "webSearchNoResults": "Sin resultados de búsqueda web.",
@@ -91,8 +176,229 @@
       "webSearchUnsupportedAnthropic": "La prueba de búsqueda web no es compatible con endpoints de Anthropic.",
       "webSearchUnsupportedForApiType": "La prueba de búsqueda web no es compatible con este tipo de API."
     },
-    "title": "Verificación de API",
+    "title": "Pruebas de API",
+    "tools": {
+      "agent": {
+        "calls": "Actividad de herramientas",
+        "completed": "Se generó un archivo SVG. Evalúa el dibujo por tu cuenta.",
+        "files": "Archivos del espacio de trabajo",
+        "hint": "El modelo revisa y mejora el dibujo. Esto puede aumentar el consumo.",
+        "label": "Modo de prueba de agente",
+        "noArtifact": "El modelo no escribió un SVG completo en pelican.svg. La respuesta final no se usa como archivo resultante.",
+        "summary": "Turnos: {{steps}} · Llamadas a herramientas: {{calls}} · {{seconds}} s"
+      },
+      "context": {
+        "about": "Acerca de la prueba de contexto",
+        "acceptedTitle": "Contexto del modelo: unos {{tokens}} tokens verificados",
+        "comparison": "los metadatos indican {{expected}} tokens",
+        "continue": "Continuar prueba",
+        "counter": "Tokenizador: {{encoding}}.",
+        "coverage": "Contexto ≈{{percent}}%",
+        "description": "Usa el contexto declarado como límite de prueba, o hasta 1M tokens si se desconoce. Cada lote tiene un presupuesto acumulado de entrada de unos 8M tokens y puede continuar tras una pausa.",
+        "details": "Detalles de la prueba",
+        "discard": "Descartar pruebas interrumpidas",
+        "discardWarning": "Hay demasiadas pruebas interrumpidas guardadas. Descarta los registros inactivos para continuar. Se desconoce su estado de cobro; las pruebas en curso se conservan.",
+        "emptyResponse": "La respuesta terminó normalmente sin texto; la aceptación de la entrada sigue sin confirmarse.",
+        "errorTitle": "La prueba no pudo finalizar",
+        "estimated": "Codificación del modelo estimada.",
+        "hint": "Prueba el contexto de entrada que acepta el modelo. El resultado depende de la API y la configuración de la solicitud y no confirma toda la ventana de contexto.",
+        "historyError": "El historial no está disponible. El resultado actual sigue visible.",
+        "incompleteResponse": "No se recibió una respuesta concluyente. Motivo de finalización: {{reason}}.",
+        "interrupted": "La solicitud se interrumpió y se desconoce su estado de cobro. No se reintentó. Iniciar otra prueba puede generar uso adicional.",
+        "lower": "Mayor entrada aceptada: {{tokens}} tokens de texto locales",
+        "maskedHistoryHint": "Medición guardada para esta clave enmascarada. No se han vuelto a verificar las credenciales actuales.",
+        "matched": "Codificación del modelo identificada; el conteo de la solicitud completa puede variar.",
+        "measuredBadge": "≈{{tokens}} tokens aceptados",
+        "measurementDetails": "Evidencia de medición",
+        "outputLimited": "Entrada aceptada; la salida se truncó por un límite de longitud. Esto no invalida la aceptación de la entrada.",
+        "pausedTitle": "Prueba en pausa",
+        "progress": "Solicitudes: {{requests}} · Presupuesto de entrada acumulado: aprox. {{tokens}} tokens (incluye solicitudes fallidas)",
+        "reasons": {
+          "bracketed": "Se encontró un límite de entrada aproximado para esta conexión.",
+          "budget": "Este lote alcanzó el presupuesto de solicitudes o de entrada acumulada. Continúa desde aquí para permitir más consumo.",
+          "inconclusive": "No se confirmó un límite de capacidad. Reintenta o abre los detalles para ver la causa.",
+          "test-limit": "Se aceptó esta longitud de entrada. La capacidad real puede ser mayor.",
+          "timeout": "La solicitud agotó el tiempo antes de confirmar la recepción de la entrada. Esto no demuestra que la entrada exceda la capacidad del modelo. Inténtalo más tarde; se volverá a enviar un texto largo y podría consumir créditos."
+        },
+        "reportedUsage": "Uso reportado: entrada {{input}} + salida {{output}} = total {{total}} tokens",
+        "requestDetails": "Solicitud y uso",
+        "resultLabel": "Resultado de capacidad de contexto",
+        "run": "Sondear contexto",
+        "startHint": "Envía texto largo y consume créditos de API. Se pausa al alcanzar el presupuesto.",
+        "stoppedTitle": "Prueba detenida",
+        "title": "Prueba de contexto del modelo",
+        "unableTitle": "No se pudo confirmar la capacidad de entrada",
+        "upper": "Rechazo por capacidad en: {{tokens}} tokens de texto locales"
+      },
+      "errors": {
+        "unexpected": "La solicitud falló: {{message}}"
+      },
+      "needle": {
+        "automatic": "Automático",
+        "automaticLimit": "Automático ({{limit}})",
+        "budget": "Unos {{tokens}} tokens de entrada, más la salida. La prueba consume tu cuota de API.",
+        "cancelledCell": "Cancelado",
+        "cancelledUnknown": "No se obtuvo un resultado evaluable.",
+        "capacityRunning": "Comprobando el contexto disponible. Las longitudes se actualizarán al terminar.",
+        "capped": "Cada solicitud prueba hasta 1M tokens de entrada.",
+        "cell": "Entrada local: {{tokens}} tokens · Posición real: {{depth}}% · {{latency}} ms",
+        "cellDetails": "Detalles de la celda",
+        "cumulativeScore": "Resultados acumulados: {{hits}}/{{graded}} respuestas evaluables coinciden",
+        "custom": "Personalizado",
+        "customLimit": "Longitud personalizada (tokens)",
+        "description": "Comprueba si el modelo encuentra un registro específico en distintas posiciones de un texto largo.",
+        "errors": {
+          "busy": "Ya hay una prueba de esta conexión en otra página.",
+          "failed": "No se pudo completar la prueba de la aguja: {{detail}}",
+          "metadata": "No se pudo cargar la información de contexto. Intenta de nuevo.",
+          "request": "Selecciona un modelo y credenciales válidas antes de ejecutar."
+        },
+        "exactLengths": "Longitudes exactas: {{lengths}} tokens",
+        "exactTotal": "Entrada total estimada: {{tokens}} tokens",
+        "expected": "Respuesta esperada: {{value}}",
+        "invalid": "La longitud debe ser un entero entre 1,024 y 1,048,576; el número de muestra, un entero entre 0 y 4,294,967,295.",
+        "length": "Tokens",
+        "lengthRule": "Las longitudes se duplican desde 8K y terminan con el límite de entrada de {{limit}}.",
+        "limit": "Longitud máxima del texto (tokens)",
+        "limitation": "Una coincidencia solo verifica esta muestra. Un fallo no demuestra truncamiento, una ventana de contexto menor ni un modelo diferente.",
+        "matrix": "Resultados por longitud y posición",
+        "matrixHint": "Haz clic en un estado para ver los detalles y ejecutar o repetir esa celda. Los botones de fila y columna ejecutan todas sus celdas, incluidas las que ya tienen resultados. Detener solo afecta a la celda, fila o columna correspondiente.",
+        "notRun": "Sin ejecutar",
+        "notScheduled": "Fuera de esta ejecución",
+        "outcomes": {
+          "contextLimit": "Excede límite",
+          "error": "Error",
+          "hit": "Coincide",
+          "incomplete": "Incompleto",
+          "interrupted": "Desconocido",
+          "miss": "No coincide"
+        },
+        "planDetails": "¿Cómo se eligen las longitudes?",
+        "planned": "Programado",
+        "plannedLengths": "Longitudes de texto (tokens)",
+        "positionRule": "Cada longitud se prueba en {{positions}}, cubriendo el inicio, el centro y el final.",
+        "preparing": "Preparando el plan de prueba…",
+        "preparingCellState": "Preparando…",
+        "previewPositions": "Cada longitud se prueba en las posiciones {{positions}}.",
+        "previewTitle": "Vista previa de la prueba",
+        "previousResult": "Resultado anterior (antes de esta ejecución)",
+        "probeFirst": "Comprobar el contexto disponible",
+        "progress": "Última ejecución: {{completed}}/{{total}} solicitudes procesadas",
+        "quick": "Probar solo el texto más largo",
+        "quickHint": "Prueba solo las tres posiciones de la longitud máxima prevista. Las demás longitudes quedan fuera de esta ejecución y pueden probarse por fila o columna.",
+        "randomSample": "Nueva muestra aleatoria",
+        "reasons": {
+          "budget": "Presupuesto alcanzado",
+          "complete": "Finalizado",
+          "error": "Solicitud fallida",
+          "interrupted": "Interrumpido; resultado desconocido"
+        },
+        "reference": {
+          "context": "Datos del modelo: contexto de {{tokens}} (sin verificar)",
+          "input": "Datos del modelo: límite de entrada de {{tokens}} (sin verificar)",
+          "measured": "Entrada aceptada antes: {{tokens}} (máximo desconocido)",
+          "unknown": "No se conoce el límite de contexto. El modo automático usa {{tokens}} tokens por ahora; la comprobación actualizará ese valor."
+        },
+        "reproduce": "Muestra {{seed}} · Tokenizador: {{encoding}}.",
+        "requestCount_one": "{{count}} solicitud",
+        "requestCount_many": "{{count}} solicitudes",
+        "requestCount_other": "{{count}} solicitudes",
+        "requestDetails": "Detalles de la solicitud y la respuesta",
+        "resultDetails": "Parámetros de prueba y reproducción",
+        "retestCell": "Repetir esta celda",
+        "retestColumn": "Repetir columna {{depth}}% ({{requests}})",
+        "retestRow": "Repetir fila {{length}} ({{requests}})",
+        "retry": "Reintentar",
+        "run": "Iniciar prueba de búsqueda",
+        "runCell": "Ejecutar esta celda",
+        "runColumn": "Ejecutar columna {{depth}}% ({{requests}})",
+        "runRow": "Ejecutar fila {{length}} ({{requests}})",
+        "savedResult": "Resultado guardado",
+        "scopeProgress": "{{completed}}/{{total}} procesados",
+        "score": "{{hits}}/{{total}} aciertos",
+        "seedHint": "Deja vacío para generar una muestra nueva cada vez. Usa el mismo número y configuración para repetir el mismo texto.",
+        "seedInput": "Número de muestra (opcional)",
+        "singleLengthRule": "Este plan prueba una sola longitud: {{limit}}.",
+        "sources": {
+          "custom": "Configuraste una entrada máxima de {{limit}}. El plan usa ese límite.",
+          "declaredContext": "Los datos del modelo indican {{context}} de contexto total. Al reservar {{reserve}} para la respuesta, quedan {{input}} de entrada. Esto no se ha verificado en la API actual.",
+          "declaredInput": "Los datos del modelo indican un límite de entrada independiente de {{input}}, que determina las longitudes. Esto no se ha verificado en la API actual.",
+          "fallback": "No hay límites del modelo ni registros de entrada aceptada disponibles. Se usa el límite predeterminado de {{limit}}. Puedes ajustarlo en la configuración o comprobar primero el contexto disponible.",
+          "measured": "Según la entrada aceptada antes por esta conexión, el plan prueba hasta {{limit}}. Esto no establece la capacidad máxima del modelo."
+        },
+        "stopCapacity": "Detener medición de contexto",
+        "stopCell": "Detener {{length}} · {{depth}}%",
+        "stopColumn": "Detener columna {{depth}}%",
+        "stopFailed": "No se pudo detener. Intenta de nuevo.",
+        "stoppingCell": "Deteniendo…",
+        "stopRow": "Detener fila {{length}}",
+        "title": "Aguja en un pajar",
+        "tokenUnits": "En esta prueba, 1K = 1,024 tokens y 1M = 1,048,576 tokens."
+      },
+      "pelican": {
+        "analysis": "{{shapes}} formas · {{wheels}} círculos/elipses · viewBox {{viewBox}}",
+        "description": "Pide al modelo un SVG de un pelícano en bicicleta para compararlo a simple vista. La valoración sigue siendo manual.",
+        "noSvg": "El modelo no devolvió ningún SVG.",
+        "outcomes": {
+          "error": "Error de ejecución",
+          "generated": "Dibujo generado",
+          "no-artifact": "Sin dibujo generado"
+        },
+        "previewAlt": "Dibujo generado",
+        "previewFailed": "No se pudo mostrar el SVG. Puede contener XML no válido, como atributos duplicados. Expande la respuesta original o los archivos del espacio de trabajo para revisarlo.",
+        "raw": "Respuesta sin procesar",
+        "run": "Ejecutar prueba de dibujo",
+        "title": "Prueba de dibujo",
+        "unsafe": "La respuesta contenía scripts o referencias externas, por lo que no se mostró."
+      },
+      "prompts": {
+        "editorLabel": "Prompt de {{probe}}",
+        "label": "Prompt",
+        "resetOne": "Restablecer este prompt",
+        "saveFailed": "No se pudieron guardar los prompts: {{message}}",
+        "sharedHint": "Los prompts guardados se comparten entre todos los accesos a las pruebas."
+      },
+      "questionAnswer": {
+        "comparison": "Comparación de respuestas",
+        "comparisonHint": "Solo se compara el texto de la respuesta final. Revisa la respuesta completa para evaluar el razonamiento.",
+        "description": "Usa tu propia pregunta para revisar la respuesta y el razonamiento del modelo. Agrega una respuesta de referencia para comparar la respuesta final.",
+        "draftChanged": "La pregunta o la respuesta de referencia cambió. Este resultado es de la ejecución anterior; vuelve a ejecutar la prueba para comparar los cambios.",
+        "finalAnswer": "Respuesta final extraída",
+        "loadFailed": "No se pudo cargar la configuración. Reintenta para recuperar el borrador guardado.",
+        "notIdentified": "No identificada",
+        "outcomes": {
+          "empty": "Sin respuesta",
+          "incomplete": "Respuesta incompleta",
+          "manual": "Respuesta recibida",
+          "matched": "Coincide con la referencia",
+          "mismatched": "No coincide con la referencia",
+          "ungraded": "Respuesta final poco clara"
+        },
+        "question": "Pregunta",
+        "questionRequired": "Ingresa una pregunta para ejecutar la prueba.",
+        "reference": "Respuesta de referencia (opcional)",
+        "requestFailed": "Error en la solicitud",
+        "reset": "Restablecer pregunta y respuesta de referencia",
+        "response": "Respuesta del modelo",
+        "rules": {
+          "extraction": "Si hay una referencia, se pide al modelo que escriba la respuesta final en la última línea empezando con FINAL_ANSWER:. Se extrae el texto después de los dos puntos. Sin una referencia, la respuesta se muestra sin calificar.",
+          "matching": "Se quitan los espacios al inicio y al final y se normalizan los caracteres de compatibilidad, como los de ancho completo. Luego se exige una coincidencia exacta: ２１ coincide con 21, pero 21 unidades no coincide con 21. Se distinguen mayúsculas, puntuación y espacios internos.",
+          "privacy": "La referencia solo se usa localmente y no se envía al modelo.",
+          "title": "Reglas de comparación",
+          "unavailable": "Sin una respuesta final con ese formato, solo se acepta una coincidencia si toda la respuesta coincide con la referencia. De lo contrario, se indica que la respuesta final no está clara. Las respuestas vacías o incompletas se indican por separado."
+        },
+        "run": "Ejecutar prueba de preguntas",
+        "runQuestion": "Pregunta usada en esta ejecución",
+        "runReference": "Respuesta de referencia de esta ejecución",
+        "saveFailed": "No se pudo guardar la configuración. Puedes usar el borrador actual.",
+        "saving": "Guardando…",
+        "title": "Prueba de preguntas y respuestas"
+      },
+      "settingsTitle": "Configuración de la prueba",
+      "stop": "Detener",
+      "stopped": "Detenido antes de terminar; no se guardó nada."
+    },
     "unsupportedProbeForApiType": "La prueba {{probe}} no es compatible con este tipo de API.",
-    "warning": "Cuando se detecta soporte, es muy probable que sea real. Cuando no se detecta soporte, aun así puede estar disponible. Los resultados son solo de referencia; confía en el uso real de la herramienta."
+    "warning": "Los resultados solo se aplican a la API, el modelo y la configuración de la solicitud utilizados en esta prueba."
   }
 }

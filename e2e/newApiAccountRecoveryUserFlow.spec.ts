@@ -1,3 +1,6 @@
+import { createServer } from "node:http"
+import type { AddressInfo } from "node:net"
+
 import { SITE_TYPES } from "~/constants/siteType"
 import { expect, test } from "~~/e2e/fixtures/extensionTest"
 import {
@@ -11,7 +14,11 @@ import { getServiceWorker } from "~~/e2e/utils/extensionState"
 import { waitForSavedAccount } from "~~/e2e/utils/realSite/accountAdd"
 import { createCompatibleRealSiteAccountFixturePreparer } from "~~/e2e/utils/realSite/compatibleAccountSaveFlow"
 import type { CompatibleApiRealSiteConfig } from "~~/e2e/utils/realSite/compatibleApi"
-import { createNewApiAccountRecovery } from "~~/e2e/utils/realSite/newApiAccountRecovery"
+import {
+  createNewApiAccountRecovery,
+  isUserFacingCredentialPage,
+  waitForNewUserFacingCredentialPage,
+} from "~~/e2e/utils/realSite/newApiAccountRecovery"
 
 const scenarios = [
   {
@@ -40,151 +47,358 @@ const scenarios = [
   },
 ] as const
 
-for (const scenario of scenarios) {
-  test(`New API real-site account flow ${scenario.name}`, async ({
-    context,
-    page,
-    extensionId,
-  }) => {
-    const baseUrl = "https://new-api-account-recovery.example.invalid"
-    const managementToken = "e2e-account-management-token"
-    const needsRecovery = scenario.method !== null
-    const config: CompatibleApiRealSiteConfig = {
-      baseUrl,
-      loginUrl: `${baseUrl}/login`,
-      loginApiUrl: `${baseUrl}/api/user/login`,
-      login2faApiUrl: `${baseUrl}/api/user/login/2fa`,
-      username: "e2e-user",
-      password: "e2e-password",
-      totpSecret: scenario.method === "2fa" ? "JBSWY3DPEHPK3PXP" : undefined,
+const recoveryTest = test.extend<{
+  securitySite: {
+    baseUrl: string
+    html: string
+    requests: number
+    pendingRequests: number
+  }
+}>({
+  securitySite: async ({ extensionId }, runFixture) => {
+    void extensionId
+    const site = { baseUrl: "", html: "", requests: 0, pendingRequests: 0 }
+    const server = createServer((request, response) => {
+      if (request.url === "/pending-security") {
+        response.writeHead(200, { "Content-Type": "text/html" })
+        response.end(
+          '<!doctype html><title>Inspection</title><script src="/pending-script"></script>',
+        )
+      } else if (request.url === "/pending-script") {
+        site.pendingRequests++
+        // Hold this inspection page before DOMContentLoaded.
+      } else if (request.url === "/security") {
+        site.requests += 1
+        response.writeHead(200, { "Content-Type": "text/html" })
+        response.end(site.html)
+      } else {
+        response.writeHead(404)
+        response.end()
+      }
+    })
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+    site.baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    try {
+      await runFixture(site)
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      )
     }
-    let blockedTokenRequests = 0
-    let verifiedTokenRequests = 0
-    let verificationRequests = 0
-    let automaticTokenRequests = 0
-    let securityPageRequests = 0
+  },
+})
 
-    await forceExtensionLanguage(page, "en")
-    await stubLlmMetadataIndex(context)
-    await stubNewApiSiteRoutes(context, {
-      baseUrl,
-      dashboardAuthMode: "auth-bundle",
-      accessToken: managementToken,
-    })
-    await context.route(`${baseUrl}/api/user/token`, (route) => {
-      const request = route.request()
-      const verified =
-        request.method() === "POST" &&
-        request.headers()["x-security-proof"] === "verified"
-      const automatic = !needsRecovery && request.method() === "GET"
-      if (verified) verifiedTokenRequests += 1
-      else if (automatic) automaticTokenRequests += 1
-      else blockedTokenRequests += 1
-      return route.fulfill({
-        status: verified || automatic ? 200 : 403,
-        json:
-          verified || automatic
-            ? { success: true, data: managementToken }
-            : {
-                success: false,
-                code: "SECURITY_PROOF_REQUIRED",
-                message: "Security verification required",
-              },
-      })
-    })
-    await context.route(`${baseUrl}/api/verify`, (route) => {
-      verificationRequests += 1
-      const body = route.request().postDataJSON()
-      const valid =
-        body.method === scenario.method &&
-        (scenario.method === "password"
-          ? body.password === config.password
-          : /^\d{6}$/u.test(body.code))
-      return route.fulfill({
-        status: valid ? 200 : 403,
-        json: { success: valid },
-      })
-    })
-    await context.route(`${baseUrl}/security`, (route) => {
-      securityPageRequests += 1
-      return route.fulfill({
-        contentType: "text/html",
-        body: securityPageHtml(scenario),
-      })
-    })
-    const serviceWorker = await getServiceWorker(context)
-    await seedUserPreferences(serviceWorker, {
-      autoFillCurrentSiteUrlOnAccountAdd: false,
-      autoProvisionKeyOnAccountAdd: false,
-      tempWindowFallback: { enabled: false },
-    })
-    const recovery = createNewApiAccountRecovery({ page, config })
-
-    const prepareAccount = createCompatibleRealSiteAccountFixturePreparer({
-      context,
-      page,
-      extensionId,
-      serviceWorker,
-      config,
-      ...recovery,
-      prepareDetectedDialog: async (dialog) => {
-        if (!needsRecovery) return recovery.prepareDetectedDialog(dialog)
-
-        await expect(
-          dialog.dialog.getByText("Enter an Access Token manually", {
-            exact: true,
-          }),
-        ).toBeVisible()
-        // tabs.create may navigate before Playwright attaches route interception.
-        // Verify the browser's actual target before replaying that exact URL.
-        const interceptedNavigation = context
-          .waitForEvent("page")
-          .then(async (securityPage) => {
-            let requestedUrl = ""
-            await expect
-              .poll(async () => {
-                requestedUrl = await serviceWorker.evaluate(async () => {
-                  const [tab] = await chrome.tabs.query({
-                    active: true,
-                    currentWindow: true,
-                  })
-                  return tab?.pendingUrl ?? tab?.url ?? ""
-                })
-                return requestedUrl
-              })
-              .toBe(`${baseUrl}/security#security-access`)
-            await securityPage.goto(requestedUrl)
-          })
-        await Promise.all([
-          interceptedNavigation,
-          recovery.prepareDetectedDialog(dialog),
-        ])
-      },
-      siteType: SITE_TYPES.NEW_API,
-      login: async (sitePage) => {
-        await sitePage.goto(baseUrl)
-        return { user: { id: 1, username: "e2e-user" } }
-      },
-    })
-
-    const savedAccount = await prepareAccount()
-    expect(savedAccount.accountId).toBeTruthy()
-    const stored = await waitForSavedAccount({
-      serviceWorker,
-      siteType: SITE_TYPES.NEW_API,
-      baseUrl,
-    })
-    expect(stored.account_info.access_token).toBe(managementToken)
-    expect(stored.account_info.username).toBe("e2e-user")
-    expect(JSON.stringify(stored)).not.toContain(
-      E2E_NEW_API_RC22_AUTH.dashboardToken,
+recoveryTest(
+  "credential recovery matches the originating window when pages share a URL",
+  async ({ context, page, securitySite }) => {
+    securitySite.html = "<!doctype html><title>Security</title><p>Security</p>"
+    const url = `${securitySite.baseUrl}/security`
+    const worker = await getServiceWorker(context)
+    await page.goto(url)
+    const sourceWindowId = await worker.evaluate(
+      async () => (await chrome.windows.getLastFocused()).id!,
     )
-    expect(blockedTokenRequests).toBe(needsRecovery ? 1 : 0)
-    expect(verificationRequests).toBe(needsRecovery ? 1 : 0)
-    expect(verifiedTokenRequests).toBe(needsRecovery ? 1 : 0)
-    expect(automaticTokenRequests).toBe(needsRecovery ? 0 : 1)
-    expect(securityPageRequests > 0).toBe(needsRecovery)
-  })
+    const inspectionPagePromise = context.waitForEvent("page")
+    const inspectionWindowId = await worker.evaluate(
+      async (url) =>
+        (await chrome.windows.create({ url, type: "popup", focused: true }))
+          .id!,
+      url,
+    )
+    const inspectionPage = await inspectionPagePromise
+    await inspectionPage.waitForLoadState("domcontentloaded")
+    // Chrome versions differ in whether creating this window moves OS focus.
+    // Both documents must match only their own window regardless of that state.
+    expect(await inspectionPage.evaluate(() => document.visibilityState)).toBe(
+      "visible",
+    )
+    expect(
+      await isUserFacingCredentialPage(
+        inspectionPage,
+        worker,
+        inspectionWindowId,
+      ),
+    ).toBe(true)
+    expect(
+      await isUserFacingCredentialPage(inspectionPage, worker, sourceWindowId),
+    ).toBe(false)
+    expect(await isUserFacingCredentialPage(page, worker, sourceWindowId)).toBe(
+      true,
+    )
+    await inspectionPage.close()
+    expect(
+      await isUserFacingCredentialPage(inspectionPage, worker, sourceWindowId),
+    ).toBe(false)
+  },
+)
+
+recoveryTest(
+  "credential recovery rechecks a new page that becomes active after its first inspection",
+  async ({ context, page, securitySite }) => {
+    // tabs.create can load before Playwright installs init scripts. Serve the
+    // observer with the document so every candidate records its first check.
+    securitySite.html = `<!doctype html><title>Security</title><p>Security</p>
+      <script>
+        globalThis.credentialInspections = 0;
+        new MutationObserver((records) => {
+          if (records.some((record) =>
+            record.attributeName?.startsWith("data-aah-credential-candidate-") &&
+            !record.target.hasAttribute(record.attributeName)
+          )) globalThis.credentialInspections++;
+        }).observe(document, { attributes: true, subtree: true });
+      </script>`
+    const url = `${securitySite.baseUrl}/security`
+    const worker = await getServiceWorker(context)
+    await page.goto(url)
+    const sourceWindowId = await worker.evaluate(
+      async () => (await chrome.windows.getLastFocused()).id!,
+    )
+    const waiting = waitForNewUserFacingCredentialPage(
+      context,
+      worker,
+      sourceWindowId,
+      10_000,
+    )
+    void waiting.catch(() => {})
+    const opened = context.waitForEvent("page")
+    const tabId = await worker.evaluate(
+      async (url) => (await chrome.tabs.create({ url, active: false })).id!,
+      url,
+    )
+    const candidate = await opened
+    await expect
+      .poll(() =>
+        candidate.evaluate(
+          () =>
+            (
+              globalThis as typeof globalThis & {
+                credentialInspections: number
+              }
+            ).credentialInspections,
+        ),
+      )
+      .toBeGreaterThan(0)
+    await worker.evaluate(
+      (tabId) => chrome.tabs.update(tabId, { active: true }),
+      tabId,
+    )
+    await expect(waiting).resolves.toBe(candidate)
+    await candidate.close()
+  },
+)
+
+recoveryTest(
+  "credential recovery finds the active page while another candidate is still loading",
+  async ({ context, page, securitySite }) => {
+    securitySite.html = "<!doctype html><title>Security</title><p>Security</p>"
+    await page.goto(`${securitySite.baseUrl}/security`)
+    const worker = await getServiceWorker(context)
+    const sourceWindowId = await worker.evaluate(
+      async () => (await chrome.windows.getLastFocused()).id!,
+    )
+    const waiting = waitForNewUserFacingCredentialPage(
+      context,
+      worker,
+      sourceWindowId,
+      5000,
+    )
+    void waiting.catch(() => {})
+    const pendingOpened = context.waitForEvent("page")
+    await worker.evaluate(
+      async ({ url, windowId }) =>
+        chrome.tabs.create({ url, windowId, active: false }),
+      {
+        url: `${securitySite.baseUrl}/pending-security`,
+        windowId: sourceWindowId,
+      },
+    )
+    const pending = await pendingOpened
+    await expect.poll(() => securitySite.pendingRequests).toBe(1)
+    const activeOpened = context.waitForEvent("page")
+    await worker.evaluate(
+      async ({ url, windowId }) =>
+        chrome.tabs.create({ url, windowId, active: true }),
+      { url: `${securitySite.baseUrl}/security`, windowId: sourceWindowId },
+    )
+    const active = await activeOpened
+    try {
+      expect(await waiting).toBe(active)
+    } finally {
+      await pending.close()
+      await active.close()
+    }
+  },
+)
+
+for (const scenario of scenarios) {
+  recoveryTest(
+    `New API real-site account flow ${scenario.name}`,
+    async ({ context, page, extensionId, securitySite }) => {
+      const { baseUrl } = securitySite
+      // The controlled page must provide its own asynchronous clipboard even
+      // when the host clipboard is unavailable.
+      await context.addInitScript((origin) => {
+        if (location.origin !== origin) return
+        // Attaching after the document loads must not replace its own mock.
+        if (Object.prototype.hasOwnProperty.call(navigator, "clipboard")) return
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: {
+            writeText: async () => {
+              throw new Error(
+                "Host clipboard unavailable in controlled fixture",
+              )
+            },
+            readText: async () => {
+              throw new Error(
+                "Host clipboard unavailable in controlled fixture",
+              )
+            },
+          },
+        })
+      }, baseUrl)
+      securitySite.html = securityPageHtml(scenario)
+      const managementToken = "e2e-account-management-token"
+      const needsRecovery = scenario.method !== null
+      const config: CompatibleApiRealSiteConfig = {
+        baseUrl,
+        loginUrl: `${baseUrl}/login`,
+        loginApiUrl: `${baseUrl}/api/user/login`,
+        login2faApiUrl: `${baseUrl}/api/user/login/2fa`,
+        username: "e2e-user",
+        password: "e2e-password",
+        totpSecret: scenario.method === "2fa" ? "JBSWY3DPEHPK3PXP" : undefined,
+      }
+      let blockedTokenRequests = 0
+      let verifiedTokenRequests = 0
+      let verificationRequests = 0
+      let automaticTokenRequests = 0
+
+      await forceExtensionLanguage(page, "en")
+      await stubLlmMetadataIndex(context)
+      await stubNewApiSiteRoutes(context, {
+        baseUrl,
+        dashboardAuthMode: "auth-bundle",
+        accessToken: managementToken,
+      })
+      await context.route(`${baseUrl}/api/user/token`, (route) => {
+        const request = route.request()
+        const verified =
+          request.method() === "POST" &&
+          request.headers()["x-security-proof"] === "verified"
+        const automatic = !needsRecovery && request.method() === "GET"
+        if (verified) verifiedTokenRequests += 1
+        else if (automatic) automaticTokenRequests += 1
+        else blockedTokenRequests += 1
+        return route.fulfill({
+          status: verified || automatic ? 200 : 403,
+          json:
+            verified || automatic
+              ? { success: true, data: managementToken }
+              : {
+                  success: false,
+                  code: "SECURITY_PROOF_REQUIRED",
+                  message: "Security verification required",
+                },
+        })
+      })
+      await context.route(`${baseUrl}/api/verify`, (route) => {
+        verificationRequests += 1
+        const body = route.request().postDataJSON()
+        const valid =
+          body.method === scenario.method &&
+          (scenario.method === "password"
+            ? body.password === config.password
+            : /^\d{6}$/u.test(body.code))
+        return route.fulfill({
+          status: valid ? 200 : 403,
+          json: { success: valid },
+        })
+      })
+      // tabs.create can start loading before Playwright attaches its routes.
+      // Let the browser reach the local server without replaying the navigation.
+      await context.route(`${baseUrl}/security`, (route) => route.continue())
+      const serviceWorker = await getServiceWorker(context)
+      await seedUserPreferences(serviceWorker, {
+        autoFillCurrentSiteUrlOnAccountAdd: false,
+        autoProvisionKeyOnAccountAdd: false,
+        tempWindowFallback: { enabled: false },
+      })
+      const recovery = createNewApiAccountRecovery({ page, config })
+
+      const prepareAccount = createCompatibleRealSiteAccountFixturePreparer({
+        context,
+        page,
+        extensionId,
+        serviceWorker,
+        config,
+        ...recovery,
+        prepareDetectedDialog: async (dialog) => {
+          if (
+            scenario.method !== "password" ||
+            scenario.clipboardWriteDelayMs !== 0
+          ) {
+            await recovery.prepareDetectedDialog(dialog)
+            return
+          }
+          // Model another last-focused window without relying on OS focus,
+          // whose headless behavior differs on Chrome 114.
+          const foreignWindowId = await serviceWorker.evaluate(async () => {
+            const foreignWindow = await chrome.windows.create({
+              url: "about:blank",
+              focused: false,
+            })
+            const scope = globalThis as any
+            scope.__originalGetLastFocused = chrome.windows.getLastFocused
+            ;(chrome.windows as any).getLastFocused = async () => foreignWindow
+            return foreignWindow.id!
+          })
+          try {
+            expect(
+              await serviceWorker.evaluate(
+                async () => (await chrome.windows.getLastFocused()).id,
+              ),
+            ).toBe(foreignWindowId)
+            await recovery.prepareDetectedDialog(dialog)
+          } finally {
+            await serviceWorker.evaluate(async (windowId) => {
+              chrome.windows.getLastFocused = (
+                globalThis as any
+              ).__originalGetLastFocused
+              delete (globalThis as any).__originalGetLastFocused
+              await chrome.windows.remove(windowId)
+            }, foreignWindowId)
+          }
+        },
+        siteType: SITE_TYPES.NEW_API,
+        login: async (sitePage) => {
+          await sitePage.goto(baseUrl)
+          return { user: { id: 1, username: "e2e-user" } }
+        },
+      })
+
+      const savedAccount = await prepareAccount()
+      expect(savedAccount.accountId).toBeTruthy()
+      const stored = await waitForSavedAccount({
+        serviceWorker,
+        siteType: SITE_TYPES.NEW_API,
+        baseUrl,
+      })
+      expect(stored.account_info.access_token).toBe(managementToken)
+      expect(stored.account_info.username).toBe("e2e-user")
+      expect(JSON.stringify(stored)).not.toContain(
+        E2E_NEW_API_RC22_AUTH.dashboardToken,
+      )
+      expect(blockedTokenRequests).toBe(needsRecovery ? 1 : 0)
+      expect(verificationRequests).toBe(needsRecovery ? 1 : 0)
+      expect(verifiedTokenRequests).toBe(needsRecovery ? 1 : 0)
+      expect(automaticTokenRequests).toBe(needsRecovery ? 0 : 1)
+      // One read-only capability inspection, then the user-facing token page.
+      // Token acquisition and verification above still occur exactly once.
+      expect(securitySite.requests).toBe(needsRecovery ? 2 : 0)
+    },
+  )
 }
 
 /**
@@ -198,7 +412,7 @@ function securityPageHtml(scenario: (typeof scenarios)[number]) {
   const inputLabel =
     method === "2fa" ? "Authenticator code or backup code" : "Password"
   return `<!doctype html><html><body>
-  <section id="security-access"><h2>Sessions &amp; Access</h2>
+  <section aria-labelledby="security-access"><h2 id="security-access">Sessions &amp; Access</h2>
     <div data-slot="card"><h4>Access Token</h4>
       <button id="generate">${scenario.existingToken ? "Regenerate" : "Generate"}</button>
     </div>
@@ -223,6 +437,17 @@ function securityPageHtml(scenario: (typeof scenarios)[number]) {
     <button data-slot="dialog-close" aria-label="Close" id="close-icon">×</button>
   </div>
   <script>
+    // tabs.create can load this document before Playwright attaches init scripts.
+    // Install the clipboard with the page so the controlled flow never reaches
+    // the host OS clipboard, including during a delayed write.
+    let clipboardText = "";
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (text) => { clipboardText = text; },
+        readText: async () => clipboardText,
+      },
+    });
     const byId = (id) => document.getElementById(id);
     byId("generate").onclick = () => {
       byId("${scenario.existingToken ? "confirmation" : "verification"}").hidden = false;

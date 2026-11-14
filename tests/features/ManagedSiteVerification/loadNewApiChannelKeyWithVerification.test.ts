@@ -26,19 +26,28 @@ vi.mock("~/services/protectionBypass/client", () => ({
   withProtectionBypassUserCommand: withProtectionBypassUserCommandMock,
 }))
 
-vi.mock("~/services/managedSites/providers/newApiSession", () => ({
-  NewApiChannelKeyRequirementError: class NewApiChannelKeyRequirementError extends Error {
-    constructor(
-      public kind: string,
-      public sessionResult?: Record<string, unknown>,
-    ) {
-      super(kind)
-      this.name = "NewApiChannelKeyRequirementError"
-    }
-  },
-  fetchNewApiChannelKey: (...args: unknown[]) =>
-    fetchNewApiChannelKeyMock(...args),
-}))
+vi.mock(
+  "~/services/managedSites/providers/newApi/newApiSessionContracts",
+  () => ({
+    NewApiChannelKeyRequirementError: class NewApiChannelKeyRequirementError extends Error {
+      constructor(
+        public kind: string,
+        public sessionResult?: Record<string, unknown>,
+      ) {
+        super(kind)
+        this.name = "NewApiChannelKeyRequirementError"
+      }
+    },
+  }),
+)
+
+vi.mock(
+  "~/services/managedSites/providers/newApi/newApiChannelKeyRead",
+  () => ({
+    fetchNewApiChannelKey: (...args: unknown[]) =>
+      fetchNewApiChannelKeyMock(...args),
+  }),
+)
 
 const BASE_PARAMS = {
   resourceRef: {
@@ -89,7 +98,7 @@ describe("loadNewApiChannelKeyWithVerification", () => {
 
   it("opens verification from the requirement result returned by the provider layer", async () => {
     const { NewApiChannelKeyRequirementError } = await import(
-      "~/services/managedSites/providers/newApiSession"
+      "~/services/managedSites/providers/newApi/newApiSessionContracts"
     )
     fetchNewApiChannelKeyMock.mockRejectedValue(
       new NewApiChannelKeyRequirementError("login-required", {
@@ -162,7 +171,7 @@ describe("loadNewApiChannelKeyWithVerification", () => {
 
   it("creates fresh verification intent when delayed onVerified work resumes", async () => {
     const { NewApiChannelKeyRequirementError } = await import(
-      "~/services/managedSites/providers/newApiSession"
+      "~/services/managedSites/providers/newApi/newApiSessionContracts"
     )
     fetchNewApiChannelKeyMock
       .mockRejectedValueOnce(

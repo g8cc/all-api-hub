@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { OPENROUTER_MANAGEMENT_KEY_LABEL_MAX_LENGTH } from "~/services/apiAdapters/openrouter/managementKeyPageContract"
+import { OPENROUTER_MANAGEMENT_KEY_LABEL_MAX_LENGTH } from "~/services/apiAdapters/openrouter/keys/managementKeyPageContract"
+import { REQUESTY_MANAGEMENT_KEY_NAME_MAX_LENGTH } from "~/services/apiAdapters/requesty/keys/managementKeyPageContract"
 import {
   getTempContextTaskMetadata,
   isAutoRefreshProtectionBypassExecution,
@@ -24,6 +25,10 @@ import {
 import { AuthTypeEnum } from "~/types"
 
 const canonicalTasks = [
+  {
+    kind: TEMP_CONTEXT_TASK_KINDS.CredentialPageInspect,
+    params: { originUrl: "https://example.invalid" },
+  },
   {
     kind: TEMP_CONTEXT_TASK_KINDS.CheckinFeedbackScan,
     params: {
@@ -77,18 +82,17 @@ const canonicalTasks = [
     },
   },
   {
-    kind: TEMP_CONTEXT_TASK_KINDS.BrowserCheckIn,
-    params: {
-      pageUrl: "https://example.invalid/checkin",
-      action: { kind: "page_load" },
-      success: { textPattern: "signed" },
-    },
-  },
-  {
     kind: TEMP_CONTEXT_TASK_KINDS.OpenRouterManagementKeyAction,
     params: {
       requestId: "request-openrouter",
       operation: { kind: "create", label: "Example label" },
+    },
+  },
+  {
+    kind: TEMP_CONTEXT_TASK_KINDS.RequestyManagementKeyAction,
+    params: {
+      requestId: "request-requesty",
+      operation: { kind: "create", name: "Example connection" },
     },
   },
   {
@@ -134,6 +138,29 @@ const canonicalTasks = [
 ] as const
 
 describe("protection bypass runtime contracts", () => {
+  it.each([
+    [undefined, true],
+    ["query", true],
+    ["json-body", true],
+    ["header", false],
+    [null, false],
+    [42, false],
+  ])(
+    "validates the optional Turnstile token placement (%j)",
+    (placement, valid) => {
+      expect(
+        isTempContextTask({
+          kind: TEMP_CONTEXT_TASK_KINDS.TurnstileFetch,
+          params: {
+            originUrl: "https://example.invalid",
+            pageUrl: "https://example.invalid/checkin",
+            fetchUrl: "https://example.invalid/api/checkin",
+            turnstileTokenPlacement: placement,
+          },
+        }),
+      ).toBe(valid)
+    },
+  )
   const staleExecution: ProtectionBypassExecution = {
     // @ts-expect-error V2 execution metadata must not accept legacy versions.
     version: 1,
@@ -329,8 +356,9 @@ describe("protection bypass runtime contracts", () => {
         "profile_isolated_fetch",
         "turnstile_fetch",
         "native_page_action",
-        "browser_check_in",
         "openrouter_management_key_action",
+        "requesty_management_key_action",
+        "credential_page_inspect",
         "rendered_title",
         "checkin_feedback_scan",
         "session_read",
@@ -352,6 +380,24 @@ describe("protection bypass runtime contracts", () => {
 
   it.each(canonicalTasks)("accepts canonical $kind params", (task) => {
     expect(isTempContextTask(task)).toBe(true)
+  })
+
+  it.each([
+    ["", false],
+    ["   ", false],
+    [42, false],
+    ["x".repeat(REQUESTY_MANAGEMENT_KEY_NAME_MAX_LENGTH), true],
+    ["x".repeat(REQUESTY_MANAGEMENT_KEY_NAME_MAX_LENGTH + 1), false],
+  ])("validates Requesty key name %j", (name, valid) => {
+    expect(
+      isTempContextTask({
+        kind: TEMP_CONTEXT_TASK_KINDS.RequestyManagementKeyAction,
+        params: {
+          requestId: "request-requesty",
+          operation: { kind: "create", name },
+        },
+      }),
+    ).toBe(valid)
   })
 
   it.each([
@@ -388,17 +434,6 @@ describe("protection bypass runtime contracts", () => {
           originUrl: "https://example.invalid",
           pageUrl: "https://example.invalid/console/personal",
           siteType: "new-api",
-        },
-      },
-    ],
-    [
-      "browser check-in without success condition",
-      {
-        kind: "browser_check_in",
-        params: {
-          pageUrl: "https://example.invalid/checkin",
-          action: { kind: "page_load" },
-          success: {},
         },
       },
     ],
@@ -564,9 +599,53 @@ describe("protection bypass runtime contracts", () => {
         useIncognito: "yes",
       },
     },
+    {
+      kind: "session_read",
+      params: {
+        url: "https://example.invalid",
+        requestId: "request-session",
+        siteType: "unknown",
+        cookieStoreId: 12,
+      },
+    },
   ])("rejects invalid optional task primitives %#", (task) => {
     expect(isTempContextTask(task)).toBe(false)
   })
+
+  it.each([true, false, undefined])(
+    "accepts the optional New API session probe flag %s",
+    (allowSessionProbe) => {
+      expect(
+        isTempContextTask({
+          kind: "session_read",
+          params: {
+            url: "https://example.invalid",
+            requestId: "request-session",
+            siteType: "unknown",
+            allowSessionProbe,
+            cookieStoreId: "firefox-container-1",
+          },
+        }),
+      ).toBe(true)
+    },
+  )
+
+  it.each(["true", 1, null])(
+    "rejects a non-boolean New API session probe flag %s",
+    (allowSessionProbe) => {
+      expect(
+        isTempContextTask({
+          kind: "session_read",
+          params: {
+            url: "https://example.invalid",
+            requestId: "request-session",
+            siteType: "unknown",
+            allowSessionProbe,
+          },
+        }),
+      ).toBe(false)
+    },
+  )
 
   const urlFields = [
     [TEMP_CONTEXT_TASK_KINDS.ApiFallbackFetch, "originUrl"],
@@ -580,7 +659,6 @@ describe("protection bypass runtime contracts", () => {
     [TEMP_CONTEXT_TASK_KINDS.TurnstileFetch, "pageUrl"],
     [TEMP_CONTEXT_TASK_KINDS.NativePageAction, "originUrl"],
     [TEMP_CONTEXT_TASK_KINDS.NativePageAction, "pageUrl"],
-    [TEMP_CONTEXT_TASK_KINDS.BrowserCheckIn, "pageUrl"],
     [TEMP_CONTEXT_TASK_KINDS.RenderedTitle, "originUrl"],
     [TEMP_CONTEXT_TASK_KINDS.SessionRead, "url"],
     [TEMP_CONTEXT_TASK_KINDS.NewApiSessionRead, "origin"],
@@ -642,6 +720,36 @@ describe("protection bypass runtime contracts", () => {
         },
       }),
     ).toBe(false)
+  })
+
+  it.each([
+    { paths: ["/api/user/daily"], accepted: true },
+    { paths: [], accepted: true },
+    { paths: "/api/user/daily", accepted: false },
+    { paths: Array(9).fill("/api/user/daily"), accepted: false },
+    ...[
+      42,
+      "relative",
+      "//other.invalid",
+      "/api/daily?query",
+      "/api/daily#fragment",
+      "/api/back\\slash",
+    ].map((path) => ({ paths: [path], accepted: false })),
+  ])("validates diagnostic route authority: $paths", ({ paths, accepted }) => {
+    expect(
+      isTempContextTask({
+        kind: TEMP_CONTEXT_TASK_KINDS.CheckinFeedbackScan,
+        params: {
+          originUrl: "https://example.invalid",
+          requestId: "routes",
+          input: {
+            baseUrl: "https://example.invalid",
+            siteType: "new-api",
+            routePaths: paths,
+          },
+        },
+      }),
+    ).toBe(accepted)
   })
 
   it.each(canonicalTasks)("accepts HTTP for $kind", (task) => {

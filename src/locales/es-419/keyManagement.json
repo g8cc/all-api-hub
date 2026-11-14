@@ -20,6 +20,7 @@
     "detailsFor": "Ver detalles de {{name}}",
     "editKey": "Editar clave",
     "expandAll": "Expandir todo",
+    "exportToAiToolbox": "Exportar a AI Toolbox",
     "exportToCCSwitch": "Exportar a CC Switch",
     "exportToCursorPlus": "Exportar configuración de proveedor de Cursor++",
     "exportToKiloCode": "Exportar configuración de Kilo Code",
@@ -32,8 +33,8 @@
     "saveToApiProfiles": "Guardar y asociar con la credencial API",
     "showKey": "Mostrar clave",
     "useInCherry": "Usar en Cherry Studio",
-    "verifyApi": "Verificar API",
-    "verifyCliSupport": "Verificar compatibilidad con CLI"
+    "verifyApi": "Probar API",
+    "verifyCliSupport": "Prueba de compatibilidad con CLI"
   },
   "actionToolbar": {
     "apiCredential": "Credencial API",
@@ -100,9 +101,34 @@
       "models": "Modelos"
     },
     "gatewayDescription": "Esto importa claves de cuenta como canales del AI gateway autohospedado. Después de importar, los clientes pueden usar varias claves mediante una AI API.",
+    "importMode": {
+      "appendTo": "Agregar al canal existente: {{name}}",
+      "chooseTarget": "Elige un canal para estas claves",
+      "createNew": "Crear un canal nuevo",
+      "grouped": "Combinar las claves del mismo sitio en un canal nuevo",
+      "independent": "Crear un canal nuevo por clave",
+      "keyCount_one": "{{count}} clave",
+      "keyCount_many": "{{count}} claves",
+      "keyCount_other": "{{count}} claves",
+      "label": "Cómo importar las claves",
+      "modelDifferences": "Las listas de modelos difieren. El recurso combinado usa su unión; la puerta de enlace se encarga del enrutamiento.",
+      "models": "Modelos: {{models}}",
+      "preserveSettings": "Conserva la configuración y los modelos del canal. Solo agrega claves que aún no se hayan importado.",
+      "resourceName": "Nombre del canal nuevo",
+      "resultSummary": "Claves: {{created}} importadas, {{failed}} fallidas, {{uncertain}} sin confirmar, {{skipped}} omitidas.",
+      "reuse": "Preferir agregar a un canal existente",
+      "reuseHelp": "Agrega claves a un canal con la misma dirección. Si hay varios, elige uno; si no hay ninguno, crea un canal combinado.",
+      "reuseSummary": "{{keyCount}} claves seleccionadas: crear {{createCount}} canales y agregar a {{appendCount}} canales existentes.",
+      "saveFailed": "La selección se aplica a esta importación, pero no se pudo guardar la preferencia.",
+      "scheduling": "La puerta de enlace de destino decide cómo alternar entre las claves. Elige según tus necesidades.",
+      "summary": "{{keyCount}} claves seleccionadas; se crearán {{resourceCount}} canales nuevos.",
+      "target": "Canal al que agregar las claves",
+      "unsupported": "Este tipo de recurso no admite claves combinadas y se creará por separado."
+    },
     "loadingDescription": "Preparando vista previa para {{selectedCount}} claves seleccionadas.",
     "messages": {
-      "completed": "Importación por lote completada: {{created}} creadas, {{failed}} fallidas, {{skipped}} ya estaban presentes.",
+      "batchDuplicate": "Duplica a {{item}} en este lote y se omitió.",
+      "completed": "Claves: {{created}} importadas, {{failed}} fallidas, {{uncertain}} sin confirmar, {{skipped}} omitidas.",
       "duplicate": "Ya existe un canal exacto: {{channel}}. No se volverá a crear.",
       "executionFailed": "No se pudo ejecutar la importación por lote: {{error}}",
       "targetChanged": "El destino del sitio administrado cambió. Actualiza la vista previa o elige el destino correcto antes de importar.",
@@ -114,22 +140,22 @@
       "selected_one": "{{count}} clave seleccionada",
       "selected_many": "{{count}} claves seleccionadas",
       "selected_other": "{{count}} claves seleccionadas",
-      "summary": "Vista previa: {{ready}} listas, {{warning}} advertencias, {{skipped}} ya presentes, {{blocked}} bloqueadas, {{total}} en total."
+      "summary": "Vista previa: {{ready}} listas, {{warning}} advertencias, {{skipped}} omitidas, {{blocked}} bloqueadas, {{total}} en total."
     },
     "repairTrusted": {
       "description": "Estas claves se acaban de crear. La revisión simplificada omite la comprobación de duplicados y de la clave exacta; puedes usar las comprobaciones completas antes de importarlas.",
       "useCompleteChecks": "Usar comprobaciones completas"
     },
     "results": {
-      "channelCreationFailed": "Falló la creación del canal.",
+      "channelCreationFailed": "No se pudo importar la clave.",
       "status": {
         "failed": "Falló",
         "notSelected": "No seleccionada",
-        "skipped": "Ya presente",
-        "success": "Creado",
+        "skipped": "Omitido",
+        "success": "Importada",
         "uncertain": "Requiere revisión"
       },
-      "summary": "Resultado: {{created}} creados, {{failed}} fallidos, {{skipped}} ya presentes, {{total}} en total."
+      "summary": "Claves: {{created}} importadas, {{failed}} fallidas, {{uncertain}} sin confirmar, {{skipped}} omitidas."
     },
     "selection": {
       "accountGroup": "Seleccionar claves visibles para la cuenta {{name}}",
@@ -139,7 +165,7 @@
     "status": {
       "blocked": "Bloqueado",
       "ready": "Listo",
-      "skipped": "Ya presente",
+      "skipped": "Omitido",
       "warning": "Advertencia"
     },
     "target": {
@@ -157,10 +183,13 @@
   },
   "batchSelection": {
     "accountUnavailableReason": "Esta cuenta no tiene claves compatibles con acciones por lotes.",
-    "eligibilityNotice_one": "Actualmente, {{count}} clave admite acciones por lotes; las demás no se incluirán.",
-    "eligibilityNotice_many": "Actualmente, {{count}} claves admiten acciones por lotes; las demás no se incluirán.",
-    "eligibilityNotice_other": "Actualmente, {{count}} claves admiten acciones por lotes; las demás no se incluirán.",
+    "eligibilityHint": "Las acciones por lotes solo seleccionan claves de inferencia exportables. Se excluyen las claves de administración y aquellas cuyo valor completo no está disponible.",
+    "helpLabel": "Acerca de la selección por lotes",
     "unavailableReason": "Esta clave no admite acciones por lotes."
+  },
+  "createdKey": {
+    "subtitle": "{{name}} se creó. Puedes copiarla ahora o volver a mostrarla más tarde.",
+    "title": "Clave creada"
   },
   "createFirstKey": "Crear primera clave",
   "credentialAssociation": {
@@ -199,6 +228,7 @@
     "ipLimits": "Límites de IP",
     "ipPlaceholder": "Deja vacío para no limitar, separa varias IP con comas",
     "modelLimits": "Límites de modelo",
+    "novitaConsoleRequired": "Crear claves requiere autorización de consola. Edita esta cuenta para obtener una credencial de consola de la misma cuenta de Novita, o crea la clave en la consola de Novita.",
     "quotaPlaceholder": "Ingresa el monto de cuota (USD)",
     "quotaSettings": "Configuración de cuota",
     "selectModels": "Seleccionar modelos",
@@ -220,8 +250,10 @@
     }
   },
   "keyDetails": {
+    "channels": "Canales",
     "createResponseOnlySecret": "Este sitio muestra la clave completa solo al crearla. Si no la guardaste, abre Gestión de claves y crea una clave de reemplazo.",
     "createTime": "Hora de creación:",
+    "defaultChannels": "Canales predeterminados del sitio",
     "expireTime": "Hora de expiración:",
     "followsAccountGroup": "Usa el grupo de la cuenta",
     "group": "Grupo:",
@@ -232,8 +264,11 @@
     "neverExpires": "Nunca expira",
     "note": "Nota:",
     "remainingQuota": "Cuota restante:",
+    "tools": "Herramientas permitidas",
+    "totalQuota": "Cuota total:",
     "ungrouped": "Sin grupo",
-    "usedQuota": "Cuota usada:"
+    "usedQuota": "Cuota usada:",
+    "websiteVerificationSecret": "La API de administración no proporciona claves completas. Visita la página API de NanoGPT y completa la verificación de inicio de sesión requerida para volver a ver o copiar una clave existente."
   },
   "knownTotalKeys_one": "{{count}} clave leída",
   "knownTotalKeys_many": "{{count}} claves leídas",
@@ -329,6 +364,11 @@
     "batchSaveToApiProfilesPartialFailed": "Se guardaron {{savedCount}} de {{totalCount}} claves seleccionadas. {{failedCount}} no se pudieron guardar.",
     "copyFailed": "No se pudo copiar",
     "keyCopied": "La clave {{name}} se copió al portapapeles",
+    "keyDeleted": "Clave {{name}} eliminada",
+    "keyDeletedSimple": "Clave eliminada",
+    "keySiteTypeMismatch": "Este sitio corresponde a {{suggestedType}}, pero la cuenta está configurada como {{storedType}}. Cambia el Tipo de sitio a {{suggestedType}} en 'Editar cuenta' y vuelve a intentarlo.",
+    "keyUpdated": "Clave {{name}} actualizada",
+    "keyUpdatedSimple": "Clave actualizada",
     "loadFailed": "No se pudo cargar la lista de claves",
     "revealFailed": "No se pudo revelar la clave",
     "savedToApiProfiles": "{{name}} se guardó en la biblioteca de credenciales API",
@@ -337,15 +377,32 @@
     "serviceCredentialCopied": "Clave de servicio copiada al portapapeles",
     "serviceCredentialRotated": "Clave de servicio restablecida",
     "serviceCredentialRotateFailed": "No se pudo restablecer la clave de servicio",
-    "verifyApiFailed": "No se pudo abrir la verificación de API",
-    "verifyCliSupportFailed": "No se pudo abrir la verificación de compatibilidad con CLI"
+    "verifyApiFailed": "No se pudieron abrir las pruebas de API",
+    "verifyCliSupportFailed": "No se pudo abrir la prueba de compatibilidad con CLI"
   },
   "native": {
     "actions": {
       "delete": "Eliminar clave",
-      "edit": "Editar clave"
+      "disable": "Deshabilitar clave API",
+      "edit": "Editar clave",
+      "enable": "Habilitar clave API",
+      "revoke": "Revocar clave",
+      "rotate": "Rotar clave API"
+    },
+    "badges": {
+      "accountCredential": "Usada por esta cuenta",
+      "accountCredentialCandidate": "Posible clave de autenticación de la cuenta",
+      "accountManagePermission": "Clave de administración de esta cuenta",
+      "managePermission": "Clave de gestión"
+    },
+    "credentialRole": {
+      "badgeTitle": "All API Hub usa esta clave para conectarse a esta cuenta, consultar su saldo y administrar claves. Si la reemplazas, actualiza la clave en la configuración de la cuenta.",
+      "candidateTitle": "Coincidencia solo por la clave enmascarada; sin confirmar."
     },
     "delete": {
+      "accountCredentialAcknowledge": "Entiendo que esto puede afectar las funciones de la cuenta que usan esta clave",
+      "accountCredentialWarningDescription": "Eliminar esta clave puede interrumpir las funciones de la cuenta que la usan. Actualiza primero la credencial de la cuenta; la clave no se puede restaurar aquí.",
+      "accountCredentialWarningTitle": "Eliminar la credencial de la cuenta",
       "confirm": "Eliminar clave",
       "description": "¿Eliminar permanentemente la clave API {{name}}? Esta acción no se puede deshacer.",
       "feedback": {
@@ -355,6 +412,7 @@
         "unavailable": "El servicio no está disponible temporalmente. Actualiza antes de volver a intentarlo.",
         "uncertain": "El estado de la clave puede haber cambiado. Actualiza las claves antes de decidir si vuelves a intentarlo."
       },
+      "manageKeyWarning": "Esta clave tiene permiso de gestión. Los flujos que dependen de ella pierden el acceso de gestión al eliminarla.",
       "refresh": "Actualizar claves",
       "title": "¿Eliminar clave API?"
     },
@@ -364,15 +422,130 @@
         "cancel": "Cancelar",
         "save": "Guardar clave"
       },
+      "aimlapi": {
+        "allowedModels": "Modelos permitidos",
+        "allowedModelsHelp": "Busca modelos por nombre o ID. Deja vacío para permitir todos.",
+        "allowedModelsPlaceholder": "Buscar modelos",
+        "allowedTools": "Herramientas permitidas",
+        "allowedToolsHelp": "Busca herramientas. Deja vacío para permitir todas.",
+        "endpoint": {
+          "audio": "Audio",
+          "chat": "Chat",
+          "embeddings": "Embeddings",
+          "image": "Imágenes",
+          "ocr": "Reconocimiento de texto (OCR)",
+          "responses": "Responses",
+          "speech": "Voz",
+          "video": "Video"
+        },
+        "expiryImmutable": "La fecha de vencimiento solo se puede definir al crear la clave. No se puede cambiar después.",
+        "limit": {
+          "limited": "Definir límite",
+          "unlimited": "Sin límite"
+        },
+        "maximum": "Máximo: {{maximum}}",
+        "reset": {
+          "day": "Diario",
+          "month": "Mensual",
+          "never": "Nunca",
+          "week": "Semanal"
+        },
+        "scopes": "Permisos de endpoints",
+        "scopesPlaceholder": "Todos los endpoints",
+        "spendLimit": "Límite en USD",
+        "spendLimitAmount": "Importe del límite",
+        "spendLimitReset": "Período de reinicio"
+      },
+      "allowlistHelp": "Separa con comas o saltos de línea. Vacío significa sin restricciones.",
+      "allowWallet": "Permitir uso del saldo",
+      "allowWalletHelp": "Permite que esta clave siga funcionando con el saldo de la cuenta cuando se agote la cuota del plan.",
+      "budget5h": "Presupuesto de 5 horas (USD)",
+      "budgetDay": "Presupuesto diario (USD)",
+      "budgetMonth": "Presupuesto mensual (USD)",
+      "budgetNextReset": "Se restablece {{time}} (UTC+8)",
+      "budgetResetHelp": "0 significa sin límite. El presupuesto de 5 horas es móvil; los demás se reinician según la hora de Pekín. La semana empieza el lunes.",
+      "budgetRolling": "Ventana móvil",
+      "budgetsAndLimits": "Presupuestos y límites de acceso",
+      "budgetUsage": "Usado ${{used}} / ${{limit}} · restante ${{remaining}} · reservado ${{reserved}}",
+      "budgetWeek": "Presupuesto semanal (USD)",
+      "channel": "Canal",
+      "dahl": {
+        "allocate": "Asignar tokens",
+        "amountHelp": "Ingresa tokens enteros o usa K/M. Disponibles: {{max}} tokens.",
+        "amountInvalid": "Ingresa una cantidad válida dentro del saldo disponible.",
+        "amountPlaceholder": "p. ej., 2.5M o 500K",
+        "create": "Crear clave",
+        "createdHelp": "{{name}} se creó sin tokens. Copia la clave o asigna tokens para empezar a usarla. Puedes volver a mostrarla más tarde.",
+        "createHelp": "Crea una clave nueva con 0 tokens. Puedes asignarle un nombre y, después de crearla, copiarla o asignarle tokens.",
+        "createTitle": "Crear clave API",
+        "invalidAmount": "La cantidad debe ser un entero positivo y no superar {{max}} tokens.",
+        "keyAfter": "Clave después de transferir",
+        "keyBalance": "Saldo de esta clave (tokens)",
+        "manageTitle": "Administrar clave",
+        "max": "Máximo",
+        "name": "Nombre de la clave",
+        "nameCached": "Se muestra el nombre guardado localmente. Los nombres del sitio se verificarán al abrir una página de la misma cuenta.",
+        "nameHelp": "Los nombres se sincronizan con el sitio en este navegador cuando hay una página de la misma cuenta abierta. Actualiza el sitio para ver los cambios.",
+        "nameInvalid": "Usa un nombre de hasta 128 caracteres.",
+        "namePending": "Guardado localmente; pendiente de sincronización. Abre el sitio con esta cuenta y actualiza la lista de claves.",
+        "namePlaceholder": "Nombre opcional",
+        "nameSynced": "Nombre sincronizado con el sitio. Actualiza el sitio para ver los cambios.",
+        "noKeyTokens": "Esta clave no tiene tokens para devolver.",
+        "noPoolTokens": "La cuenta no tiene tokens. Recarga en el sitio o devuelve tokens de otra clave.",
+        "poolAfter": "Cuenta después de transferir",
+        "poolBalance": "Saldo de la cuenta (tokens)",
+        "rename": "Renombrar",
+        "return": "Devolver tokens",
+        "revoke": "Revocar clave",
+        "revokeDescription": "¿Revocar {{name}}? La clave dejará de funcionar, los tokens restantes volverán a la cuenta y el sitio conservará un registro de revocación. No se puede deshacer.",
+        "revokeTitle": "Revocar clave API",
+        "saveName": "Guardar nombre",
+        "transferAmount": "Tokens a transferir"
+      },
+      "daya": {
+        "allowFast": "Permitir modo Fast",
+        "allowFastHelp": "Permite solicitar el modo Fast en las solicitudes de OpenAI; el servicio determina si se aplica. Al desactivarlo, todas las solicitudes de OpenAI, incluidas las de Flex, usan el modo y los precios estándar.",
+        "budget7d": "Presupuesto de 7 días (USD)",
+        "budgetHelp": "Límites de gasto en USD por período. 0 significa ilimitado.",
+        "customKey": "Clave personalizada (opcional)",
+        "customKeyHelp": "Déjalo sin cambios para generar una clave. Usa al menos 16 letras, números, guiones bajos o guiones.",
+        "groupOrderHelp": "Las rutas se prueban en este orden. Arrastra o usa los botones de flecha para reordenar.",
+        "ipBlacklist": "Lista de IP bloqueadas",
+        "ipWhitelist": "Lista de IP permitidas"
+      },
+      "description": "Descripción (opcional)",
+      "emrank": {
+        "expiration": "Vencimiento",
+        "expirationOptions": {
+          "custom": "Fecha y hora personalizadas",
+          "day": "Un día",
+          "hour": "Una hora",
+          "keep": "Conservar vencimiento actual",
+          "month": "Un mes (30 días)",
+          "never": "Nunca vence"
+        },
+        "quotaHelp": "1 M = 1.000.000 Token, máximo 6 decimales.",
+        "quotaMToken": "Cuota (M Token)"
+      },
+      "excludeIps": "IP excluidas",
+      "excludeIpsPlaceholder": "Una por línea (compatible con CIDR)",
       "expiryDays": "Vence en (días)",
       "feedback": {
+        "adminOnlyKeySettings": "Este sitio restringe las opciones avanzadas de clave, como las listas de IP, a los administradores; borra esos campos y vuelve a intentarlo.",
         "authenticationFailed": "Vuelve a iniciar sesión o actualiza las credenciales de esta cuenta y vuelve a intentarlo.",
         "error": "Sigue los detalles del error y vuelve a intentarlo.",
         "permissionDenied": "Usa credenciales con permiso para ver y administrar claves y vuelve a intentarlo.",
         "title": "No se pudo guardar la clave",
         "unavailable": "El servicio no está disponible temporalmente. Inténtalo pronto.",
-        "uncertain": "El servicio pudo haber aplicado este cambio. Actualiza las claves para confirmar el estado actual antes de decidir si vuelves a intentarlo."
+        "uncertain": "El servicio pudo haber aplicado este cambio. Actualiza las claves para confirmar el estado actual antes de decidir si vuelves a intentarlo.",
+        "unexpected": "La extensión no pudo ejecutar esta acción. Actualiza la extensión o informa de este problema."
       },
+      "followAccountQuotaHelp": "-1 usa la cuota de la cuenta.",
+      "followsAccount": "Según la cuenta",
+      "groupOnly": "Usar solo el grupo seleccionado",
+      "groupOnlyHelp": "Mantiene la clave en el grupo seleccionado en lugar de cambiar a otros.",
+      "independentQuotaUsd": "Cuota independiente (USD)",
+      "ipCidrAllowlist": "Lista de IP/CIDR permitidos",
       "issues": {
         "inconsistentValue": "Revisa este valor e inténtalo de nuevo.",
         "invalidValue": "Introduce un valor válido.",
@@ -380,26 +553,165 @@
         "required": "Este campo es obligatorio.",
         "unsupportedOption": "Elige una opción disponible."
       },
+      "keyConcurrency": "Concurrencia de la clave",
+      "keyRateHelp": "0 usa el límite de la cuenta.",
+      "keyRpm": "RPM de la clave",
+      "keyUnlimitedQuota": "Clave sin límite de cuota",
+      "keyUnlimitedQuotaHelp": "Sigue limitada por el saldo de la cuenta o la cuota de suscripción.",
+      "krill": {
+        "allowAnyIp": "Permitir cualquier IP",
+        "allowAnyIpHelp": "Desactiva la lista de IP permitidas guardada. Se permitirán solicitudes desde cualquier IP.",
+        "channels": "Canales",
+        "channelsHelp": "Qué rutas de facturación puede usar esta clave."
+      },
+      "laozhang": {
+        "activateOnFirstUse": "Activar al primer uso",
+        "activationHelp": "0 significa sin periodo de validez tras la activación. Las reglas del sitio siguen determinando el vencimiento absoluto.",
+        "billingHybrid": "Facturación mixta",
+        "billingRequest": "Por solicitud",
+        "billingRequestPriority": "Priorizar por solicitud",
+        "billingType": "Modelo de facturación",
+        "billingUsage": "Por consumo",
+        "billingUsagePriority": "Priorizar por consumo",
+        "discordProxy": "URL del proxy de Discord",
+        "fallbackGroups": "Grupos alternativos (en orden)",
+        "fallbackHelp": "Los grupos alternativos se prueban en el orden seleccionado. No se usan con grupos automáticos. El sitio establece el máximo.",
+        "mjApiKey": "Clave API de traducción MJ",
+        "mjBaseUrl": "URL base de traducción MJ",
+        "mjModel": "Modelo de traducción MJ",
+        "mjTranslation": "Activar traducción MJ",
+        "rateLimitDuration": "Periodo del límite (segundos)",
+        "rateLimitEnabled": "Activar límite de solicitudes",
+        "rateLimitMessage": "Mensaje al superar el límite",
+        "rateLimitNum": "Solicitudes por periodo",
+        "remark": "Nota de la clave",
+        "retryAuto": "Automático (seguir ajuste global)",
+        "retryBilling": "Mantener facturación al reintentar",
+        "retryOff": "Desactivado",
+        "retryOn": "Activado",
+        "validDuration": "Validez tras la activación (días)"
+      },
+      "modelAllowlist": "Lista de modelos permitidos",
+      "nanogpt": {
+        "anonymized": "Enrutamiento anonimizado",
+        "dailyRequests": "Límite diario de solicitudes",
+        "dailySpend": "Límite de gasto diario (USD)",
+        "dailySubscriptionTokens": "Cuota diaria de tokens de suscripción",
+        "dailyTokens": "Límite diario de tokens de entrada",
+        "legacyPolicy": "Política de enrutamiento anterior",
+        "limitHelp": "Vacío significa sin límite. Cero bloquea esta cuota; los tokens de suscripción pueden ser ponderados.",
+        "monthlyRequests": "Límite mensual de solicitudes",
+        "monthlySpend": "Límite de gasto mensual (USD)",
+        "monthlySubscriptionTokens": "Cuota mensual de tokens de suscripción",
+        "monthlyTokens": "Límite mensual de tokens de entrada",
+        "weeklyRequests": "Límite semanal de solicitudes",
+        "weeklySpend": "Límite de gasto semanal (USD)",
+        "weeklySubscriptionTokens": "Cuota semanal de tokens de suscripción",
+        "weeklyTokens": "Límite semanal de tokens de entrada",
+        "zdr": "Sin retención de datos",
+        "zdrPolicy": "Enrutamiento de privacidad"
+      },
+      "novita": {
+        "allEnabled": "Todos los modelos habilitados",
+        "allowedIps": "IP permitidas",
+        "allowedIpsHelp": "Una dirección IPv4 o CIDR por línea, hasta 100. No se permite 0.0.0.0/0.",
+        "allowedModels": "Modelos permitidos",
+        "days30": "30 días",
+        "days90": "90 días",
+        "excludedModels": "Modelos excluidos",
+        "hours24": "24 horas",
+        "lifecycleHelp": "La vigencia no se puede cambiar después de crear la clave.",
+        "modelAccess": "Acceso a modelos",
+        "modelChoicesHelp": "Selecciona una sugerencia o escribe un ID de modelo completo y presiona Enter. Las sugerencias del catálogo público son orientativas; al guardar se confirma si la política las acepta.",
+        "permanent": "Permanente",
+        "restrictIps": "Restringir IP de origen",
+        "selected": "Solo modelos seleccionados"
+      },
       "opening": {
         "failed": "No se pudo abrir el editor de claves",
         "loading": "Abriendo el editor de claves...",
         "retry": "Intentar de nuevo"
       },
+      "pmapi": {
+        "rpm": "Solicitudes por minuto",
+        "rpmHelp": "Máximo de solicitudes por minuto para este token; 0 significa ilimitado."
+      },
+      "quotaCredits": "Créditos restantes",
+      "quotaCreditsHelp": "La clave deja de funcionar cuando se agotan estos créditos.",
       "quotaUsd": "Cuota (USD)",
+      "remainingCount": "Llamadas restantes",
+      "remainingCountPlaceholder": "Cuántas llamadas más permite esta clave",
+      "requestyManagePermission": "Permiso de administración",
+      "requestyManagePermissionHelp": "Esta clave puede llamar a endpoints de administración y gestionar otras claves.",
+      "requestyMonthlyLimit": "Límite mensual (USD)",
+      "requestyMonthlyLimitPlaceholder": "0 o vacío significa ilimitado",
+      "storageLocation": "Ubicación de almacenamiento",
+      "storageLocationGlobal": "Nodo global",
+      "storageLocationHelp": "Dónde se guardan los medios que genera esta clave.",
+      "storageLocationNone": "No almacenar (usar los enlaces originales)",
+      "storageLocationUnconfigured": "Valor predeterminado del despliegue",
       "title": {
         "create": "Crear clave API",
         "edit": "Editar clave API"
       },
       "totalQuotaUsd": "Cuota total (USD)",
+      "unlimitedCount": "Llamadas ilimitadas",
+      "unlimitedCountHelp": "Si se desactiva, la clave se detiene al agotar las llamadas restantes; las llamadas y el saldo se miden por separado.",
       "unsaved": {
         "description": "Al cerrar, se descartarán tus cambios.",
         "discard": "Descartar cambios",
         "keepEditing": "Seguir editando",
         "title": "¿Descartar cambios?"
+      },
+      "vercelAiGateway": {
+        "attribution": {
+          "team": "Equipo",
+          "user": "Miembro del equipo"
+        },
+        "budgetAlerts": "Enviar correo al creador de la clave al alcanzar estos umbrales",
+        "budgetEnabled": "Presupuesto de gasto",
+        "budgetHelp": "Establece un límite en USD. Al desactivarlo se aplica el presupuesto predeterminado del equipo, si existe. Los presupuestos nuevos excluyen el gasto de BYOK.",
+        "budgetInactive": "Presupuesto inactivo",
+        "budgetLimit": "Límite de gasto (USD, mínimo $1)",
+        "budgetPeriod": "Renovación del presupuesto",
+        "budgetUnavailable": "No se pudo leer el presupuesto. Reintenta antes de editar.",
+        "consoleFailed": "No se pudo abrir la consola del equipo. Revisa el token de acceso y reintenta.",
+        "inheritedBudget": "Presupuesto predeterminado del equipo",
+        "noBudget": "Sin presupuesto propio de la clave",
+        "openConsole": "Abrir consola de Vercel",
+        "period": {
+          "daily": "Diaria",
+          "monthly": "Mensual",
+          "none": "Nunca",
+          "weekly": "Semanal"
+        },
+        "spendAttribution": "Atribución del gasto",
+        "spendAttributionHelp": "Elige a qué presupuesto se carga esta clave. Solo los propietarios del equipo y los administradores de presupuesto de AI Gateway pueden cambiarlo."
       }
     },
     "heading": "Claves API",
+    "lifecycle": {
+      "disableDescription": "Deshabilitar temporalmente. Puedes volver a habilitarla después.",
+      "enableDescription": "Volver a habilitar esta clave con su configuración actual.",
+      "rotateDescription": "La clave anterior dejará de funcionar de inmediato. Copia la nueva clave y actualiza tus clientes. Se conserva el resto de la configuración."
+    },
     "missing": "No disponible",
+    "permission": {
+      "accountManageBadgeTitle": "All API Hub usa esta clave para consultar el saldo de esta cuenta y administrar claves. También puede crear y eliminar otras claves de la organización. Si la reemplazas o eliminas, actualiza la clave en la configuración de la cuenta.",
+      "manage": "Permiso de gestión",
+      "manageBadgeTitle": "Esta clave puede llamar a los endpoints de gestión y administrar otras claves de la organización.",
+      "manageGranted": "Puede gestionar otras claves",
+      "manageNotGranted": "Solo inferencia"
+    },
+    "revoke": {
+      "description": "¿Revocar “{{name}}”? La clave se desactivará permanentemente. Su registro permanecerá hasta que lo elimines.",
+      "feedback": {
+        "error": "No se pudo revocar esta clave. Actualiza e inténtalo de nuevo."
+      },
+      "success": "Clave revocada",
+      "title": "Revocar clave",
+      "working": "Revocando..."
+    },
     "scope": {
       "empty": "No hay ámbitos disponibles",
       "error": "No se pudieron cargar los ámbitos",
@@ -408,6 +720,7 @@
       "heading": "Ámbito",
       "label": "Seleccionar un ámbito",
       "loading": "Cargando ámbitos…",
+      "nanoGptManagementOptional": "El token de administración es opcional. Puedes copiar, exportar y verificar tu clave API de inferencia guardada. Para listar o administrar claves remotas, agrega un token de administración en Editar cuenta.",
       "partial": "No se pudieron cargar algunos ámbitos. Los ámbitos disponibles se pueden seguir usando.",
       "placeholder": "Elige un ámbito",
       "retry": "Volver a cargar los ámbitos"
@@ -439,8 +752,8 @@
     "copy": "Copiar clave completa",
     "copyFailed": "No se pudo copiar la clave completa",
     "keyLabel": "Clave completa",
-    "subtitle": "El valor completo de la clave {{name}} solo se muestra después de esta creación.",
-    "subtitleUnnamed": "La clave completa solo se muestra después de esta creación.",
+    "subtitle": "El valor completo de la clave {{name}} solo se muestra después de esta operación.",
+    "subtitleUnnamed": "La clave completa solo se muestra después de esta operación.",
     "title": "Guarda la clave completa ahora",
     "warningDescription": "Después de cerrar este diálogo, la extensión no podrá volver a mostrar la clave completa.",
     "warningTitle": "Esta clave solo se puede ver una vez"
@@ -581,9 +894,35 @@
   },
   "pleaseAddAccount": "Agrega una cuenta primero",
   "pleaseSelectAccount": "Selecciona una cuenta",
+  "provisioning": {
+    "actions": {
+      "allGroups": "Completar todos los grupos faltantes",
+      "default": "Asegurar una clave predeterminada",
+      "hint": "Crear solo las claves faltantes y conservar las existentes.",
+      "title": "Completar claves faltantes"
+    },
+    "cancelled": "Detenido. Se conservan las claves ya creadas.",
+    "completed": "Claves listas: {{created}} creadas, {{covered}} ya cubiertas.",
+    "continue": "Continuar con intervención del usuario",
+    "creating": "Completando las claves de la cuenta: {{created}} / {{total}} creadas…",
+    "input": "{{label}} · {{current}} / {{total}}. Completa todos los datos antes de crear las claves.",
+    "preparing": "Comprobando las claves de la cuenta…",
+    "progress": "Creadas {{created}} / {{total}}; ya cubiertas: {{covered}}.",
+    "result": {
+      "cancelled": "Se detuvo la creación de claves faltantes",
+      "covered": "Ya cubiertas",
+      "created": "Creadas",
+      "failed": "No se pudieron crear algunas claves",
+      "next": "Siguiente paso",
+      "remaining": "Sin confirmar",
+      "resume": "Vuelve a completar las claves más tarde. Se omitirán las existentes.",
+      "retained": "Se conservan las claves creadas y las existentes.",
+      "uncertain": "Algunas claves requieren verificación"
+    }
+  },
   "refreshTokenList": "Actualizar lista de claves",
   "repairMissingKeys": {
-    "action": "Comprobación de claves",
+    "action": "Revisar y reparar",
     "actions": {
       "cancel": "Cancelar comprobación",
       "rerun": "Comprobar de nuevo",
@@ -599,7 +938,7 @@
       "title_many": "¿Eliminar {{count}} claves inválidas?",
       "title_other": "¿Eliminar {{count}} claves inválidas?"
     },
-    "description": "Revisa todos los grupos disponibles de las cuentas guardadas y crea las claves utilizables faltantes donde se admita la creación automática. Otros problemas aparecen abajo.",
+    "description": "Revisa todos los grupos disponibles de las cuentas seleccionadas y crea las claves utilizables faltantes donde se admita la creación automática. Otros problemas aparecen abajo.",
     "failureGuidance": {
       "aborted": "La operación se canceló antes de finalizar. Vuelve a ejecutar la comprobación cuando estés listo.",
       "authenticationFailed": "Vuelve a iniciar sesión o actualiza las credenciales de esta cuenta y vuelve a intentarlo.",
@@ -614,7 +953,7 @@
       "validationFailed": "Revisa la configuración requerida de la clave, corrígela y vuelve a intentarlo."
     },
     "historyNote": "Esto muestra el resultado de la comprobación anterior. No hay ningún trabajo en ejecución y puedes volver a ejecutar la comprobación.",
-    "initialNotice": "Revisa las cuentas guardadas grupo por grupo y crea las claves faltantes donde se admita. Se omiten los grupos que ya tienen claves utilizables.",
+    "initialNotice": "Revisa las cuentas seleccionadas grupo por grupo y crea las claves faltantes donde se admita. Se omiten los grupos que ya tienen claves utilizables.",
     "invalidKeys": {
       "badge": "Inválida",
       "deleteFailed": "No se pudieron eliminar las claves inválidas",
@@ -724,6 +1063,10 @@
     },
     "resultsTitle": "Resultados",
     "runningNote": "Este trabajo se ejecuta en segundo plano. Puedes cerrar este diálogo y revisar más tarde, o cancelarlo desde la tarjeta de progreso.",
+    "scope": {
+      "allSelected": "Todas las cuentas seleccionadas",
+      "label": "Cuentas para revisar"
+    },
     "searchLabel": "Buscar",
     "searchPlaceholder": "Buscar cuenta, nombre de clave, grupo, dominio o tipo de sitio...",
     "skipReasons": {
@@ -764,6 +1107,9 @@
   "showingCount_many": "Mostrando {{count}}",
   "showingCount_other": "Mostrando {{count}}",
   "title": "Administración de claves",
+  "tools": {
+    "title": "Herramientas de claves"
+  },
   "totalKeys_one": "Total {{count}} clave",
   "totalKeys_many": "Total {{count}} claves",
   "totalKeys_other": "Total {{count}} claves",

@@ -1,8 +1,8 @@
-import { autoRefreshService } from "~/services/accounts/autoRefreshService"
-import { autoCheckinScheduler } from "~/services/checkin/autoCheckin/scheduler"
+import { autoRefreshService } from "~/services/accounts/refresh/autoRefreshService"
+import { autoCheckinScheduler } from "~/services/checkin/autoCheckin/scheduling/schedulerCore"
 import { dailyBalanceHistoryScheduler } from "~/services/history/dailyBalanceHistory/scheduler"
 import { usageHistoryScheduler } from "~/services/history/usageHistory/scheduler"
-import { legacyChannelConfigMigration } from "~/services/managedSites/legacyChannelConfigMigration"
+import { legacyChannelConfigMigration } from "~/services/managedSites/configuration/legacyChannelConfigMigration"
 import { newApiOwnedSessionLifecycle } from "~/services/managedSites/newApiOwnedSession/background"
 import { modelMetadataService } from "~/services/models/modelMetadata"
 import { modelSyncScheduler } from "~/services/models/modelSync"
@@ -11,7 +11,7 @@ import { productAnnouncementService } from "~/services/productAnnouncements/serv
 import { redemptionAssistService } from "~/services/redemption/redemptionAssist"
 import { siteAnnouncementScheduler } from "~/services/siteAnnouncements/scheduler"
 import { releaseUpdateService } from "~/services/updates/releaseUpdateService"
-import { webdavAutoSyncService } from "~/services/webdav/webdavAutoSyncService"
+import { webdavAutoSyncService } from "~/services/webdav/autoSync/webdavAutoSyncService"
 import { createLogger } from "~/utils/core/logger"
 import { initBackgroundI18n } from "~/utils/i18n/background"
 
@@ -55,6 +55,7 @@ export async function initializeServices() {
       // Start alarm-based schedulers first so their listeners are registered synchronously
       // during service worker startup (before any awaited work yields control).
       const alarmSchedulersInit = Promise.allSettled([
+        autoRefreshService.initialize(),
         usageHistoryScheduler.initialize(),
         webdavAutoSyncService.initialize(),
         modelSyncScheduler.initialize(),
@@ -92,7 +93,6 @@ export async function initializeServices() {
         logger.warn("Model metadata initialization failed", error)
       })
 
-      await autoRefreshService.initialize()
       await redemptionAssistService.initialize()
 
       servicesInitialized = true

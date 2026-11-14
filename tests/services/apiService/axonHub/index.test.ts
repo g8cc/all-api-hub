@@ -4,18 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { AXON_HUB_CHANNEL_STATUS } from "~/constants/axonHub"
 import {
   __resetCachesForTesting,
-  AxonHubRequestError,
+  signIn,
+} from "~/services/apiService/axonHub/authSession"
+import { hasCompleteAxonHubAdvancedDetail } from "~/services/apiService/axonHub/channelProjection"
+import {
   createAxonHubChannel,
   deleteAxonHubChannel,
   getAxonHubChannel,
   getAxonHubChannelSecretKey,
-  graphqlRequest,
-  hasCompleteAxonHubAdvancedDetail,
   listAxonHubChannelPage,
-  signIn,
   updateAxonHubChannel,
   updateAxonHubChannelStatus,
-} from "~/services/apiService/axonHub"
+} from "~/services/apiService/axonHub/channels"
+import { graphqlRequest } from "~/services/apiService/axonHub/graphqlClient"
+import { AxonHubRequestError } from "~/services/apiService/axonHub/graphqlProtocol"
 import type { AxonHubChannel, AxonHubCreateChannelInput } from "~/types/axonHub"
 import { server } from "~~/tests/msw/server"
 
@@ -611,6 +613,57 @@ describe("AxonHub API service", () => {
     expect(hasCompleteAxonHubAdvancedDetail(second)).toBe(false)
     expect(hasCompleteAxonHubAdvancedDetail(third)).toBe(true)
   })
+
+  it("rejects retargeted core detail after optional schema fallback", async () => {
+    useAxonHubGraphqlRoutes({
+      token: "invalid-core-detail-token",
+      routes: [
+        {
+          matches: matchesGraphqlOperation("query GetAxonHubChannel"),
+          respond: ({ query }) =>
+            query.includes("query GetAxonHubChannelCore")
+              ? HttpResponse.json({
+                  data: { node: buildNativeChannelDetail("other-channel") },
+                })
+              : HttpResponse.json({
+                  errors: [
+                    {
+                      message: "Unsupported settings field",
+                      extensions: { code: "GRAPHQL_VALIDATION_FAILED" },
+                    },
+                  ],
+                }),
+        },
+      ],
+    })
+
+    await expect(
+      getAxonHubChannel(config, "requested-channel"),
+    ).rejects.toMatchObject({
+      kind: "protocol",
+      dispatch: "not-dispatched",
+    })
+  })
+
+  it.each([true, false])(
+    "preserves the provider deletion result: %s",
+    async (deleted) => {
+      useAxonHubGraphqlRoutes({
+        token: "deletion-result-token",
+        routes: [
+          {
+            matches: matchesGraphqlOperation("mutation DeleteChannel"),
+            respond: () =>
+              HttpResponse.json({ data: { deleteChannel: deleted } }),
+          },
+        ],
+      })
+
+      await expect(
+        deleteAxonHubChannel(config, "requested-channel"),
+      ).resolves.toBe(deleted)
+    },
+  )
 
   it("rejects malformed native detail nodes as controlled protocol failures", async () => {
     const malformedNodes = [

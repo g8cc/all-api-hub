@@ -3,9 +3,9 @@ import { startTransition, Suspense, useState } from "react"
 import { describe, expect, expectTypeOf, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { createManagedResourceRowMapper } from "~/features/ManagedSiteChannels/controllers/managedResourceRowMapper"
-import { useManagedResourceListController as useManagedResourceListControllerBase } from "~/features/ManagedSiteChannels/controllers/useManagedResourceListController"
-import { useManagedResourceMutationController } from "~/features/ManagedSiteChannels/controllers/useManagedResourceMutationController"
+import { useManagedResourceMutationController } from "~/features/ManagedSiteChannels/editor/useManagedResourceMutationController"
+import { createManagedResourceRowMapper } from "~/features/ManagedSiteChannels/table/managedResourceRowMapper"
+import { useManagedResourceListController as useManagedResourceListControllerBase } from "~/features/ManagedSiteChannels/table/useManagedResourceListController"
 import { MANAGED_RESOURCE_KINDS } from "~/services/accountSiteDefinitions/contracts"
 import {
   MANAGED_RESOURCE_FAILURE_CODES,
@@ -21,7 +21,7 @@ import {
   MANAGED_SITE_MUTATION_OUTCOMES,
   type ManagedSiteMutationConfirmedEffect,
   type ManagedSiteMutationResult,
-} from "~/services/managedSites/mutations"
+} from "~/services/managedSites/mutations/contracts"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -30,6 +30,7 @@ import {
   PRODUCT_ANALYTICS_RESULTS,
   PRODUCT_ANALYTICS_SURFACE_IDS,
 } from "~/services/productAnalytics/contracts"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import {
   createManagedResourceEditor,
   createManagedResourceFacts,
@@ -814,7 +815,8 @@ describe("useManagedResourceListController", () => {
       refresh = result.current.refresh()
     })
     await waitFor(() => expect(list).toHaveBeenCalledTimes(2))
-    const signal = (list as ReturnType<typeof vi.fn>).mock.calls[1][1]?.signal
+    const signal = atIndex((list as ReturnType<typeof vi.fn>).mock.calls, 1)[1]
+      ?.signal
     act(() => result.current.cancelCollection())
 
     expect(signal?.aborted).toBe(true)
@@ -980,8 +982,10 @@ describe("useManagedResourceListController", () => {
       { initialProps: { search: "old" } },
     )
     await waitFor(() => expect(list).toHaveBeenCalledOnce())
-    const oldSignal = (list as ReturnType<typeof vi.fn>).mock.calls[0][1]
-      ?.signal
+    const oldSignal = atIndex(
+      (list as ReturnType<typeof vi.fn>).mock.calls,
+      0,
+    )[1]?.signal
 
     rerender({ search: "new" })
     await waitFor(() =>
@@ -1004,7 +1008,8 @@ describe("useManagedResourceListController", () => {
       useManagedResourceListController({ registration: value }),
     )
     await waitFor(() => expect(list).toHaveBeenCalledOnce())
-    const signal = (list as ReturnType<typeof vi.fn>).mock.calls[0][1]?.signal
+    const signal = atIndex((list as ReturnType<typeof vi.fn>).mock.calls, 0)[1]
+      ?.signal
 
     unmount()
 
@@ -1349,6 +1354,45 @@ describe("useManagedResourceListController", () => {
 })
 
 describe("useManagedResourceMutationController", () => {
+  it("falls back to an authoritative read when local mutation acceptance throws", async () => {
+    const saved = createManagedResourceFacts("saved")
+    const editor = createManagedResourceEditor({
+      submit: vi.fn(async () =>
+        succeededFacts(
+          saved,
+          MANAGED_SITE_MUTATION_EFFECT_KINDS.ResourceCreated,
+        ),
+      ),
+    })
+    const workspace = createManagedResourceWorkspace({
+      openCreateEditor: vi.fn(async () => editor),
+    })
+    const refresh = vi.fn(async () => true)
+    const acceptMutationResult = vi.fn(() => {
+      throw new Error("local projection unavailable")
+    })
+    const onMutationSuccess = vi.fn()
+    const { result } = renderHook(() =>
+      useManagedResourceMutationController({
+        workspace,
+        refresh,
+        acceptMutationResult,
+        onMutationSuccess,
+      }),
+    )
+    await act(async () => result.current.openCreate())
+    await act(async () => {
+      await expect(result.current.submit({ name: "saved" })).resolves.toBe(
+        saved,
+      )
+    })
+    expect(acceptMutationResult).toHaveBeenCalledTimes(1)
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(editor.submit).toHaveBeenCalledTimes(1)
+    expect(result.current.editor).toBeNull()
+    expect(onMutationSuccess).toHaveBeenCalledWith("create")
+  })
+
   it("keeps a succeeded editor visible until the accepted refresh completes", async () => {
     const refresh = deferred<boolean>()
     const saved = createManagedResourceFacts("saved")
@@ -2573,8 +2617,10 @@ describe("useManagedResourceMutationController", () => {
     act(() => {
       submission = result.current.submit({ name: "changed" })
     })
-    const signal = (editor.submit as ReturnType<typeof vi.fn>).mock.calls[0][1]
-      ?.signal
+    const signal = atIndex(
+      (editor.submit as ReturnType<typeof vi.fn>).mock.calls,
+      0,
+    )[1]?.signal
     rerender({ workspace: newWorkspace })
     expect(signal?.aborted).toBe(true)
 
@@ -3024,8 +3070,10 @@ describe("useManagedResourceMutationController", () => {
     })
     expect(second).toBe(first)
     await waitFor(() => expect(workspace.delete).toHaveBeenCalledOnce())
-    const signal = (workspace.delete as ReturnType<typeof vi.fn>).mock
-      .calls[0][1]?.signal
+    const signal = atIndex(
+      (workspace.delete as ReturnType<typeof vi.fn>).mock.calls,
+      0,
+    )[1]?.signal
 
     unmount()
     expect(signal?.aborted).toBe(true)
@@ -3358,7 +3406,7 @@ describe("useManagedResourceMutationController", () => {
         const index = Number(ref.resourceId.split("-")[1])
         active += 1
         peak = Math.max(peak, active)
-        await gates[index].promise
+        await atIndex(gates, index).promise
         active -= 1
         if (index === 1)
           return {
@@ -3525,8 +3573,10 @@ describe("useManagedResourceMutationController", () => {
       execution = result.current.confirmDelete()
     })
     await waitFor(() => expect(oldWorkspace.delete).toHaveBeenCalledOnce())
-    const signal = (oldWorkspace.delete as ReturnType<typeof vi.fn>).mock
-      .calls[0][1]?.signal
+    const signal = atIndex(
+      (oldWorkspace.delete as ReturnType<typeof vi.fn>).mock.calls,
+      0,
+    )[1]?.signal
 
     rerender({ workspace: newWorkspace })
     expect(signal?.aborted).toBe(true)
@@ -3595,5 +3645,82 @@ describe("useManagedResourceMutationController", () => {
     })
     await act(async () => result.current.openCreate())
     expect(newWorkspace.openCreateEditor).toHaveBeenCalledOnce()
+  })
+
+  it("fails validation when openDelete cannot resolve row ref", async () => {
+    const workspace = createManagedResourceWorkspace()
+    const { result } = renderHook(() =>
+      useManagedResourceMutationController({
+        workspace,
+        resolveRef: () => undefined,
+      }),
+    )
+
+    act(() => {
+      const opened = result.current.openDelete("unresolvable-row")
+      expect(opened).toBe(false)
+    })
+
+    expect(result.current.deleteState.failure).toEqual({
+      code: MANAGED_RESOURCE_FAILURE_CODES.ValidationFailed,
+    })
+  })
+
+  it("returns empty array when confirmDelete is called outside delete confirmation phase", async () => {
+    const workspace = createManagedResourceWorkspace()
+    const { result } = renderHook(() =>
+      useManagedResourceMutationController({ workspace }),
+    )
+
+    let results!: any
+    await act(async () => {
+      results = await result.current.confirmDelete()
+    })
+
+    expect(results).toEqual([])
+  })
+
+  it("returns false when recoverFreshRead encounters rejected refresh", async () => {
+    const workspace = createManagedResourceWorkspace({
+      delete: vi.fn(
+        async () =>
+          ({
+            outcome: MANAGED_SITE_MUTATION_OUTCOMES.Rejected,
+            diagnostic: {
+              message: "permission denied",
+              code: MANAGED_RESOURCE_FAILURE_CODES.PermissionDenied,
+            },
+          }) as const,
+      ),
+    })
+    const refresh = vi
+      .fn<() => Promise<boolean>>()
+      .mockResolvedValueOnce(false)
+      .mockRejectedValueOnce(new Error("refresh rejected"))
+
+    const { result } = renderHook(() =>
+      useManagedResourceMutationController({
+        workspace,
+        refresh,
+        resolveRef: () => EXAMPLE_MANAGED_RESOURCE_REF,
+      }),
+    )
+
+    act(() => {
+      result.current.openDelete("stale-row")
+    })
+    await act(async () => {
+      await result.current.confirmDelete()
+    })
+
+    expect(result.current.deleteState.requiresFreshRead).toBe(true)
+
+    let recovered!: boolean
+    await act(async () => {
+      recovered = await result.current.recoverFreshRead()
+    })
+
+    expect(recovered).toBe(false)
+    expect(result.current.deleteState.requiresFreshRead).toBe(true)
   })
 })

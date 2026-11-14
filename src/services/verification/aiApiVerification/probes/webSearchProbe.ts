@@ -9,7 +9,9 @@ import {
 import type {
   ApiVerificationApiType,
   ApiVerificationMode,
+  ApiVerificationProbePromptOverrides,
   ApiVerificationProbeResult,
+  ApiVerificationRequestProfile,
 } from "../types"
 import {
   buildSafeProbeFailureDiagnostics,
@@ -17,13 +19,18 @@ import {
   toSanitizedErrorSummary,
 } from "../utils"
 import { runProbeGeneration } from "./probeGeneration"
+import { resolveProbePrompt } from "./probePrompts"
 
 type RunWebSearchProbeParams = {
   baseUrl: string
   apiKey: string
+  requestHeaders?: Record<string, string>
+  requestProfile?: ApiVerificationRequestProfile
+  requestProfileEnhanced?: boolean
   apiType: ApiVerificationApiType
   modelId: string
   mode?: ApiVerificationMode
+  probePromptOverrides?: ApiVerificationProbePromptOverrides
   abortSignal?: AbortSignal
 }
 
@@ -35,7 +42,10 @@ export async function runWebSearchProbe(
 ): Promise<ApiVerificationProbeResult> {
   const startedAt = nowMs()
   const mode = params.mode ?? API_VERIFICATION_MODES.Streaming
-  const secretsToRedact = [params.apiKey]
+  const secretsToRedact = [
+    params.apiKey,
+    ...Object.values(params.requestHeaders ?? {}),
+  ]
 
   if (params.apiType === API_TYPES.ANTHROPIC) {
     return {
@@ -55,11 +65,19 @@ export async function runWebSearchProbe(
   try {
     if (params.apiType === API_TYPES.OPENAI) {
       const provider = createOpenAIProvider({
+        requestProfile: params.requestProfile,
+        requestProfileEnhanced: params.requestProfileEnhanced,
         baseUrl: params.baseUrl,
         apiKey: params.apiKey,
+        ...(params.requestHeaders
+          ? { requestHeaders: params.requestHeaders }
+          : {}),
       })
 
-      const prompt = "Use web search to find one recent headline about AI SDK."
+      const prompt = resolveProbePrompt(
+        API_VERIFICATION_PROBE_IDS.WebSearch,
+        params.probePromptOverrides,
+      )!
       const result = await runProbeGeneration(
         {
           model: provider(params.modelId),
@@ -109,12 +127,19 @@ export async function runWebSearchProbe(
 
     if (params.apiType === API_TYPES.GOOGLE) {
       const google = createGoogleProvider({
+        requestProfile: params.requestProfile,
+        requestProfileEnhanced: params.requestProfileEnhanced,
         baseUrl: params.baseUrl,
         apiKey: params.apiKey,
+        ...(params.requestHeaders
+          ? { requestHeaders: params.requestHeaders }
+          : {}),
       })
 
-      const prompt =
-        "Use Google search grounding to find one recent AI headline."
+      const prompt = resolveProbePrompt(
+        API_VERIFICATION_PROBE_IDS.WebSearch,
+        params.probePromptOverrides,
+      )!
       const result = await runProbeGeneration(
         {
           model: google(params.modelId),
@@ -122,7 +147,9 @@ export async function runWebSearchProbe(
           tools: {
             google_search: google.tools.googleSearch({}),
           },
-          toolChoice: { type: "tool", toolName: "google_search" },
+          // Google reports grounding as sources rather than a function call.
+          // SDK 7 enforces forced tool calls; validate the search evidence below.
+          toolChoice: "auto",
           abortSignal: params.abortSignal,
         },
         mode,

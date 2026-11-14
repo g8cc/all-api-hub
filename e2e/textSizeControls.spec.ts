@@ -104,10 +104,40 @@ test("virtual bookmark rows grow with text size and keep their offsets aligned",
       value: async (permissions: chrome.permissions.Permissions) =>
         permissions.permissions?.includes("bookmarks") || contains(permissions),
     })
+    const originalRequest = chrome.permissions.request?.bind(chrome.permissions)
+    Object.defineProperty(chrome.permissions, "request", {
+      value: async (permissions: chrome.permissions.Permissions) =>
+        permissions.permissions?.includes("bookmarks") ||
+        (originalRequest ? await originalRequest(permissions) : true),
+    })
     const browserGlobals = globalThis as typeof globalThis & {
-      browser: typeof chrome
+      browser?: typeof chrome
     }
-    Object.defineProperty(browserGlobals.browser, "bookmarks", {
+    if (browserGlobals.browser?.permissions) {
+      const originalBrowserRequest =
+        browserGlobals.browser.permissions.request?.bind(
+          browserGlobals.browser.permissions,
+        )
+      Object.defineProperty(browserGlobals.browser.permissions, "request", {
+        value: async (permissions: chrome.permissions.Permissions) =>
+          permissions.permissions?.includes("bookmarks") ||
+          (originalBrowserRequest
+            ? await originalBrowserRequest(permissions)
+            : true),
+      })
+      const originalBrowserContains =
+        browserGlobals.browser.permissions.contains?.bind(
+          browserGlobals.browser.permissions,
+        )
+      Object.defineProperty(browserGlobals.browser.permissions, "contains", {
+        value: async (permissions: chrome.permissions.Permissions) =>
+          permissions.permissions?.includes("bookmarks") ||
+          (originalBrowserContains
+            ? await originalBrowserContains(permissions)
+            : true),
+      })
+    }
+    Object.defineProperty(browserGlobals.browser ?? chrome, "bookmarks", {
       value: {
         getTree: async () => [
           {
@@ -214,15 +244,23 @@ for (const width of [390, 320]) {
     await expectSurfaceToFit(menu, width)
     await menu.getByRole("option").filter({ hasText: "Anthropic" }).click()
 
-    await dialog
-      .getByRole("button", { name: "Select tags", exact: true })
-      .click()
+    const tagsTrigger = dialog.getByRole("button", {
+      name: "Select tags",
+      exact: true,
+    })
+    await tagsTrigger.click()
     await menu.getByRole("combobox").fill("Work")
     await expectSurfaceToFit(menu, width)
     await menu
       .getByRole("button", { name: 'Create "Work"', exact: true })
       .click()
     await page.keyboard.press("Escape")
+    // Radix restores focus after the closing popover unmounts. Opening the
+    // calendar first lets that delayed focus dismiss the new popover.
+    await expect(
+      dialog.getByRole("button", { name: "1 tag selected", exact: true }),
+    ).toBeFocused()
+    await expect(page.locator('[data-slot="popover-content"]')).toHaveCount(0)
 
     await dialog
       .getByRole("button", { name: /Expiration date:.*calendar/i })

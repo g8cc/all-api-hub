@@ -5,14 +5,15 @@ import { collectCheckInFeedbackClues } from "~/services/checkin/feedback/scan"
 import { collectFeedbackCluesInBrowser } from "~/services/checkin/feedback/scanClient"
 import { FEEDBACK_SCAN_SESSION_TIMEOUT_MS } from "~/services/checkin/feedback/scanTypes"
 import { AuthTypeEnum } from "~/types"
-import { sendRuntimeMessage } from "~/utils/browser/browserApi"
+import { sendRuntimeMessage } from "~/utils/browser/runtimeMessages"
 import { executeProtectionBypassTask } from "~/utils/browser/tempWindowFetch"
 import { createDeferred } from "~~/tests/test-utils/deferred"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 vi.mock("~/utils/browser/tempWindowFetch", () => ({
   executeProtectionBypassTask: vi.fn(),
 }))
-vi.mock("~/utils/browser/browserApi", () => ({
+vi.mock("~/utils/browser/runtimeMessages", () => ({
   sendRuntimeMessage: vi.fn().mockResolvedValue({ success: true }),
 }))
 vi.mock("~/utils/browser/tempWindowRequestSource", () => ({
@@ -39,6 +40,29 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe("feedback browser scan", () => {
+  it("forwards configured routes to the protected diagnostic scan", async () => {
+    vi.mocked(executeProtectionBypassTask).mockResolvedValue({
+      success: true,
+      data: clues,
+    })
+    await collectFeedbackCluesInBrowser(
+      { ...input, routePaths: ["/api/user/daily-custom"] },
+      new AbortController().signal,
+    )
+    expect(executeProtectionBypassTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task: expect.objectContaining({
+          params: expect.objectContaining({
+            input: {
+              baseUrl: "https://example.com",
+              siteType: SITE_TYPES.NEW_API,
+              routePaths: ["/api/user/daily-custom"],
+            },
+          }),
+        }),
+      }),
+    )
+  })
   it("avoids a browser task for an invalid origin", async () => {
     expect(
       await collectFeedbackCluesInBrowser(
@@ -61,7 +85,10 @@ describe("feedback browser scan", () => {
       },
       new AbortController().signal,
     )
-    const auth = vi.mocked(executeProtectionBypassTask).mock.calls[0][0].task
+    const auth = atIndex(
+      vi.mocked(executeProtectionBypassTask).mock.calls,
+      0,
+    )[0].task
     expect(auth).toMatchObject({
       params: { input: { auth: { accessToken: "selected" } } },
     })

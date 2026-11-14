@@ -1,0 +1,517 @@
+import type {
+  ApiVerificationProbeId,
+  ApiVerificationProbeStatus,
+} from "~/services/verification/aiApiVerification"
+import {
+  API_VERIFICATION_MODES,
+  API_VERIFICATION_PROBE_IDS,
+  API_VERIFICATION_PROBE_STATUSES,
+} from "~/services/verification/aiApiVerification"
+import {
+  DRAWING_VERIFICATION_OUTCOMES,
+  PELICAN_EXECUTION_MODES,
+} from "~/services/verification/modelQuality/constants"
+import { CONTEXT_CAPACITY_REASONS } from "~/services/verification/modelQuality/contextCapacityConstants"
+import { CONTEXT_TOKEN_ENCODINGS } from "~/services/verification/modelQuality/contextTokenConstants"
+import { coerceNeedleResult } from "~/services/verification/modelQuality/needleResultCodec"
+import {
+  API_VERIFICATION_HISTORY_STATUSES,
+  API_VERIFICATION_HISTORY_TARGET_KINDS,
+  API_VERIFICATION_RESULT_HISTORY_CONFIG_VERSION,
+  CONTEXT_CAPACITY_INCONCLUSIVE_REASONS,
+  type ApiVerificationHistoryConfig,
+  type ApiVerificationHistorySummary,
+  type ApiVerificationHistoryTarget,
+  type ContextCapacitySummary,
+  type DrawingVerificationSummary,
+  type NeedleSummary,
+  type PersistedApiVerificationProbeSummary,
+} from "~/services/verification/verificationResultHistory/types"
+import {
+  deriveVerificationHistoryStatus,
+  isApiVerificationApiType,
+  sanitizeVerificationRequestProfile,
+  serializeVerificationHistoryTarget,
+} from "~/services/verification/verificationResultHistory/utils"
+
+const KNOWN_PROBE_IDS = new Set<ApiVerificationProbeId>(
+  Object.values(API_VERIFICATION_PROBE_IDS),
+)
+
+export const createDefaultConfig = (): ApiVerificationHistoryConfig => ({
+  version: API_VERIFICATION_RESULT_HISTORY_CONFIG_VERSION,
+  summaries: [],
+  lastUpdated: Date.now(),
+  lastOrphanSweepAt: 0,
+})
+
+/**
+ * Create a detached copy of persisted history config data.
+ */
+export function cloneConfig(
+  config: ApiVerificationHistoryConfig,
+): ApiVerificationHistoryConfig {
+  if (typeof structuredClone === "function") {
+    return structuredClone(config)
+  }
+  return JSON.parse(JSON.stringify(config)) as ApiVerificationHistoryConfig
+}
+
+/** Detached copy of just the stored summaries. */
+export function cloneSummaries(
+  summaries: ApiVerificationHistorySummary[],
+): ApiVerificationHistorySummary[] {
+  if (typeof structuredClone === "function") {
+    return structuredClone(summaries)
+  }
+  return JSON.parse(
+    JSON.stringify(summaries),
+  ) as ApiVerificationHistorySummary[]
+}
+
+/**
+ * Normalize free-form persisted text into a compact single-line string.
+ */
+function sanitizeText(input: unknown, fallback = "") {
+  if (typeof input !== "string") return fallback
+  return input.replace(/\s+/g, " ").trim()
+}
+
+/**
+ * Coerce a persisted timestamp into a positive integer epoch value.
+ *
+ * Missing or invalid values fall back to 0, never to the current time: a sweep
+ * marker of 0 means "never swept", which keeps sweeps enabled for payloads
+ * written before the marker existed.
+ */
+function coercePositiveTimestamp(input: unknown) {
+  if (typeof input === "number" && Number.isFinite(input) && input > 0) {
+    return Math.round(input)
+  }
+  return 0
+}
+
+/**
+ * Coerce persisted timestamps into positive integer epoch values.
+ */
+function normalizeTimestamp(input: unknown) {
+  if (typeof input === "number" && Number.isFinite(input) && input > 0) {
+    return Math.round(input)
+  }
+  return Date.now()
+}
+
+/**
+ * Narrow persisted aggregate status values to the supported stored variants.
+ */
+function isPersistedStatus(
+  value: unknown,
+): value is ApiVerificationHistorySummary["status"] {
+  return (
+    value === API_VERIFICATION_HISTORY_STATUSES.Pass ||
+    value === API_VERIFICATION_HISTORY_STATUSES.Fail
+  )
+}
+
+/**
+ * Validate persisted probe status values before rehydrating summaries.
+ */
+function isProbeStatus(value: unknown): value is ApiVerificationProbeStatus {
+  return Object.values(API_VERIFICATION_PROBE_STATUSES).includes(
+    value as ApiVerificationProbeStatus,
+  )
+}
+
+/**
+ * Keep only serializable scalar probe summary params from persisted data.
+ */
+function coerceSummaryParams(raw: unknown) {
+  if (!raw || typeof raw !== "object") return undefined
+
+  const next: Record<string, string | number | boolean> = {}
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const trimmedKey = key.trim()
+    if (!trimmedKey) continue
+
+    if (
+      typeof value === "boolean" ||
+      (typeof value === "number" && Number.isFinite(value))
+    ) {
+      next[trimmedKey] = value
+      continue
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      next[trimmedKey] = sanitizeText(value)
+    }
+  }
+
+  return Object.keys(next).length > 0 ? next : undefined
+}
+
+/**
+ * Rehydrate a persisted verification target only when its identity is valid.
+ */
+function coerceTarget(raw: unknown): ApiVerificationHistoryTarget | null {
+  if (!raw || typeof raw !== "object") return null
+
+  const value = raw as Record<string, unknown>
+  if (value.kind === API_VERIFICATION_HISTORY_TARGET_KINDS.Profile) {
+    const profileId = sanitizeText(value.profileId)
+    return profileId
+      ? { kind: API_VERIFICATION_HISTORY_TARGET_KINDS.Profile, profileId }
+      : null
+  }
+
+  if (value.kind === API_VERIFICATION_HISTORY_TARGET_KINDS.ProfileModel) {
+    const profileId = sanitizeText(value.profileId)
+    const modelId = sanitizeText(value.modelId)
+    return profileId && modelId
+      ? {
+          kind: API_VERIFICATION_HISTORY_TARGET_KINDS.ProfileModel,
+          profileId,
+          modelId,
+        }
+      : null
+  }
+
+  if (value.kind === API_VERIFICATION_HISTORY_TARGET_KINDS.AccountModel) {
+    const accountId = sanitizeText(value.accountId)
+    const modelId = sanitizeText(value.modelId)
+    return accountId && modelId
+      ? {
+          kind: API_VERIFICATION_HISTORY_TARGET_KINDS.AccountModel,
+          accountId,
+          modelId,
+        }
+      : null
+  }
+
+  return null
+}
+
+/**
+ * Rehydrate a single persisted probe summary and discard invalid entries.
+ */
+function coerceProbeSummary(
+  raw: unknown,
+): PersistedApiVerificationProbeSummary | null {
+  if (!raw || typeof raw !== "object") return null
+
+  const value = raw as Record<string, unknown>
+  const id = sanitizeText(value.id)
+  if (!KNOWN_PROBE_IDS.has(id as ApiVerificationProbeId)) return null
+  if (!isProbeStatus(value.status)) return null
+
+  const summary = sanitizeText(value.summary)
+  if (!summary) return null
+
+  return {
+    id: id as ApiVerificationProbeId,
+    ...sanitizeVerificationRequestProfile(value),
+    ...(value.mode === API_VERIFICATION_MODES.Streaming ||
+    value.mode === API_VERIFICATION_MODES.NonStreaming
+      ? { mode: value.mode }
+      : {}),
+    status: value.status,
+    latencyMs:
+      typeof value.latencyMs === "number" && Number.isFinite(value.latencyMs)
+        ? Math.max(0, Math.round(value.latencyMs))
+        : 0,
+    summary,
+    summaryKey: sanitizeText(value.summaryKey) || undefined,
+    summaryParams: coerceSummaryParams(value.summaryParams),
+  }
+}
+
+/**
+ * Rehydrate a persisted verification summary with sanitized probe data.
+ */
+export function coerceHistorySummary(
+  raw: unknown,
+): ApiVerificationHistorySummary | null {
+  if (!raw || typeof raw !== "object") return null
+
+  const value = raw as Record<string, unknown>
+  const target = coerceTarget(value.target)
+  if (!target || !isApiVerificationApiType(value.apiType)) return null
+
+  const probes = Array.isArray(value.probes)
+    ? (value.probes
+        .map((probe) => coerceProbeSummary(probe))
+        .filter(Boolean) as PersistedApiVerificationProbeSummary[])
+    : []
+  if (probes.length === 0) return null
+
+  const status = isPersistedStatus(value.status)
+    ? value.status
+    : deriveVerificationHistoryStatus(probes)
+
+  return {
+    target,
+    targetKey: serializeVerificationHistoryTarget(target),
+    status,
+    verifiedAt: normalizeTimestamp(value.verifiedAt),
+    apiType: value.apiType,
+    resolvedModelId: sanitizeText(value.resolvedModelId) || undefined,
+    probes,
+  }
+}
+
+/** Drops raw model content and secrets; only compact drawing metadata survives. */
+export function coerceDrawingSummary(
+  raw: unknown,
+): DrawingVerificationSummary | null {
+  if (!raw || typeof raw !== "object") return null
+  const value = raw as Record<string, unknown>
+  const target = coerceTarget(value.target)
+  if (
+    !target ||
+    !isApiVerificationApiType(value.apiType) ||
+    !(
+      Object.values(DRAWING_VERIFICATION_OUTCOMES) as readonly unknown[]
+    ).includes(String(value.outcome))
+  )
+    return null
+  const count = (input: unknown) =>
+    typeof input === "number" && Number.isFinite(input) && input >= 0
+      ? Math.round(input)
+      : 0
+  return {
+    target,
+    targetKey: serializeVerificationHistoryTarget(target),
+    verifiedAt: normalizeTimestamp(value.verifiedAt),
+    apiType: value.apiType,
+    modelId: sanitizeText(value.modelId),
+    latencyMs: count(value.latencyMs),
+    executionMode:
+      value.executionMode === PELICAN_EXECUTION_MODES.Agent
+        ? PELICAN_EXECUTION_MODES.Agent
+        : PELICAN_EXECUTION_MODES.Reply,
+    outcome: value.outcome as DrawingVerificationSummary["outcome"],
+    steps: count(value.steps),
+    calls: count(value.calls),
+    files: count(value.files),
+  }
+}
+
+/** Normalize drawing metadata when migrating an older history payload. */
+function coerceDrawings(raw: unknown) {
+  return Array.isArray(raw)
+    ? raw
+        .map(coerceDrawingSummary)
+        .filter((item): item is DrawingVerificationSummary => item !== null)
+    : undefined
+}
+
+/**
+ * Sanitize an unrecognized payload into the current config shape.
+ *
+ * This is the boundary check, run for payloads this build did not write: a
+ * different schema version, a legacy payload, or a hand-edited value.
+ */
+export function sanitizeConfig(
+  value: Record<string, unknown>,
+): ApiVerificationHistoryConfig {
+  const seenKeys = new Set<string>()
+  const summaries = Array.isArray(value.summaries)
+    ? value.summaries
+        .map((summary) => coerceHistorySummary(summary))
+        .filter((summary): summary is ApiVerificationHistorySummary => {
+          if (!summary) return false
+          if (seenKeys.has(summary.targetKey)) return false
+          seenKeys.add(summary.targetKey)
+          return true
+        })
+    : []
+
+  return {
+    version: API_VERIFICATION_RESULT_HISTORY_CONFIG_VERSION,
+    summaries,
+    ...(value.drawingSummaries
+      ? { drawingSummaries: coerceDrawings(value.drawingSummaries) }
+      : {}),
+    ...(Array.isArray(value.needleSummaries)
+      ? {
+          needleSummaries: value.needleSummaries
+            .map(coerceNeedleSummary)
+            .filter((item): item is NeedleSummary => item !== null),
+        }
+      : {}),
+    ...(Array.isArray(value.contextSummaries)
+      ? {
+          contextSummaries: value.contextSummaries
+            .map(coerceContextSummary)
+            .filter((item): item is ContextCapacitySummary => item !== null),
+        }
+      : {}),
+    lastUpdated: normalizeTimestamp(value.lastUpdated),
+    lastOrphanSweepAt: coercePositiveTimestamp(value.lastOrphanSweepAt),
+  }
+}
+
+/**
+ * Trust this build's primary summaries; always decode context-capacity entries.
+ *
+ * The invariant that makes this safe: {@link VerificationResultHistoryStorageService.mutateConfig}
+ * is the only writer and every summary it stores already passed
+ * `coerceHistorySummary`, so a payload at the current version is sanitized by
+ * construction and its target keys are unique. A payload at any other version
+ * falls through to {@link sanitizeConfig}. The residual risk is a hand-edited or
+ * corrupted current-version primary payload, which reaches the UI unsanitized
+ * instead of being silently dropped. Capacity entries are validated below.
+ * @returns The config, or `null` when the payload needs the boundary check.
+ */
+export function coerceTrustedConfig(
+  value: Record<string, unknown>,
+): ApiVerificationHistoryConfig | null {
+  if (value.version !== API_VERIFICATION_RESULT_HISTORY_CONFIG_VERSION) {
+    return null
+  }
+  if (!Array.isArray(value.summaries)) return null
+  if (
+    typeof value.lastUpdated !== "number" ||
+    !Number.isFinite(value.lastUpdated) ||
+    value.lastUpdated <= 0
+  ) {
+    return null
+  }
+
+  return {
+    version: API_VERIFICATION_RESULT_HISTORY_CONFIG_VERSION,
+    summaries: value.summaries as ApiVerificationHistorySummary[],
+    ...(value.drawingSummaries
+      ? {
+          drawingSummaries:
+            value.drawingSummaries as DrawingVerificationSummary[],
+        }
+      : {}),
+    ...(Array.isArray(value.needleSummaries)
+      ? {
+          needleSummaries: value.needleSummaries
+            .map(coerceNeedleSummary)
+            .filter((item): item is NeedleSummary => item !== null),
+        }
+      : {}),
+    ...(Array.isArray(value.contextSummaries)
+      ? {
+          contextSummaries: value.contextSummaries
+            .map(coerceContextSummary)
+            .filter((item): item is ContextCapacitySummary => item !== null),
+        }
+      : {}),
+    lastUpdated: value.lastUpdated,
+    lastOrphanSweepAt: coercePositiveTimestamp(value.lastOrphanSweepAt),
+  }
+}
+
+/** Keep only typed capacity facts; discard raw request and response material. */
+export function coerceContextSummary(
+  raw: unknown,
+): ContextCapacitySummary | null {
+  if (!raw || typeof raw !== "object") return null
+  const value = raw as Record<string, unknown>
+  const target =
+    value.target === undefined ? undefined : coerceTarget(value.target)
+  const scopeKey =
+    typeof value.scopeKey === "string" && /^[a-f0-9]{64}$/.test(value.scopeKey)
+      ? value.scopeKey
+      : null
+  const rawCounter = value.counter as Record<string, unknown> | undefined
+  const counter =
+    rawCounter &&
+    Object.values(CONTEXT_TOKEN_ENCODINGS).some(
+      (encoding) => encoding === String(rawCounter.encoding),
+    ) &&
+    typeof rawCounter.estimated === "boolean"
+      ? {
+          encoding: String(rawCounter.encoding),
+          estimated: rawCounter.estimated,
+        }
+      : undefined
+  const count = (input: unknown): input is number =>
+    typeof input === "number" && Number.isSafeInteger(input) && input >= 0
+  if (
+    (value.target !== undefined && !target) ||
+    !scopeKey ||
+    !isApiVerificationApiType(value.apiType) ||
+    typeof value.reason !== "string" ||
+    !Object.values(CONTEXT_CAPACITY_REASONS).some(
+      (reason) => reason === value.reason,
+    ) ||
+    !count(value.lowerBoundTokens) ||
+    (value.lowerBoundTokens > 0 && !counter) ||
+    !count(value.requests) ||
+    (value.upperBoundTokens !== undefined && !count(value.upperBoundTokens))
+  )
+    return null
+  return {
+    ...(target ? { target } : {}),
+    targetKey: target
+      ? serializeVerificationHistoryTarget(target)
+      : `connection:${scopeKey}`,
+    scopeKey,
+    ...(typeof value.inventoryKey === "string" &&
+    /^[a-f0-9]{64}$/.test(value.inventoryKey)
+      ? { inventoryKey: value.inventoryKey }
+      : {}),
+    verifiedAt: normalizeTimestamp(value.verifiedAt),
+    apiType: value.apiType,
+    modelId: sanitizeText(value.modelId),
+    lowerBoundTokens: value.lowerBoundTokens,
+    ...(counter ? { counter } : {}),
+    ...(count(value.declaredContext) && value.declaredContext > 0
+      ? { declaredContext: value.declaredContext }
+      : {}),
+    ...(value.upperBoundTokens !== undefined
+      ? { upperBoundTokens: value.upperBoundTokens }
+      : {}),
+    reason: value.reason as ContextCapacitySummary["reason"],
+    ...(value.reason === CONTEXT_CAPACITY_REASONS.Inconclusive &&
+    (value.inconclusiveReason ===
+      CONTEXT_CAPACITY_INCONCLUSIVE_REASONS.Timeout ||
+      value.inconclusiveReason ===
+        CONTEXT_CAPACITY_INCONCLUSIVE_REASONS.EmptyResponse ||
+      value.inconclusiveReason ===
+        CONTEXT_CAPACITY_INCONCLUSIVE_REASONS.Interrupted)
+      ? { inconclusiveReason: value.inconclusiveReason }
+      : {}),
+    requests: value.requests,
+    outputLimited: value.outputLimited === true,
+    ...(typeof value.latencyMs === "number" &&
+    Number.isFinite(value.latencyMs) &&
+    value.latencyMs >= 0
+      ? { latencyMs: value.latencyMs }
+      : {}),
+    ...(value.mode === API_VERIFICATION_MODES.Streaming ||
+    value.mode === API_VERIFICATION_MODES.NonStreaming
+      ? { mode: value.mode }
+      : {}),
+  }
+}
+
+/** Validate and retain only the compact retrieval measurements. */
+export function coerceNeedleSummary(raw: unknown): NeedleSummary | null {
+  if (!raw || typeof raw !== "object") return null
+  const value = raw as Record<string, unknown>
+  const result = coerceNeedleResult(value.result)
+  const target =
+    value.target === undefined ? undefined : coerceTarget(value.target)
+  if (
+    !result ||
+    (value.target !== undefined && !target) ||
+    typeof value.scopeKey !== "string" ||
+    !/^[a-f0-9]{64}$/.test(value.scopeKey)
+  )
+    return null
+  return {
+    result,
+    ...(target ? { target } : {}),
+    scopeKey: value.scopeKey,
+    verifiedAt: normalizeTimestamp(value.verifiedAt),
+    targetKey: target
+      ? serializeVerificationHistoryTarget(target)
+      : `connection:${value.scopeKey}`,
+  }
+}

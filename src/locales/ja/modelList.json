@@ -32,13 +32,21 @@
     "keyForModel": "このモデル用のキー",
     "openSelectedAccountKeys": "アカウントキーを管理",
     "openSite": "サイトを開く",
-    "verifyApi": "API を検証",
-    "verifyCliSupport": "CLI 対応を検証"
+    "verifyApi": "API をテスト",
+    "verifyCliSupport": "CLI 互換性テスト"
   },
+  "allAccountGroups": "すべてのグループ",
   "allAccounts": "すべてのアカウント",
   "allBillingModes": "すべての課金方式",
   "allGroups": "すべてのグループ",
   "allProviders": "すべてのプロバイダー",
+  "availability": {
+    "details": "アクセス制限の詳細を表示",
+    "restrictedHint": "サイトは現在このモデルを利用不可としています。",
+    "unavailable": "現在利用できません",
+    "unknown": "利用可否は未確認",
+    "unknownHint": "サイトはこのモデルの利用可否を確認していません。"
+  },
   "batchVerify": {
     "actions": {
       "open": "一括テスト",
@@ -107,12 +115,15 @@
     "actions": "操作",
     "filters": "絞り込み条件"
   },
+  "convertedPrice": "換算済み",
+  "convertedPriceTitle": "現在の為替レートで表示しています。元の通貨の価格は変わりません。",
   "copyAllNames": "すべてのモデル名をコピー",
   "currentUsableGroups": "現在のアカウントで利用可能なグループ",
   "description": "アカウントや API 認証情報のモデルを一覧し、料金、機能、利用可否を確認します。",
   "detailedPricing": "詳細料金",
   "diagnostics": {
     "all": "すべての料金",
+    "attention": "{{value}} 件を確認",
     "byGroup": "課金グループ別",
     "byOrigin": "サイトのオリジン別",
     "clearSearch": "検索をクリア",
@@ -121,26 +132,42 @@
     "copy": "診断レポート全体をコピー",
     "copyFailed": "コピーに失敗しました。再試行してください。",
     "copyFiltered": "絞り込み結果をコピー",
+    "copyRecord": "この項目をコピー",
     "empty": "該当する診断項目がありません。すべての料金に切り替えると料金ルールを確認できます。",
     "filter": "診断項目を絞り込む",
     "flat": "グループ化しない",
     "groupBy": "表示のグループ化",
     "inspect": "診断詳細を確認",
+    "issueLabels": {
+      "requestCondition": "リクエストの料金条件は未対応",
+      "sourceConflict": "公式料金記録に矛盾あり",
+      "thresholdBasisUnverified": "料金段階の選択基準が未確認"
+    },
     "issuesOnly": "要確認の料金のみ",
     "locate": "モデルを表示",
-    "matched": "一致する見積もり {{records}} 件 · モデル {{models}} 種",
-    "more": "さらに表示",
+    "matched": "{{records}} 件 · {{models}} モデル",
     "noGroup": "課金グループなし",
     "noOrigin": "オリジン不明",
-    "scope": "読み込み済みの絞り込み後の見積もりのみ確認し、追加リクエストは行いません。件数は見積もり単位で、同じモデルが複数サイトに存在する場合があります。コードは条件不足を示す場合もあります。エクスポートに認証情報や完全なAPI応答は含まれません。",
+    "overview": "{{total}} 件 · 公開価格 {{published}} · 見積済み {{quoted}} · 要確認 {{attention}}",
+    "results": "診断結果",
+    "scope": "読み込み済みの価格と見積もりを確認します。追加リクエストは行わず、エクスポートに認証情報は含まれません。",
     "search": "モデル、ソース、グループを検索",
     "searchHint": "モデル / ドメインまたは完全なURL / グループ / エラーコード（空白で組み合わせ）",
-    "shown": "{{total}} 件中 {{shown}} 件を表示",
-    "summary": "合計 {{total}} · 完全 {{complete}} · 一部 {{partial}} · 算出不可 {{unavailable}} · 未算出 {{notQuoted}} · 要確認 {{attention}}",
-    "title": "[DEV] 料金診断",
-    "units": "課金単位の分布"
+    "status": {
+      "complete": "完全な見積もり",
+      "notQuoted": "未計算",
+      "partial": "一部の見積もり",
+      "published": "公開価格",
+      "reference": "参考価格",
+      "unavailable": "見積もり不可"
+    },
+    "title": "[DEV] 料金診断"
   },
   "displayFacts": {
+    "accessReason": "アクセス条件",
+    "auditCharge": "リスク拒否時の監査料",
+    "auditConsent": "監査への同意が必要",
+    "baseContextTier": "基本料金を表示中。コンテキスト長に応じて料金が変わります",
     "benchmarkTable": {
       "arena": "アリーナ",
       "category": "カテゴリ",
@@ -152,9 +179,21 @@
       "no": "いいえ",
       "yes": "はい"
     },
+    "callExamples": "呼び出し例",
+    "catalogOwner": "カタログの所有者",
+    "catalogScope": "カタログの範囲",
+    "compactionCharge": "リモート圧縮料",
+    "consoleSettings": "公式設定を開く",
     "contextLimit": "コンテキスト上限",
+    "defaultDimensions": "既定の次元数",
     "inputModalities": "入力モダリティ",
     "maximumOutputTokens": "最大出力トークン数",
+    "modelKind": "モデルの用途",
+    "modelKinds": {
+      "decision": "意思決定",
+      "embedding": "埋め込み",
+      "reranker": "再ランキング"
+    },
     "openRouter": {
       "architecture": {
         "instructType": "命令形式",
@@ -234,6 +273,7 @@
       }
     },
     "outputModalities": "出力モダリティ",
+    "planRestricted": "現在のプランではこのモデルを利用できません",
     "priceConditions": {
       "minimumPromptTokens": "入力が {{formattedCount}} トークンを超える場合",
       "minimumPromptTokens_other": "入力が {{formattedCount}} トークンを超える場合",
@@ -255,16 +295,32 @@
       "request": "リクエスト",
       "webSearch": "ウェブ検索"
     },
+    "pricingConditions": "料金条件",
+    "promptAudit": "プロンプト監査有効",
+    "providerAvailable": "サイトで利用可能",
+    "providerReferenceCatalog": "サイト全体のカタログ",
+    "releaseDate": "公開日",
     "sections": {
       "specifications": "仕様"
     },
-    "tokenCount_other": "{{formattedCount}} トークン"
+    "subscriptionMultiplier": "プラン倍率",
+    "subscriptionPlan": "対象プラン",
+    "supportedDimensions": "対応次元数",
+    "supportsImages": "画像対応",
+    "tokenCount_other": "{{formattedCount}} トークン",
+    "trainingChannels": "学習チャネルあり",
+    "trainingConsent": "学習への同意が必要",
+    "vercelVerificationRequired": "リクエストを送信する前に Vercel AI Gateway コンソールで顧客確認を完了してください",
+    "viewOnSite": "公式サイトで表示"
   },
   "displayOptions": "表示内容",
   "endpointType": "エンドポイント種別",
   "endpointTypes": "エンドポイント種別",
+  "endpointTypesHint": "各モデルが対応する API エンドポイントの種類を表示します。",
   "estimatedPrice": "推定",
-  "estimatedPriceTitle": "公式価格表とこのキーの Sub2API グループ倍率から推定しています。",
+  "estimatedPriceTitle": "参考レートや料金の前提に基づく推算です。実際の料金は異なる場合があります。",
+  "expandAccountGroups": "アカウントのグループを展開",
+  "expandAccountGroupsHint": "利用可能なグループを個別に表示します。同じモデルでも、1つのアカウントに複数の見積もりが表示されます。 候補グループはアカウントのグループ絞り込みで決まります。カードでのグループ選択は、そのモデルの見積もりだけに適用されます。",
   "expandDetails": "詳細を展開",
   "fallbackSourceNotice": {
     "description": "このカタログは現在アカウントキーのフォールバック経由で読み込まれているため、モデル検出と検証のみ利用できます。[データを更新] を押すと直接のアカウント経路を再試行します。",
@@ -273,6 +329,10 @@
   "groupRatioTooltip": "グループ {{group}} の倍率: {{ratio}}x",
   "groupRatioUnavailable": "グループ倍率を取得できません",
   "groupSelectionHint": "未選択なら全グループ対象です。価格ソートは選択済みグループ範囲内の最安値を使います",
+  "inferenceRouteFallbackNotice": {
+    "description": "最新のルート情報を取得できないため、組み込みのアドレスでモデル一覧を取得しました。アドレスが古い可能性があります。モデル情報は実際の API 応答に基づきます。",
+    "title": "組み込みルートを使用中"
+  },
   "input": "入力:",
   "input1MTokens": "入力（100 万トークン）",
   "keyDialog": {
@@ -357,6 +417,7 @@
     },
     "selectionHint": "複数の能力を選択すると、モデルは選択したすべての能力を満たす必要があります。"
   },
+  "modelGroupQuickSelect": "モデルのグループ",
   "noMatchingModels": "一致するモデルが見つかりません",
   "noSourcesDescription": "モデル一覧を表示するには、先にサイトアカウントまたは API 認証情報を追加してください。",
   "noSourcesTitle": "利用できるデータソースがありません",
@@ -423,9 +484,28 @@
   },
   "pricingDescription": "価格はサイトから取得します。百万トークン、画像、秒、リクエストなど、課金単位ごとに比較します。各見積もりの単位を確認してください。実際の請求額はサイトの料金に従います。",
   "pricingNote": "モデル料金に関する注意",
+  "pricingNotes": {
+    "allChannels": "全チャネル",
+    "ambiguousCharges": "複数の料金が同じ使用量項目に対応していますが、数量や課金段階を区別できません。他の既知の料金は保持しています。",
+    "ambiguousVariantCharges": "単位料金とパラメータ別料金が公開されていますが、加算か代替かが不明なため合計を計算できません。",
+    "dedicatedPrices": "専用料金、倍率適用済み",
+    "defaultRoute": "標準ルート",
+    "endpointSourceConflict": "同じモデルの公式エンドポイント間で課金条件が一致しないため、適用料金を確定できません。",
+    "excludedCharges": "既知の料金は概算できますが、次の独立した料金は含まれていません：{{charges}}。",
+    "multiplier": "倍率 {{value}}",
+    "namedChannel": "全チャネル（{{name}}）",
+    "providerReportedEstimate": "上流の実際の費用に基づく課金です。表示トークン料金は最終費用の概算です。",
+    "routingContext": "{{route}} · {{channel}} · {{price}}。元サイトの標準料金表示です。実際の費用はルートとチャネルによって異なります。",
+    "runtimeDependent": "実行時のタスクに応じた課金ですが、事前計算式が完全ではありません。公開数値は参考値です。",
+    "thresholdBasisUnverified": "公開された段階別料金を参考として保持しています。使用量の基準、キャッシュの扱い、境界条件が未確認のため、自動で段階を選択できません。",
+    "thresholdSourceConflict": "基本料金とゼロしきい値の料金に矛盾または不足があるため、参考料金を確定できません。",
+    "timeWindow": "{{label}} {{start}}–{{end}}：入力 ${{input}} · 出力 ${{output}} · キャッシュ読取 ${{cacheRead}} / 100万トークン",
+    "timeWindowTimezoneUnavailable": "タイムゾーンが公開されていないため、通常料金を表示し、時間帯割引は自動適用しません。",
+    "wholeRequestTier": "該当するコンテキスト料金段階はリクエスト全体に適用されます。"
+  },
   "profileSourceNotice": {
     "description": "保存済みの API 認証情報では、モデル検出と検証のみ利用できます。このソースでは、料金、グループフィルター、アカウント概要、キー互換性は利用できません。",
-    "title": "プロファイル由来のモデルカタログ"
+    "title": "認証情報のモデルカタログ"
   },
   "providerCatalogFallbackNotice": {
     "allAccountsDescription": "以下のアカウントで実際に利用できるモデルの範囲は未確認です。現在はサイトの全モデルを表示しています。一部のモデルはこれらのアカウントで呼び出せない場合があります。アカウントの権限と検証結果をご確認ください。",
@@ -433,13 +513,32 @@
     "description": "このアカウントで実際に利用できるモデル範囲を確認できなかったため、プロバイダーの完全なモデルカタログを表示しています。一部のモデルはこのアカウントでは呼び出せない可能性があります。サイト側のアカウント権限と実際の検証結果を最終的な判断基準にしてください。",
     "title": "プロバイダーの完全なモデルカタログへフォールバックしました"
   },
+  "providerGroup": {
+    "action": "公式サイトのルーティンググループを変更",
+    "apply": "公式サイトに保存",
+    "description": "保存すると公式サイトのこのモデルのルーティング設定が変更され、以降のリクエストや料金に影響する場合があります。",
+    "label": "公式サイトのルーティンググループ",
+    "locked": "使用中のセッションで固定されています。先に公式サイトでセッションを管理してください。",
+    "refreshRequired": "{{error}}。反映済みの可能性があります。再操作前に一覧を更新してください。",
+    "saving": "保存中…"
+  },
   "providerTabs": {
     "scrollLeft": "ベンダータブを左にスクロール",
     "scrollRight": "ベンダータブを右にスクロール",
     "unclassified": "未分類",
     "unclassifiedDescription": "ベンダーを特定できませんでしたが、モデルが利用できないという意味ではありません。"
   },
+  "quotaBilling": {
+    "adjustments": "追加の課金要素：{{names}}。",
+    "comparison": "想定トークン100万件あたり {{amount}}。",
+    "invalid": "利用枠の料金は利用できません。",
+    "reference": "基本消費量のみです。追加倍率は含まれていません。",
+    "sortAsc": "消費量：少ない順",
+    "sortDesc": "消費量：多い順",
+    "source": "課金ルール"
+  },
   "realAmount": "実際のチャージ額",
+  "realAmountHint": "各アカウントに設定した換算率で価格を換算します。",
   "refreshData": "データを更新",
   "runtimeKeyFallbackSourceNotice": {
     "description": "このカタログは、このアカウントの既存キー経由で読み込まれているため、モデル検出と検証のみ利用できます。このアカウントではここから新しい API キーを作成できません。[データを更新] を押すと直接のアカウント経路を再試行します。",
@@ -447,6 +546,7 @@
   },
   "scenario": {
     "additionalChargesExcluded": "この見積もりには、未確認のその他の課金項目は含まれていません。",
+    "annotatedDocument": "注釈付き出力",
     "appliedConversion": "金額換算：1 USD = {{value}} CNY",
     "appliedMultiplier": "グループ倍率 ×{{value}}",
     "audio": "音声の秒数",
@@ -467,6 +567,7 @@
     "catalogExplanation": "サイトの公開価格と現在のシナリオに基づく概算です。アカウントへの実際の請求額ではありません。",
     "character": "文字",
     "characters": "タスクごとの文字数",
+    "codeExecution": "コード実行回数",
     "collected": "料金取得時刻：{{time}}",
     "compareEffect": "使い方に近い用途を選んで単価を比較します。必要に応じて比率を調整したり、関連する課金条件を開いたりできます。",
     "conditional": "条件付き料金",
@@ -478,10 +579,12 @@
     "currentBaseTier": "基本料金帯を適用",
     "currentTier": "適用中の料金帯",
     "day": "日",
+    "documentAnnotation": "文書の注釈",
     "effectiveRate": "適用単価",
     "excludedCosts": "未計上：{{meters}}。これらの費用により実際の金額が増える可能性があります。",
     "fixedPriceUnavailable": "提供元が比較可能な固定単価ではなく、価格のプレースホルダーを返しました。設定不足や無料を意味するものではありません。実際に使用するモデルやサービスの料金を価格情報の提供元で確認してください。",
     "freeQuantity": "タスクごとに最初の {{value}} 単位は無料",
+    "generationMode": "生成操作",
     "groups": {
       "image": "画像設定",
       "other": "その他の課金条件",
@@ -490,6 +593,7 @@
     },
     "hour": "時",
     "image": "画像",
+    "imageCache": "キャッシュ画像トークン",
     "imageInput": "画像入力トークン",
     "imageMegapixels": "画像面積（メガピクセル）",
     "imageOutput": "画像出力トークン",
@@ -507,7 +611,8 @@
       "cacheRead": "キャッシュ読み取り",
       "cacheWrite": "キャッシュ書き込み",
       "input": "入力",
-      "output": "出力"
+      "output": "出力",
+      "request": "呼び出し単価"
     },
     "minute": "分",
     "missingConversion": "人民元への換算情報がありません。実際の価格表示をオフにすると米ドルの表示価格を確認できます。",
@@ -538,6 +643,7 @@
     "perMillionVideoTokens": "100万動画出力トークン",
     "perRequest": "リクエストあたり",
     "perUnit": "単位あたり",
+    "plainDocument": "通常の出力",
     "pricingSourceUnavailable": "完全な料金ルールを読み込めなかったため、現在は比較できません。価格を更新して再試行するか、料金の提供元を確認してください。入力条件の不足ではありません。",
     "pricingTime": "この日時の価格を比較",
     "pricingTimeEffect": "異なる時間帯の価格を比較します。端末の現地時刻で入力してください。時間帯別料金のモデルのみに影響し、価格データの更新時刻ではありません。",
@@ -545,8 +651,14 @@
     "publishedPrices": "参考単価：",
     "rateChange": "{{meter}}：{{from}} → {{to}} / 100万トークン",
     "referenceImages": "タスクごとの参照画像数",
+    "referenceRate": "参考単価",
+    "requestUnit": "回",
     "responseFormat": "課金レスポンス形式",
     "search": "検索回数",
+    "searchContext": "検索コンテキスト",
+    "searchContextHigh": "高",
+    "searchContextLow": "低",
+    "searchContextMedium": "中",
     "searchUnit": "検索課金単位",
     "searchUnits": "タスクごとの検索課金単位数",
     "second": "秒",
@@ -570,14 +682,20 @@
     "unspecified": "未指定",
     "unsupportedRule": "一部の課金ルールは現在計算できません。サイトの料金説明を確認してください。",
     "unverifiedCacheBasis": "料金区分の入力長にキャッシュトークンが含まれるか不明です。キャッシュ読み取りと書き込みの重みを両方 0 にすると、キャッシュを含めずに比較できます。比較する使用量は変わります。計算明細の料金表や価格の出典も確認できます。",
+    "videoAudio": "動画の音声",
     "videoComparisonHint": "参照動画の条件に応じて動画出力トークン単価を比較します。実際の料金は生成結果によって決まります。",
+    "videoDynamicRange": "動画のダイナミックレンジ",
     "videoInput": "参照動画",
+    "videoInputTokens": "動画入力トークン",
+    "videoMode": "動画生成モード",
     "videoOutput": "動画出力",
     "videoPrice": "動画出力の概算単価",
     "videoQuality": "動画品質",
     "videoSeconds": "タスクごとの動画時間（秒）",
     "websiteRulesUnavailable": "計算に必要な課金ルールの全情報を取得できていません。サイトの料金詳細をご確認ください。",
     "weekday": "曜日（0 = 日曜日）",
+    "withAudio": "音声を生成",
+    "withoutAudio": "音声なし",
     "withoutVideo": "参照動画なし",
     "withVideo": "参照動画あり"
   },
@@ -586,6 +704,7 @@
   "selectSource": "ソースを選択",
   "selectSourceToContinue": "上のデータソースを選択してから、モデル一覧を表示してください。",
   "showing_other": "{{count}} モデルを表示中",
+  "showingGroupQuotes_other": "見積もりを{{count}}件表示",
   "showUnavailableModels": "アカウントに利用権限がないモデルも表示",
   "siteDescription": "サイトの説明：",
   "siteSupportedGroups": "サイトが対応するグループ",
@@ -599,7 +718,7 @@
   },
   "sourceLabels": {
     "personalizedCatalogBadge": "{{account}} · パーソナライズ済みモデルカタログ",
-    "profileBadge": "プロファイル: {{name}} · {{host}}",
+    "profileBadge": "認証情報: {{name}} · {{host}}",
     "profileOption": "API 認証情報: {{name}} · {{host}}",
     "providerCatalogBadge": "{{provider}} · プロバイダーモデルカタログ"
   },
@@ -645,15 +764,15 @@
   },
   "title": "モデル一覧",
   "totalModels_other": "合計 {{count}} モデル",
-  "unavailable": "利用不可",
   "unavailableModelsHint": "取得済みのモデルのうち、現在のアカウントで利用可能なグループがないものも表示します。これらのモデルにはグループ選択が適用されませんが、他のフィルターは適用されます。サイト全体のモデルを追加取得する機能ではありません。このページのセッション中のみ有効です。",
   "unavailablePriceReasons": {
     "groupRatioUnavailable": "利用可能なグループの倍率を取得できないため、価格を表示できません。",
     "keyGroupUnknown": "このキーの Sub2API グループを解決できないため、料金は利用できません。",
     "modelListOnly": "このキーではモデルを利用できますが、料金は利用できません。",
     "officialPriceInvalid": "このモデルの公式料金データが無効です。",
-    "officialPriceMissing": "このモデルは料金表にありません。",
-    "pricingSourceUnavailable": "このソースの料金データは利用できません。"
+    "officialPriceMissing": "このモデルの料金が見つかりませんでした。",
+    "pricingRulesUnavailable": "料金条件が不完全なため、公開されている参考料金を表示しています。",
+    "pricingSourceUnavailable": "料金データをまだ取得できていません。"
   },
   "userGroup": "ユーザーグループ",
   "verificationResults": {

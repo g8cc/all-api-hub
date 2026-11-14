@@ -3,7 +3,11 @@ import {
   AccountKeyResourceError,
   type ResourceFailure,
 } from "~/services/apiAdapters/contracts/accountKeyResource"
-import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
+import {
+  API_ERROR_CODES,
+  ApiError,
+  hasUnattributedMessage,
+} from "~/services/apiTransport/errors"
 import {
   inferStructuredHttpStatus,
   isAbortError,
@@ -50,9 +54,11 @@ const classifyApiErrorCode = (
     case API_ERROR_CODES.HTTP_401:
       return ACCOUNT_KEY_RESOURCE_FAILURE_CODES.AuthenticationFailed
     case API_ERROR_CODES.HTTP_403:
+    case API_ERROR_CODES.COOKIE_PERMISSION_REQUIRED:
       return ACCOUNT_KEY_RESOURCE_FAILURE_CODES.PermissionDenied
     case API_ERROR_CODES.HTTP_429:
     case API_ERROR_CODES.NETWORK_ERROR:
+    case API_ERROR_CODES.COOKIE_REQUEST_UNAVAILABLE:
     case API_ERROR_CODES.CONTENT_TYPE_MISMATCH:
     case API_ERROR_CODES.JSON_PARSE_ERROR:
     case API_ERROR_CODES.TOKEN_SECRET_UNAVAILABLE:
@@ -68,6 +74,18 @@ const classifyFailureCode = (error: unknown): ResourceFailure["code"] => {
   const status = inferStructuredHttpStatus(error)
   if (isAbortError(error) || status === 499) {
     return ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Aborted
+  }
+  const apiCode = getApiErrorCode(error)
+  if (
+    (hasUnattributedMessage(error) &&
+      (status === 401 ||
+        status === 403 ||
+        apiCode === API_ERROR_CODES.HTTP_401 ||
+        apiCode === API_ERROR_CODES.HTTP_403)) ||
+    apiCode === API_ERROR_CODES.ROBOT_CHALLENGE ||
+    apiCode === API_ERROR_CODES.CONTENT_TYPE_MISMATCH
+  ) {
+    return ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unavailable
   }
   if (status === 401) {
     return ACCOUNT_KEY_RESOURCE_FAILURE_CODES.AuthenticationFailed
@@ -87,7 +105,7 @@ const classifyFailureCode = (error: unknown): ResourceFailure["code"] => {
     return ACCOUNT_KEY_RESOURCE_FAILURE_CODES.UpstreamRejected
   }
   return (
-    classifyApiErrorCode(getApiErrorCode(error)) ??
+    classifyApiErrorCode(apiCode) ??
     ACCOUNT_KEY_RESOURCE_FAILURE_CODES.Unexpected
   )
 }

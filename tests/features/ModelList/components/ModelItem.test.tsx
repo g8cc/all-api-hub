@@ -3,10 +3,15 @@ import userEvent from "@testing-library/user-event"
 import type React from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import ModelItem from "~/features/ModelList/components/ModelItem"
-import { MODEL_GROUP_ACCESS_STATES } from "~/features/ModelList/groupContext"
+import { MODEL_GROUP_ACCESS_STATES } from "~/features/ModelList/groups/groupContext"
+import ModelItem from "~/features/ModelList/presentation/ModelItem"
 import toast from "~/lib/notify"
 import { SITE_TYPES } from "~/services/accountSiteDefinitions/identifiers"
+import * as siteCapabilities from "~/services/apiAdapters/registry"
+import {
+  createVercelCatalogSnapshot,
+  parseVercelCatalogModel,
+} from "~/services/apiService/vercelAiGateway/models"
 import {
   createPersonalizedCatalogModelListSourceIdentity,
   createProviderCatalogModelListSourceIdentity,
@@ -24,11 +29,13 @@ import {
   PRODUCT_ANALYTICS_FEATURE_IDS,
   PRODUCT_ANALYTICS_SURFACE_IDS,
 } from "~/services/productAnalytics/contracts"
-import { createTab } from "~/utils/browser/browserApi"
+import { createTab } from "~/utils/browser/tabs"
+import { buildDisplaySiteData } from "~~/tests/test-utils/factories"
 import { createLegacyAccountTokenSourceIdentity } from "~~/tests/test-utils/legacyModelListSourceIdentity"
 
-const { loggerWarnSpy } = vi.hoisted(() => ({
+const { loggerWarnSpy, descriptionRenderSpy } = vi.hoisted(() => ({
   loggerWarnSpy: vi.fn(),
+  descriptionRenderSpy: vi.fn(),
 }))
 
 const { trackProductAnalyticsActionStartedMock } = vi.hoisted(() => ({
@@ -42,9 +49,7 @@ vi.mock("~/lib/notify", () => ({
   },
 }))
 
-vi.mock("~/utils/browser/browserApi", () => ({
-  createTab: vi.fn(),
-}))
+vi.mock("~/utils/browser/tabs", () => ({ createTab: vi.fn() }))
 
 vi.mock("~/utils/core/logger", () => ({
   createLogger: () => ({
@@ -85,7 +90,7 @@ vi.mock("react-i18next", async (importOriginal) => {
   }
 })
 
-vi.mock("~/features/ModelList/components/ModelItem/ModelItemHeader", () => ({
+vi.mock("~/features/ModelList/presentation/ModelItem/ModelItemHeader", () => ({
   ModelItemHeader: ({
     model,
     resolvedVendor,
@@ -95,10 +100,12 @@ vi.mock("~/features/ModelList/components/ModelItem/ModelItemHeader", () => ({
     onVerifyApi,
     onVerifyCliSupport,
     groupSummary,
+    groupControl,
   }: {
     model: { model_name: string }
     resolvedVendor: { state: string; label?: string }
     trailingContent?: React.ReactNode
+    groupControl?: React.ReactNode
     handleCopyModelName: () => void
     onOpenKeyDialog?: () => void
     onVerifyApi?: () => void
@@ -110,6 +117,7 @@ vi.mock("~/features/ModelList/components/ModelItem/ModelItemHeader", () => ({
     }
   }) => (
     <div>
+      {groupControl}
       {model.model_name}
       <button type="button" onClick={handleCopyModelName}>
         copy-model-name
@@ -150,21 +158,34 @@ vi.mock("~/features/ModelList/components/ModelItem/ModelItemHeader", () => ({
 }))
 
 vi.mock(
-  "~/features/ModelList/components/ModelItem/ModelItemDescription",
+  "~/features/ModelList/presentation/ModelItem/ModelItemDescription",
   () => ({
-    ModelItemDescription: () => <div data-testid="model-description" />,
+    ModelItemDescription: () => {
+      descriptionRenderSpy()
+      return <div data-testid="model-description" />
+    },
   }),
 )
 
-vi.mock("~/features/ModelList/components/ModelItem/ModelItemPricing", () => ({
+vi.mock("~/features/ModelList/presentation/ModelItem/ModelItemPricing", () => ({
   ModelItemPricing: ({
     showPricing,
     onShowDetails,
+    calculatedPrice,
   }: {
     showPricing: boolean
     onShowDetails?: () => void
+    calculatedPrice: CalculatedPrice
   }) => (
-    <div data-testid="model-pricing" data-show-pricing={String(showPricing)}>
+    <div
+      data-testid="model-pricing"
+      data-show-pricing={String(showPricing)}
+      data-input-price={
+        calculatedPrice.kind === "token"
+          ? calculatedPrice.usdPerMillionTokens.input
+          : undefined
+      }
+    >
       {onShowDetails && (
         <button onClick={onShowDetails}>Calculation details</button>
       )}
@@ -172,12 +193,12 @@ vi.mock("~/features/ModelList/components/ModelItem/ModelItemPricing", () => ({
   ),
 }))
 
-vi.mock("~/features/ModelList/components/ModelItem/ModelItemDetails", () => ({
+vi.mock("~/features/ModelList/presentation/ModelItem/ModelItemDetails", () => ({
   ModelItemDetails: () => <div data-testid="model-details" />,
 }))
 
 vi.mock(
-  "~/features/ModelList/components/ModelItem/ModelItemExpandButton",
+  "~/features/ModelList/presentation/ModelItem/ModelItemExpandButton",
   () => ({
     ModelItemExpandButton: ({
       isExpanded,
@@ -258,6 +279,241 @@ function createDefaultProps() {
 }
 
 describe("ModelItem", () => {
+  it("selects and clears the quote group through the latest callback without rerendering the offer", async () => {
+    const props = createDefaultProps()
+    props.model.enable_groups = ["default", "vip"]
+    props.groupContext.supportedGroups = ["default", "vip"]
+    props.groupContext.usableGroups = ["default", "vip"]
+    props.activeGroupContext.activeUsableGroups = ["default", "vip"]
+    const previousChange = vi.fn()
+    const nextChange = vi.fn()
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <ModelItem {...props} onModelGroupChange={previousChange} />,
+    )
+    descriptionRenderSpy.mockClear()
+    rerender(<ModelItem {...props} onModelGroupChange={nextChange} />)
+    expect(descriptionRenderSpy).not.toHaveBeenCalled()
+
+    await user.click(
+      screen.getByRole("combobox", { name: "modelGroupQuickSelect" }),
+    )
+    await user.click(screen.getByRole("option", { name: "vip" }))
+    expect(nextChange).toHaveBeenLastCalledWith("vip")
+    expect(previousChange).not.toHaveBeenCalled()
+
+    rerender(
+      <ModelItem
+        {...props}
+        onModelGroupChange={nextChange}
+        selectedModelGroup="vip"
+      />,
+    )
+    await user.click(
+      screen.getByRole("combobox", { name: "modelGroupQuickSelect" }),
+    )
+    await user.click(
+      screen.getByRole("option", { name: "allAccountGroups (2)" }),
+    )
+    expect(nextChange).toHaveBeenLastCalledWith(undefined)
+  })
+
+  it("reuses an unchanged offer while calling its latest actions and updating changed data", async () => {
+    const user = userEvent.setup()
+    const props = createDefaultProps()
+    props.source.capabilities.supportsCredentialVerification = true
+    const previousVerify = vi.fn()
+    const nextVerify = vi.fn()
+    const previousExpand = vi.fn()
+    const nextExpand = vi.fn()
+    const { rerender } = render(
+      <ModelItem
+        {...props}
+        onVerifyModel={previousVerify}
+        isExpanded={false}
+        onToggleExpand={previousExpand}
+      />,
+    )
+    descriptionRenderSpy.mockClear()
+    const sameOffer = structuredClone(props)
+
+    rerender(
+      <ModelItem
+        {...sameOffer}
+        onVerifyModel={nextVerify}
+        isExpanded={false}
+        onToggleExpand={nextExpand}
+      />,
+    )
+    expect(descriptionRenderSpy).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "verify-api" }))
+    await user.click(screen.getByTestId("expand-button"))
+    expect(previousVerify).not.toHaveBeenCalled()
+    expect(previousExpand).not.toHaveBeenCalled()
+    expect(nextVerify).toHaveBeenCalledWith(sameOffer.source, "gpt-4o-mini", [
+      "vip",
+    ])
+    expect(nextExpand).toHaveBeenCalledOnce()
+
+    rerender(
+      <ModelItem
+        {...sameOffer}
+        model={{ ...sameOffer.model, model_name: "updated-model" }}
+        onVerifyModel={nextVerify}
+        isExpanded={true}
+        onToggleExpand={nextExpand}
+      />,
+    )
+    expect(screen.getByText("updated-model")).toBeVisible()
+    expect(screen.getByTestId("model-details")).toBeVisible()
+    expect(descriptionRenderSpy).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole("button", { name: "verify-api" }))
+    expect(nextVerify).toHaveBeenLastCalledWith(
+      sameOffer.source,
+      "updated-model",
+      ["vip"],
+    )
+
+    rerender(
+      <ModelItem
+        {...sameOffer}
+        calculatedPrice={{
+          kind: "token",
+          usdPerMillionTokens: { input: 3, output: 4 },
+        }}
+        onVerifyModel={nextVerify}
+        isExpanded={false}
+        onToggleExpand={nextExpand}
+      />,
+    )
+    expect(screen.getByTestId("model-pricing")).toHaveAttribute(
+      "data-input-price",
+      "3",
+    )
+
+    rerender(<ModelItem {...sameOffer} />)
+    expect(screen.queryByRole("button", { name: "verify-api" })).toBeNull()
+  })
+
+  it("shows the model group control and labels only the expanded offer's group", () => {
+    const props = createDefaultProps()
+    props.model.enable_groups = ["default", "vip"]
+    props.groupContext.supportedGroups = ["default", "vip"]
+    props.groupContext.usableGroups = ["default", "vip"]
+    props.activeGroupContext.activeUsableGroups = ["default", "vip"]
+    const onModelGroupChange = vi.fn()
+    const { rerender } = render(
+      <ModelItem {...props} onModelGroupChange={onModelGroupChange} />,
+    )
+    expect(
+      screen.getByRole("combobox", { name: "modelGroupQuickSelect" }),
+    ).toBeVisible()
+    expect(screen.getByText("default+1")).toBeVisible()
+    rerender(
+      <ModelItem
+        {...props}
+        onModelGroupChange={onModelGroupChange}
+        comparisonGroup="vip"
+      />,
+    )
+    expect(
+      screen.getByRole("combobox", { name: "modelGroupQuickSelect" }),
+    ).toBeVisible()
+    expect(screen.getByText("vip", { exact: true })).toHaveAttribute(
+      "title",
+      "currentUsableGroups: vip",
+    )
+    expect(screen.queryByText("default+1")).not.toBeInTheDocument()
+  })
+
+  it("allows published per-request prices to expand without endpoint or group details", () => {
+    const props = createDefaultProps()
+    props.model.quota_type = 1
+    props.source.capabilities.supportsGroupFiltering = false
+    render(
+      <ModelItem
+        {...props}
+        groupContext={{
+          ...props.groupContext,
+          accessState: MODEL_GROUP_ACCESS_STATES.NOT_APPLICABLE,
+        }}
+        calculatedPrice={{
+          kind: "per-call",
+          usdPerCall: 1,
+          isComparisonActive: false,
+          publishedPricing: {
+            source: { kind: "catalog" },
+            schedule: [
+              {
+                id: "base",
+                conditions: [],
+                rates: {
+                  request: {
+                    amount: 1,
+                    currency: "USD",
+                    per: 1,
+                    unit: "request",
+                  },
+                },
+              },
+            ],
+          },
+        }}
+      />,
+    )
+    expect(screen.getByTestId("expand-button")).toBeVisible()
+  })
+  it("saves official routing for the selected account and refreshes the catalog", async () => {
+    const props = createDefaultProps()
+    const updateGroup = vi.fn().mockResolvedValue({})
+    const capabilitySpy = vi
+      .spyOn(siteCapabilities, "getSiteTypeCapabilities")
+      .mockReturnValue({
+        siteType: SITE_TYPES.RELAYFOR,
+        account: { modelPricing: { fetchPricing: vi.fn(), updateGroup } },
+      } as any)
+    const onCatalogChanged = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ModelItem
+        {...props}
+        source={{
+          ...props.source,
+          account: buildDisplaySiteData({
+            id: "relayfor-account",
+            siteType: SITE_TYPES.RELAYFOR,
+            baseUrl: "https://relayfor.xyz",
+          }),
+        }}
+        model={{
+          ...props.model,
+          providerGroup: {
+            selected: "standard",
+            options: [
+              { value: "standard", available: true },
+              { value: "premium", available: true },
+            ],
+          },
+        }}
+        onCatalogChanged={onCatalogChanged}
+      />,
+    )
+    await user.click(
+      screen.getByRole("button", { name: "providerGroup.action" }),
+    )
+    await user.click(screen.getByRole("combobox"))
+    await user.click(screen.getByRole("option", { name: "premium" }))
+    await user.click(
+      screen.getByRole("button", { name: "providerGroup.apply" }),
+    )
+    expect(updateGroup).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: "https://relayfor.xyz" }),
+      props.model.model_name,
+      "premium",
+    )
+    expect(onCatalogChanged).toHaveBeenCalledOnce()
+    capabilitySpy.mockRestore()
+  })
   it("marks a full-site fallback catalog on its model row", () => {
     const props = createDefaultProps()
     props.source.capabilities.supportsPricing = false
@@ -404,6 +660,125 @@ describe("ModelItem", () => {
     ).toBeInTheDocument()
   })
 
+  it("explains Vercel plan restrictions without expanding the model card", () => {
+    const model = parseVercelCatalogModel({
+      id: "deepseek/deepseek-v4.1-flash-1017",
+      type: "language",
+      model_eligibility: {
+        status: "ineligible",
+        category: "policy",
+        reason: "plan_restricted",
+        evaluated_runtime: "http",
+      },
+    })!
+    const snapshot = createVercelCatalogSnapshot([model])
+
+    const { container } = render(
+      <ModelItem {...createDefaultProps()} model={snapshot.data[0]!} />,
+    )
+
+    expect(screen.getByText("availability.unavailable")).toBeVisible()
+    expect(screen.getByText("displayFacts.planRestricted")).toBeVisible()
+    expect(container.firstElementChild).not.toHaveClass("opacity-75")
+  })
+
+  it.each([
+    { status: "eligible", reason: "plan_restricted", shownReason: null },
+    { status: "ineligible", reason: undefined, shownReason: null },
+    {
+      status: "ineligible",
+      reason: "provider_policy_changed",
+      shownReason: "provider_policy_changed",
+    },
+  ])(
+    "handles Vercel eligibility $status with reason $reason",
+    ({ status, reason, shownReason }) => {
+      const model = parseVercelCatalogModel({
+        id: "vercel/test",
+        model_eligibility: { status, reason },
+      })!
+      const snapshot = createVercelCatalogSnapshot([model])
+
+      render(<ModelItem {...createDefaultProps()} model={snapshot.data[0]!} />)
+
+      if (shownReason) {
+        expect(screen.getByText("availability.unavailable")).toBeVisible()
+        expect(screen.getByText("availability.restrictedHint")).toBeVisible()
+        expect(
+          screen.getByRole("button", { name: "availability.details" }),
+        ).toBeEnabled()
+        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument()
+      } else {
+        expect(screen.queryByText("displayFacts.unavailableReason")).toBeNull()
+        expect(screen.queryByText("displayFacts.planRestricted")).toBeNull()
+      }
+    },
+  )
+
+  it("keeps explicitly unknown Vercel eligibility unconfirmed and preserves manual verification", async () => {
+    const props = createDefaultProps()
+    const onVerifyModel = vi.fn()
+    const model = parseVercelCatalogModel({
+      id: "vercel/unknown-model",
+      model_eligibility: { status: "unknown" },
+    })!
+    const snapshot = createVercelCatalogSnapshot([model])
+    expect(snapshot.data[0]!.availability?.available).toBeNull()
+    const { container } = render(
+      <ModelItem
+        {...props}
+        model={snapshot.data[0]!}
+        source={{
+          ...props.source,
+          capabilities: {
+            ...props.source.capabilities,
+            supportsCredentialVerification: true,
+          },
+        }}
+        onVerifyModel={onVerifyModel}
+      />,
+    )
+    expect(screen.getByText("availability.unknown")).toBeVisible()
+    expect(screen.queryByText("availability.unavailable")).toBeNull()
+    expect(container.firstElementChild).not.toHaveClass("opacity-75")
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "verify-api" }))
+    expect(onVerifyModel).toHaveBeenCalled()
+  })
+
+  it("keeps manual verification usable when the provider explicitly denies access", async () => {
+    const props = createDefaultProps()
+    const onVerifyModel = vi.fn()
+    render(
+      <ModelItem
+        {...props}
+        model={{
+          ...props.model,
+          availability: { available: false, reason: "policy_changed" },
+        }}
+        source={{
+          ...props.source,
+          capabilities: {
+            ...props.source.capabilities,
+            supportsCredentialVerification: true,
+          },
+        }}
+        onVerifyModel={onVerifyModel}
+      />,
+    )
+    expect(screen.getByText("availability.unavailable")).toBeVisible()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "verify-api" }))
+    expect(onVerifyModel).toHaveBeenCalled()
+    await user.hover(
+      screen.getByRole("button", { name: "availability.details" }),
+    )
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "policy_changed",
+    )
+  })
+
   it("renders provider-selected facts and keeps unsupported actions absent during keyboard expansion", async () => {
     const user = userEvent.setup()
     const props = createDefaultProps()
@@ -544,6 +919,52 @@ describe("ModelItem", () => {
     expect(screen.queryByText("available")).not.toBeInTheDocument()
   })
 
+  it("shows named groups and rates while key creation receives native group IDs", async () => {
+    const props = createDefaultProps()
+    const open = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ModelItem
+        {...props}
+        model={{
+          ...props.model,
+          enable_groups: ["13"],
+          groupDisplayNames: { "13": "max-stable(only for CC)" },
+        }}
+        groupRatios={{ "13": 1.75 }}
+        groupContext={{
+          accessState: MODEL_GROUP_ACCESS_STATES.KNOWN,
+          supportedGroups: ["13"],
+          usableGroups: ["13"],
+          priceableGroups: ["13"],
+        }}
+        activeGroupContext={{
+          activeUsableGroups: ["13"],
+          activePriceableGroups: ["13"],
+          actionGroups: ["13"],
+        }}
+        onOpenModelKeyDialog={open}
+        source={{
+          ...props.source,
+          capabilities: {
+            ...props.source.capabilities,
+            supportsTokenCompatibility: true,
+          },
+        }}
+      />,
+    )
+    expect(screen.getByText("max-stable(only for CC) (1.75x)")).toHaveAttribute(
+      "title",
+      "currentUsableGroups: max-stable(only for CC) (1.75x)",
+    )
+    await user.click(screen.getByRole("button", { name: "key" }))
+    expect(open).toHaveBeenCalledWith(
+      expect.anything(),
+      props.model.model_name,
+      ["13"],
+    )
+  })
+
   it("summarizes additional usable groups in the row header", () => {
     const props = createDefaultProps()
 
@@ -645,69 +1066,103 @@ describe("ModelItem", () => {
     expect(onVerifyCliSupport).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "account" }),
       props.model.model_name,
+      ["vip"],
     )
   })
 
-  it("passes an exact empty restriction for known-empty account actions", async () => {
-    const user = userEvent.setup()
-    const onOpenModelKeyDialog = vi.fn()
-    const onVerifyModel = vi.fn()
-    const props = createDefaultProps()
+  it.each([
+    {
+      accessState: MODEL_GROUP_ACCESS_STATES.KNOWN,
+      supportedGroups: [],
+      expectedGroups: [],
+    },
+    {
+      accessState: MODEL_GROUP_ACCESS_STATES.UNKNOWN,
+      supportedGroups: [],
+      expectedGroups: undefined,
+    },
+    {
+      accessState: MODEL_GROUP_ACCESS_STATES.KNOWN,
+      supportedGroups: ["vip"],
+      expectedGroups: [],
+    },
+    {
+      accessState: MODEL_GROUP_ACCESS_STATES.UNKNOWN,
+      supportedGroups: ["vip"],
+      expectedGroups: undefined,
+    },
+  ])(
+    "preserves $accessState group evidence for account actions with support $supportedGroups",
+    async ({ accessState, supportedGroups, expectedGroups }) => {
+      const user = userEvent.setup()
+      const onOpenModelKeyDialog = vi.fn()
+      const onVerifyModel = vi.fn()
+      const onVerifyCliSupport = vi.fn()
+      const props = createDefaultProps()
 
-    render(
-      <ModelItem
-        {...props}
-        model={{
-          ...props.model,
-          enable_groups: [],
-        }}
-        source={{
-          ...props.source,
-          capabilities: {
-            ...props.source.capabilities,
+      render(
+        <ModelItem
+          {...props}
+          model={{
+            ...props.model,
+            enable_groups: supportedGroups,
+          }}
+          source={{
+            ...props.source,
+            capabilities: {
+              ...props.source.capabilities,
+              supportsTokenCompatibility: true,
+              supportsCredentialVerification: true,
+              supportsCliVerification: true,
+            },
+          }}
+          displayCapabilities={{
+            supportsPricing: true,
+            supportsGroupFiltering: true,
+            supportsAccountSummary: true,
             supportsTokenCompatibility: true,
             supportsCredentialVerification: true,
-          },
-        }}
-        displayCapabilities={{
-          supportsPricing: true,
-          supportsGroupFiltering: true,
-          supportsAccountSummary: true,
-          supportsTokenCompatibility: true,
-          supportsCredentialVerification: true,
-          supportsBatchCredentialVerification: true,
-          supportsCliVerification: false,
-        }}
-        groupContext={{
-          accessState: MODEL_GROUP_ACCESS_STATES.KNOWN,
-          supportedGroups: [],
-          usableGroups: [],
-          priceableGroups: [],
-        }}
-        activeGroupContext={{
-          activeUsableGroups: [],
-          activePriceableGroups: [],
-          actionGroups: [],
-        }}
-        onOpenModelKeyDialog={onOpenModelKeyDialog}
-        onVerifyModel={onVerifyModel}
-      />,
-    )
+            supportsBatchCredentialVerification: true,
+            supportsCliVerification: true,
+          }}
+          groupContext={{
+            accessState,
+            supportedGroups,
+            usableGroups: [],
+            priceableGroups: [],
+          }}
+          activeGroupContext={{
+            activeUsableGroups: [],
+            activePriceableGroups: [],
+            actionGroups: [],
+          }}
+          onOpenModelKeyDialog={onOpenModelKeyDialog}
+          onVerifyModel={onVerifyModel}
+          onVerifyCliSupport={onVerifyCliSupport}
+        />,
+      )
 
-    await user.click(screen.getByRole("button", { name: "key" }))
-    await user.click(screen.getByRole("button", { name: "verify-api" }))
+      await user.click(screen.getByRole("button", { name: "key" }))
+      await user.click(screen.getByRole("button", { name: "verify-api" }))
+      await user.click(screen.getByRole("button", { name: "verify-cli" }))
 
-    expect(onOpenModelKeyDialog).toHaveBeenCalledWith(
-      props.source.account,
-      props.model.model_name,
-      [],
-    )
-    expect(onVerifyModel).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "account" }),
-      props.model.model_name,
-      [],
-    )
-  })
+      expect(onOpenModelKeyDialog).toHaveBeenCalledWith(
+        props.source.account,
+        props.model.model_name,
+        expectedGroups,
+      )
+      expect(onVerifyModel).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "account" }),
+        props.model.model_name,
+        expectedGroups,
+      )
+      expect(onVerifyCliSupport).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "account" }),
+        props.model.model_name,
+        expectedGroups,
+      )
+    },
+  )
 
   it("passes no group restriction for not-applicable profile verification", async () => {
     const user = userEvent.setup()

@@ -4,10 +4,13 @@ import {
   getAccountSiteDomainRules,
   getAccountSiteTitleRules,
 } from "~/services/accountSiteOnboarding/registry"
+import { fetchSiteStatus } from "~/services/apiService/newApiFamily/default/accountBootstrap"
 import { newApiFamilyRequests } from "~/services/apiService/newApiFamily/request"
 import { SUB2API_AUTH_ME_ENDPOINT } from "~/services/apiService/sub2api/type"
 import { ApiError } from "~/services/apiTransport/errors"
+import { bindApiTransportRequest } from "~/services/apiTransport/recovery"
 import { fetchApi } from "~/services/apiTransport/request"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ProtectionBypassExecution } from "~/services/protectionBypass/contracts"
 import { AuthTypeEnum } from "~/types"
 import {
@@ -72,11 +75,14 @@ export const fetchSiteOriginalTitle = async (
 
   // 临时上下文失败则直接 fetch，可能拿到缓存或被 WAF 误拦截，但总比没有数据好
   const html = await fetchApi<string>(
-    {
-      baseUrl: url,
-      auth: { authType: AuthTypeEnum.None },
-      protectionBypassExecution,
-    },
+    bindApiTransportRequest(
+      {
+        baseUrl: url,
+        auth: { authType: AuthTypeEnum.None },
+        protectionBypassExecution,
+      },
+      API_DIRECT_REQUEST_REASONS.CallerManaged,
+    ),
     {
       endpoint: "/",
       responseType: "text",
@@ -89,6 +95,39 @@ export const fetchSiteOriginalTitle = async (
   const title = parseTitle(html)
   logger.debug("原始 document title (direct fetch)", { title })
   return title
+}
+
+/**
+ * Matches one piece of detection text (page title, public site name, or upstream
+ * auth message) against the registered title rules.
+ */
+function matchAccountSiteTitleRules(text: string): AccountSiteType {
+  for (const rule of getAccountSiteTitleRules()) {
+    if (rule.regex.test(text)) {
+      return rule.name
+    }
+  }
+
+  return SITE_TYPES.UNKNOWN
+}
+
+/**
+ * Resolves the first detection text that identifies a registered site type,
+ * in the order the caller ranked them.
+ */
+function matchFirstIdentifyingText(
+  ...texts: (string | undefined)[]
+): AccountSiteType {
+  for (const text of texts) {
+    if (text === undefined) continue
+
+    const matchedType = matchAccountSiteTitleRules(text)
+    if (matchedType !== SITE_TYPES.UNKNOWN) {
+      return matchedType
+    }
+  }
+
+  return SITE_TYPES.UNKNOWN
 }
 
 /**
@@ -110,13 +149,7 @@ function detectAccountSiteTypeFromApiErrorMessage(
     }
   }
 
-  for (const rule of getAccountSiteTitleRules()) {
-    if (rule.regex.test(normalizedMessage)) {
-      return rule.name
-    }
-  }
-
-  return SITE_TYPES.UNKNOWN
+  return matchAccountSiteTitleRules(normalizedMessage)
 }
 
 /**
@@ -129,11 +162,14 @@ async function detectNewApiFamilySiteTypeFromCompatAuthError(
 ): Promise<AccountSiteType> {
   try {
     await newApiFamilyRequests.data<unknown>(
-      {
-        baseUrl: url,
-        auth: { authType: AuthTypeEnum.Cookie },
-        protectionBypassExecution,
-      },
+      bindApiTransportRequest(
+        {
+          baseUrl: url,
+          auth: { authType: AuthTypeEnum.Cookie },
+          protectionBypassExecution,
+        },
+        API_DIRECT_REQUEST_REASONS.CallerManaged,
+      ),
       {
         endpoint: "/api/user/self",
         options: {
@@ -162,9 +198,9 @@ function isJsonObject(value: unknown): value is Record<string, unknown> {
  *
  * Source: https://github.com/Wei-Shaw/sub2api
  * `/api/v1/auth/me` is protected by JWT middleware; without Authorization,
- * upstream returns a JSON object with a string `code`. The endpoint-shape signal
- * is enough to identify white-label Sub2API deployments in the current adapter
- * set without relying on the visible page title.
+ * upstream returns HTTP 401 with the exact `{ code: "UNAUTHORIZED", message:
+ * "Authorization header is required" }` envelope. Do not generalize from
+ * arbitrary error codes.
  */
 async function detectSub2ApiFromAuthEndpoint(
   url: string,
@@ -182,7 +218,13 @@ async function detectSub2ApiFromAuthEndpoint(
     }
 
     const responseBody = (await response.json()) as unknown
-    if (isJsonObject(responseBody) && typeof responseBody.code === "string") {
+    const hasSub2ApiAuthFailureEnvelope =
+      response.status === 401 &&
+      isJsonObject(responseBody) &&
+      responseBody.code === "UNAUTHORIZED" &&
+      responseBody.message === "Authorization header is required" &&
+      Object.keys(responseBody).length === 2
+    if (hasSub2ApiAuthFailureEnvelope) {
       return SITE_TYPES.SUB2API
     }
   } catch (error) {
@@ -193,13 +235,13 @@ async function detectSub2ApiFromAuthEndpoint(
 }
 
 /**
- * VoAPI v2 exposes a protected account-info endpoint that returns a distinctive
- * JSON business envelope even without credentials. Probe it before page-title
- * detection so white-label/self-hosted deployments do not depend on branding.
+ * VoAPI v2 exposes a public account-info endpoint whose successful data includes
+ * distinctive balance fields. Unauthenticated auth errors are generic across
+ * many APIs, so they are not sufficient evidence to classify a white-label site.
  *
  * Source: https://github.com/VoAPI/VoAPI and observed `/api/user/info`
- * contract: raw JWT auth, `{ code, data, msg }` envelope, auth failures with
- * numeric non-zero code and null data.
+ * contract: raw JWT auth and `{ code, data, msg }` envelope with account balance
+ * fields on success.
  */
 async function detectVoApiV2FromProtectedEndpoint(
   url: string,
@@ -222,21 +264,14 @@ async function detectVoApiV2FromProtectedEndpoint(
     }
 
     const code = responseBody.code
-    const message = [responseBody.msg, responseBody.message]
-      .filter((value): value is string => typeof value === "string")
-      .join(" ")
-    const hasProtectedEndpointEnvelope =
-      typeof code === "number" &&
-      "data" in responseBody &&
-      responseBody.data === null &&
-      /\b(?:unauthorized|auth\s*expire|token|jwt)\b/i.test(message)
     const hasAccountInfoEnvelope =
+      response.ok &&
       code === 0 &&
       isJsonObject(responseBody.data) &&
       ("basicBalance" in responseBody.data ||
         "bindBalance" in responseBody.data)
 
-    if (hasProtectedEndpointEnvelope || hasAccountInfoEnvelope) {
+    if (hasAccountInfoEnvelope) {
       return SITE_TYPES.VO_API_V2
     }
   } catch (error) {
@@ -244,6 +279,108 @@ async function detectVoApiV2FromProtectedEndpoint(
   }
 
   return SITE_TYPES.UNKNOWN
+}
+
+/**
+ * Public status fields that only RixAPI deployments report.
+ *
+ * RixAPI is a closed-source New API fork that keeps its licence state in the
+ * public status payload, so these fields identify the backend regardless of the
+ * operator's own brand. They are the only structural signal available for
+ * white-label deployments: the shell title carries the operator's name, and a
+ * logged-in deployment answers `/api/user/self` without an auth error, so neither
+ * the title rules nor the compat-header error fallback can classify them.
+ *
+ * Source: https://github.com/RixAPI/Rix-API. Observed 2026-09-26 on
+ * https://platform.ephone.ai (RixAPI 6.5.17, all three fields) and on the vendor
+ * demo https://platform.rixapi.com (all three fields).
+ */
+const RIX_API_STATUS_SIGNATURE_FIELDS = [
+  "rix_version_message",
+  "rixapi_license_type",
+  "rix_license_enabled",
+] as const
+
+interface PublicSiteStatusSignals {
+  /** Operator-configured brand, used by the shared title rules. */
+  systemName?: string
+  /** Whether the deployment reports the RixAPI licence signature. */
+  identifiesRixApi: boolean
+}
+
+/**
+ * Reads the public status signals used for site-type detection.
+ *
+ * Both signals come from one request to the New API-family status endpoint. The
+ * endpoint is rooted at the origin, and an absent or unreachable status is not an
+ * error: the caller keeps title detection. The caller's bypass context is
+ * forwarded so a shielded deployment still answers; whether it applies is the
+ * bypass policy's call.
+ */
+async function fetchPublicSiteStatusSignals(
+  url: string,
+  protectionBypassExecution?: ProtectionBypassExecution,
+): Promise<PublicSiteStatusSignals> {
+  const noSignals: PublicSiteStatusSignals = { identifiesRixApi: false }
+
+  const readSignals = async (attempt?: ProtectionBypassExecution) => {
+    const siteStatus = await fetchSiteStatus(
+      bindApiTransportRequest(
+        {
+          baseUrl: new URL("/", url).toString(),
+          auth: { authType: AuthTypeEnum.None },
+          ...(attempt ? { protectionBypassExecution: attempt } : {}),
+        },
+        API_DIRECT_REQUEST_REASONS.CallerManaged,
+      ),
+    )
+    if (!siteStatus) return noSignals
+
+    const rawStatus = siteStatus as unknown as Record<string, unknown>
+    const systemName =
+      typeof siteStatus.system_name === "string" &&
+      siteStatus.system_name.trim()
+        ? siteStatus.system_name
+        : undefined
+
+    return {
+      ...(systemName ? { systemName } : {}),
+      identifiesRixApi: RIX_API_STATUS_SIGNATURE_FIELDS.some((field) =>
+        Object.hasOwn(rawStatus, field),
+      ),
+    }
+  }
+
+  // Detection outcomes are the first thing a site-support report needs, and this
+  // probe is otherwise invisible outside the network panel.
+  const logSignals = (signals: PublicSiteStatusSignals) => {
+    logger.info("public site status signals", {
+      url,
+      systemName: signals.systemName,
+      identifiesRixApi: signals.identifiesRixApi,
+    })
+    return signals
+  }
+
+  try {
+    return logSignals(await readSignals(protectionBypassExecution))
+  } catch (error) {
+    logger.debug("public site status probe failed", { url, error })
+  }
+
+  if (!protectionBypassExecution) return noSignals
+
+  // A shielded attempt needs a browser context that some deployments never let
+  // load, and a plain read is enough for this public endpoint.
+  try {
+    return logSignals(await readSignals())
+  } catch (error) {
+    logger.warn("public site status probe failed without bypass", {
+      url,
+      error,
+    })
+    return noSignals
+  }
 }
 
 /**
@@ -283,11 +420,25 @@ export const getAccountSiteType = async (
     return sub2ApiSiteType
   }
 
-  const title = await fetchSiteOriginalTitle(url, protectionBypassExecution)
-  for (const rule of getAccountSiteTitleRules()) {
-    if (rule.regex.test(title)) {
-      return rule.name
-    }
+  // The public status name is operator-configured while a white-label shell keeps
+  // the stock title, so resolve both and let the name win over the title. The same
+  // response carries the RixAPI licence signature, which outranks both: a branded
+  // status name only helps when the operator kept the fork's own brand.
+  const [title, publicSiteStatus] = await Promise.all([
+    fetchSiteOriginalTitle(url, protectionBypassExecution),
+    fetchPublicSiteStatusSignals(url, protectionBypassExecution),
+  ])
+
+  if (publicSiteStatus.identifiesRixApi) {
+    return SITE_TYPES.RIX_API
+  }
+
+  const identifyingTextSiteType = matchFirstIdentifyingText(
+    publicSiteStatus.systemName,
+    title,
+  )
+  if (identifyingTextSiteType !== SITE_TYPES.UNKNOWN) {
+    return identifyingTextSiteType
   }
 
   return await detectNewApiFamilySiteTypeFromCompatAuthError(

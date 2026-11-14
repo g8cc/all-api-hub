@@ -44,10 +44,10 @@ vi.mock("~/services/apiService/veloera", async (original) => ({
   ...apis.veloera,
 }))
 vi.mock(
-  "~/services/managedSites/providers/newApiChannelSecrets",
+  "~/services/managedSites/providers/newApi/newApiChannelSecrets",
   async (original) => ({
     ...(await original<
-      typeof import("~/services/managedSites/providers/newApiChannelSecrets")
+      typeof import("~/services/managedSites/providers/newApi/newApiChannelSecrets")
     >()),
     ...apis.newApiSecrets,
   }),
@@ -60,6 +60,7 @@ const config = {
 }
 
 const request = {
+  directRequestReason: "credential_isolation" as const,
   baseUrl: "https://managed.example",
   auth: {
     authType: AuthTypeEnum.AccessToken,
@@ -196,7 +197,12 @@ describe("New API family native capability consumers", () => {
         total: 1,
       })
       expect(api.listAllChannels).toHaveBeenCalledWith(
-        { ...request, abortSignal: signal, bypassSiteRequestLimit: true },
+        {
+          ...request,
+          siteType: capabilities.siteType,
+          abortSignal: signal,
+          bypassSiteRequestLimit: true,
+        },
         options,
       )
       expect(channel.balance).toBe(123)
@@ -280,7 +286,7 @@ describe("New API family native capability consumers", () => {
         type_counts: { "1": 1 },
       })
       expect(api.searchChannel).toHaveBeenCalledWith(
-        request,
+        { ...request, siteType: capabilities.siteType },
         "https://upstream.example",
       )
     },
@@ -391,7 +397,10 @@ describe("New API family native capability consumers", () => {
           }),
         ),
       ).resolves.toBe("resolved-key")
-      expect(apis.doneHub.fetchChannelRaw).toHaveBeenCalledWith(request, 7)
+      expect(apis.doneHub.fetchChannelRaw).toHaveBeenCalledWith(
+        { ...request, siteType: SITE_TYPES.DONE_HUB },
+        7,
+      )
     },
   )
 })

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ManagedResourceModelSyncBatchOptions } from "~/services/apiAdapters/contracts/managedResourceModelSync"
-import { createOctopusModelSyncCapability } from "~/services/apiAdapters/managedResources/octopusModelSync"
+import { createOctopusModelSyncCapability } from "~/services/apiAdapters/managedResources/octopus/modelSync"
 import { ApiError } from "~/services/apiTransport/errors"
 import {
   PROTECTION_BYPASS_AUTOMATIC_TRIGGERS,
@@ -35,21 +35,34 @@ const {
   runApiVerificationProbeMock: vi.fn(),
 }))
 
-vi.mock("~/services/apiService/octopus", async (original) => ({
-  ...(await original<typeof import("~/services/apiService/octopus")>()),
+vi.mock("~/services/apiService/octopus/channels", async (original) => ({
+  ...(await original<
+    typeof import("~/services/apiService/octopus/channels")
+  >()),
   listChannels: vi.fn((...args) => apiListChannelsMock(...args)),
-  fetchRemoteModels: vi.fn((...args) => fetchRemoteModelsMock(...args)),
   updateChannel: vi.fn((...args) => updateChannelMock(...args)),
 }))
+vi.mock("~/services/apiService/octopus/models", async (original) => ({
+  ...(await original<typeof import("~/services/apiService/octopus/models")>()),
+  fetchRemoteModels: vi.fn((...args) => fetchRemoteModelsMock(...args)),
+}))
 
-vi.mock("~/services/apiAdapters/managedResources/octopusOperations", () => {
-  const octopusManagedResourceModels = {
-    updateModels: (...args: unknown[]) => updateModelsMock(...args),
-  }
-  return {
-    octopusManagedResourceModels,
-  }
-})
+vi.mock(
+  "~/services/apiAdapters/managedResources/octopus/operations",
+  async (original) => {
+    const actual =
+      await original<
+        typeof import("~/services/apiAdapters/managedResources/octopus/operations")
+      >()
+    const octopusManagedResourceModels = {
+      ...actual.octopusManagedResourceModels,
+      updateModels: (...args: unknown[]) => updateModelsMock(...args),
+    }
+    return {
+      octopusManagedResourceModels,
+    }
+  },
+)
 
 vi.mock("~/services/verification/aiApiVerification", async (original) => ({
   ...(await original<
@@ -145,6 +158,40 @@ const createProbeChannelConfigs = () => {
 }
 
 describe("runOctopusBatch", () => {
+  it("excludes resources before native model queries without exposing credentials", async () => {
+    const excludedRef = modelResourceRef(1, {
+      siteType: "octopus",
+      scopeKey: config.baseUrl,
+    })
+    const included = createChannel({ id: 2, name: "Included" })
+    apiListChannelsMock.mockResolvedValue([createChannel(), included])
+    fetchRemoteModelsMock.mockResolvedValue(["model-b"])
+    const workflow = createOctopusModelSyncCapability(
+      config,
+      automaticExecution(
+        PROTECTION_BYPASS_FEATURES.ManagedSiteModelSync,
+        PROTECTION_BYPASS_AUTOMATIC_TRIGGERS.BackgroundRecovery,
+      ),
+    )
+    const batch = await workflow.prepareBatch(undefined, [excludedRef])
+    expect(batch.resources.map((item) => item.ref.resourceId)).toEqual(["2"])
+    expect(batch.skippedResources).toEqual([
+      { ref: excludedRef, name: "Alpha" },
+    ])
+    expect(JSON.stringify(batch.skippedResources)).not.toContain("key-1")
+    expect(JSON.stringify(batch.skippedResources)).not.toContain(
+      "upstream.example",
+    )
+    const result = await batch.run({ concurrency: 1, maxRetries: 0 })
+    expect(result.statistics).toMatchObject({ total: 1, failureCount: 0 })
+    expect(fetchRemoteModelsMock).toHaveBeenCalledOnce()
+    expect(fetchRemoteModelsMock).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({ source: included }),
+      expect.anything(),
+    )
+  })
+
   it("keeps native credentials behind the prepared batch and executes only the selected reference", async () => {
     const selected = createChannel({ id: 2, name: "Selected" })
     apiListChannelsMock.mockResolvedValue([createChannel(), selected])

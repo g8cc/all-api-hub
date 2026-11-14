@@ -19,14 +19,30 @@
     "oneTimeKeyPromptCancelled": "Account saved. You can create an AIHubMix API key manually in Key Management later.",
     "oneTimeKeyUnavailableAfterCreate": "Account saved, but the full AIHubMix API key could not be retrieved. AIHubMix keys are shown only once after creation; create a new key in Key Management and save the full key immediately."
   },
+  "aimlapi": {
+    "credentialInvalid": "The AI/ML API key is invalid or has expired.",
+    "credentialScopeDenied": "This AI/ML API credential cannot perform that action. Key management needs a management key; balance and billing need a regular API key.",
+    "malformedResponse": "AI/ML API returned a response this app cannot read.",
+    "managementKeyRequired": "AI/ML API needs a management key. Create one under \"Management keys\" and paste it here.",
+    "networkFallback": "Could not reach AI/ML API. Check the network and retry."
+  },
+  "aiToolbox": {
+    "attemptingRedirect": "Attempting to redirect to AI Toolbox",
+    "invalidApp": "Unsupported AI Toolbox target app",
+    "invalidBaseUrl": "Invalid or missing API base URL",
+    "invalidHomepage": "Invalid or missing homepage URL",
+    "missingCredentials": "Missing required account or key information",
+    "unableToOpen": "Unable to open AI Toolbox, please ensure it is installed"
+  },
   "autodetect": {
-    "currentTabNeedsReload": "This page may have been opened before the extension was installed or updated, so the extension cannot read data from this tab yet. Reload the current page, then try auto-detect again.",
+    "currentTabNeedsReload": "The extension cannot connect to this page's detection script. Reload the page and retry auto-detect. If it still fails, check that the extension has access to this site.",
     "failed": "Auto-detection failed: {{error}}",
     "forbidden": "Access denied. Please confirm whether the website firewall is blocking the request",
     "loginThisSite": "Login to this site",
     "networkError": "Network connection failed, please check your network connection and try again",
     "notFound": "Could not auto-detect this site. Check that the address is correct, or log in to the target site and try again.",
     "notLoggedIn": "You are not logged in to the current site, or the login information has expired. Cannot auto-add. Please check the help documentation or click to login first",
+    "rateLimited": "Too many requests. Please try again later.",
     "serverError": "Server error. Please try again later",
     "timeout": "Auto-detection timeout, please try adding manually",
     "unexpectedData": "Auto-detection failed, site returned unexpected data. Please enter information manually or ensure you are logged in to the target site"
@@ -69,7 +85,6 @@
     "updateSuccess": "Successfully updated Claude Code Router provider {{name}}"
   },
   "cliProxyApi": {
-    "managementApiConnectionSuccess": "Connection successful",
     "managementApiForbidden": "CLIProxyAPI rejected the request. Check whether the management key has been entered incorrectly too many times or whether access is restricted on the server.",
     "managementApiHttpError": "CLIProxyAPI Management API returned an unexpected status code (HTTP {{status}})",
     "managementApiInvalidKey": "The CLIProxyAPI Management Key is invalid. Please verify the key in settings.",
@@ -80,6 +95,12 @@
     "userInfoNotFound": "User information not found, please ensure you are logged in",
     "waitUserInfoTimeout": "Waiting for user information timeout, please ensure you are logged in"
   },
+  "cookieTransport": {
+    "permissionRequired": "This browser cannot send a request using this account's Cookie. Check the extension permissions or update your browser, then retry.",
+    "requestUnavailable": "The request could not be prepared. Retry; if it still fails, reload the extension.",
+    "scopeUnavailable": "This request cannot use the selected Cookie scope. Import the intended account's Cookie or use its regular browser session.",
+    "sessionUnavailable": "The login session is unavailable. Sign into the same account again; if using an imported Cookie, import it again."
+  },
   "donehub": {
     "configMissing": "Please configure Done Hub address, admin token, and user ID in basic settings first",
     "noChannelsToSync": "No channels to sync"
@@ -87,14 +108,20 @@
   "errors": {
     "api": {
       "invalidResponseFormat": "Invalid response format",
+      "missingRecoveryPolicy": "The extension could not prepare this request. Update the extension or report the issue.",
+      "nonJsonContent": "returned {{contentType}} instead of JSON (HTTP {{status}})",
       "onlyJsonSupported": "Only JSON responses are supported",
-      "requestFailed": "Request failed: {{status}}"
+      "requestFailed": "Request failed: {{status}}",
+      "verificationRequired": "The site returned a verification page. Open the site to complete verification, then retry."
     },
+    "dayaRedemptionUnconfirmed": "The redemption result needs review in the official console. Check delivery or finish applying the discount there before trying again.",
     "operation": {
       "accountDataFetchTimeout": "Timed out while fetching account data ({{seconds}}s)",
       "failed": "Operation failed: {{error}}",
       "saveFailed": "Save failed: {{error}}"
     },
+    "relayForRedemptionUnconfirmed": "The site did not confirm the redemption result. Check the official console before trying again.",
+    "relayForVerificationRequired": "This operation requires a verification code. Open the official console to complete it, then refresh here.",
     "unknown": "Unknown error",
     "validation": {
       "bookmarkNameRequired": "Bookmark name cannot be empty",
@@ -106,6 +133,14 @@
       "userIdNumeric": "User ID must be a number"
     }
   },
+  "gptLoad": {
+    "configMissing": "Configure the gpt-load deployment address and management key in settings first",
+    "noChannelsToSync": "No channels to sync"
+  },
+  "grsai": {
+    "openApiTokenRejected": "This is the Token shown on the Grsai user-info page. It is meant for the platform's open APIs, and the console does not accept it. Use Auto-detect to read the signed-in console session, or paste the console session token instead.",
+    "sessionExpired": "The saved Grsai console session has expired (a console session lasts about 30 days). Sign in to the Grsai console again, then add the account with Auto-detect."
+  },
   "kelivo": {
     "copied": "Kelivo mobile import code copied. Paste it in Kelivo mobile's provider import.",
     "copyFailed": "Unable to copy the Kelivo import code. Check clipboard permission and try again.",
@@ -114,6 +149,10 @@
     "missingCredentials": "A provider name and complete API key are required.",
     "unsupportedApiType": "This API protocol cannot be exported to Kelivo."
   },
+  "magpie": {
+    "configMissing": "Configure the Magpie Web address and Web management key in settings first.",
+    "noChannelsToSync": "No channels to sync"
+  },
   "managedSite": {
     "unsupportedModelSync": "{{siteName}} does not support managed-site model sync in this version"
   },
@@ -121,9 +160,22 @@
     "configMissing": "Please configure New API address, admin token, and user ID in basic settings first",
     "noChannelsToSync": "No channels to sync"
   },
+  "novita": {
+    "apiKeyRequired": "Enter a full Novita API key or sign in to the same account to acquire a console credential. Both credentials can be saved together.",
+    "consoleAcquisitionFailed": "Could not obtain the console token. Sign in to this account on Novita, refresh the website and retry, or paste the console token directly. Your API key is preserved.",
+    "consoleCredentialRequired": "This action requires console authorization. Edit the account and acquire a console credential for the same Novita account.",
+    "credentialInvalid": "This Novita credential is invalid or expired. For a console session, sign in again and retry detection; otherwise replace the API key.",
+    "keyChanged": "This key changed on Novita. Reopen the editor before saving.",
+    "malformedResponse": "Novita returned an unexpected response. Try again later.",
+    "networkFallback": "Cannot reach Novita. Check your network connection and retry."
+  },
   "octopus": {
     "configMissing": "Please configure Octopus address, username, and password in basic settings first",
     "corsError": "This may be caused by CORS configuration. Please check the CORS whitelist setting in Octopus settings.",
+    "noChannelsToSync": "No channels to sync"
+  },
+  "omniroute": {
+    "configMissing": "Configure the OmniRoute deployment address and access token in settings first",
     "noChannelsToSync": "No channels to sync"
   },
   "openrouter": {
@@ -146,12 +198,13 @@
   },
   "operations": {
     "detection": {
+      "cookieSessionRejected": "The site rejected the cookie session. Sign in again and retry.",
       "failed": "Auto-detection failed, please enter information manually or ensure you are logged in to the target site",
       "getAccessTokenFailedDetailed": "The account was detected, but no access token could be retrieved. Confirm the account can create or view API tokens, or enter the token manually.",
       "getInfoFailed": "Failure to get username or access token",
       "getSiteStatusFailedDetailed": "The account was detected, but site status could not be read. Try again later; if it still fails, save the account manually first.",
       "getUserIdFailed": "Could not get user ID",
-      "getUserIdFailedDetailed": "Connected to the site, but could not read the user ID. Make sure you are logged in to the target site and try again.",
+      "getUserIdFailedDetailed": "The signed-in account could not be confirmed. Open the target site in this browser, make sure you are signed in, and retry. If it still fails, complete the account details manually.",
       "getUsernameFailedDetailed": "The account was detected, but the site did not return a username. Make sure you are logged in, or enter the account manually."
     }
   },
@@ -225,6 +278,9 @@
     "configMissing": "Please configure Veloera address, admin token, and user ID in basic settings first",
     "noChannelsToSync": "No channels to sync"
   },
+  "vercelAiGateway": {
+    "accessTokenRequired": "Vercel AI Gateway requires a Vercel access token for the team that owns the gateway."
+  },
   "warnings": {
     "accountSavedWithoutDataRefresh": "Account saved, but the latest balance, quota, and today's usage could not be fetched. The current values may be placeholders. Refresh this account later from the account list.",
     "accountUpdatedWithoutDataRefresh": "Account settings saved, but the latest balance, quota, and today's usage could not be refreshed. The current values may still be stale. Refresh this account later from the account list."
@@ -239,10 +295,10 @@
     "encryptFailedNoPassword": "Encryption is enabled but no password is set",
     "fileNotFound": "Remote backup file does not exist",
     "invalidBackupJson": "The cloud backup file is incomplete and cannot be used for sync. Sync was stopped to avoid merging damaged data. If this device has complete local data, use Upload to WebDAV to recreate the cloud backup. If not, upload from another device that has complete data or import a complete backup file first.",
-    "safeCommitFailed": "This WebDAV service could not safely save the backup. Your existing cloud backup was kept. Try again later or use a WebDAV service that supports moving or renaming files.",
+    "safeCommitFailed": "Could not confirm that the cloud backup was saved. Check your connection and read/write permissions, then try again.",
     "syncDataSelectionRequired": "Select at least one data domain to sync",
     "uploadFailed": "Upload failed, status code: {{status}}",
-    "uploadStillProcessing": "The cloud service is still processing the uploaded backup, so verification could not finish yet. Your existing cloud backup was not replaced. Try again later.",
-    "uploadVerificationFailed": "Backup verification failed after upload. The cloud service may not have saved the file completely. Your existing cloud backup was kept."
+    "uploadStillProcessing": "The cloud service is still processing the uploaded backup, so verification could not finish yet. Try again later.",
+    "uploadVerificationFailed": "Backup verification failed after upload. The cloud file may be incomplete. Retry sync or restore from a local backup if needed."
   }
 }

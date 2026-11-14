@@ -1,5 +1,6 @@
 import { act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import type { Ref } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
@@ -8,11 +9,9 @@ import KeyManagement from "~/entrypoints/options/pages/KeyManagement"
 import { KEY_MANAGEMENT_ALL_ACCOUNTS_VALUE } from "~/features/KeyManagement/constants"
 import { KEY_MANAGEMENT_TEST_IDS } from "~/features/KeyManagement/testIds"
 import enKeyManagement from "~/locales/en/keyManagement.json"
-import { ACCOUNT_RUNTIME_KEY_SOURCES } from "~/services/accounts/accountRuntimeKeys"
-import {
-  DEFAULT_PREFERENCES,
-  type UserPreferences,
-} from "~/services/preferences/userPreferences"
+import { ACCOUNT_RUNTIME_KEY_SOURCES } from "~/services/accounts/keys/accountRuntimeKeys"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { type UserPreferences } from "~/services/preferences/preferencesSchema"
 import { API_CREDENTIAL_PROFILE_LINK_STATES } from "~/types/apiCredentialProfiles"
 import { buildNewApiKeyFacts } from "~~/tests/test-utils/accountKeyFixtures"
 import { render, screen, waitFor, within } from "~~/tests/test-utils/render"
@@ -51,49 +50,60 @@ const {
   useApiCredentialProfileLinksMock: vi.fn(),
 }))
 
-vi.mock("~/hooks/useApiCredentialProfileLinks", () => ({
-  useApiCredentialProfileLinks: () => useApiCredentialProfileLinksMock(),
-}))
+vi.mock(
+  "~/features/ApiCredentialProfiles/associations/useApiCredentialProfileLinks",
+  () => ({
+    useApiCredentialProfileLinks: () => useApiCredentialProfileLinksMock(),
+  }),
+)
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
 
-  return {
-    ...actual,
-    sendRuntimeActionMessage: sendRuntimeActionMessageMock,
-  }
+  return { ...actual, sendRuntimeActionMessage: sendRuntimeActionMessageMock }
 })
 
-vi.mock("~/utils/navigation", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/utils/navigation")>()
+vi.mock("~/utils/navigation/optionsPage", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/utils/navigation/optionsPage")>()
 
   return {
     ...actual,
     pushWithinOptionsPage: pushWithinOptionsPageMock,
     replaceWithinOptionsPage: replaceWithinOptionsPageMock,
+  }
+})
+vi.mock("~/utils/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/utils/navigation")>()
+
+  return {
+    ...actual,
     openModelsPage: openModelsPageMock,
     openSettingsTab: openSettingsTabMock,
   }
 })
 
-vi.mock("~/features/KeyManagement/hooks/useKeyManagement", () => ({
+vi.mock("~/features/KeyManagement/inventory/useKeyManagement", () => ({
   useKeyManagement: (...args: unknown[]) => useKeyManagementMock(...args),
 }))
 
-vi.mock("~/features/KeyManagement/hooks/useManagedSiteKeyStatuses", () => ({
-  useManagedSiteKeyStatuses: () => {
-    const fixture = useKeyManagementMock.mock.results.at(-1)?.value
-    return {
-      states: fixture.managedSiteTokenStatuses ?? {},
-      supported: fixture.isManagedSiteChannelStatusSupported ?? true,
-      refreshing: fixture.isManagedSiteStatusRefreshing ?? false,
-      refresh: fixture.refreshManagedSiteTokenStatuses,
-      refreshKey: fixture.refreshManagedSiteTokenStatusForToken,
-      confirm: fixture.confirmManagedSiteTokenStatusWithChannelKey,
-    }
-  },
-}))
+vi.mock(
+  "~/features/KeyManagement/managedSite/useManagedSiteKeyStatuses",
+  () => ({
+    useManagedSiteKeyStatuses: () => {
+      const fixture = useKeyManagementMock.mock.results.at(-1)?.value
+      return {
+        states: fixture.managedSiteTokenStatuses ?? {},
+        supported: fixture.isManagedSiteChannelStatusSupported ?? true,
+        refreshing: fixture.isManagedSiteStatusRefreshing ?? false,
+        refresh: fixture.refreshManagedSiteTokenStatuses,
+        refreshKey: fixture.refreshManagedSiteTokenStatusForToken,
+        confirm: fixture.confirmManagedSiteTokenStatusWithChannelKey,
+      }
+    },
+  }),
+)
 
 vi.mock(
   "~/features/ManagedSiteVerification/useNewApiManagedVerification",
@@ -143,16 +153,22 @@ vi.mock("~/contexts/UserPreferencesContext", async (importOriginal) => {
   }
 })
 
-vi.mock("~/features/KeyManagement/components/AccountSelectorPanel", () => {
+vi.mock("~/features/KeyManagement/inventory/AccountSelectorPanel", () => {
   function MockAccountSelectorPanel(props: {
     selectorOpen?: boolean
+    selectorTriggerRef?: Ref<HTMLButtonElement>
     setSelectedAccount: (value: string) => void
   }) {
-    const { selectorOpen, setSelectedAccount } = props
+    const { selectorOpen, selectorTriggerRef, setSelectedAccount } = props
 
     return (
       <div>
-        <button type="button" role="combobox" aria-expanded={selectorOpen}>
+        <button
+          ref={selectorTriggerRef}
+          type="button"
+          role="combobox"
+          aria-expanded={selectorOpen}
+        >
           Mock account selector
         </button>
         <button
@@ -179,7 +195,7 @@ vi.mock("~/features/KeyManagement/components/AccountSelectorPanel", () => {
   }
 })
 
-vi.mock("~/features/KeyManagement/components/TokenList", () => ({
+vi.mock("~/features/KeyManagement/inventory/TokenList", () => ({
   TokenList: (props: any) => {
     tokenListPropsSpy(props)
 
@@ -205,11 +221,11 @@ vi.mock("~/features/KeyManagement/components/TokenList", () => ({
   },
 }))
 
-vi.mock("~/features/KeyManagement/components/Footer", () => ({
+vi.mock("~/features/KeyManagement/workspace/Footer", () => ({
   Footer: () => null,
 }))
 
-vi.mock("~/features/KeyManagement/components/AccountSummaryBar", () => ({
+vi.mock("~/features/KeyManagement/inventory/AccountSummaryBar", () => ({
   AccountSummaryBar: (props: any) => {
     accountSummaryBarPropsSpy(props)
 
@@ -229,7 +245,7 @@ vi.mock("~/features/KeyManagement/components/AccountSummaryBar", () => ({
   },
 }))
 
-vi.mock("~/features/TokenProvisioning/components/AddTokenDialog", () => ({
+vi.mock("~/features/TokenProvisioning/creation/AddTokenDialog", () => ({
   default: (props: any) => {
     addTokenDialogPropsSpy(props)
     return null
@@ -240,7 +256,7 @@ vi.mock("~/services/apiAdapters/registry", () => ({
   getSiteTypeCapabilities: getSiteTypeCapabilitiesMock,
 }))
 
-vi.mock("~/features/KeyManagement/components/RepairMissingKeysDialog", () => ({
+vi.mock("~/features/KeyManagement/repair", () => ({
   RepairMissingKeysDialog: () => null,
 }))
 
@@ -677,6 +693,7 @@ describe("KeyManagement empty-state actions", () => {
   })
 
   it("opens the account selector when the user needs to choose an account first", async () => {
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView")
     const user = userEvent.setup()
     const account = createAccount({
       id: "acc-1",
@@ -704,6 +721,11 @@ describe("KeyManagement empty-state actions", () => {
     await waitFor(() =>
       expect(selectorTrigger).toHaveAttribute("aria-expanded", "true"),
     )
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "auto",
+      block: "nearest",
+    })
+    expect(scrollIntoView.mock.instances).toContain(selectorTrigger)
   })
 
   it("omits the model shortcut when the selected account has no supported model route", () => {

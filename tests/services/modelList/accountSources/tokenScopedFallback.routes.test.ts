@@ -4,7 +4,7 @@ import { SITE_TYPES } from "~/constants/siteType"
 import {
   ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES,
   ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES,
-} from "~/services/accounts/accountSiteProfile"
+} from "~/services/accounts/accountSiteProfile/contracts"
 import {
   MODEL_LIST_SOURCE_KINDS,
   MODEL_PRICE_PRECISION_KINDS,
@@ -27,18 +27,21 @@ const {
   resolveDisplayAccountTokenForSecretMock: vi.fn(),
 }))
 
-vi.mock("~/services/accounts/accountSiteProfile", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("~/services/accounts/accountSiteProfile")
-    >()
+vi.mock(
+  "~/services/accounts/accountSiteProfile/modelList",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/accounts/accountSiteProfile/modelList")
+      >()
 
-  return {
-    ...actual,
-    getAccountSiteModelListProfile: (...args: unknown[]) =>
-      getAccountSiteModelListProfileMock(...args),
-  }
-})
+    return {
+      ...actual,
+      getAccountSiteModelListProfile: (...args: unknown[]) =>
+        getAccountSiteModelListProfileMock(...args),
+    }
+  },
+)
 
 vi.mock("~/services/apiAdapters/registry", () => ({
   getSiteTypeCapabilities: getSiteTypeCapabilitiesMock,
@@ -120,14 +123,29 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken routing", () => 
       },
     })
 
-    expect(fetchRuntimeModelsMock).toHaveBeenCalledWith({
-      baseUrl: "https://sub2api.example.invalid",
-      accountId: "account-1",
-      auth: {
-        authType: AuthTypeEnum.AccessToken,
-        apiKey: "sk-runtime-secret",
+    expect(fetchRuntimeModelsMock).toHaveBeenCalledWith(
+      {
+        directRequestReason: "passive" as const,
+        baseUrl: "https://sub2api.example.invalid",
+        accountId: "account-1",
+        auth: {
+          authType: AuthTypeEnum.AccessToken,
+          apiKey: "sk-runtime-secret",
+        },
       },
-    })
+      {
+        accountRequest: expect.objectContaining({
+          directRequestReason: "caller_managed" as const,
+          baseUrl: "https://sub2api.example.invalid",
+          accountId: "account-1",
+          auth: expect.objectContaining({
+            authType: AuthTypeEnum.AccessToken,
+            userId: "1",
+            accessToken: "account-token",
+          }),
+        }),
+      },
+    )
     expect(result.model_list_source).toEqual({
       kind: MODEL_LIST_SOURCE_KINDS.CATALOG_FALLBACK,
       provider: SITE_TYPES.SUB2API,
@@ -237,6 +255,17 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken routing", () => 
           apiKey: "sk-minimal-secret",
         },
       }),
+      {
+        accountRequest: expect.objectContaining({
+          baseUrl: "https://minimal.example.invalid",
+          accountId: "minimal-account",
+          auth: expect.objectContaining({
+            authType: AuthTypeEnum.AccessToken,
+            userId: "1",
+            accessToken: "account-token",
+          }),
+        }),
+      },
     )
     expect(result.data.map((model) => model.model_name)).toEqual([
       "legacy-minimal-model",

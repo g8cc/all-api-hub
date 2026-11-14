@@ -4,7 +4,7 @@ import { AUTO_DETECT_FAILURE_REASONS } from "~/constants/autoDetect"
 import { DEFAULT_USD_TO_CNY_RATE } from "~/constants/money"
 import { SITE_TYPES } from "~/constants/siteType"
 import { voApiV2AccountCompletion } from "~/services/apiAdapters/voapiV2/accountCompletion"
-import { fetchVoApiV2UserInfo } from "~/services/apiService/voapiV2"
+import { fetchVoApiV2UserInfo } from "~/services/apiService/voapiV2/accountData"
 import { API_SERVICE_FETCH_CONTEXT_KINDS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 
@@ -13,7 +13,7 @@ import {
   createCheckInConfig,
 } from "../checkInFixtures"
 
-vi.mock("~/services/apiService/voapiV2", () => ({
+vi.mock("~/services/apiService/voapiV2/accountData", () => ({
   fetchVoApiV2UserInfo: vi.fn(),
 }))
 
@@ -48,7 +48,7 @@ describe("voApiV2AccountCompletion", () => {
         detected: {
           userId: "42",
           user: {
-            id: 42,
+            id: "42",
             username: "  dashboard-owner  ",
           },
           siteType: SITE_TYPES.VO_API_V2,
@@ -62,6 +62,7 @@ describe("voApiV2AccountCompletion", () => {
     )
 
     expect(fetchVoApiV2UserInfo).toHaveBeenCalledWith({
+      directRequestReason: "caller_managed" as const,
       baseUrl: "https://voapi.example.invalid",
       fetchContext: currentTabFetchContext,
       auth: {
@@ -99,6 +100,45 @@ describe("voApiV2AccountCompletion", () => {
       },
     })
   })
+
+  it.each([
+    {
+      rawUser: { display_name: "  Dashboard Name  " },
+      expected: "Dashboard Name",
+    },
+    {
+      rawUser: { email: "owner@example.invalid" },
+      expected: "owner@example.invalid",
+    },
+  ])(
+    "preserves the native name fallback $expected",
+    async ({ rawUser, expected }) => {
+      vi.mocked(fetchVoApiV2UserInfo).mockResolvedValueOnce({
+        id: 42,
+        username: "api-owner",
+        nickname: "API Owner",
+      })
+      const result = await voApiV2AccountCompletion.complete(
+        {
+          url: "https://voapi.example.invalid",
+          requestedAuthType: AuthTypeEnum.AccessToken,
+          detected: {
+            userId: "42",
+            user: { id: "42" },
+            rawUser,
+            siteType: SITE_TYPES.VO_API_V2,
+            accessToken: "dashboard-jwt",
+          },
+          context: {},
+        },
+        helpers,
+      )
+      expect(result.username).toBe(expected)
+      expect(captureRecoveryData).toHaveBeenCalledWith(
+        expect.objectContaining({ username: expected }),
+      )
+    },
+  )
 
   it("classifies missing dashboard JWT as an access-token completion failure", async () => {
     await expect(

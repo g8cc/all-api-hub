@@ -1,7 +1,15 @@
 {
+  "alreadyStarred": "Starred",
   "copyrightAck": "Copyright & Acknowledgements",
   "description": "Find the extension version, changelog and project links, get help or report a problem.",
   "devMaintenance": "Development & Maintenance",
+  "devMode": {
+    "activatedToast": "🛠️ Developer mode activated! Dev lab features unlocked.",
+    "alreadyDevToast": "Currently running in development mode (wxt dev). Developer mode remains enabled.",
+    "deactivatedToast": "Developer mode deactivated.",
+    "tooltipDev": "Running in development environment (wxt dev)",
+    "tooltipProd": "Click 7 times to toggle developer mode"
+  },
   "features": "Features",
   "feedbackSection": {
     "bugReport": {
@@ -70,5 +78,6 @@
   "title": "About",
   "upcomingFeatures": "Upcoming Features",
   "version": "Version:",
+  "viewRepo": "Visit repository",
   "visitHomepage": "Visit Homepage"
 }

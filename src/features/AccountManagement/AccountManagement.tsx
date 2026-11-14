@@ -1,10 +1,4 @@
-import {
-  BookmarkPlus,
-  CalendarCheck2,
-  RefreshCw,
-  Search,
-  UserRound,
-} from "lucide-react"
+import { BookmarkPlus, Search } from "lucide-react"
 import {
   useCallback,
   useEffect,
@@ -14,41 +8,52 @@ import {
 } from "react"
 import { useTranslation } from "react-i18next"
 
+import {
+  AccountManagementIcon,
+  AutoCheckinIcon,
+  RefreshActionIcon,
+} from "~/components/icons/productIcons"
 import { OptionsPageSettingsTitleAction } from "~/components/OptionsPageSettingsTitleAction"
 import { PageActions } from "~/components/PageActions"
 import { PageHeader } from "~/components/PageHeader"
 import { Button } from "~/components/ui"
+import { BASIC_SETTINGS_TAB_IDS } from "~/constants/basicSettingsTabs"
 import { useFeatureGuidanceContext } from "~/contexts/FeatureGuidanceContext"
 import { ProductAnalyticsScope } from "~/contexts/ProductAnalyticsScopeContext"
 import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
+import { useAccountActionsContext } from "~/features/AccountManagement/actions/AccountActionsContext"
+import BookmarkAccountImportDevPreview from "~/features/AccountManagement/bookmarkImport/BookmarkAccountImportDevPreview"
 import AccountList from "~/features/AccountManagement/components/AccountList"
 import BookmarkAccountImportDialog from "~/features/AccountManagement/components/BookmarkAccountImportDialog"
 import DedupeAccountsDialog from "~/features/AccountManagement/components/DedupeAccountsDialog"
 import DelAccountDialog from "~/features/AccountManagement/components/DelAccountDialog"
-import { useAccountActionsContext } from "~/features/AccountManagement/hooks/AccountActionsContext"
-import { useAccountDataContext } from "~/features/AccountManagement/hooks/AccountDataContext"
-import { AccountManagementProvider } from "~/features/AccountManagement/hooks/AccountManagementProvider"
-import { useDialogStateContext } from "~/features/AccountManagement/hooks/DialogStateContext"
+import { useAccountDataContext } from "~/features/AccountManagement/data/AccountDataContext"
+import { useAccountEditRouteAction } from "~/features/AccountManagement/dialogs/useAccountEditRouteAction"
+import { useAccountDialogActions } from "~/features/AccountManagement/dialogs/useDialogStateContext"
+import { getAccountRefreshFeedback } from "~/features/AccountManagement/refreshFeedback"
 import {
   ACCOUNT_MANAGEMENT_ROUTE_ACTIONS,
   ACCOUNT_MANAGEMENT_ROUTE_PARAMS,
 } from "~/features/AccountManagement/routeParams"
+import { normalizeSponsorAddAccountPrefill } from "~/features/AccountManagement/sponsors/addAccountPrefill"
 import { ACCOUNT_MANAGEMENT_TEST_IDS } from "~/features/AccountManagement/testIds"
-import { useApiCredentialProfiles } from "~/features/ApiCredentialProfiles/hooks/useApiCredentialProfiles"
+import { AccountManagementProvider } from "~/features/AccountManagement/workspace/AccountManagementProvider"
+import { useApiCredentialProfiles } from "~/features/ApiCredentialProfiles/workspace/useApiCredentialProfiles"
+import {
+  GatewayGuidanceDismissDialog,
+  UnifiedApiGuidanceCard,
+} from "~/features/UnifiedApiGuidance"
+import { UNIFIED_API_GUIDANCE_SURFACES } from "~/features/UnifiedApiGuidance/i18n"
 import {
   buildUnifiedApiGuidanceModel,
-  GatewayGuidanceDismissDialog,
-  getGatewayGuidanceImportableAccounts,
   UNIFIED_API_GUIDANCE_ACTION_KINDS,
-  UNIFIED_API_GUIDANCE_SURFACES,
-  UnifiedApiGuidanceCard,
-  useGatewayGuidanceDismissal,
-  withGuidedAccountKeyImportTarget,
   type UnifiedApiGuidanceAction,
-} from "~/features/UnifiedApiGuidance"
+} from "~/features/UnifiedApiGuidance/model"
+import { withGuidedAccountKeyImportTarget } from "~/features/UnifiedApiGuidance/navigation"
+import { getGatewayGuidanceImportableAccounts } from "~/features/UnifiedApiGuidance/sourceAccounts"
+import { useGatewayGuidanceDismissal } from "~/features/UnifiedApiGuidance/useGatewayGuidanceDismissal"
 import toast from "~/lib/notify"
 import { GATEWAY_GUIDANCE_SURFACES } from "~/services/featureGuidance/featureGuidanceState"
-import { buildAccountRefreshDiagnostics } from "~/services/productAnalytics/accountRefresh"
 import { startProductAnalyticsAction } from "~/services/productAnalytics/actions"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
@@ -63,11 +68,12 @@ import {
   PRODUCT_ANALYTICS_SURFACE_IDS,
   PRODUCT_ANALYTICS_TARGET_KINDS,
 } from "~/services/productAnalytics/contracts"
-import { trackProductAnalyticsEvent } from "~/services/productAnalytics/dispatch"
+import { buildAccountRefreshDiagnostics } from "~/services/productAnalytics/facts/accountRefresh"
+import { trackProductAnalyticsEvent } from "~/services/productAnalytics/runtime/dispatch"
 import type { DisplaySiteData } from "~/types"
 import { createLogger } from "~/utils/core/logger"
 import { getExternalCheckInOpenOptions } from "~/utils/core/shortcutKeys"
-import { pushWithinOptionsPage } from "~/utils/navigation"
+import { pushWithinOptionsPage } from "~/utils/navigation/optionsPage"
 
 const logger = createLogger("AccountManagementPage")
 const optionsEntrypoint = PRODUCT_ANALYTICS_ENTRYPOINTS.Options
@@ -78,6 +84,8 @@ const headerSurface =
 interface AccountManagementContentProps {
   searchQuery?: string
   routeAction?: string
+  routeAccountId?: string
+  routeFocusSection?: string
   isBookmarkImportDialogOpen: boolean
   onOpenBookmarkImport: () => void
   onCloseBookmarkImport: () => void
@@ -89,12 +97,15 @@ interface AccountManagementContentProps {
 function AccountManagementContent({
   searchQuery,
   routeAction,
+  routeAccountId,
+  routeFocusSection,
   isBookmarkImportDialogOpen,
   onOpenBookmarkImport,
   onCloseBookmarkImport,
 }: AccountManagementContentProps) {
   const { t } = useTranslation(["account", "common", "messages"])
-  const { openAddAccount, openEditAccount } = useDialogStateContext()
+  const { openAddAccount, openEditAccount } = useAccountDialogActions()
+  useAccountEditRouteAction({ routeAction, routeAccountId, routeFocusSection })
   const consumedAddRouteActionRef = useRef(false)
   const {
     displayData,
@@ -143,7 +154,10 @@ function AccountManagementContent({
     }
 
     consumedAddRouteActionRef.current = true
-    openAddAccount()
+    const prefill = normalizeSponsorAddAccountPrefill(
+      Object.fromEntries(new URLSearchParams(window.location.search)),
+    )
+    openAddAccount(prefill)
   }, [openAddAccount, routeAction])
 
   const externalCheckInAccounts = displayData.filter((account) => {
@@ -221,29 +235,7 @@ function AccountManagementContent({
     try {
       const result = await toast.promise(handleRefresh(true), {
         loading: t("account:refresh.refreshingAll"),
-        success: (result) => {
-          if (result.failed > 0) {
-            return t("account:refresh.refreshComplete", {
-              success: result.success,
-              failed: result.failed,
-            })
-          }
-
-          const sum = result.success + result.failed
-          if (sum === 0) {
-            return null
-          }
-
-          const { refreshedCount } = result
-          if (refreshedCount < sum) {
-            return t("account:refresh.refreshPartialSkipped", {
-              success: refreshedCount,
-              skipped: sum - refreshedCount,
-            })
-          }
-
-          return t("account:refresh.refreshSuccess")
-        },
+        success: (result) => getAccountRefreshFeedback(result, t),
         error: t("account:refresh.refreshFailed"),
       })
       const refreshInsights = {
@@ -362,13 +354,18 @@ function AccountManagementContent({
   }, [handleRefreshDisabledAccounts, t])
 
   return (
-    <div className="py-density-4 sm:py-density-6 flex flex-col px-4 sm:px-6">
+    <div
+      className="py-density-4 sm:py-density-6 flex flex-col px-4 sm:px-6"
+      data-page-motion-wait-for={
+        displayData.length > 0 ? "[data-page-motion-ready-item]" : undefined
+      }
+    >
       <PageHeader
-        icon={UserRound}
+        icon={AccountManagementIcon}
         title={t("account:title")}
         titleActions={
           <OptionsPageSettingsTitleAction
-            tabId="accountManagement"
+            tabId={BASIC_SETTINGS_TAB_IDS.AccountManagement}
             anchor="account-management"
           />
         }
@@ -399,7 +396,7 @@ function AccountManagementContent({
                 size="sm"
                 onClick={() => void handleGlobalRefresh()}
                 variant="secondary"
-                leftIcon={<RefreshCw className="h-4 w-4" />}
+                leftIcon={<RefreshActionIcon className="h-4 w-4" />}
                 loading={isRefreshing}
                 disabled={isAnyRefreshRunning}
               >
@@ -412,7 +409,7 @@ function AccountManagementContent({
                   size="sm"
                   onClick={() => void handleDisabledRefresh()}
                   variant="secondary"
-                  leftIcon={<RefreshCw className="h-4 w-4" />}
+                  leftIcon={<RefreshActionIcon className="h-4 w-4" />}
                   loading={isRefreshingDisabledAccounts}
                   disabled={isAnyRefreshRunning}
                 >
@@ -428,7 +425,7 @@ function AccountManagementContent({
                   <Button
                     size="sm"
                     onClick={handleOpenExternalCheckInsClick}
-                    leftIcon={<CalendarCheck2 className="h-4 w-4" />}
+                    leftIcon={<AutoCheckinIcon className="h-4 w-4" />}
                     title={t("account:actions.openAllExternalCheckInHint")}
                     data-testid={
                       ACCOUNT_MANAGEMENT_TEST_IDS.externalCheckInButton
@@ -502,7 +499,6 @@ function AccountManagementContent({
         <AccountList
           initialSearchQuery={searchQuery}
           onAddAccount={openAddAccount}
-          showAddAccountAction={false}
         />
       </div>
 
@@ -531,6 +527,7 @@ function AccountManagementContent({
       {isBookmarkImportDialogOpen && (
         <BookmarkAccountImportDialog isOpen onClose={onCloseBookmarkImport} />
       )}
+      <BookmarkAccountImportDevPreview />
     </div>
   )
 }
@@ -559,7 +556,6 @@ function AccountManagement({
   return (
     <AccountManagementProvider
       refreshKey={refreshKey}
-      onOpenBookmarkImport={openBookmarkImportDialog}
       initialRecoveryId={
         routeParams?.[ACCOUNT_MANAGEMENT_ROUTE_PARAMS.AccountDialogRecovery]
       }
@@ -567,6 +563,12 @@ function AccountManagement({
       <AccountManagementContent
         searchQuery={routeParams?.search}
         routeAction={routeParams?.[ACCOUNT_MANAGEMENT_ROUTE_PARAMS.Action]}
+        routeAccountId={
+          routeParams?.[ACCOUNT_MANAGEMENT_ROUTE_PARAMS.AccountId]
+        }
+        routeFocusSection={
+          routeParams?.[ACCOUNT_MANAGEMENT_ROUTE_PARAMS.FocusSection]
+        }
         isBookmarkImportDialogOpen={isBookmarkImportDialogOpen}
         onOpenBookmarkImport={openBookmarkImportDialog}
         onCloseBookmarkImport={closeBookmarkImportDialog}

@@ -5,6 +5,13 @@ import type { AccountTodayStatsAvailability } from "~/types/accountTodayStats"
 export const ACCOUNT_SITE_SUPPLEMENTAL_AUTH_KINDS = {
   None: "none",
   Sub2ApiRefreshToken: "sub2api_refresh_token",
+  KimiRefreshToken: "kimi_refresh_token",
+  /**
+   * A second static credential with a narrower scope than the account's primary
+   * one. AI/ML API splits its console: key management rejects regular API keys
+   * and billing rejects management keys, so one account needs both.
+   */
+  SecondaryApiKey: "secondary_api_key",
 } as const
 
 export type AccountSiteSupplementalAuthKind =
@@ -50,6 +57,11 @@ export const ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS = {
 export type AccountSiteModelListGroupSemantics =
   (typeof ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS)[keyof typeof ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS]
 
+export type AccountSiteInferenceProtocols = {
+  openAiCompatible?: string
+  anthropic?: string
+}
+
 export type AccountSiteUrlProfile = {
   recognizedHostnames: readonly string[]
   /** Apply canonical URL rules without an explicit site-type hint. */
@@ -58,8 +70,11 @@ export type AccountSiteUrlProfile = {
   storageOrigin?: string
   /** Canonical browser/API origin used by automatic account detection. */
   autoDetectOrigin?: string
+  /** Client-facing API base URL; it may include a required path prefix. */
   managedChannelOrigin?: string
   duplicateOrigin?: string
+  /** Declared protocol mount URLs for supported inference engines. */
+  inferenceApiBaseUrls?: AccountSiteInferenceProtocols
 }
 
 export type AccountSiteIdentityProfile = {
@@ -69,6 +84,8 @@ export type AccountSiteIdentityProfile = {
 }
 
 export type AccountSiteAuthProfile = {
+  /** The provider verifies the browser cookie session rather than saved credentials. */
+  usesBrowserCookieSession?: boolean
   allowedAuthTypes: readonly AuthTypeEnum[]
   defaultAuthType: AuthTypeEnum
   defaultAuthHostnames: readonly string[]
@@ -76,6 +93,11 @@ export type AccountSiteAuthProfile = {
 
 export type AccountSiteAuthSessionProfile = {
   kind: AccountSiteSupplementalAuthKind
+  /**
+   * Whether the supplemental credential is a second static key that callers read
+   * from storage instead of an expiring session they must renew.
+   */
+  secondaryCredential?: "api-key"
 }
 
 export type AccountSiteCreatedTokenProfile = {

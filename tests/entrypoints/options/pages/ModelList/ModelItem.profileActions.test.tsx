@@ -2,18 +2,18 @@ import userEvent from "@testing-library/user-event"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import ModelItem from "~/features/ModelList/components/ModelItem"
-import {
-  MODEL_GROUP_ACCESS_STATES,
-  type ActiveModelGroupContext,
-  type ModelGroupContext,
-} from "~/features/ModelList/groupContext"
 import {
   createAccountSource,
   createProfileSource,
   deriveModelListSourceCapabilities,
   toCatalogOnlyCapabilities,
-} from "~/features/ModelList/modelManagementSources"
+} from "~/features/ModelList/catalog/modelManagementSources"
+import {
+  MODEL_GROUP_ACCESS_STATES,
+  type ActiveModelGroupContext,
+  type ModelGroupContext,
+} from "~/features/ModelList/groups/groupContext"
+import ModelItem from "~/features/ModelList/presentation/ModelItem"
 import {
   MODEL_PRICE_PRECISION_KINDS,
   MODEL_PRICE_SOURCE_KINDS,
@@ -46,14 +46,10 @@ const EMPTY_ACTIVE_GROUP_CONTEXT: ActiveModelGroupContext = {
   actionGroups: [],
 }
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+vi.mock("~/utils/browser/tabs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/utils/browser/tabs")>()
 
-  return {
-    ...actual,
-    createTab: mockCreateTab,
-  }
+  return { ...actual, createTab: mockCreateTab }
 })
 
 vi.mock("~/contexts/UserPreferencesContext", async (importOriginal) => {
@@ -163,6 +159,64 @@ describe("ModelItem profile actions", () => {
     expect(onVerifyCliSupport).toHaveBeenCalledWith(
       profileSource,
       "gpt-4o-mini",
+      undefined,
+    )
+  })
+
+  it("passes supported_endpoint_types to onVerifyModel when present", async () => {
+    const user = userEvent.setup()
+    const onVerifyModel = vi.fn()
+
+    const profileSource = createProfileSource({
+      id: "profile-endpoint-types",
+      name: "Reusable Key",
+      apiType: API_TYPES.OPENAI_COMPATIBLE,
+      baseUrl: "https://profile.example.com",
+      apiKey: "sk-secret",
+      tagIds: [],
+      notes: "",
+      createdAt: 1,
+      updatedAt: 2,
+    })
+
+    render(
+      <ModelItem
+        resolvedVendor={{ state: "unknown" }}
+        model={{
+          model_name: "custom-embed-model",
+          quota_type: 0,
+          model_ratio: 0,
+          model_price: 0,
+          completion_ratio: 1,
+          enable_groups: [],
+          supported_endpoint_types: [":embedContent"],
+        }}
+        calculatedPrice={{
+          kind: CALCULATED_PRICE_KINDS.TOKEN,
+          usdPerMillionTokens: { input: 0, output: 0 },
+        }}
+        exchangeRate={1}
+        showRealPrice={false}
+        showEndpointTypes={true}
+        groupRatios={{}}
+        groupContext={NOT_APPLICABLE_GROUP_CONTEXT}
+        activeGroupContext={EMPTY_ACTIVE_GROUP_CONTEXT}
+        source={profileSource}
+        onVerifyModel={onVerifyModel}
+      />,
+    )
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "modelList:actions.verifyApi",
+      }),
+    )
+
+    expect(onVerifyModel).toHaveBeenCalledWith(
+      profileSource,
+      "custom-embed-model",
+      undefined,
+      [":embedContent"],
     )
   })
 

@@ -1,4 +1,8 @@
+import { API_VERIFICATION_REQUEST_PROFILES } from "~/services/verification/aiApiVerification/types"
+import { getProbePromptOverrides } from "~/services/verification/probePromptStore"
+
 import { apiVerificationProbeRegistry } from "./probeRegistry"
+import { createVerificationProfileHeaders } from "./requestProfiles"
 import {
   API_VERIFICATION_MODES,
   API_VERIFICATION_PROBE_STATUSES,
@@ -7,7 +11,9 @@ import type {
   ApiVerificationApiType,
   ApiVerificationMode,
   ApiVerificationProbeId,
+  ApiVerificationProbePromptOverrides,
   ApiVerificationProbeResult,
+  ApiVerificationRequestProfile,
 } from "./types"
 
 /**
@@ -17,10 +23,18 @@ type RunApiVerificationProbeParams = {
   probeId: ApiVerificationProbeId
   baseUrl: string
   apiKey: string
+  requestHeaders?: Record<string, string>
+  requestProfile?: ApiVerificationRequestProfile
+  requestProfileEnhanced?: boolean
   apiType: ApiVerificationApiType
   mode?: ApiVerificationMode
   modelId?: string
   fallbackModelId?: string
+  /**
+   * Per-probe prompt overrides. Omitted entries fall back to the saved
+   * preferences, then to the built-in prompt.
+   */
+  probePromptOverrides?: ApiVerificationProbePromptOverrides
   abortSignal?: AbortSignal
 }
 
@@ -36,9 +50,48 @@ export async function runApiVerificationProbe(
   const resolvedModelId =
     params.modelId?.trim() || params.fallbackModelId?.trim() || undefined
 
-  if (registryEntry.requiresModelId && !resolvedModelId?.trim()) {
+  const enhanced =
+    params.requestProfile &&
+    params.requestProfile !== API_VERIFICATION_REQUEST_PROFILES.Default &&
+    params.requestProfileEnhanced
+      ? { requestProfileEnhanced: true as const }
+      : {}
+  const profile = params.requestProfile
+
+  // Resolve prompts once per call: the saved preference is the shared source,
+  // and an explicit parameter still wins for tests and one-off callers.
+  const probePromptOverrides: ApiVerificationProbePromptOverrides =
+    params.probePromptOverrides ?? (await getProbePromptOverrides())
+
+  const runnerParams = {
+    baseUrl: params.baseUrl,
+    apiKey: params.apiKey,
+    requestHeaders: createVerificationProfileHeaders(
+      params.requestProfile,
+      params.requestHeaders,
+      resolvedModelId,
+      params.requestProfileEnhanced,
+    ),
+    requestProfile: params.requestProfile,
+    requestProfileEnhanced: params.requestProfileEnhanced,
+    apiType: params.apiType,
+    modelId: resolvedModelId,
+    mode: params.mode,
+    probePromptOverrides,
+    abortSignal: params.abortSignal,
+  }
+
+  if (!registryEntry.requiresModelId) {
+    const result = await registryEntry.run(runnerParams)
+    return profile
+      ? { ...result, requestProfile: profile, ...enhanced }
+      : result
+  }
+
+  if (!resolvedModelId) {
     return {
       id: params.probeId,
+      ...(profile ? { requestProfile: profile } : {}),
       mode: params.mode ?? API_VERIFICATION_MODES.Streaming,
       status: API_VERIFICATION_PROBE_STATUSES.Fail,
       latencyMs: 0,
@@ -51,12 +104,11 @@ export async function runApiVerificationProbe(
     }
   }
 
-  return registryEntry.run({
-    baseUrl: params.baseUrl,
-    apiKey: params.apiKey,
-    apiType: params.apiType,
+  const result = await registryEntry.run({
+    ...runnerParams,
     modelId: resolvedModelId,
-    mode: params.mode,
-    abortSignal: params.abortSignal,
   })
+  return params.requestProfile
+    ? { ...result, requestProfile: params.requestProfile, ...enhanced }
+    : result
 }

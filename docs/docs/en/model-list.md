@@ -4,11 +4,13 @@
 
 ## Features at a Glance
 
+![Model List and Price Comparison](../static/image/en/model-list.png)
+
 - 🔍 **Three data sources**: All Accounts, a specific account, or an API Credential Profile.
 - 💰 **Cross-account price comparison**: Compare currently available quotes for the same model across accounts using a consistent basis.
 - 🎯 **Usage-based estimates**: Select a scenario such as regular chat, code completion, or coding agent, or adjust input, output, and cache proportions yourself.
 - 🏷️ **Search, filter, and sort**: Search names and descriptions; filter by vendor, billing method, capability, group, or verification result; and sort by price, latency, and other fields.
-- ✅ **Model verification**: Single and bulk verification are one-time probes that check whether a model or endpoint currently works and whether it is CLI-compatible.
+- ✅ **Model verification**: Run individual probes, routine tests, or bulk verification to check whether a model or endpoint currently works and whether it is CLI-compatible. Routine tests for text models run multiple probes and may incur charges on paid endpoints.
 - 📦 **Keys for a model**: Select a compatible key or, when supported, create a Token restricted to that model.
 
 ## How to Access
@@ -37,6 +39,10 @@ Available information differs by source:
 | Specific Account | Depends on its adapter | Some sources provide prices, multipliers, and groups; others provide only a model catalog |
 | API Credential | Usually unavailable | Primarily for model discovery and verification |
 
+A provider-wide catalogue describes published models and prices, without guaranteeing availability for a particular key or plan. Key matching and verification actions appear only when the source supports them.
+
+Catalogue prices may cover only some billing conditions. Use the official link to check group, long-context and image rules. Discounts already included in display prices are not applied twice; a zero value with unknown billing meaning is not treated as free.
+
 ### 2. Search, Filter, and Sort
 
 - **Search**: Matches model ID, display name, and description; it does not search site names.
@@ -61,13 +67,21 @@ Click **`One-click Price Comparison`** to clear current filters, switch to All A
 
 Price labels mean:
 
-- **Estimated Price**: Calculated from available price and group information for filtering. The provider's bill remains authoritative.
+- **Regular prices**: Explicit prices and billing rules from the site are shown directly without a precision badge. Group, tier and time conditions are explained separately.
+- **Converted**: Displayed in another currency using the current exchange rate; the original price is unchanged.
+- **Estimated Price**: Calculated using reference rates, group multipliers or credit-conversion assumptions. The provider's bill remains authoritative.
 - **Lowest Price**: The lowest comparable quote under the current filters and conditions.
 - **Best Group**: Shown only when exactly one comparable group has the lowest price. No group is selected when the lowest price is tied.
 
 > - Price comparison is a **local calculation** covering only currently loaded data with valid, comparable prices. It is not an official promise, a complete real-time market, or a "lowest price on the internet" claim.
 > - Missing or invalid prices are **not comparable** and are never treated as `0` or a default value. When a site explicitly reports a zero price, the model may genuinely be free.
 > - Price sources can differ, such as site pricing endpoints, official catalogs, and estimates. The page displays source and precision where possible.
+
+**Native quota billing**: Model rows can display and estimate nonmonetary assets such as Token or points, with sorting restricted to the same asset and its declared source scope. Matching labels or balances on different sites do not imply equivalence. When additional multipliers are unknown, reference usage supports base-consumption sorting within a source; it does not represent final charges or the lowest cross-site price.
+
+EMRank uses Token quota, with `1 M Token = 1,000,000 Token`. Input and output use the same rate-row layout as monetary prices, per million model tokens; output is free. Browsing shows published rates. Price sorting additionally shows the reference consumption used for ranking and reuses the existing usage weights. The billing-rules hint lists additional factors such as account level and RPM. Unknown multipliers are not assumed to be 1, and reference usage is not the final charge. Native quota is not converted to USD or CNY. See [EMRank billing and quota](https://docs.emrank.tech/guide/billing.html).
+
+Model rows show purpose, availability on the site and any published context limit. Expanded details include catalog owner, supported and default vector dimensions, image support and release date when provided. Missing specifications are not inferred. Call-example links open the site's model page; embedding, reranker and decision models do not offer incompatible text-generation or CLI verification actions.
 
 ### 4. Switch Groups and Find the Best Group
 
@@ -79,17 +93,40 @@ When a source supports multiple user groups, use the group filter to limit parti
 
 Click the verification icon on a model card:
 
-- **Verify API**: Send one probe to check whether the model or endpoint currently works and whether its response matches expectations.
-- **Verify CLI Compatibility**: Evaluate whether the model is suitable for CLI tools, such as support for streaming and text generation.
+- **Test API**: Open the testing dialog to run an individual probe or routine tests and check whether the model or endpoint currently works and whether its response matches expectations.
+- **CLI compatibility test**: Evaluate whether the model is suitable for CLI tools, such as support for streaming and text generation.
 
-In the **`Verify API`** dialog, choose **`Streaming`** (the default) or **`Non-streaming`** under **`Test mode`**. Generation tests use the selected mode, and their results and newly saved history show that mode. If the endpoint rejects a request, you can switch modes and test again; tests do not switch automatically. Fetching the model list is unaffected by this option.
+In the **`API Testing`** dialog, choose **`Streaming`** (the default) or **`Non-streaming`** under **`Test mode`**. Generation tests use the selected mode, and their results and newly saved history show that mode. If the endpoint rejects a request, you can switch modes and test again; tests do not switch automatically. Fetching the model list is unaffected by this option.
 
-The **`Verify CLI Compatibility`** dialog also offers **`Streaming`** (the default) and **`Non-streaming`**. Each CLI keeps its corresponding API type for the tool-calling probe. Results show the selected mode, and failures do not trigger an automatic mode switch.
+**`CLI compatibility test`** opens the same **`API Testing`** dialog with a client simulation preset. You can still choose the client, API type and **`Streaming`** (the default) or **`Non-streaming`** mode. Results show the selected mode, and failures do not trigger an automatic mode switch.
 
-> - Verification is a **one-time probe**. It does not guarantee long-term availability or permanent failure.
-> - CLI compatibility verification **does not launch a real external CLI**. It performs a protocol-level simulation only.
+> - An individual test runs the selected probe; routine tests for a text model run multiple model probes. Results do not prove long-term availability or permanent failure.
+> - CLI compatibility testing **does not launch a real external CLI**. It performs a protocol-level simulation only.
 
-### 6. Bulk Test
+### 6. Advanced Verification: Drawing Test and Prompts
+
+Ordinary verification history retains status, summary and latency, without raw input/output after reopening. Drawing tests for saved accounts/profiles retain a per-model run summary (artifact outcome, time, latency and counts) under the existing history cleanup rules. SVGs, Agent files and detailed tool activity remain session-only; reopening explicitly reports that only a summary was restored. Web tests without a saved credential remain session-only.
+
+Verification parameters stay in the body in a compact grid. Test scope guidance and existing verification summaries appear in the dialog header without a separate colored notice. Each test separates **`Edit prompt`** from **`Execution result`**, which opens automatically when a run completes. Text responses are shown directly; input parameters and raw output can be expanded. The editor shows the current prompt, and switching to results preserves unsaved edits. Tests apply to the current API, model and request settings and do not guarantee full compatibility.
+
+The **`Test API`**, **`CLI compatibility test`** and web API check dialogs show a visible **`Drawing test`** card. It runs only when you press its run button, never with **`Run routine tests`** or bulk testing, because each action spends real model calls.
+
+**`Drawing test`** asks the model to draw a pelican riding a bicycle as SVG, so you can compare style and structure directly; the judgement is yours. The dialog only extracts the SVG, counts shapes, and refuses to render answers containing scripts or external references.
+
+Single-reply and Agent modes share the default user prompt `Generate an SVG of a pelican riding a bicycle`, as well as any custom prompt. Agent mode supplies workspace capabilities and the task's file delivery contract through separate system instructions, without adding drawing requirements to the user prompt.
+
+The default is a single reply. Enable **`Agent test mode`** to let the model list, read, write and edit virtual files and execute JavaScript, including top-level `await` and Promises, to check and revise its work. There is no fixed turn or tool-call limit: the model finishes the run, or you stop it. Multiple calls may use more tokens. The artifact is read from `pelican.svg`; the dialog shows turns, tool activity, workspace files and elapsed time. A missing artifact does not fall back to the final reply.
+
+This is a basic test environment. Files are shared only within one run, with no access to real files, browser, network or Node APIs. Absolute virtual paths, relative paths and Unicode file names work; file count and code length have no fixed caps. JS defaults to 5 seconds and 128 MiB, adjustable through `timeout_ms` (up to 60 seconds) and `memory_mb` (up to 1024 MiB). A 64 MiB workspace budget protects browser memory. Logs and return values over their respective 64 Ki character budgets are truncated and marked, without failing the task or discarding files. Each JS execution has fresh globals; file changes commit only on success. There is no terminal, npm or full CLI environment, and drawing quality remains a manual judgement.
+
+**`Edit prompt`** inside each test card lets you edit the text that test sends (text generation, structured output, tool calling, web search, embedding, image generation, video task). Expand the editor to see the default and reset that prompt:
+
+- Prompts save automatically after editing pauses and apply to **every** verification entry point: account verification, API credential verification, web API check and bulk testing. Drawing tests use the current draft; other tests use saved prompts. Failed saves keep the draft and display an error.
+- An empty value means "use the built-in default". Reset removes the key rather than storing an empty string, so future default changes still reach you.
+
+> Prompts are stored in preferences and excluded from telemetry. Exporting or syncing preferences may include these prompts.
+
+### 7. Bulk Test
 
 Click **`Bulk Test`** in the toolbar to open **`Bulk Test Models`**:
 
@@ -102,7 +139,7 @@ Click **`Bulk Test`** in the toolbar to open **`Bulk Test Models`**:
 
 > Inapplicable test items are skipped automatically. Results reflect that probe only and are for reference.
 
-### 7. Keys for a Model
+### 8. Keys for a Model
 
 Click the key button on a model card to open **`Keys for Model`**:
 
@@ -111,7 +148,7 @@ Click the key button on a model card to open **`Keys for Model`**:
 
 > This changes a key or Token. It does not edit the model catalog itself.
 
-### 8. Refresh Data
+### 9. Refresh Data
 
 Click **`Refresh Data`** to request the current source again and invalidate related local caches. Refresh behavior differs by source; refreshed data is determined by the source response.
 
@@ -142,7 +179,7 @@ Click **`Refresh Data`** to request the current source again and invalidate rela
 | Why is a model price 0, or why can't it participate in comparison? | A model may genuinely be free when the site explicitly reports a zero price. Incomplete price data is marked not comparable and is not treated as free. |
 | How is cross-site price comparison calculated? | It is a local calculation over currently loaded data with valid, comparable prices. Use the source and precision shown on the page; actual charges follow each site's published prices. |
 | Why does a quote show "Not Included in Current Comparison"? | A price required by the current conditions, such as cache-read price, is missing. Choose another scenario, adjust the proportions, or expand the quote to see available prices. |
-| Why does verification show failed or unknown? | Verification is one probe and can be affected by permissions, model restrictions, rate limits, and other conditions. Use the target tool's actual behavior as the final reference. |
+| Why does verification show failed or unknown? | An individual test runs the selected probe; routine tests for text models run multiple probes and may incur charges on paid endpoints. Results can be affected by permissions, model restrictions, rate limits, and other conditions. Use the target tool's actual behavior as the final reference. |
 | Why does my account have no price or multiplier? | The source may not provide price, multiplier, or group data. For example, API Credentials generally support model discovery and verification only. |
 
 ## Related Documentation

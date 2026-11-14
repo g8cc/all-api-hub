@@ -1,5 +1,3 @@
-import type { FetchFunction } from "@ai-sdk/provider-utils"
-
 import {
   API_AUTH_MODES,
   createAuthModeMemory,
@@ -15,7 +13,7 @@ export type GoogleAuthMode =
 
 type GoogleSdkAuthConfig = {
   apiKey: string
-  fetch: FetchFunction
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 }
 
 const authModeMemory = createAuthModeMemory<GoogleAuthMode>(
@@ -63,6 +61,7 @@ function replaceGoogleCredential(
 export function createGoogleSdkAuth(
   baseUrl: string,
   apiKey: string,
+  requestHeaders?: Record<string, string>,
 ): GoogleSdkAuthConfig {
   const initialMode = getGoogleAuthMode(baseUrl)
 
@@ -70,6 +69,7 @@ export function createGoogleSdkAuth(
     // Keep apiKey explicit so the Google provider emits its native header first.
     apiKey,
     fetch: createUnauthorizedFallbackFetch({
+      requestHeaders,
       initialMode,
       fallbackMode: GOOGLE_AUTH_MODES.Bearer,
       replaceCredential: (request, mode) =>

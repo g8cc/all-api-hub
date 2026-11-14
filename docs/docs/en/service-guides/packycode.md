@@ -41,7 +41,7 @@ For automatic updates and the most stable experience, install from the official 
 - **QQ / 360 / Brave / Vivaldi / Opera, etc.**: Brave, Vivaldi, and Opera can usually try Chrome Web Store first; QQ Browser, 360 Browser, Cheetah Browser, and similar browsers can use manual Chromium loading when no usable store path is available. See the [Other Browser Installation Guide](../other-browser-install.md).
 - **Safari on Mac**: see the [Safari installation guide](../safari-install.md).
 - **Mobile browsers**: see the [mobile browser FAQ](../faq.md#mobile-browser-support).
-- **Fallback option**: if your browser cannot use a store build or Chrome Web Store compatible build, and the guide above does not work, download the Stable package from [GitHub Releases](https://github.com/qixing-jk/all-api-hub/releases/latest). Manually installed builds do not update automatically.
+- **Fallback option**: if your browser cannot use a store build or Chrome Web Store compatible build, and the guide above does not work, download from [GitHub Releases](https://github.com/qixing-jk/all-api-hub/releases/latest). Chromium users should install the self-updating `.crx`: once installed it updates like the store build; stock Chrome / Edge must configure the extension allowlist policy first (not needed on Linux). See [Chromium CRX self-update install](https://all-api-hub.qixing1217.top/en/chromium-crx-self-update.html).
 
 ---
 
@@ -51,7 +51,7 @@ All API Hub can auto-recognize PackyCode accounts. Log in to PackyCode in your b
 
 ### 3.1 Auto-Recognize and Add
 
-1. Log in to [PackyCode](https://www.packyapi.com/register?aff=all-api-hub) in your browser.
+1. Log in to [PackyCode](https://www.packyapi.ai/register?aff=all-api-hub) in your browser.
 2. Click the All API Hub extension icon in the top-right corner of the browser.
 3. Click **Add Account**, then use the current site address or manually enter the PackyCode address.
 
@@ -163,6 +163,6 @@ A: They work together. The PackyCode console remains the source for account, rec
 
 ## Links
 
-- [PackyCode](https://www.packyapi.com/register?aff=all-api-hub)
+- [PackyCode](https://www.packyapi.ai/register?aff=all-api-hub)
 - [All API Hub GitHub repository](https://github.com/qixing-jk/all-api-hub)
 - [All API Hub documentation](https://all-api-hub.qixing1217.top/en/)

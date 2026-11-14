@@ -4,28 +4,31 @@ import { octopusManagedSiteCapabilities } from "~/services/apiAdapters/managedSi
 import {
   octopusChannelEffect,
   runOctopusMutation,
-} from "~/services/apiAdapters/managedSites/octopusMutation"
-import {
-  createChannel,
-  deleteChannel,
-  fetchAvailableModels,
-  fetchGroups,
-  fetchRemoteModels,
-  getChannel,
-  getChannelKeyManagement,
-  listChannels,
-  OctopusMutationApiError,
-  searchChannels,
-  updateChannel,
-  usesChannelProtocolPaths,
-  validateOctopusConfig,
-} from "~/services/apiService/octopus"
+} from "~/services/apiAdapters/managedSites/octopus/octopusMutation"
 import {
   OCTOPUS_AUTH_MODES,
   OCTOPUS_COOKIE_API_VERSIONS,
 } from "~/services/apiService/octopus/auth"
-import { getManagedSiteChannelExactMatch } from "~/services/managedSites/channelMatch"
-import { resolveManagedSiteChannelMatch } from "~/services/managedSites/channelMatchResolver"
+import {
+  createChannel,
+  deleteChannel,
+  getChannel,
+  getChannelKeyManagement,
+  listChannels,
+  searchChannels,
+  updateChannel,
+  usesChannelProtocolPaths,
+  validateOctopusConfig,
+} from "~/services/apiService/octopus/channels"
+import {
+  fetchAvailableModels,
+  fetchGroups,
+  fetchRemoteModels,
+} from "~/services/apiService/octopus/models"
+import { createOctopusRequestHeaders } from "~/services/apiService/octopus/requestContext"
+import { OctopusMutationApiError } from "~/services/apiService/octopus/responseProtocol"
+import { getManagedSiteChannelExactMatch } from "~/services/managedSites/matching/channelMatch"
+import { resolveManagedSiteChannelMatch } from "~/services/managedSites/matching/channelMatchResolver"
 import {
   createAutomaticProtectionBypassExecution,
   PROTECTION_BYPASS_AUTOMATIC_TRIGGERS,
@@ -41,6 +44,7 @@ import {
   type OctopusUpdateChannelInput,
 } from "~/types/octopus"
 import { createDeferred } from "~~/tests/test-utils/deferred"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import type {
   OctopusCreateChannelRequest,
   OctopusFetchModelRequest,
@@ -282,9 +286,9 @@ describe("Octopus API service", () => {
         base_urls: [{ url: "https://api.example.com/v1" }],
       },
     ])
-    const [, request] = fetchMock.mock.calls[0]
+    const request = atIndex(atIndex(fetchMock.mock.calls, 0), 1)
     const headers = request.headers as Headers
-    expect(fetchMock.mock.calls[0][0]).toBe(
+    expect(atIndex(fetchMock.mock.calls, 0)[0]).toBe(
       "https://octopus.example.com/api/v1/channel/list",
     )
     expect(headers.get("Authorization")).toBe("Bearer jwt-token")
@@ -339,7 +343,7 @@ describe("Octopus API service", () => {
     ])
 
     expect(mockTempWindowOctopusApiFetch).toHaveBeenCalledOnce()
-    const request = mockTempWindowOctopusApiFetch.mock.calls[0][0]
+    const request = atIndex(mockTempWindowOctopusApiFetch.mock.calls, 0)[0]
     const headers = new Headers(request.fetchOptions.headers)
     expect(request.fetchOptions.credentials).toBe("include")
     expect(headers.get("Authorization")).toBeNull()
@@ -631,7 +635,8 @@ describe("Octopus API service", () => {
     ])
     expect(
       JSON.parse(
-        mockTempWindowOctopusApiFetch.mock.calls[2][0].fetchOptions.body,
+        atIndex(mockTempWindowOctopusApiFetch.mock.calls, 2)[0].fetchOptions
+          .body,
       ),
     ).toEqual({
       id: 0,
@@ -706,7 +711,8 @@ describe("Octopus API service", () => {
     ])
     expect(
       JSON.parse(
-        mockTempWindowOctopusApiFetch.mock.calls[3][0].fetchOptions.body,
+        atIndex(mockTempWindowOctopusApiFetch.mock.calls, 3)[0].fetchOptions
+          .body,
       ),
     ).toMatchObject({ dialect: "generic", models: ["model-a"] })
   })
@@ -859,7 +865,8 @@ describe("Octopus API service", () => {
     ])
     expect(
       JSON.parse(
-        mockTempWindowOctopusApiFetch.mock.calls[3][0].fetchOptions.body,
+        atIndex(mockTempWindowOctopusApiFetch.mock.calls, 3)[0].fetchOptions
+          .body,
       ),
     ).toEqual(updated)
   })
@@ -1012,7 +1019,8 @@ describe("Octopus API service", () => {
 
     expect(
       JSON.parse(
-        mockTempWindowOctopusApiFetch.mock.calls[0][0].fetchOptions.body,
+        atIndex(mockTempWindowOctopusApiFetch.mock.calls, 0)[0].fetchOptions
+          .body,
       ),
     ).toEqual({
       name: "Example",
@@ -1033,12 +1041,15 @@ describe("Octopus API service", () => {
     ])
     expect(
       JSON.parse(
-        mockTempWindowOctopusApiFetch.mock.calls[1][0].fetchOptions.body,
+        atIndex(mockTempWindowOctopusApiFetch.mock.calls, 1)[0].fetchOptions
+          .body,
       ),
     ).toEqual({ username: "alice", password: "secret" })
     expect(
-      mockTempWindowOctopusApiFetch.mock.calls[2][0].fetchOptions.body,
-    ).toBe(mockTempWindowOctopusApiFetch.mock.calls[0][0].fetchOptions.body)
+      atIndex(mockTempWindowOctopusApiFetch.mock.calls, 2)[0].fetchOptions.body,
+    ).toBe(
+      atIndex(mockTempWindowOctopusApiFetch.mock.calls, 0)[0].fetchOptions.body,
+    )
   })
 
   it.each([
@@ -1131,7 +1142,8 @@ describe("Octopus API service", () => {
       ),
     ).toEqual(["/api/v1/channel/list", "/api/v1/channel/update"])
     expect(
-      mockTempWindowOctopusApiFetch.mock.calls[0][0].fetchOptions.signal,
+      atIndex(mockTempWindowOctopusApiFetch.mock.calls, 0)[0].fetchOptions
+        .signal,
     ).toBe(controller.signal)
   })
 
@@ -1172,8 +1184,9 @@ describe("Octopus API service", () => {
       })
       expect(mockTempWindowOctopusApiFetch).toHaveBeenCalledTimes(1)
       expect(
-        new URL(mockTempWindowOctopusApiFetch.mock.calls[0][0].fetchUrl)
-          .pathname,
+        new URL(
+          atIndex(mockTempWindowOctopusApiFetch.mock.calls, 0)[0].fetchUrl,
+        ).pathname,
       ).toBe("/api/v1/channel/list")
     },
   )
@@ -1268,7 +1281,8 @@ describe("Octopus API service", () => {
 
     expect(
       JSON.parse(
-        mockTempWindowOctopusApiFetch.mock.calls[0][0].fetchOptions.body,
+        atIndex(mockTempWindowOctopusApiFetch.mock.calls, 0)[0].fetchOptions
+          .body,
       ),
     ).toEqual({
       id: 7,
@@ -1279,7 +1293,8 @@ describe("Octopus API service", () => {
     })
     expect(
       JSON.parse(
-        mockTempWindowOctopusApiFetch.mock.calls[1][0].fetchOptions.body,
+        atIndex(mockTempWindowOctopusApiFetch.mock.calls, 1)[0].fetchOptions
+          .body,
       ),
     ).toEqual({
       type: "gemini",
@@ -1315,8 +1330,8 @@ describe("Octopus API service", () => {
     await expect(
       fetchRemoteModels(config, {
         type: source.type,
-        baseUrl: source.base_urls[0].url,
-        key: source.keys[0].channel_key,
+        baseUrl: atIndex(source.base_urls, 0).url,
+        key: atIndex(source.keys, 0).channel_key,
         proxy: source.proxy,
         source,
       }),
@@ -1324,7 +1339,8 @@ describe("Octopus API service", () => {
 
     expect(
       JSON.parse(
-        mockTempWindowOctopusApiFetch.mock.calls[0][0].fetchOptions.body,
+        atIndex(mockTempWindowOctopusApiFetch.mock.calls, 0)[0].fetchOptions
+          .body,
       ),
     ).toEqual({
       type: "openai_responses",
@@ -1394,7 +1410,8 @@ describe("Octopus API service", () => {
 
     expect(
       JSON.parse(
-        mockTempWindowOctopusApiFetch.mock.calls[0][0].fetchOptions.body,
+        atIndex(mockTempWindowOctopusApiFetch.mock.calls, 0)[0].fetchOptions
+          .body,
       ),
     ).toEqual({ id: 7 })
   })
@@ -1664,7 +1681,8 @@ describe("Octopus API service", () => {
     })
     expect(
       JSON.parse(
-        mockTempWindowOctopusApiFetch.mock.calls[1][0].fetchOptions.body,
+        atIndex(mockTempWindowOctopusApiFetch.mock.calls, 1)[0].fetchOptions
+          .body,
       ),
     ).toEqual({
       name: "Volcengine",
@@ -2129,6 +2147,91 @@ describe("Octopus API service", () => {
     expect(mockTempWindowOctopusApiFetch).toHaveBeenCalledTimes(14)
   })
 
+  it("starts another search detail as soon as one worker finishes", async () => {
+    const gates = new Map(
+      [1, 2, 3, 4, 5].map((id) => [id, createDeferred<void>()]),
+    )
+    const started: number[] = []
+    mockGetValidSession.mockResolvedValue(v013CookieSession())
+    mockTempWindowOctopusApiFetch.mockImplementation(async (request) => {
+      const path = new URL(request.fetchUrl).pathname
+      if (path.endsWith("/stats"))
+        return {
+          success: true,
+          status: 200,
+          data: {
+            code: 200,
+            data: [1, 2, 3, 4, 5].map((channel_id) =>
+              v013ChannelStatsResponse({ channel_id }),
+            ),
+          },
+        }
+      const id = Number(path.split("/").at(-1))
+      started.push(id)
+      await gates.get(id)!.promise
+      return {
+        success: true,
+        status: 200,
+        data: { code: 200, data: v013ChannelDetailResponse({ id }) },
+      }
+    })
+    const result = searchChannels(config, "")
+    try {
+      await vi.waitFor(() => expect(started).toEqual([1, 2, 3, 4]))
+      gates.get(2)!.resolve()
+      await vi.waitFor(() => expect(started).toEqual([1, 2, 3, 4, 5]))
+    } finally {
+      for (const gate of gates.values()) gate.resolve()
+    }
+    await expect(result).resolves.toMatchObject(
+      [1, 2, 3, 4, 5].map((id) => ({ id })),
+    )
+  })
+
+  it("drains active search details after a failure without starting queued details", async () => {
+    const gates = new Map(
+      [1, 2, 3, 4].map((id) => [id, createDeferred<void>()]),
+    )
+    const started: number[] = []
+    mockGetValidSession.mockResolvedValue(v013CookieSession())
+    mockTempWindowOctopusApiFetch.mockImplementation(async (request) => {
+      const path = new URL(request.fetchUrl).pathname
+      if (path.endsWith("/stats"))
+        return {
+          success: true,
+          status: 200,
+          data: {
+            code: 200,
+            data: [1, 2, 3, 4, 5].map((channel_id) =>
+              v013ChannelStatsResponse({ channel_id }),
+            ),
+          },
+        }
+      const id = Number(path.split("/").at(-1))
+      started.push(id)
+      await gates.get(id)!.promise
+      if (id === 2)
+        return { success: false, status: 503, error: "detail unavailable" }
+      return {
+        success: true,
+        status: 200,
+        data: { code: 200, data: v013ChannelDetailResponse({ id }) },
+      }
+    })
+    let settled = false
+    const result = searchChannels(config, "").finally(() => {
+      settled = true
+    })
+    const rejected = expect(result).rejects.toThrow()
+    await vi.waitFor(() => expect(started).toEqual([1, 2, 3, 4]))
+    gates.get(2)!.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(settled).toBe(false)
+    for (const gate of gates.values()) gate.resolve()
+    await rejected
+    expect(started).toEqual([1, 2, 3, 4])
+  })
+
   it("stops loading further v0.13 search details when the caller cancels", async () => {
     const controller = new AbortController()
     const gate = createDeferred<void>()
@@ -2421,10 +2524,10 @@ describe("Octopus API service", () => {
       fetchRemoteModels(config, fetchModelInput(payload)),
     ).resolves.toEqual(["embedding-model"])
 
-    expect(fetchMock.mock.calls[0][0]).toBe(
+    expect(atIndex(fetchMock.mock.calls, 0)[0]).toBe(
       "https://octopus.example.com/api/v1/channel/fetch-model",
     )
-    const request = fetchMock.mock.calls[0][1]
+    const request = atIndex(fetchMock.mock.calls, 0)[1]
     expect(JSON.parse(request.body as string)).toEqual(payload)
     const requestHeaders = request.headers as Headers
     expect(requestHeaders.get("Authorization")).toBe("Bearer jwt-token")
@@ -2484,7 +2587,7 @@ describe("Octopus API service", () => {
       source,
     })
 
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+    expect(JSON.parse(atIndex(fetchMock.mock.calls, 0)[1].body)).toEqual({
       type: OctopusOutboundType.OpenAIEmbedding,
       base_urls: [
         { url: "https://draft.example.invalid/v1", delay: 120 },
@@ -2504,7 +2607,7 @@ describe("Octopus API service", () => {
       proxy: source.proxy,
       source: { ...source, base_urls: [], keys: [] },
     })
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+    expect(JSON.parse(atIndex(fetchMock.mock.calls, 1)[1].body)).toEqual({
       type: OctopusOutboundType.OpenAIEmbedding,
       base_urls: [{ url: "https://fallback.example.invalid/v1" }],
       keys: [{ enabled: true, channel_key: "credential-fallback" }],
@@ -2543,7 +2646,7 @@ describe("Octopus API service", () => {
       keys_to_delete: [99],
     } as OctopusUpdateChannelInput & { keys_to_delete: number[] })
 
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+    expect(JSON.parse(atIndex(fetchMock.mock.calls, 0)[1].body)).toEqual({
       id: 7,
       base_urls: [
         { url: "https://replacement.example.invalid", delay: 120 },
@@ -2587,7 +2690,7 @@ describe("Octopus API service", () => {
       source,
     })
 
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+    expect(JSON.parse(atIndex(fetchMock.mock.calls, 0)[1].body)).toEqual({
       id: 9,
       auto_group: OctopusAutoGroupType.Fuzzy,
       keys_to_add: [{ enabled: true, channel_key: "credential-added" }],
@@ -2608,7 +2711,7 @@ describe("Octopus API service", () => {
       baseUrl: "https://replacement.example.invalid/v1",
     })
 
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+    expect(JSON.parse(atIndex(fetchMock.mock.calls, 0)[1].body)).toEqual({
       id: 10,
       base_urls: [{ url: "https://replacement.example.invalid/v1" }],
     })
@@ -3054,8 +3157,37 @@ describe("Octopus API service", () => {
     expect(mockGetValidSession).toHaveBeenCalledWith(config, {
       signal: callerSignal,
     })
-    const authSignal = mockGetValidSession.mock.calls[0][1]?.signal
+    const authSignal = atIndex(mockGetValidSession.mock.calls, 0)[1]?.signal
     expect(authSignal).toBe(fetchSignal)
+  })
+
+  it("applies explicit request headers over generated authentication headers", () => {
+    const headers = createOctopusRequestHeaders(
+      {
+        mode: OCTOPUS_AUTH_MODES.Bearer,
+        token: "session-token",
+        expireAt: 1_700_000_900_000,
+      },
+      { Authorization: "Bearer caller-token", "X-Request-ID": "request-7" },
+    )
+    expect(headers.get("Authorization")).toBe("Bearer caller-token")
+    expect(headers.get("X-Request-ID")).toBe("request-7")
+  })
+
+  it("surfaces plain text HTTP failures from the upstream", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        new Response("proxy unavailable", {
+          status: 503,
+          statusText: "Service Unavailable",
+          headers: { "Content-Type": "text/plain" },
+        }),
+      ),
+    )
+    await expect(listChannels(config)).rejects.toThrow(
+      "HTTP 503 Service Unavailable: proxy unavailable",
+    )
   })
 
   it("surfaces raw JSON bodies when an error response cannot be parsed", async () => {

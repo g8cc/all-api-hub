@@ -9,6 +9,42 @@ import { API_SERVICE_FETCH_CONTEXT_KINDS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 
 describe("account auto-detect recovery", () => {
+  it("retains native name fallbacks after the user model is normalized", () => {
+    expect(
+      createDetectedAccountRecoveryData({
+        detected: {
+          siteType: SITE_TYPES.NEW_API,
+          userId: "42",
+          user: { id: "42" },
+          rawUser: {
+            id: 42,
+            display_name: "  Alice  ",
+            email: "alice@example.invalid",
+          },
+        },
+        requestedAuthType: AuthTypeEnum.Cookie,
+      }),
+    ).toMatchObject({ username: "Alice", userId: "42" })
+  })
+
+  it("preserves the Kimi organization and rotated credentials in recovery data", () => {
+    const auth = {
+      refreshToken: "refresh",
+      organizationId: "org",
+      tokenExpiresAt: 123,
+    }
+    expect(
+      createDetectedAccountRecoveryData({
+        detected: {
+          siteType: SITE_TYPES.KIMI_GLOBAL,
+          userId: "user",
+          accessToken: "access",
+          kimiOpenPlatformAuth: auth,
+        },
+        requestedAuthType: AuthTypeEnum.AccessToken,
+      }),
+    ).toMatchObject({ accessToken: "access", kimiOpenPlatformAuth: auth })
+  })
   it("keeps a known site type when a later partial update is unknown", () => {
     expect(
       mergeAccountAutoDetectRecoveryData(

@@ -55,6 +55,7 @@ const openFloatingLayerSelector = [
   '[data-slot="select-content"][data-state="open"]',
   '[data-slot="popover-content"][data-state="open"]',
   '[data-slot="combobox-content"][data-open]',
+  '[data-tooltip-open="true"]',
 ].join(",")
 
 type FocusSession = {
@@ -189,7 +190,7 @@ const scheduleDeferredFocusLeaseSettlement = (session: FocusSession) => {
 }
 
 /**
- * Detects nested select, popover, or combobox layers that should handle Escape
+ * Detects nested select, popover, combobox, or interactive tooltip layers that should handle Escape
  * before the legacy Modal treats it as a dialog dismissal request.
  */
 function hasOpenFloatingLayer() {
@@ -317,7 +318,15 @@ export function Modal({
   useLayoutEffect(() => {
     if (focusFallbackKey === null || focusFallbackKey === undefined) return
     const content = contentRef.current
-    if (!isOpen || !content || content.contains(document.activeElement)) return
+    if (!isOpen || !content) return
+    const activeElement = document.activeElement
+    // Disabling a focused control can blur it after this layout effect runs.
+    if (
+      content.contains(activeElement) &&
+      !activeElement?.matches(":disabled")
+    ) {
+      return
+    }
     const fallback = content.querySelector<HTMLElement>(
       'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
     )
@@ -358,7 +367,7 @@ export function Modal({
   }
 
   const panelBaseClass = cn(
-    `flex flex-col max-h-[90vh] relative w-full ${sizeMap[size]} bg-popover text-popover-foreground rounded-2xl shadow-xl transform transition-all`,
+    `flex flex-col relative w-full ${sizeMap[size]} max-h-[calc(100dvh-2rem)] bg-popover text-popover-foreground rounded-2xl shadow-xl sm:max-h-[calc(100dvh-4rem)]`,
     panelClassName,
   )
 
@@ -369,7 +378,7 @@ export function Modal({
           data-slot="modal-overlay"
           data-state={isOpen ? "open" : "closed"}
           className={cn(
-            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 bg-overlay/30 fixed inset-0 backdrop-blur-sm",
+            "dialog-fade fixed inset-0 bg-overlay/30 backdrop-blur-sm",
             Z_INDEX.modal,
           )}
           onPointerDown={handleBackdropPointerDown}
@@ -380,59 +389,59 @@ export function Modal({
         <ToasterPortalHost />
         {floatingContent}
 
-        <FloatingLayerProvider layer="modal-contained">
-          <DialogPrimitive.Content
-            ref={contentRef}
-            aria-describedby={undefined}
-            className={cn(
-              "fixed top-[50%] left-[50%] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] outline-none",
-              Z_INDEX.modal,
-            )}
-            onEscapeKeyDown={handleEscapeKeyDown}
-            onOpenAutoFocus={(event) => {
-              const focusSession = activeFocusSessionRef.current
-              if (focusSession && event.currentTarget instanceof HTMLElement) {
-                focusSession.contentElement = event.currentTarget
-                focusSessionsByContentRef.current.set(
-                  event.currentTarget,
-                  focusSession,
-                )
-              }
-            }}
-            onCloseAutoFocus={(event) => {
-              // Radix dispatches close autofocus on a timer after the scope
-              // unmounts. The shared lease prevents a replaced instance from
-              // restoring focus over the currently opened dialog.
-              event.preventDefault()
-              const focusSession =
-                event.currentTarget instanceof HTMLElement
-                  ? focusSessionsByContentRef.current.get(
-                      event.currentTarget,
-                    ) ?? activeFocusSessionRef.current
-                  : null
-              if (!focusSession) return
-              try {
-                const restoreSession = settleFocusLease(focusSession)
-                if (!restoreSession) return
-                const restoreFocusElement = restoreSession.restoreElement
-                if (!restoreFocusElement?.isConnected) return
-                restoreFocusElement.focus()
-              } finally {
-                notifyCloseComplete(focusSession)
-              }
-            }}
-            onPointerDownOutside={(event) => {
-              event.preventDefault()
-            }}
-            onInteractOutside={(event) => {
-              event.preventDefault()
-            }}
-          >
+        <DialogPrimitive.Content
+          data-slot="modal-content"
+          ref={contentRef}
+          aria-describedby={undefined}
+          className={cn(
+            "dialog-fade fixed top-[50%] left-[50%] w-full max-w-[calc(100%-1rem)] translate-x-[-50%] translate-y-[-50%] outline-none sm:max-w-[calc(100%-2rem)]",
+            Z_INDEX.modal,
+          )}
+          onEscapeKeyDown={handleEscapeKeyDown}
+          onOpenAutoFocus={(event) => {
+            const focusSession = activeFocusSessionRef.current
+            if (focusSession && event.currentTarget instanceof HTMLElement) {
+              focusSession.contentElement = event.currentTarget
+              focusSessionsByContentRef.current.set(
+                event.currentTarget,
+                focusSession,
+              )
+            }
+          }}
+          onCloseAutoFocus={(event) => {
+            // Radix dispatches close autofocus on a timer after the scope
+            // unmounts. The shared lease prevents a replaced instance from
+            // restoring focus over the currently opened dialog.
+            event.preventDefault()
+            const focusSession =
+              event.currentTarget instanceof HTMLElement
+                ? (focusSessionsByContentRef.current.get(event.currentTarget) ??
+                  activeFocusSessionRef.current)
+                : null
+            if (!focusSession) return
+            try {
+              const restoreSession = settleFocusLease(focusSession)
+              if (!restoreSession) return
+              const restoreFocusElement = restoreSession.restoreElement
+              if (!restoreFocusElement?.isConnected) return
+              restoreFocusElement.focus()
+            } finally {
+              notifyCloseComplete(focusSession)
+            }
+          }}
+          onPointerDownOutside={(event) => {
+            event.preventDefault()
+          }}
+          onInteractOutside={(event) => {
+            event.preventDefault()
+          }}
+        >
+          <FloatingLayerProvider layer="modal-contained">
             <DialogPrimitive.Title asChild>
               <span className="sr-only" aria-label={title} />
             </DialogPrimitive.Title>
             <div
-              className="py-density-4 flex items-center justify-center px-4"
+              className="flex items-center justify-center px-2 py-2 sm:px-4 sm:py-density-4"
               data-slot="modal-positioner"
               onPointerDown={handleBackdropPointerDown}
               onPointerCancel={handleBackdropPointerCancel}
@@ -449,7 +458,7 @@ export function Modal({
                     type="button"
                     onClick={requestClose}
                     aria-label={t("common:actions.close")}
-                    className="dark:hover:bg-secondary dark:hover:text-secondary-foreground text-faint-foreground hover:bg-muted hover:text-muted-foreground py-density-1-5 absolute top-3 right-3 z-10 min-h-(--density-control-xs) rounded-sm px-1.5 transition-colors sm:top-4 sm:right-4"
+                    className="absolute top-3 right-3 z-10 min-h-(--density-control-xs) rounded-sm px-1.5 py-density-1-5 text-faint-foreground transition-colors hover:bg-muted hover:text-muted-foreground sm:top-4 sm:right-4 dark:hover:bg-secondary dark:hover:text-secondary-foreground"
                   >
                     <XIcon className="h-5 w-5" />
                   </button>
@@ -458,7 +467,7 @@ export function Modal({
                 {header && (
                   <div
                     data-testid={headerTestId}
-                    className="dark:border-border border-border-subtle py-density-3 sm:py-density-4 shrink-0 border-b px-4 sm:px-6"
+                    className="shrink-0 border-b border-border-subtle px-4 py-density-3 sm:px-6 sm:py-density-4 dark:border-border"
                   >
                     <div className="flex items-start justify-between">
                       {header}
@@ -468,7 +477,7 @@ export function Modal({
 
                 <div
                   data-slot="modal-body"
-                  className="space-y-density-3 py-density-4 sm:space-y-density-4 sm:py-density-6 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6"
+                  className="flex min-h-0 flex-1 flex-col space-y-density-3 overflow-y-auto px-4 py-density-4 sm:space-y-density-4 sm:px-6 sm:py-density-6"
                 >
                   {children}
                 </div>
@@ -476,15 +485,15 @@ export function Modal({
                 {footer && (
                   <div
                     data-testid={footerTestId}
-                    className="dark:border-border border-border-subtle py-density-3 sm:py-density-4 shrink-0 border-t px-4 sm:px-6"
+                    className="shrink-0 border-t border-border-subtle px-4 py-density-3 sm:px-6 sm:py-density-4 dark:border-border"
                   >
                     {footer}
                   </div>
                 )}
               </div>
             </div>
-          </DialogPrimitive.Content>
-        </FloatingLayerProvider>
+          </FloatingLayerProvider>
+        </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   )

@@ -137,7 +137,9 @@ vi.mock("~/services/checkin/autoCheckin/messaging", async (importOriginal) => {
       type: string,
       data?: Record<string, unknown>,
     ) => {
-      const { sendRuntimeMessage } = await import("~/utils/browser/browserApi")
+      const { sendRuntimeMessage } = await import(
+        "~/utils/browser/runtimeMessages"
+      )
       return sendRuntimeMessage(type, data)
     },
   }
@@ -177,14 +179,218 @@ describe("AutoCheckin account actions", () => {
     )
   })
 
+  it("shows an empty setup when the scheduler has no persisted status", async () => {
+    const browserApi = await import("~/utils/browser/runtimeMessages")
+    vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
+      async (message: any) => {
+        if (message === AutoCheckinMessageTypes.GetStatus)
+          return { success: true, data: null }
+        return { success: true }
+      },
+    )
+    render(<AutoCheckin routeParams={{}} />)
+    expect(await screen.findByText("autoCheckin:execution.title")).toBeVisible()
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "autoCheckin:execution.runNow" }),
+      ).toBeEnabled(),
+    )
+    expect(
+      await screen.findByText("autoCheckin:execution.empty.noAccounts"),
+    ).toBeVisible()
+  })
+
+  it.each(["rejected", "thrown"])(
+    "reports a %s manual refresh without discarding existing results",
+    async (failure) => {
+      const user = userEvent.setup()
+      const browserApi = await import("~/utils/browser/runtimeMessages")
+      let statusCalls = 0
+      vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
+        async (message: any) => {
+          if (message !== AutoCheckinMessageTypes.GetStatus)
+            return { success: true }
+          if (++statusCalls > 1) {
+            if (failure === "thrown") throw new Error("Status unavailable")
+            return { success: false, error: "Status unavailable" }
+          }
+          return {
+            success: true,
+            data: {
+              perAccount: {
+                alpha: {
+                  accountId: "alpha",
+                  accountName: "Alpha",
+                  status: CHECKIN_RESULT_STATUS.SUCCESS,
+                  timestamp: 1700000000000,
+                },
+              },
+            },
+          }
+        },
+      )
+      render(<AutoCheckin routeParams={{}} />)
+      expect(await screen.findByText("Alpha")).toBeInTheDocument()
+
+      await user.click(
+        screen.getByRole("button", { name: "autoCheckin:execution.refresh" }),
+      )
+
+      await waitFor(() =>
+        expect(completeProductAnalyticsActionMock).toHaveBeenCalledWith(
+          PRODUCT_ANALYTICS_RESULTS.Failure,
+          { errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown },
+        ),
+      )
+      expect(screen.getByText("Alpha")).toBeInTheDocument()
+      expect(
+        screen.getByRole("button", { name: "autoCheckin:execution.refresh" }),
+      ).not.toBeDisabled()
+    },
+  )
+
+  it("reports a rejected manual run and restores its action", async () => {
+    const user = userEvent.setup()
+    const browserApi = await import("~/utils/browser/runtimeMessages")
+    vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
+      async (message: any) => {
+        if (message === AutoCheckinMessageTypes.GetStatus)
+          return { success: true, data: { perAccount: {} } }
+        if (message === AutoCheckinMessageTypes.RunNow)
+          return { success: false, error: "Run unavailable" }
+        return { success: true }
+      },
+    )
+    render(<AutoCheckin routeParams={{}} />)
+    const runButton = await screen.findByRole("button", {
+      name: "autoCheckin:execution.runNow",
+    })
+    await waitFor(() => expect(runButton).toBeEnabled())
+
+    await user.click(runButton)
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "autoCheckin:messages.error.runFailed",
+      ),
+    )
+    expect(completeProductAnalyticsActionMock).toHaveBeenCalledWith(
+      PRODUCT_ANALYTICS_RESULTS.Failure,
+      { errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown },
+    )
+    expect(
+      screen.getByRole("button", { name: "autoCheckin:execution.runNow" }),
+    ).toBeEnabled()
+  })
+
+  it.each([
+    [{ success: false }, PRODUCT_ANALYTICS_RESULTS.Failure],
+    [
+      { success: true, lastRunResult: "failed" },
+      PRODUCT_ANALYTICS_RESULTS.Failure,
+    ],
+    [
+      { success: true, lastRunResult: "skipped" },
+      PRODUCT_ANALYTICS_RESULTS.Skipped,
+    ],
+    [{ success: true, pendingRetry: true }, PRODUCT_ANALYTICS_RESULTS.Skipped],
+  ])(
+    "tracks retry outcome %j and restores the retry action",
+    async (response, expectedResult) => {
+      const user = userEvent.setup()
+      const browserApi = await import("~/utils/browser/runtimeMessages")
+      vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
+        async (message: any) => {
+          if (message === AutoCheckinMessageTypes.GetStatus)
+            return {
+              success: true,
+              data: {
+                perAccount: {
+                  alpha: {
+                    accountId: "alpha",
+                    accountName: "Alpha",
+                    status: CHECKIN_RESULT_STATUS.FAILED,
+                    timestamp: 1700000000000,
+                  },
+                },
+              },
+            }
+          if (message === AutoCheckinMessageTypes.RetryAccount) return response
+          return { success: true }
+        },
+      )
+      render(<AutoCheckin routeParams={{}} />)
+      const retryButton = await screen.findByRole("button", {
+        name: "autoCheckin:execution.actions.retryAccount",
+      })
+
+      await user.click(retryButton)
+
+      await waitFor(() =>
+        expect(completeProductAnalyticsActionMock).toHaveBeenCalledWith(
+          expectedResult,
+          expect.anything(),
+        ),
+      )
+      expect(retryButton).not.toBeDisabled()
+    },
+  )
+
+  it("reports a thrown retry request and restores its action", async () => {
+    const user = userEvent.setup()
+    const browserApi = await import("~/utils/browser/runtimeMessages")
+    vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
+      async (message: any) => {
+        if (message === AutoCheckinMessageTypes.GetStatus)
+          return {
+            success: true,
+            data: {
+              perAccount: {
+                alpha: {
+                  accountId: "alpha",
+                  accountName: "Alpha",
+                  status: CHECKIN_RESULT_STATUS.FAILED,
+                  timestamp: 1700000000000,
+                },
+              },
+            },
+          }
+        if (message === AutoCheckinMessageTypes.RetryAccount)
+          throw new Error("Retry unavailable")
+        return { success: true }
+      },
+    )
+    render(<AutoCheckin routeParams={{}} />)
+    const retryButton = await screen.findByRole("button", {
+      name: "autoCheckin:execution.actions.retryAccount",
+    })
+
+    await user.click(retryButton)
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "autoCheckin:messages.error.retryFailed",
+      ),
+    )
+    expect(completeProductAnalyticsActionMock).toHaveBeenCalledWith(
+      PRODUCT_ANALYTICS_RESULTS.Failure,
+      { errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Unknown },
+    )
+    await waitFor(() => expect(retryButton).not.toBeDisabled())
+  })
+
   it.each(["disabled", "missing"])(
     "does not repeatedly fail account-info reads for a %s account when another account is retried",
     async (unavailableAccount) => {
       const user = userEvent.setup()
-      const browserApi = await import("~/utils/browser/browserApi")
+      const browserApi = await import("~/utils/browser/runtimeMessages")
       const rejectedReads = vi.fn()
       const accountReads = vi.fn()
       let statusCalls = 0
+      let completeRetry!: (response: { success: true }) => void
+      const pendingRetry = new Promise<{ success: true }>((resolve) => {
+        completeRetry = resolve
+      })
       vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
         async (message: unknown, data?: any) => {
           if (message === AutoCheckinMessageTypes.GetStatus) {
@@ -228,6 +434,8 @@ describe("AutoCheckin account actions", () => {
               data: { id: data.accountId, name: data.accountId },
             }
           }
+          if (message === AutoCheckinMessageTypes.RetryAccount)
+            return pendingRetry
           return { success: true }
         },
       )
@@ -239,6 +447,9 @@ describe("AutoCheckin account actions", () => {
           name: "autoCheckin:execution.actions.retryAccount",
         }),
       )
+      expect(statusCalls).toBe(1)
+      completeRetry({ success: true })
+      await waitFor(() => expect(statusCalls).toBeGreaterThanOrEqual(2))
       await waitFor(() =>
         expect(
           screen.queryByRole("button", {
@@ -257,7 +468,7 @@ describe("AutoCheckin account actions", () => {
 
   it("opens auto check-in settings from the title shortcut", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
 
     vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
       async (message: any) => {
@@ -290,7 +501,7 @@ describe("AutoCheckin account actions", () => {
       TEMP_WINDOW_REQUEST_SOURCES.Popup,
     )
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
 
     let statusCalls = 0
     const sendRuntimeMessageSpy = vi
@@ -385,7 +596,7 @@ describe("AutoCheckin account actions", () => {
   })
 
   it("shows a retry failure toast and restores the retry button after the request settles", async () => {
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
 
     let resolveRetry:
       | ((value: { success: boolean; error?: string }) => void)
@@ -480,9 +691,66 @@ describe("AutoCheckin account actions", () => {
     )
   })
 
+  it.each([CHECKIN_RESULT_STATUS.FAILED, CHECKIN_RESULT_STATUS.UNCERTAIN])(
+    "shows an error toast when retry settles with %s result",
+    async (resultStatus) => {
+      const user = userEvent.setup()
+      const browserApi = await import("~/utils/browser/runtimeMessages")
+
+      vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
+        async (message: unknown) => {
+          if (message === AutoCheckinMessageTypes.GetStatus) {
+            return {
+              success: true,
+              data: {
+                perAccount: {
+                  alpha: {
+                    accountId: "alpha",
+                    accountName: "Alpha",
+                    status: CHECKIN_RESULT_STATUS.FAILED,
+                    timestamp: 1700000000000,
+                    message: "needs retry",
+                  },
+                },
+              },
+            }
+          }
+
+          if (message === AutoCheckinMessageTypes.RetryAccount) {
+            return {
+              success: true,
+              result: {
+                accountId: "alpha",
+                accountName: "Alpha",
+                status: resultStatus,
+                rawMessage: "retry failed with error",
+                timestamp: 1700000001000,
+              },
+            }
+          }
+
+          return { success: true }
+        },
+      )
+
+      render(<AutoCheckin routeParams={{}} />)
+
+      const retryButton = await screen.findByRole("button", {
+        name: "autoCheckin:execution.actions.retryAccount",
+      })
+      await user.click(retryButton)
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(
+          "autoCheckin:messages.error.retryFailed",
+        )
+      })
+    },
+  )
+
   it("keeps verification successful when the follow-up account refresh fails", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
     const sendRuntimeMessageSpy = vi
       .spyOn(browserApi, "sendRuntimeMessage")
       .mockImplementation(async (message: any) => {
@@ -540,9 +808,9 @@ describe("AutoCheckin account actions", () => {
     )
   })
 
-  it("reports a verification response failure without exposing its error text", async () => {
+  it("reports a verification response failure with its actionable detail", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
     vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
       async (message: any) => {
         if (message === AutoCheckinMessageTypes.GetStatus) {
@@ -576,16 +844,55 @@ describe("AutoCheckin account actions", () => {
     )
 
     await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("backend detail")
+    })
+  })
+
+  it("falls back to localized verification copy when response detail is blank", async () => {
+    const user = userEvent.setup()
+    const browserApi = await import("~/utils/browser/runtimeMessages")
+    vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
+      async (message: any) => {
+        if (message === AutoCheckinMessageTypes.GetStatus) {
+          return {
+            success: true,
+            data: {
+              perAccount: {
+                alpha: {
+                  accountId: "alpha",
+                  accountName: "Alpha",
+                  status: CHECKIN_RESULT_STATUS.UNCERTAIN,
+                  reconciliation: "unknown",
+                  timestamp: 1700000000000,
+                },
+              },
+            },
+          }
+        }
+        if (message === AutoCheckinMessageTypes.VerifyAccountStatus) {
+          return { success: false, error: "   " }
+        }
+        return { success: true }
+      },
+    )
+
+    render(<AutoCheckin routeParams={{}} />)
+    await user.click(
+      await screen.findByRole("button", {
+        name: "autoCheckin:execution.actions.verifyStatus",
+      }),
+    )
+
+    await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith(
         "autoCheckin:messages.error.statusVerificationFailed",
       )
     })
-    expect(toast.error).not.toHaveBeenCalledWith("backend detail")
   })
 
   it("reports a thrown verification request with the localized fallback", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
     vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
       async (message: any) => {
         if (message === AutoCheckinMessageTypes.GetStatus) {
@@ -628,8 +935,8 @@ describe("AutoCheckin account actions", () => {
 
   it("shows an error when manual sign-in page opening fails and restores the button state", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
-    const navigation = await import("~/utils/navigation")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
+    const navigation = await import("~/utils/navigation/sitePages")
 
     let rejectOpen: ((reason?: unknown) => void) | undefined
     vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
@@ -715,8 +1022,8 @@ describe("AutoCheckin account actions", () => {
 
   it("opens the provider site from the row action", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
-    const navigation = await import("~/utils/navigation")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
+    const navigation = await import("~/utils/navigation/sitePages")
     const openResolvers = new Map<string, () => void>()
 
     const sendRuntimeMessageSpy = vi
@@ -901,8 +1208,8 @@ describe("AutoCheckin account actions", () => {
 
   it("shows an error when site opening fails and restores the button state", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
-    const navigation = await import("~/utils/navigation")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
+    const navigation = await import("~/utils/navigation/sitePages")
 
     let rejectOpen: ((reason?: unknown) => void) | undefined
     vi.spyOn(browserApi, "sendRuntimeMessage").mockImplementation(
@@ -996,7 +1303,7 @@ describe("AutoCheckin account actions", () => {
 
   it("disables a failed account, converts it to a disabled skip, and reloads the page data", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
 
     let statusCalls = 0
     setAccountDisabledMock.mockResolvedValueOnce(true)
@@ -1091,7 +1398,7 @@ describe("AutoCheckin account actions", () => {
 
   it("shows a generic error when disabling a failed account does not persist", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
 
     setAccountDisabledMock.mockResolvedValueOnce(false)
 
@@ -1161,7 +1468,7 @@ describe("AutoCheckin account actions", () => {
 
   it("deletes a failed account from the row action and reloads status after confirmation", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
 
     let statusCalls = 0
     deleteAccountMock.mockResolvedValueOnce(true)
@@ -1259,7 +1566,7 @@ describe("AutoCheckin account actions", () => {
 
   it("keeps the delete dialog open when the failed-account deletion request fails", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
 
     let statusCalls = 0
     deleteAccountMock.mockRejectedValueOnce(new Error("delete blocked"))
@@ -1336,8 +1643,8 @@ describe("AutoCheckin account actions", () => {
 
   it("reports a bulk-open failure when every failed account lookup fails", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
-    const navigation = await import("~/utils/navigation")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
+    const navigation = await import("~/utils/navigation/sitePages")
     const sendRuntimeMessageSpy = vi
       .spyOn(browserApi, "sendRuntimeMessage")
       .mockImplementation(async (message: any, data?: any) => {
@@ -1400,7 +1707,7 @@ describe("AutoCheckin account actions", () => {
 
   it("filters already-checked results independently and combines multi-select with translated message search", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
 
     vi.spyOn(browserApi, "sendRuntimeMessage").mockResolvedValue({
       success: true,
@@ -1502,7 +1809,7 @@ describe("AutoCheckin account actions", () => {
   })
 
   it("defaults to the visible account-readiness view when no execution history exists", async () => {
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
 
     vi.spyOn(browserApi, "sendRuntimeMessage").mockResolvedValue({
       success: true,
@@ -1537,7 +1844,7 @@ describe("AutoCheckin account actions", () => {
 
   it("keeps account readiness discoverable beside existing execution results", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
 
     vi.spyOn(browserApi, "sendRuntimeMessage").mockResolvedValue({
       success: true,
@@ -1606,7 +1913,18 @@ describe("AutoCheckin account actions", () => {
 
   it("keeps existing results rendered while a manual refresh is loading", async () => {
     const user = userEvent.setup()
-    const browserApi = await import("~/utils/browser/browserApi")
+    const browserApi = await import("~/utils/browser/runtimeMessages")
+    const { siteTypeObservations } = await import(
+      "~/services/siteDetection/siteTypeObservations"
+    )
+
+    // Status loading also awaits storage after the runtime response arrives.
+    vi.spyOn(siteTypeObservations, "readForAccounts")
+      .mockResolvedValueOnce({})
+      .mockImplementationOnce(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 25))
+        return {}
+      })
 
     let statusCalls = 0
     let resolveRefresh:
@@ -1675,25 +1993,25 @@ describe("AutoCheckin account actions", () => {
       },
     })
 
-    await waitFor(() => {
-      expect(screen.getByText("Alpha")).toBeInTheDocument()
-    })
     expect(startProductAnalyticsActionMock).toHaveBeenCalledWith({
       featureId: PRODUCT_ANALYTICS_FEATURE_IDS.AutoCheckin,
       actionId: PRODUCT_ANALYTICS_ACTION_IDS.RefreshAutoCheckinStatus,
       surfaceId: PRODUCT_ANALYTICS_SURFACE_IDS.OptionsAutoCheckinActionBar,
       entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
     })
-    expect(completeProductAnalyticsActionMock).toHaveBeenCalledWith(
-      PRODUCT_ANALYTICS_RESULTS.Success,
-      {
-        insights: {
-          itemCount: 1,
-          successCount: 1,
-          failureCount: 0,
-          skippedCount: 0,
+    await waitFor(() => {
+      expect(completeProductAnalyticsActionMock).toHaveBeenCalledWith(
+        PRODUCT_ANALYTICS_RESULTS.Success,
+        {
+          insights: {
+            itemCount: 1,
+            successCount: 1,
+            failureCount: 0,
+            skippedCount: 0,
+          },
         },
-      },
-    )
+      )
+    })
+    expect(screen.getByText("Alpha")).toBeInTheDocument()
   })
 })

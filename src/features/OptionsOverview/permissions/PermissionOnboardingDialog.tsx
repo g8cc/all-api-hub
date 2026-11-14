@@ -1,0 +1,362 @@
+import { Github, Languages, Sparkles, Star } from "lucide-react"
+import { useCallback, useState } from "react"
+import { useTranslation } from "react-i18next"
+
+import { LanguageSwitcher } from "~/components/LanguageSwitcher"
+import { Modal } from "~/components/ui"
+import { Alert, AlertAction, AlertDescription } from "~/components/ui/Alert"
+import { Button } from "~/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/Card"
+import { BodySmall, Heading3, Heading6, Link } from "~/components/ui/Typography"
+import { REPO_URL } from "~/constants/about"
+import { OPTIONS_OVERVIEW_TEST_IDS } from "~/features/OptionsOverview/testIds"
+import { PermissionList } from "~/features/Permissions/components/PermissionList"
+import { useOptionalPermissionControls } from "~/features/Permissions/hooks/useOptionalPermissionControls"
+import {
+  useStarPromotionActive,
+  useStarPromotionPromptImpression,
+} from "~/features/StarPromotion/useStarPromotionActive"
+import {
+  ensurePermissionsDetailed,
+  OPTIONAL_PERMISSIONS,
+} from "~/services/permissions/permissionManager"
+import {
+  PRODUCT_ANALYTICS_ACTION_IDS,
+  PRODUCT_ANALYTICS_ENTRYPOINTS,
+  PRODUCT_ANALYTICS_SURFACE_IDS,
+} from "~/services/productAnalytics/contracts"
+import {
+  PRODUCT_ANALYTICS_PERMISSION_FAILURE_REASONS,
+  trackOptionalPermissionRequestResult,
+} from "~/services/productAnalytics/facts/permissions"
+import { trackStarPromotionAction } from "~/services/productAnalytics/facts/starPromotion"
+import { openStarPromotionRepository } from "~/services/starPromotion/openRepository"
+import { createLogger } from "~/utils/core/logger"
+import { showResultToast } from "~/utils/feedback/operationFeedback"
+import { getDocsGetStartedUrl } from "~/utils/navigation/docsLinks"
+import { openLanguageRequestPage } from "~/utils/navigation/feedbackPages"
+
+/**
+ * Unified logger scoped to the optional-permissions onboarding dialog.
+ */
+const logger = createLogger("PermissionOnboardingDialog")
+
+interface PermissionOnboardingDialogProps {
+  open: boolean
+  onClose: () => void
+  reason?: string | null
+}
+
+/**
+ * Onboarding modal that explains optional permissions and lets users grant them.
+ * @param props Component props container.
+ * @param props.open Controls dialog visibility.
+ * @param props.onClose Callback executed when modal requests closure.
+ * @param props.reason Optional reason code to adjust messaging (e.g., new-permissions).
+ */
+export function PermissionOnboardingDialog({
+  open,
+  onClose,
+  reason,
+}: PermissionOnboardingDialogProps) {
+  const { t, i18n } = useTranslation(["settings", "common"])
+  const [isRequesting, setIsRequesting] = useState(false)
+  // Suppressed after explicit confirmation or repository star detection.
+  const starCtaVisible = useStarPromotionActive(open)
+  useStarPromotionPromptImpression(starCtaVisible, {
+    surfaceId: PRODUCT_ANALYTICS_SURFACE_IDS.PermissionOnboardingStarCta,
+    entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
+  })
+  const getStartedUrl = getDocsGetStartedUrl(i18n.language)
+
+  const hasOptionalPermissions = OPTIONAL_PERMISSIONS.length > 0
+  const {
+    statuses,
+    permissionItems,
+    isAnyPending,
+    handleToggle,
+    loadStatuses,
+  } = useOptionalPermissionControls({
+    enabled: open,
+    loggerName: "PermissionOnboardingDialog",
+    permissionIds: OPTIONAL_PERMISSIONS,
+  })
+
+  const handleGrantAll = useCallback(async () => {
+    if (!hasOptionalPermissions) return
+    setIsRequesting(true)
+    let success: boolean
+
+    try {
+      const result = await ensurePermissionsDetailed(OPTIONAL_PERMISSIONS)
+      success = result.success
+      for (const permissionResult of result.requestedResults) {
+        trackOptionalPermissionRequestResult(permissionResult.id, {
+          success: permissionResult.success,
+          failureReason: permissionResult.failureReason
+            ? permissionResult.failureReason
+            : undefined,
+          wasGrantedBefore: permissionResult.wasGrantedBefore,
+          wasGrantedAfter: permissionResult.wasGrantedAfter,
+        })
+      }
+      showResultToast({
+        success,
+        successFallback: t("permissionsOnboarding.toasts.success"),
+        errorFallback: t("permissionsOnboarding.toasts.error"),
+      })
+    } catch (error) {
+      for (const permissionId of OPTIONAL_PERMISSIONS) {
+        const wasGrantedBefore = statuses[permissionId] === true
+        trackOptionalPermissionRequestResult(permissionId, {
+          success: false,
+          failureReason:
+            PRODUCT_ANALYTICS_PERMISSION_FAILURE_REASONS.ApiException,
+          wasGrantedBefore,
+          wasGrantedAfter: wasGrantedBefore,
+        })
+      }
+      logger.error("Failed to grant all optional permissions", error)
+      showResultToast({
+        success: false,
+        message: t("permissionsOnboarding.toasts.error"),
+      })
+    } finally {
+      await loadStatuses()
+      setIsRequesting(false)
+    }
+  }, [hasOptionalPermissions, loadStatuses, statuses, t])
+
+  const handleOpenGithub = useCallback(async () => {
+    trackStarPromotionAction(PRODUCT_ANALYTICS_ACTION_IDS.ClickStarPromotion, {
+      surfaceId: PRODUCT_ANALYTICS_SURFACE_IDS.PermissionOnboardingStarCta,
+      entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
+    })
+    await openStarPromotionRepository()
+  }, [])
+
+  const handleOpenLanguageRequest = useCallback(() => {
+    void openLanguageRequestPage()
+  }, [])
+
+  if (!hasOptionalPermissions) {
+    return null
+  }
+
+  const header = (
+    <div className="flex flex-col gap-x-1 gap-y-density-1">
+      <Heading3>{t("permissionsOnboarding.title")}</Heading3>
+      <BodySmall className="text-muted-foreground dark:text-secondary-foreground">
+        {t("permissionsOnboarding.subtitle")}
+      </BodySmall>
+    </div>
+  )
+
+  const footer = (
+    <div className="grid w-full gap-x-2 gap-y-density-2 sm:grid-cols-2">
+      <Button
+        onClick={handleGrantAll}
+        loading={isRequesting}
+        disabled={isAnyPending}
+        className="h-auto min-h-(--density-control) w-full py-density-2 text-center whitespace-normal"
+      >
+        {isRequesting
+          ? t("common:status.applying")
+          : t("permissionsOnboarding.actions.allowAll")}
+      </Button>
+      <Button
+        variant="outline"
+        onClick={onClose}
+        className="w-full"
+        disabled={isRequesting}
+        data-testid={OPTIONS_OVERVIEW_TEST_IDS.permissionOnboardingDeferButton}
+      >
+        {t("permissionsOnboarding.actions.maybeLater")}
+      </Button>
+      {starCtaVisible ? (
+        <Button
+          variant="secondary"
+          className="h-auto min-h-(--density-control) w-full py-density-2 text-center whitespace-normal sm:col-span-2"
+          onClick={handleOpenGithub}
+          disabled={isRequesting}
+          leftIcon={<Star className="h-4 w-4 text-link" />}
+        >
+          {t("permissionsOnboarding.project.starCta")}
+        </Button>
+      ) : null}
+    </div>
+  )
+
+  return (
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      size="xl"
+      header={header}
+      footer={footer}
+    >
+      <div
+        className="space-y-density-4"
+        data-testid={OPTIONS_OVERVIEW_TEST_IDS.permissionOnboardingDialog}
+      >
+        <Card padding="none" className="overflow-hidden">
+          <CardHeader
+            bordered
+            padding="sm"
+            className="bg-primary-soft dark:bg-secondary/40"
+          >
+            <CardTitle className="flex items-center gap-x-2 gap-y-density-2 text-base font-semibold">
+              <Languages className="h-5 w-5 text-theme-600 dark:text-theme-400" />
+              {t("appearanceLanguage.onboardingLabel")}
+            </CardTitle>
+            <BodySmall className="text-muted-foreground dark:text-secondary-foreground">
+              {t("appearanceLanguage.onboardingHelper")}
+            </BodySmall>
+          </CardHeader>
+          <CardContent
+            padding="sm"
+            spacing="none"
+            className="flex flex-col gap-x-2 gap-y-density-2 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <LanguageSwitcher
+              variant="select"
+              compact
+              showIcon={false}
+              className="w-full sm:w-40"
+            />
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              onClick={handleOpenLanguageRequest}
+              className="h-auto min-h-0 justify-start px-0 py-0 text-xs font-normal sm:justify-center"
+            >
+              {t("appearanceLanguage.onboardingLanguageRequest")}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {reason === "new-permissions" && (
+          <Alert variant="warning">
+            <AlertDescription>
+              <BodySmall className="text-muted-foreground dark:text-secondary-foreground">
+                {t("permissionsOnboarding.reason.newPermissions")}
+              </BodySmall>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <Card
+          padding="none"
+          className="overflow-hidden"
+          data-testid={
+            OPTIONS_OVERVIEW_TEST_IDS.permissionOnboardingIntroSection
+          }
+        >
+          <CardHeader bordered padding="sm">
+            <CardTitle className="flex items-center gap-x-2 gap-y-density-2 text-base font-semibold">
+              <Github className="h-5 w-5 text-secondary-foreground" />
+              {t("permissionsOnboarding.openSourceBadge")}
+            </CardTitle>
+            <BodySmall className="mt-density-1 text-muted-foreground dark:text-secondary-foreground">
+              {t("permissionsOnboarding.intro")}
+            </BodySmall>
+          </CardHeader>
+          <CardContent padding="sm" spacing="sm" className="space-y-density-3">
+            <BodySmall className="text-muted-foreground dark:text-secondary-foreground">
+              {t("permissionsOnboarding.analyticsDisclosure")}
+            </BodySmall>
+            <Alert
+              variant="primary"
+              compact
+              className="py-density-2-5"
+              action={
+                <AlertAction>
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="w-full md:w-auto"
+                  >
+                    <a href={getStartedUrl} target="_blank" rel="noreferrer">
+                      {t("permissionsOnboarding.project.getStartedCta")}
+                    </a>
+                  </Button>
+                </AlertAction>
+              }
+            >
+              <div className="min-w-0 space-y-density-1-5">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-density-1">
+                  <Heading6 className="shrink-0 tracking-tight">
+                    {t("permissionsOnboarding.project.label")}
+                  </Heading6>
+                  <Link
+                    href={REPO_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    size="sm"
+                    className="inline-flex max-w-full items-center gap-x-1 gap-y-density-1"
+                  >
+                    <span className="break-all">{REPO_URL}</span>
+                    <Github className="h-4 w-4 shrink-0" />
+                  </Link>
+                </div>
+                <BodySmall className="text-muted-foreground dark:text-secondary-foreground">
+                  {t("permissionsOnboarding.project.cta")}
+                </BodySmall>
+              </div>
+            </Alert>
+          </CardContent>
+        </Card>
+
+        <Card
+          padding="none"
+          className="overflow-hidden"
+          data-testid={
+            OPTIONS_OVERVIEW_TEST_IDS.permissionOnboardingPermissionsSection
+          }
+        >
+          <CardHeader bordered padding="sm">
+            <CardTitle className="flex items-center gap-x-2 gap-y-density-2 text-base font-semibold">
+              <Sparkles className="h-5 w-5 text-link" />
+              {t("permissionsOnboarding.permissionListTitle")}
+            </CardTitle>
+            <BodySmall className="mt-density-1 text-muted-foreground dark:text-secondary-foreground">
+              {t("permissionsOnboarding.permissionListDescription")}
+            </BodySmall>
+          </CardHeader>
+          <CardContent padding="none" spacing="none">
+            <PermissionList
+              items={permissionItems.map((permission) => ({
+                id: permission.id,
+                title: permission.title,
+                description: permission.description,
+                status: permission.granted,
+                statusLabel: permission.statusLabel,
+                rightContent: (
+                  <div className="flex flex-col items-start gap-x-3 gap-y-density-3 [@container(min-width:42rem)]:flex-row [@container(min-width:42rem)]:items-center">
+                    <Button
+                      size="sm"
+                      variant={permission.granted ? "outline" : "default"}
+                      onClick={() =>
+                        void handleToggle(permission.id, !permission.granted)
+                      }
+                      disabled={isRequesting || permission.granted === null}
+                      loading={permission.pending}
+                    >
+                      {permission.pending
+                        ? t("common:status.applying")
+                        : permission.granted
+                          ? t("permissions.actions.remove")
+                          : t("permissions.actions.allow")}
+                    </Button>
+                  </div>
+                ),
+              }))}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    </Modal>
+  )
+}

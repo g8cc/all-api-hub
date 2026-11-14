@@ -9,7 +9,8 @@ import { sendUsageHistoryMessage } from "~/services/history/usageHistory/messagi
 import { usageHistoryStorage } from "~/services/history/usageHistory/storage"
 import { UsageHistoryMessageTypes } from "~/services/runtimeMessaging/messageTypes"
 import { DEFAULT_USAGE_HISTORY_PREFERENCES } from "~/types/usageHistory"
-import { hasAlarmsAPI } from "~/utils/browser/browserApi"
+import { hasAlarmsAPI } from "~/utils/browser/alarms"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import {
   fireEvent,
   render,
@@ -45,13 +46,9 @@ vi.mock("~/services/history/usageHistory/storage", () => ({
   usageHistoryStorage: { getStore: vi.fn() },
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
-  return {
-    ...actual,
-    hasAlarmsAPI: vi.fn(() => true),
-  }
+vi.mock("~/utils/browser/alarms", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/utils/browser/alarms")>()
+  return { ...actual, hasAlarmsAPI: vi.fn(() => true) }
 })
 
 vi.mock("~/services/history/usageHistory/messaging", () => ({
@@ -405,13 +402,13 @@ describe("UsageHistorySyncTab", () => {
     ).toBeInTheDocument()
 
     const switches = screen.getAllByRole("switch")
-    fireEvent.click(switches[0])
+    fireEvent.click(atIndex(switches, 0))
 
     const numberInputs = screen.getAllByRole("spinbutton")
-    fireEvent.change(numberInputs[0], { target: { value: "45" } })
+    fireEvent.change(atIndex(numberInputs, 0), { target: { value: "45" } })
     await waitFor(() => expect(numberInputs[1]).toBeEnabled())
-    fireEvent.change(numberInputs[1], { target: { value: "2" } })
-    fireEvent.blur(numberInputs[1])
+    fireEvent.change(atIndex(numberInputs, 1), { target: { value: "2" } })
+    fireEvent.blur(atIndex(numberInputs, 1))
     await waitFor(() =>
       expect(mockedSendUsageHistoryMessage).toHaveBeenCalledWith(
         UsageHistoryMessageTypes.UpdateSettings,

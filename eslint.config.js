@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs"
+import { relative } from "node:path"
 import eslint from "@eslint/js"
 import eslintConfigPrettier from "eslint-config-prettier/flat"
 import jsdoc from "eslint-plugin-jsdoc"
@@ -7,12 +8,12 @@ import { defineConfig } from "eslint/config"
 import globals from "globals"
 import tseslint from "typescript-eslint"
 
+import { sharedUiImportsRule } from "./scripts/eslint/shared-ui-imports.mjs"
+
 const autoImportsConfigUrl = new URL(
   "./.wxt/eslint-auto-imports.mjs",
   import.meta.url,
 )
-const wxtTsconfigUrl = new URL("./.wxt/tsconfig.json", import.meta.url)
-const wxtPrepared = existsSync(wxtTsconfigUrl)
 const autoImports = existsSync(autoImportsConfigUrl)
   ? (await import(autoImportsConfigUrl.href)).default
   : {
@@ -22,14 +23,9 @@ const autoImports = existsSync(autoImportsConfigUrl)
         sourceType: "module",
       },
     }
-const typescriptParserOptions = wxtPrepared
-  ? {
-      projectService: true,
-      tsconfigRootDir: import.meta.dirname,
-    }
-  : {
-      tsconfigRootDir: import.meta.dirname,
-    }
+// Current rules use syntax only. Avoid constructing the whole TypeScript
+// project for every lint run; pnpm compile owns semantic type checking.
+const typescriptParserOptions = { tsconfigRootDir: import.meta.dirname }
 
 const rules = {
   "@typescript-eslint/consistent-type-imports": [
@@ -86,12 +82,197 @@ const newApiAdapterLegacyApiServiceImportPattern = {
   message:
     "New API adapters may import ~/services/apiService/newApiFamily only. Do not depend on the legacy apiService facade or other apiService modules.",
 }
-const workflowTransitionIconRestrictedImports = [
+
+// Runtime `import()` is a deliberate lazy-loading or cycle-breaking boundary.
+// Keep the owners of those boundaries explicit so new call sites get reviewed
+// instead of proliferating by accident. Type-only `typeof import(...)` is
+// unaffected; only runtime `import()` expressions are gated.
+//
+// Each entry also lists the allowed import targets as prefix matches, so a
+// new dynamic import inside an allowlisted file still needs a config diff.
+const dynamicImportAllowlist = [
+  {
+    // Recovery consults the adapter registry; defer it until Sub2API registration completes.
+    file: "src/services/apiService/sub2api/auth/authLifecycle.ts",
+    imports: ["~/services/accountCredentialRecovery"],
+  },
+  // Capacity probes load the tokenizer engine after reading the selected packaged vocabulary.
+  {
+    file: "src/services/verification/modelQuality/contextTokens.ts",
+    imports: ["gpt-tokenizer/modelsMap", "gpt-tokenizer/GptEncoding"],
+  },
+  // Optional code execution loads the WASM interpreter only when a test uses JS.
+  {
+    file: "src/services/verification/agentTest/environment.ts",
+    imports: [
+      "quickjs-emscripten-core",
+      "@jitl/quickjs-singlefile-browser-release-sync",
+    ],
+  },
+  // Turnstile waits load content UI only when the user is asked to assist.
+  {
+    file: "src/entrypoints/content/messageHandlers/handlers/turnstileGuard.ts",
+    imports: [
+      "~/entrypoints/content/shieldBypassAssist/utils/shieldBypassToasts",
+    ],
+  },
+  // Development-only discovery fixtures stay outside production detection and UI loading.
+  {
+    file: "src/services/checkin/autoCheckin/discovery/accountDiscovery.ts",
+    imports: ["~/services/checkin/autoCheckin/discovery/devDiscoveryFixtures"],
+  },
+  {
+    file: "src/features/AutoCheckin/workspace/useAutoCheckinStatusWorkspace.ts",
+    imports: ["~/services/checkin/autoCheckin/discovery/devDiscoveryFixtures"],
+  },
+  // UI code splitting: lazy pages, sections, dialogs, and locale data.
+  {
+    file: "src/components/ui/datePickerLocale.ts",
+    imports: ["date-fns/locale/"],
+  },
+  {
+    file: "src/entrypoints/options/constants.ts",
+    imports: ["./pages/"],
+  },
+  {
+    file: "src/entrypoints/popup/viewRegistry.tsx",
+    imports: ["./components/", "~/features/"],
+  },
+  {
+    file: "src/features/AccountManagement/components/AccountList/ordering/loadAccountListDndRuntime.ts",
+    imports: [
+      "~/features/AccountManagement/components/AccountList/ordering/AccountListDndRuntime",
+    ],
+  },
+  {
+    file: "src/features/AccountManagement/components/CopyKeyDialog/RuntimeKeyActionControls.tsx",
+    imports: [
+      "~/features/KiloCodeExport/KiloCodeExportDialog",
+      "~/features/ApiCredentialProfiles/export/KiloCodeProfileExportDialog",
+      "~/services/integrations/cherryStudio",
+    ],
+  },
+  {
+    file: "src/features/BasicSettings/settingsTabRegistry.ts",
+    imports: ["./components/tabs/"],
+  },
+  {
+    file: "src/features/CheckInFeedback/useCheckInFeedback.tsx",
+    imports: ["./CheckInFeedbackDialog"],
+  },
+  {
+    file: "src/utils/i18n/dayjsLocale.ts",
+    imports: ["dayjs/locale/"],
+  },
+  // Content scripts keep React and their toast components out of the eagerly
+  // injected bundle.
+  {
+    file: "src/entrypoints/content/messageHandlers/index.ts",
+    imports: [
+      "~/services/checkin/feedback/pageScan",
+      // Mount the existing isolated toast host only when a page reminder arrives.
+      "~/entrypoints/content/shared/uiRoot",
+      "~/lib/notify/content",
+      "~/services/checkin/turnstile/assistPageNotice",
+    ],
+  },
+  {
+    file: "src/entrypoints/content/redemptionAssist/utils/redemptionToasts.ts",
+    imports: ["../components/", "react"],
+  },
+  {
+    file: "src/entrypoints/content/shared/uiRoot.ts",
+    imports: ["~/entrypoints/content/shared/ContentReactRoot", "react"],
+  },
+  {
+    file: "src/entrypoints/content/webAiApiCheck/utils/apiCheckToasts.ts",
+    imports: [
+      "~/features/WebAiApiCheck/content/notifications/ApiCheckConfirmToast",
+      "react",
+    ],
+  },
+  // Background and service boundaries keep heavy provider graphs off the
+  // startup path or break module cycles.
+  {
+    file: "src/entrypoints/background/runtimeMessages.ts",
+    imports: [
+      "~/services/managedSites/newApiOwnedSession/background",
+      // Manual editor recovery loads the login adapter graph only on demand.
+      "~/services/accountCredentialRecovery/manual",
+    ],
+  },
+  {
+    file: "src/services/accountLogin/index.ts",
+    imports: ["~/services/apiAdapters/registry"],
+  },
+  {
+    file: "src/services/apiService/common/providerRequest.ts",
+    imports: ["~/services/accountCredentialRecovery"],
+  },
+  {
+    file: "src/services/checkin/autoCheckin/scheduling/refresh.ts",
+    imports: ["~/services/checkin/autoCheckin/providers"],
+  },
+  {
+    file: "src/services/managedSites/providers/newApi/newApiProtectionBypassResource.ts",
+    imports: ["~/services/apiAdapters/registry"],
+  },
+  {
+    file: "src/services/managedSites/providers/newApi/newApiChannelKeyRead.ts",
+    imports: ["~/utils/browser/tempWindowFetch"],
+  },
+  {
+    file: "src/services/productAnalytics/runtime/client.ts",
+    imports: ["posthog-js/dist/module.no-external"],
+  },
+  {
+    file: "src/services/redemption/redemptionAssist.ts",
+    imports: ["~/services/redemption/accountCandidate"],
+  },
+  {
+    file: "src/utils/browser/tempWindowFetch.ts",
+    imports: ["~/entrypoints/background/protectionBypassCoordinator"],
+  },
+]
+const browserApiSyntaxRestrictions = [
+  {
+    selector: "MemberExpression[object.name=/^(browser|chrome)$/]",
+    message:
+      "Do not access global WebExtension APIs directly in app code. Add a guarded wrapper in the appropriate `~/utils/browser/**` adapter.",
+  },
+  {
+    selector:
+      "MemberExpression[object.type='TSAsExpression'][object.expression.name=/^(browser|chrome)$/]",
+    message:
+      "Do not access casted global WebExtension APIs directly in app code. Add a guarded wrapper in the appropriate `~/utils/browser/**` adapter.",
+  },
+  {
+    selector:
+      "MemberExpression[object.name=/^(globalThis|window)$/][property.name=/^(browser|chrome)$/]:not(MemberExpression[object.name=/^(globalThis|window)$/][property.name=/^(browser|chrome)$/] MemberExpression)",
+    message:
+      "Do not access global WebExtension APIs through `globalThis` or `window` in app code. Add a guarded wrapper in the appropriate `~/utils/browser/**` adapter.",
+  },
+  {
+    selector:
+      "MemberExpression[object.type='TSAsExpression'][object.expression.name=/^(globalThis|window)$/][property.name=/^(browser|chrome)$/]:not(MemberExpression[object.type='TSAsExpression'][object.expression.name=/^(globalThis|window)$/][property.name=/^(browser|chrome)$/] MemberExpression)",
+    message:
+      "Do not access casted global WebExtension APIs through `globalThis` or `window` in app code. Add a guarded wrapper in the appropriate `~/utils/browser/**` adapter.",
+  },
+]
+
+const lucideIconRestrictedImports = [
   {
     name: "lucide-react",
-    importNames: ["ExternalLink"],
+    importNames: [
+      "AlertTriangle",
+      "AlertCircle",
+      "CheckCircle",
+      "CheckCircle2",
+      "XCircle",
+      "MoreHorizontal",
+    ],
     message:
-      "Use `~/components/icons/WorkflowTransitionIcon` for arrow-up-right workflow/link affordances so the app keeps a single transition glyph.",
+      "Use canonical Lucide names such as TriangleAlert, CircleAlert, CircleCheck, CircleX and Ellipsis.",
   },
 ]
 
@@ -99,7 +280,7 @@ function restrictedImports(...patterns) {
   return [
     "error",
     {
-      paths: workflowTransitionIconRestrictedImports,
+      paths: lucideIconRestrictedImports,
       patterns: [heroiconsImportRestrictionPattern, ...patterns],
     },
   ]
@@ -111,76 +292,86 @@ const siteTypeImportOwners = [
   "src/services/accountSiteDefinitions/**", // Site metadata and identifiers.
   "src/services/apiAdapters/**", // Capability registration and provider protocols.
   "src/services/apiService/**", // Provider transports and legacy dispatch.
+  "src/services/kimiOpenPlatform/deployments.ts", // Provider-owned deployment identities.
   "src/services/siteDetection/detectSiteType.ts", // Detection identifies providers.
-  "src/features/KeyManagement/presentation/accountKeyResourcePresentation.ts", // Provider terminology.
-  "src/features/KeyManagement/presentation/nativeKeyResourceFieldPolicy.ts", // Provider editor presentation.
+  "src/services/siteDetection/siteTypeMismatch.ts", // Detection explains a stored type that no longer matches.
   "src/services/accountSiteOnboarding/contentSession/**", // Provider session validation.
   "src/services/checkin/autoCheckin/providers/**", // Provider check-in implementations.
   "src/services/managedSites/providers/**", // Provider-specific managed-site workflows.
-  "src/services/managedSites/runtimeConfig.ts", // Decode provider configuration unions.
+  "src/services/managedSites/configuration/runtimeConfig.ts", // Decode provider configuration unions.
+  "src/services/managedSites/configuration/configRegistration.ts", // Own provider configuration selection and validation.
   "src/services/preferences/userPreferences.ts", // Stored provider configuration selection.
+  "src/services/preferences/preferencesDefaults.ts", // Default provider identity.
   "src/services/accounts/accountStorage/sub2ApiAuthPersistence.ts", // Check identity before credential writes.
   "src/services/accounts/migrations/sub2apiAuthMigration.ts", // Historical authentication format.
-  "src/services/managedSites/legacyChannelConfigMigration.ts", // Historical numeric channel identities.
   "src/services/models/modelSync/channelModelFilterEvaluator.ts", // Provider credential redaction.
-  "src/services/productAnalytics/settings.ts", // Fixed analytics event schema.
-  "src/services/siteAnnouncements/providers.ts", // Announcement provider dispatch.
+  "src/services/productAnalytics/settingsSnapshots/managedSite.ts", // Projection owns explicit managed-site configuration facts.
+  "src/services/siteAnnouncements/devFixtures.ts", // Development fixtures for named providers.
+  "src/features/DevPanel/keyProvisioningPreview.ts", // Development-only native provider editor fixtures.
   "src/components/icons/ManagedSiteIcon.tsx", // Provider branding.
-  "src/features/AccountManagement/components/AccountDialog/AccessTokenVerificationGuide.tsx", // Provider authentication instructions.
-  "src/features/AccountManagement/components/AccountDialog/AccountForm.tsx", // OpenRouter management-key onboarding UI.
-  "src/features/AccountManagement/components/AccountDialog/hooks/useOpenRouterAccountOnboarding.ts", // Provider-owned onboarding lifecycle.
-  "src/features/BasicSettings/components/tabs/ManagedSite/CliProxyApi.search.ts", // CLIProxyAPI settings search.
-  "src/features/BasicSettings/components/tabs/ManagedSite/ManagedSite*.search.ts", // Search entries for provider-specific settings.
-  "src/features/ManagedSiteChannels/presentation/managedResourceMigrationPresentation.ts", // Provider-specific migration labels.
+  "src/features/AccountManagement/components/AccountDialog/form/AccessTokenVerificationGuide.tsx", // Provider authentication instructions.
+  "src/features/AccountManagement/components/AccountDialog/form/AccountForm.tsx", // OpenRouter management-key onboarding UI.
+  "src/features/AccountManagement/components/AccountDialog/form/useOpenRouterAccountOnboarding.ts", // Provider-owned onboarding lifecycle.
+  "src/features/BasicSettings/components/tabs/ManagedSite/search/CliProxyApi.search.ts", // CLIProxyAPI settings search.
+  "src/features/BasicSettings/components/tabs/ManagedSite/search/ManagedSite*.search.ts", // Search entries for provider-specific settings.
+  "src/features/ManagedSiteChannels/migration/managedResourceMigrationPresentation.ts", // Provider-specific migration labels.
   "src/features/ModelList/aihubmixModelList.ts", // Provider catalog presentation.
-  "src/features/SiteAnnouncements/utils.ts", // Cached provider identity and source links.
   "src/constants/siteType.ts", // Public compatibility re-export.
   "src/contexts/UserPreferencesContext.tsx", // Default managed-site selection.
   "src/entrypoints/content/messageHandlers/handlers/storage.ts", // Unknown-site input fallback.
   "src/features/AccountManagement/bookmarkImport/candidates.ts", // Unknown detection result.
   "src/features/AccountManagement/bookmarkImport/importAccounts.ts", // Unknown imported account identity.
-  "src/features/AccountManagement/components/AccountDialog/autoDetectDraft.ts", // Unknown draft identity.
+  "src/features/AccountManagement/bookmarkImport/BookmarkAccountImportDevPreview.tsx", // Development fixtures for account import recovery.
+  "src/features/AccountManagement/components/AccountDialog/detection/autoDetectDraft.ts", // Unknown draft identity.
   "src/features/AccountManagement/components/AccountDialog/models.ts", // Initial draft identity.
-  "src/features/AccountManagement/components/AccountDialog/hooks/useAccountDialog.ts", // Default identity and explicit provider onboarding results.
+  "src/features/AccountManagement/components/AccountDialog/workspace/useAccountDialog.ts", // Initial identity and explicit provider onboarding results.
+  "src/features/AccountManagement/components/AccountDialog/form/useAccountDialogIdentityChanges.ts", // Normalize user-selected identity.
+  "src/features/AccountManagement/components/AccountDialog/detection/useAccountDialogDetection.ts", // Explicit provider onboarding results.
+  "src/features/AccountManagement/components/AccountDialog/form/useAccountDialogInitialization.ts", // Initial identity and legacy provider hydration.
   "src/features/AccountManagement/sponsors/catalogActions.ts", // Sponsor identity prefill.
-  "src/features/AccountManagement/sponsors/pendingAddAccountIntent.ts", // Sponsor intent validation.
+  "src/features/AccountManagement/sponsors/addAccountPrefill.ts", // Sponsor prefill validation.
   "src/features/ApiCredentialProfiles/utils/exportShims.ts", // Synthetic account identity for export compatibility.
-  "src/features/BasicSettings/components/tabs/ManagedSite/DoneHubSettings.tsx", // Provider settings.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/DoneHubSettings.tsx", // Provider settings.
   "src/features/BasicSettings/components/tabs/ManagedSite/ManagedSiteTab.tsx", // Provider settings dispatch.
-  "src/features/BasicSettings/components/tabs/ManagedSite/ModelRedirectSettings.tsx", // Default provider selection.
-  "src/features/BasicSettings/components/tabs/ManagedSite/AxonHubSettings.tsx", // Provider settings.
-  "src/features/BasicSettings/components/tabs/ManagedSite/ClaudeCodeHubSettings.tsx", // Provider settings.
-  "src/features/BasicSettings/components/tabs/ManagedSite/CliProxyApiSettings.tsx", // Provider settings.
-  "src/features/BasicSettings/components/tabs/ManagedSite/OctopusSettings.tsx", // Provider settings.
-  "src/features/BasicSettings/components/tabs/ManagedSite/NewApiSettings.tsx", // Provider settings.
-  "src/features/BasicSettings/components/tabs/ManagedSite/Sub2ApiSettings.tsx", // Provider settings.
-  "src/features/BasicSettings/components/tabs/ManagedSite/VeloeraSettings.tsx", // Provider settings.
-  "src/features/ManagedSiteChannels/presentation/managedResourceFieldPolicy.ts", // Provider field presentation.
-  "src/features/ManagedSiteChannels/presentation/managedResourceTablePolicy.ts", // Provider table presentation.
+  "src/features/BasicSettings/components/tabs/ManagedSite/modelSync/ModelRedirectSettings.tsx", // Default provider selection.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/AxonHubSettings.tsx", // Provider settings.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/ClaudeCodeHubSettings.tsx", // Provider settings.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/CliProxyApiSettings.tsx", // Provider settings.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/OctopusSettings.tsx", // Provider settings.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/OmniRouteSettings.tsx", // Provider settings.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/MagpieSettings.tsx", // Provider settings.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/GptLoadSettings.tsx", // Provider settings.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/NewApiSettings.tsx", // Provider settings.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/Sub2ApiSettings.tsx", // Provider settings.
+  "src/features/BasicSettings/components/tabs/ManagedSite/providers/VeloeraSettings.tsx", // Provider settings.
+  "src/features/ManagedSiteChannels/presentation/sites/**", // Provider field and table presentation definitions.
   "src/features/UnifiedApiGuidance/UnifiedApiGuidanceDevPreview.tsx", // Development fixture.
   "src/services/accountSiteOnboarding/metadata.ts", // Unknown-site metadata fallback.
-  "src/services/accounts/accountCreation.ts", // Unknown account identity fallback.
-  "src/services/accounts/accountDefaults.ts", // Default account identity.
-  "src/services/accounts/accountFormValidation.ts", // Unknown account identity validation.
+  "src/services/accounts/editing/accountDefaults.ts", // Default account identity.
+  "src/services/accounts/accountPersistence/request.ts", // Shared save input normalization.
+  "src/services/accounts/editing/accountFormValidation.ts", // Unknown account identity validation.
   "src/services/accounts/accountSiteProfile/contentSessionHint.ts", // Unknown session identity validation.
   "src/services/accounts/accountSiteProfile/profiles.ts", // Default profile.
-  "src/services/accounts/accountStorage/accountRefresh.ts", // Unknown identity detection recovery.
-  "src/services/accounts/accountUpdate.ts", // Unknown account identity fallback.
+  "src/services/accounts/refresh/refreshStoredAccount.ts", // Unknown identity detection recovery.
   "src/services/accounts/autoDetect/recovery.ts", // Unknown detection recovery.
-  "src/services/accounts/siteName.ts", // Unknown site display name.
+  "src/services/accounts/identity/siteName.ts", // Unknown site display name.
   "src/services/accounts/utils/siteRouteResolver.ts", // Unknown route fallback.
-  "src/services/managedSites/channelMigrationCapabilityRegistry.ts", // Migration capability dispatch.
+  "src/services/managedSites/migration/channelMigrationCapabilityRegistry.ts", // Migration capability dispatch.
   "src/services/managedSites/utils/managedSite.ts", // Synthetic account identity for managed-site compatibility.
   "src/services/modelList/accountSources/sub2apiEstimates.ts", // Provider-owned catalog estimate.
   "src/services/productAnalytics/contracts.ts", // Fixed event schema.
-  "src/services/productAnalytics/siteEcosystem.ts", // Fixed event schema projection.
-  "src/services/siteAnnouncements/storage.ts", // Unknown cached identity fallback.
-  "src/services/siteDetection/autoDetectService.ts", // Unknown identity fallback.
+  "src/services/productAnalytics/facts/siteEcosystem.ts", // Fixed event schema projection.
+  "src/services/siteAnnouncements/announcementProjection.ts", // Unknown cached identity fallback.
+  "src/services/siteDetection/sources/resultAssembly.ts", // Detection source owns unknown identity handling.
+  "src/services/siteDetection/sources/currentTab.ts", // Detection source owns unknown identity handling.
+  "src/services/siteDetection/sources/existingTab.ts", // Detection source owns unknown identity handling.
 ]
 
 export default defineConfig([
   {
     ignores: [
+      // Standalone Remotion project; validated with its own npm run check.
+      "tools/product-video/**",
       "node_modules/**",
       "dist/**",
       "build/**",
@@ -194,8 +385,8 @@ export default defineConfig([
       "coverage/**",
       "playwright-report/**",
       "test-results/**",
-      "tailwind.config.js",
       "src/public/react-devtools-backend.js",
+      ".scratch/**",
     ],
   },
   { languageOptions: { globals: globalsConfig } },
@@ -275,41 +466,39 @@ export default defineConfig([
         {
           name: "browser",
           message:
-            "Do not access the global WebExtension API directly in app code. Add a guarded wrapper in `~/utils/browser/browserApi` or another `~/utils/browser/**` adapter.",
+            "Do not access the global WebExtension API directly in app code. Add a guarded wrapper in the appropriate `~/utils/browser/**` adapter.",
         },
         {
           name: "chrome",
           message:
-            "Do not access the global Chrome extension API directly in app code. Add a guarded wrapper in `~/utils/browser/browserApi` or another `~/utils/browser/**` adapter.",
+            "Do not access the global Chrome extension API directly in app code. Add a guarded wrapper in the appropriate `~/utils/browser/**` adapter.",
         },
       ],
+      "no-restricted-syntax": ["error", ...browserApiSyntaxRestrictions],
+    },
+  },
+  {
+    files: ["src/features/**/*.{js,cjs,mjs,jsx,ts,tsx}"],
+    rules: {
       "no-restricted-syntax": [
         "error",
-        {
-          selector: "MemberExpression[object.name=/^(browser|chrome)$/]",
-          message:
-            "Do not access global WebExtension APIs directly in app code. Add a guarded wrapper in `~/utils/browser/browserApi` or another `~/utils/browser/**` adapter.",
-        },
+        ...browserApiSyntaxRestrictions,
         {
           selector:
-            "MemberExpression[object.type='TSAsExpression'][object.expression.name=/^(browser|chrome)$/]",
+            "ImportDeclaration[source.value='lucide-react'] > ImportSpecifier[imported.name=/^(SquarePen|RefreshCcw)$/]",
           message:
-            "Do not access casted global WebExtension APIs directly in app code. Add a guarded wrapper in `~/utils/browser/browserApi` or another `~/utils/browser/**` adapter.",
-        },
-        {
-          selector:
-            "MemberExpression[object.name=/^(globalThis|window)$/][property.name=/^(browser|chrome)$/]:not(MemberExpression[object.name=/^(globalThis|window)$/][property.name=/^(browser|chrome)$/] MemberExpression)",
-          message:
-            "Do not access global WebExtension APIs through `globalThis` or `window` in app code. Add a guarded wrapper in `~/utils/browser/browserApi` or another `~/utils/browser/**` adapter.",
-        },
-        {
-          selector:
-            "MemberExpression[object.type='TSAsExpression'][object.expression.name=/^(globalThis|window)$/][property.name=/^(browser|chrome)$/]:not(MemberExpression[object.type='TSAsExpression'][object.expression.name=/^(globalThis|window)$/][property.name=/^(browser|chrome)$/] MemberExpression)",
-          message:
-            "Do not access casted global WebExtension APIs through `globalThis` or `window` in app code. Add a guarded wrapper in `~/utils/browser/browserApi` or another `~/utils/browser/**` adapter.",
+            "Use Pencil for edit actions and RefreshCw for refresh/retry actions, preferably through ~/components/icons/productIcons.",
         },
       ],
     },
+  },
+  // Keep shared UI ownership independent of narrower import-policy overrides.
+  {
+    files: [srcJsFamilyFilePattern],
+    plugins: {
+      "shared-ui": { rules: { "use-shared-imports": sharedUiImportsRule } },
+    },
+    rules: { "shared-ui/use-shared-imports": "error" },
   },
   // Guardrails: prevent non-entrypoint code from depending on options page internals.
   {
@@ -366,13 +555,31 @@ export default defineConfig([
       "src/features/ModelList/**/*.{js,cjs,mjs,jsx,ts,tsx}",
       "src/components/dialogs/VerifyApiDialog/**/*.{js,cjs,mjs,jsx,ts,tsx}",
       "src/components/dialogs/VerifyCliSupportDialog/**/*.{js,cjs,mjs,jsx,ts,tsx}",
-      "src/components/KiloCodeExportDialog.{js,cjs,mjs,jsx,ts,tsx}",
+      "src/features/KiloCodeExport/KiloCodeExportDialog.{js,cjs,mjs,jsx,ts,tsx}",
       "src/services/accounts/**/*.{js,cjs,mjs,jsx,ts,tsx}",
     ],
     rules: {
       "no-restricted-imports": restrictedImports(
         apiServiceBackendImplementationImportPattern,
         accountSiteMainlineApiServiceFacadeImportPattern,
+      ),
+    },
+  },
+  // Guardrails: lower-level detection must stay independent of active onboarding.
+  {
+    files: [
+      "src/services/accountSiteOnboarding/**/*.{js,cjs,mjs,jsx,ts,tsx}",
+      "src/services/siteDetection/**/*.{js,cjs,mjs,jsx,ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-imports": restrictedImports(
+        apiServiceBackendImplementationImportPattern,
+        {
+          regex:
+            "(?:^|/)(?:accounts/onboarding(?:/|$)|apiAdapters/(?!contracts/)[^/]+/(?:account/)?accountOnboarding(?:\\.[^/]+)?$)",
+          message:
+            "Detection and session extraction must not depend on active account onboarding. Register active capabilities under services/accounts/onboarding.",
+        },
       ),
     },
   },
@@ -455,6 +662,62 @@ export default defineConfig([
       },
     },
     rules: { "notifications/use-facade": "error" },
+  },
+  // Guardrails: dynamic `import()` is opt-in; only allowlisted boundaries may
+  // use it, and only toward their registered targets. Implementing this as a
+  // custom rule keeps the allowlist in one place instead of multiplying
+  // per-file rule overrides.
+  {
+    files: [srcJsFamilyFilePattern],
+    plugins: {
+      "lazy-boundaries": {
+        rules: {
+          "no-undecided-dynamic-import": {
+            meta: {
+              type: "problem",
+              schema: [],
+              messages: {
+                dynamicImport:
+                  "Dynamic import() is a deliberate lazy-loading or cycle-breaking boundary. If this call site needs one, add the file and its import target to dynamicImportAllowlist in eslint.config.js with a reason.",
+                unregisteredTarget:
+                  "This dynamic import() target is not registered for this file. Add it to the file's entry in dynamicImportAllowlist in eslint.config.js.",
+              },
+            },
+            create(context) {
+              const repositoryRelativeFilename = relative(
+                context.cwd,
+                context.filename ?? "",
+              ).replace(/\\/g, "/")
+              const entry = dynamicImportAllowlist.find(
+                ({ file }) => repositoryRelativeFilename === file,
+              )
+              if (!entry) {
+                return {
+                  ImportExpression(node) {
+                    context.report({ node, messageId: "dynamicImport" })
+                  },
+                }
+              }
+              return {
+                ImportExpression(node) {
+                  if (
+                    node.source.type !== "Literal" ||
+                    !entry.imports.some((prefix) =>
+                      String(node.source.value).startsWith(prefix),
+                    )
+                  ) {
+                    context.report({ node, messageId: "unregisteredTarget" })
+                  }
+                },
+              }
+            },
+          },
+        },
+      },
+    },
+    rules: {
+      "lazy-boundaries/no-undecided-dynamic-import": "error",
+    },
   },
   { rules },
   eslintConfigPrettier,

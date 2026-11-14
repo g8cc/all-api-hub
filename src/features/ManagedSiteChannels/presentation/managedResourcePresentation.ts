@@ -26,7 +26,7 @@ const resolveOptionLabel = (
   t: TFunction,
 ) =>
   (Object.prototype.hasOwnProperty.call(labels, value)
-    ? labels[value]
+    ? labels[value] ?? fallback
     : fallback)(t)
 
 const MANAGED_RESOURCE_STATUS_LABEL_RESOLVERS = {
@@ -92,10 +92,16 @@ export type ManagedResourcePresentationSemantics = {
         optionLabelResolvers: Readonly<
           Record<string, ManagedResourceTextResolver>
         >
-        resolveOptionFallback?: ManagedResourceTextResolver
+        resolveOptionFallback?: (t: TFunction, value?: string) => string
       }
     >
   >
+  /**
+   * Labels for detail rows that no editor control owns — a gateway-reported
+   * status, a read-only mirror of an editable field. Declaring the label here
+   * keeps a read-only row displayable without inventing an editor field for it.
+   */
+  detailFieldLabels?: Readonly<Record<string, ManagedResourceTextResolver>>
 }
 
 export const DEFAULT_MANAGED_RESOURCE_PRESENTATION_SEMANTICS = {
@@ -165,7 +171,9 @@ const presentCell = (
           ? resolveOptionLabel(
               valuePresentation.optionLabelResolvers,
               cell.value,
-              valuePresentation.resolveOptionFallback ?? (() => cell.value),
+              () =>
+                valuePresentation.resolveOptionFallback?.(t, cell.value) ??
+                cell.value,
               t,
             )
           : cell.value,

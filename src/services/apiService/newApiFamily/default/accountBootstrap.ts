@@ -1,19 +1,30 @@
 import {
+  ACCOUNT_CREDENTIAL_RECOVERY_OPERATIONS,
   ACCOUNT_LOGIN_PROVIDERS,
   isAccountLoginProvider,
   type AccountLoginProvider,
 } from "~/constants/accountLogin"
-import { normalizeAccountIdentity } from "~/services/accounts/accountIdentity"
+import { normalizeAccountIdentity } from "~/services/accounts/identity/accountIdentity"
 import type {
   AccessTokenInfo,
   UserInfo,
 } from "~/services/apiAdapters/contracts/accountBootstrap"
 import { newApiFamilyRequests } from "~/services/apiService/newApiFamily/request"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
+import { API_OPERATION_SEMANTICS } from "~/services/apiTransport/type"
 import type { ApiServiceRequest } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 import { createLogger } from "~/utils/core/logger"
 import { t } from "~/utils/i18n/core"
+
+import {
+  forgetNewApiAccessTokenDialect,
+  isAccessTokenContractAbsent,
+  NEW_API_ACCESS_TOKEN_DIALECTS,
+  NEW_API_SCOPED_ACCESS_TOKENS_ENDPOINT,
+  resolveNewApiAccessTokenDialect,
+  type NewApiAccessTokenDialect,
+} from "./accessTokenDialect"
 
 const logger = createLogger("NewApiFamilyAccountBootstrap")
 
@@ -31,6 +42,20 @@ interface SiteStatusInfo {
    * Veloera public status uses a distinct snake-case field.
    */
   check_in_enabled?: boolean
+  /**
+   * Rix API reports the switch under a third name while keeping the same
+   * meaning. Observed 2026-09-26 on Rix API 6.x deployments
+   * (https://github.com/RixAPI/Rix-API): `checkin_enabled` absent,
+   * `enable_checkin: false`, and the console hides the check-in entry unless
+   * that field is `true`.
+   */
+  enable_checkin?: boolean
+  /**
+   * Rix API core version, separate from the deployment's own `version` build
+   * number (the vendor demo reports `version: "6.1.25"` with
+   * `rix_version_message: "6.5.17"`).
+   */
+  rix_version_message?: string
 }
 
 interface AccountBootstrapImplementation {
@@ -117,7 +142,7 @@ function isBoundProviderId(value: unknown): boolean {
  * Upstream: https://github.com/QuantumNous/new-api/blob/v0.9.0/controller/user.go
  * (`buildSelfUserData`) and `model/user.go` (`GitHubId`/`LinuxDOId`).
  */
-function extractLoginProviders(
+export function extractLoginProviders(
   userData: unknown,
 ): readonly AccountLoginProvider[] {
   if (!userData || typeof userData !== "object" || Array.isArray(userData)) {
@@ -150,6 +175,7 @@ export async function fetchUserInfo(
 }> {
   const userData = await newApiFamilyRequests.data<UserInfo>(request, {
     endpoint: "/api/user/self",
+    credentialRecovery: ACCOUNT_CREDENTIAL_RECOVERY_OPERATIONS.Read,
   })
   const userId = normalizeAccountIdentity(userData.id)
 
@@ -196,7 +222,7 @@ export async function createAccessToken(
   const accessToken = await newApiFamilyRequests.data<string>(request, {
     endpoint: "/api/user/token",
     currentTabTransport: "disabled",
-    tempWindowFallback: { statusCodes: [], codes: [] },
+    operationSemantics: API_OPERATION_SEMANTICS.Mutation,
   })
 
   const normalizedAccessToken =
@@ -214,6 +240,70 @@ export async function createAccessToken(
 }
 
 /**
+ * Error for a deployment that issues access tokens only to a browser session
+ * that passed its own step-up verification.
+ *
+ * `POST /api/user/access_tokens` is refused for every caller here by
+ * construction: the deployment's verification policy offers two-factor, passkey,
+ * password or OAuth, and this request can supply none of them. The message is a
+ * log detail only — the completion layer owns the text the user reads.
+ * https://github.com/QuantumNous/new-api/blob/v1.0.0-rc.41/service/security_verification.go
+ */
+function requireScopedAccessTokenVerification(): ApiError {
+  return new ApiError(
+    "The deployment issues an access token only after a security check",
+    undefined,
+    NEW_API_SCOPED_ACCESS_TOKENS_ENDPOINT,
+    API_ERROR_CODES.ACCESS_TOKEN_VERIFICATION_REQUIRED,
+  )
+}
+
+/** Mints the credential one resolved dialect allows, or reports why it cannot. */
+async function mintForDialect(
+  dialect: NewApiAccessTokenDialect,
+  request: ApiServiceRequest,
+): Promise<string> {
+  if (dialect === NEW_API_ACCESS_TOKEN_DIALECTS.SCOPED_ACCESS_TOKENS) {
+    throw requireScopedAccessTokenVerification()
+  }
+
+  return await createAccessToken(request)
+}
+
+/**
+ * Mint the credential this deployment issues, whichever contract it speaks.
+ *
+ * A deployment that owns the scoped access-token routes refuses to issue one to
+ * anything but a browser session that passed a step-up verification, so the
+ * flow reports that instead of sending a request it already knows is refused.
+ * The account is completed by the user creating the token on the deployment's
+ * own security page, which the scoped refusal routes them to.
+ *
+ * A remembered contract is only a preference, so a definite "this deployment
+ * does not own that route" answer makes the contract be resolved again and the
+ * other one tried. Anything less definite keeps the original failure: the
+ * dashboard rotation may already have been dispatched, and resending it would
+ * rotate the account credential twice.
+ */
+async function createAccountAccessToken(
+  request: ApiServiceRequest,
+): Promise<string> {
+  const dialect = await resolveNewApiAccessTokenDialect(request)
+
+  try {
+    return await mintForDialect(dialect, request)
+  } catch (error) {
+    if (!isAccessTokenContractAbsent(error)) throw error
+
+    forgetNewApiAccessTokenDialect(request.baseUrl)
+    const reprobed = await resolveNewApiAccessTokenDialect(request)
+    if (reprobed === dialect) throw error
+
+    return await mintForDialect(reprobed, request)
+  }
+}
+
+/**
  * Return an existing access token or create one for New API-family accounts.
  */
 export async function getOrCreateAccessToken(
@@ -228,7 +318,7 @@ export async function getOrCreateAccessToken(
 
   if (!accessToken) {
     logger.info("访问令牌为空，尝试自动创建")
-    accessToken = await createAccessToken(request)
+    accessToken = await createAccountAccessToken(request)
     await fetchUserInfo(
       {
         ...request,
@@ -253,11 +343,16 @@ export async function getOrCreateAccessToken(
   }
 }
 
-/** Read the New API-family switch from an already-loaded public status. */
+/**
+ * Read the New API-family switch from an already-loaded public status.
+ *
+ * Rix API answers under `enable_checkin`; the New API field keeps precedence so
+ * a deployment that reports both is read exactly as before.
+ */
 export function extractCheckInSupport(
   siteStatus: SiteStatusInfo | null,
 ): boolean | undefined {
-  return siteStatus?.checkin_enabled
+  return siteStatus?.checkin_enabled ?? siteStatus?.enable_checkin
 }
 
 /** Check default New API-family check-in support from public site status. */

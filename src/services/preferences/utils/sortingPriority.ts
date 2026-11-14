@@ -7,6 +7,7 @@ import {
   DATA_TYPE_CUSTOM_REDEEM_URL,
   DATA_TYPE_HEALTH_STATUS,
   DATA_TYPE_INCOME,
+  DATA_TYPE_NAME,
 } from "~/constants"
 import {
   CHECK_IN_METHOD_STATUS_OUTCOMES,
@@ -15,9 +16,10 @@ import {
 import {
   isAccountTodayMetricAvailable,
   isAccountTodayMetricComplete,
-} from "~/services/accounts/accountTodayStats"
+} from "~/services/accounts/metrics/accountTodayStats"
+import { supportsMonetaryBalance } from "~/services/accounts/metrics/monetaryBalancePolicy"
 import { compareAccountDisplayNames } from "~/services/accounts/utils/accountDisplayName"
-import { getSelectedCheckInStatus } from "~/services/checkin/autoCheckin/inspection"
+import { getSelectedCheckInStatus } from "~/services/checkin/autoCheckin/discovery/inspection"
 import type {
   AccountTodayMetricAvailability,
   ActiveSortField,
@@ -25,7 +27,9 @@ import type {
   DisplaySiteData,
   SiteAccount,
   SortField,
+  SortOrder,
 } from "~/types"
+import { SiteHealthStatus } from "~/types"
 import {
   SortingCriteriaType,
   type SortingPriorityConfig,
@@ -59,13 +63,45 @@ export const CONFIGURABLE_SORTING_CRITERIA = [
 
 export type AccountSortGroup = "pinned" | "normal" | "disabled"
 
-export type AccountContextBoost = "current-site" | "open-tabs"
+export type AccountContextBoost = "current-site" | "active-tab" | "open-tabs"
+
+/**
+ * Strength of a related-page match found among open tabs. The tab the user is
+ * viewing outranks related pages that only stay open in the background.
+ */
+export const OPEN_TAB_MATCH_TIER = {
+  /** A related page is open in a tab the user is not viewing. */
+  BACKGROUND: 1,
+  /** A related page is open in the tab the user is viewing. */
+  ACTIVE: 2,
+} as const
+
+export type OpenTabMatchTier =
+  (typeof OPEN_TAB_MATCH_TIER)[keyof typeof OPEN_TAB_MATCH_TIER]
+
+/** Account id to the strongest related-page tier found among its open tabs. */
+export type OpenTabMatchTiers = Record<string, OpenTabMatchTier>
+
+/** Browsing-context tiers in display order; each tier splits into pinned then normal. */
+const CONTEXT_BOOST_RANKS: Record<AccountContextBoost | "none", number> = {
+  "current-site": 0,
+  "active-tab": 1,
+  "open-tabs": 2,
+  none: 3,
+}
+
+/** Display groups inside one context tier: pinned accounts, then normal accounts. */
+const CONTEXT_TIER_GROUPS = 2
+
+/** Keeps disabled accounts behind every context tier and its display groups. */
+const DISABLED_ACCOUNT_PRIORITY =
+  Object.keys(CONTEXT_BOOST_RANKS).length * CONTEXT_TIER_GROUPS
 
 /** Shares the enabled browsing-context tiers between ordering and its UI hints. */
 export function createAccountContextBoostResolver(
   config: SortingPriorityConfig,
   detectedAccountId: string | undefined,
-  matchedAccountScores: Record<string, number>,
+  matchedTabTiers: OpenTabMatchTiers,
 ): (accountId: string) => AccountContextBoost | undefined {
   const enabled = new Set(
     config.criteria
@@ -78,11 +114,10 @@ export function createAccountContextBoostResolver(
       accountId === detectedAccountId
     )
       return "current-site"
-    if (
-      enabled.has(SortingCriteriaType.MATCHED_OPEN_TABS) &&
-      matchedAccountScores[accountId] > 0
-    )
-      return "open-tabs"
+    if (!enabled.has(SortingCriteriaType.MATCHED_OPEN_TABS)) return undefined
+    const tier = matchedTabTiers[accountId]
+    if (tier === OPEN_TAB_MATCH_TIER.ACTIVE) return "active-tab"
+    if (tier === OPEN_TAB_MATCH_TIER.BACKGROUND) return "open-tabs"
     return undefined
   }
 }
@@ -104,10 +139,11 @@ export function getAccountDisplayPriority(
   boost?: AccountContextBoost,
 ): number {
   const group = getAccountSortGroup(account, pinnedAccountIds)
-  if (group === "disabled") return 6
-  const contextRank =
-    boost === "current-site" ? 0 : boost === "open-tabs" ? 1 : 2
-  return contextRank * 2 + (group === "pinned" ? 0 : 1)
+  if (group === "disabled") return DISABLED_ACCOUNT_PRIORITY
+  return (
+    CONTEXT_BOOST_RANKS[boost ?? "none"] * CONTEXT_TIER_GROUPS +
+    (group === "pinned" ? 0 : 1)
+  )
 }
 
 /**
@@ -143,27 +179,46 @@ function isNotCheckedIn(item: DisplaySiteData): boolean {
   return siteNotCheckedIn || customNotCheckedIn
 }
 
+/** Severity order used when sorting by health, from most to least urgent. */
+const HEALTH_STATUS_RANK: Record<SiteHealthStatus, number> = {
+  [SiteHealthStatus.Error]: 1,
+  [SiteHealthStatus.Warning]: 2,
+  [SiteHealthStatus.Unknown]: 3,
+  [SiteHealthStatus.Healthy]: 4,
+}
+
+/** Missing or unexpected statuses rank as unknown so comparisons stay total. */
+function getHealthRank(status: SiteHealthStatus | undefined): number {
+  const rank: number | undefined =
+    HEALTH_STATUS_RANK[status ?? SiteHealthStatus.Unknown]
+  return rank ?? HEALTH_STATUS_RANK[SiteHealthStatus.Unknown]
+}
+
 /** Compares health using the established error-to-healthy severity order. */
 function compareHealthStatus(a: DisplaySiteData, b: DisplaySiteData): number {
-  const healthPriority = { error: 1, warning: 2, unknown: 3, healthy: 4 }
-  const healthA = healthPriority[a.health?.status] ?? healthPriority.unknown
-  const healthB = healthPriority[b.health?.status] ?? healthPriority.unknown
-  return healthA - healthB
+  return getHealthRank(a.health?.status) - getHealthRank(b.health?.status)
+}
+
+/** Ascending comparisons keep their natural order; descending comparisons invert them. */
+function applySortDirection(value: number, sortOrder: SortOrder): number {
+  return sortOrder === "asc" ? value : -value
 }
 
 /** Keeps name ordering deterministic for stale or partially migrated records. */
 function compareAccountNames(
   a: DisplaySiteData,
   b: DisplaySiteData,
-  sortOrder: "asc" | "desc",
+  sortOrder: SortOrder,
 ): number {
   if (typeof a.name === "string" && typeof b.name === "string") {
     return compareAccountDisplayNames(a, b, sortOrder)
   }
 
-  const direction = sortOrder === "asc" ? 1 : -1
   const nameComparison = (a.name ?? "").localeCompare(b.name ?? "")
-  return (nameComparison || a.id.localeCompare(b.id)) * direction
+  return applySortDirection(
+    nameComparison || a.id.localeCompare(b.id),
+    sortOrder,
+  )
 }
 
 /**
@@ -181,17 +236,15 @@ function compareByUserSortField(
   b: DisplaySiteData,
   sortField: SortField,
   currencyType: CurrencyType,
-  sortOrder: "asc" | "desc",
+  sortOrder: SortOrder,
 ) {
   switch (sortField) {
-    case "name":
+    case DATA_TYPE_NAME:
       return compareAccountNames(a, b, sortOrder)
     case DATA_TYPE_CHECK_IN_REQUIREMENT: {
       const aNotCheckedIn = isNotCheckedIn(a) ? 1 : 0
       const bNotCheckedIn = isNotCheckedIn(b) ? 1 : 0
-      return sortOrder === "asc"
-        ? aNotCheckedIn - bNotCheckedIn
-        : bNotCheckedIn - aNotCheckedIn
+      return applySortDirection(aNotCheckedIn - bNotCheckedIn, sortOrder)
     }
     case DATA_TYPE_CUSTOM_CHECK_IN_URL:
     case DATA_TYPE_CUSTOM_REDEEM_URL: {
@@ -199,17 +252,26 @@ function compareByUserSortField(
         sortField === DATA_TYPE_CUSTOM_CHECK_IN_URL ? "url" : "redeemUrl"
       const hasLink = (item: DisplaySiteData) =>
         item.checkIn?.customCheckIn?.[key]?.trim() ? 1 : 0
-      const comparison = hasLink(a) - hasLink(b)
-      return sortOrder === "asc" ? comparison : -comparison
+      return applySortDirection(hasLink(a) - hasLink(b), sortOrder)
     }
-    case DATA_TYPE_HEALTH_STATUS: {
-      const comparison = compareHealthStatus(a, b)
-      return sortOrder === "asc" ? comparison : -comparison
+    case DATA_TYPE_HEALTH_STATUS:
+      return applySortDirection(compareHealthStatus(a, b), sortOrder)
+    case DATA_TYPE_BALANCE: {
+      const aComparable = supportsMonetaryBalance(
+        a.nativeBalance,
+        a.balanceUnavailable,
+      )
+      const bComparable = supportsMonetaryBalance(
+        b.nativeBalance,
+        b.balanceUnavailable,
+      )
+      if (aComparable !== bComparable) return aComparable ? -1 : 1
+      if (!aComparable) return 0
+      return applySortDirection(
+        a.balance[currencyType] - b.balance[currencyType],
+        sortOrder,
+      )
     }
-    case DATA_TYPE_BALANCE:
-      return sortOrder === "asc"
-        ? a.balance[currencyType] - b.balance[currencyType]
-        : b.balance[currencyType] - a.balance[currencyType]
     case DATA_TYPE_CONSUMPTION:
       return compareTodayMetric(
         a.todayConsumption[currencyType],
@@ -235,9 +297,7 @@ function compareByUserSortField(
         typeof b.created_at === "number" && Number.isFinite(b.created_at)
           ? b.created_at
           : 0
-      return sortOrder === "asc"
-        ? aCreatedAt - bCreatedAt
-        : bCreatedAt - aCreatedAt
+      return applySortDirection(aCreatedAt - bCreatedAt, sortOrder)
     }
     default:
       return 0
@@ -253,7 +313,7 @@ function compareTodayMetric(
   aAvailability: AccountTodayMetricAvailability,
   bValue: number,
   bAvailability: AccountTodayMetricAvailability,
-  sortOrder: "asc" | "desc",
+  sortOrder: SortOrder,
 ): number {
   const aAvailable = isAccountTodayMetricAvailable(aAvailability)
   const bAvailable = isAccountTodayMetricAvailable(bAvailability)
@@ -265,8 +325,7 @@ function compareTodayMetric(
     return 0
   }
 
-  const numericComparison =
-    sortOrder === "asc" ? aValue - bValue : bValue - aValue
+  const numericComparison = applySortDirection(aValue - bValue, sortOrder)
   if (numericComparison !== 0) {
     return numericComparison
   }
@@ -297,7 +356,7 @@ function compareManualOrder(
  * @param userSortField Field selected by the user for sorting, or null when field sorting is cleared.
  * @param currencyType Currency used for balance/consumption/income comparisons.
  * @param sortOrder Sort order ('asc' or 'desc').
- * @param matchedAccountScores Map of account IDs to matching scores from open tabs.
+ * @param matchedTabTiers Map of account IDs to the strongest related-page tier found among open tabs.
  * @param pinnedAccountIds The list of pinned account IDs in priority order.
  * @param manualOrderIndices Map of account ID to manual order index (0-based).
  * @returns Comparator function for `Array.prototype.sort()`.
@@ -307,8 +366,8 @@ export function createDynamicSortComparator(
   detectedAccount: SiteAccount | null,
   userSortField: ActiveSortField,
   currencyType: CurrencyType,
-  sortOrder: "asc" | "desc",
-  matchedAccountScores: Record<string, number> = {},
+  sortOrder: SortOrder,
+  matchedTabTiers: OpenTabMatchTiers = {},
   pinnedAccountIds: string[] = [],
   manualOrderIndices: Record<string, number> = {},
 ) {
@@ -316,7 +375,7 @@ export function createDynamicSortComparator(
   const getContextBoost = createAccountContextBoostResolver(
     config,
     detectedAccount?.id,
-    matchedAccountScores,
+    matchedTabTiers,
   )
   return (a: DisplaySiteData, b: DisplaySiteData): number => {
     const priorityComparison =

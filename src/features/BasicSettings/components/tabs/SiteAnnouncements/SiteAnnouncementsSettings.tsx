@@ -14,15 +14,15 @@ import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { SETTINGS_ANCHORS } from "~/constants/settingsAnchors"
 import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
 import { PreferenceSettingSection as SettingSection } from "~/features/BasicSettings/components/shared/PreferenceSettingSection"
-import { useDeferredPreferenceField } from "~/hooks/useDeferredPreferenceField"
+import { useDeferredPreferenceField } from "~/hooks/preferences/useDeferredPreferenceField"
 import toast from "~/lib/notify"
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import {
   SITE_ANNOUNCEMENT_NOTIFICATION_MAX_AGE_DAYS_RANGE,
   SITE_ANNOUNCEMENT_POLLING_INTERVAL_MINUTES_RANGE,
 } from "~/types/siteAnnouncements"
 import { showUpdateToast } from "~/utils/feedback/preferenceFeedback"
-import { openOrFocusOptionsMenuItem } from "~/utils/navigation"
+import { openOrFocusOptionsMenuItem } from "~/utils/navigation/optionsPage"
 
 /**
  * Normalizes user-entered announcement polling minutes to the supported range.
@@ -112,7 +112,7 @@ export default function SiteAnnouncementsSettings() {
         return { ok: true, value: String(intervalMinutes) }
       }
 
-      let response = { success: false }
+      let response: { success: boolean }
       try {
         response = await updateSiteAnnouncementNotifications({
           intervalMinutes,
@@ -149,7 +149,7 @@ export default function SiteAnnouncementsSettings() {
         return { ok: true, value: String(notificationMaxAgeDays) }
       }
 
-      let response = { success: false }
+      let response: { success: boolean }
       try {
         response = await updateSiteAnnouncementNotifications({
           notificationMaxAgeDays,

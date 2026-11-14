@@ -55,6 +55,7 @@ export default defineUserConfig({
               '/options-overview',
               '/permissions',
               '/extension-update-install',
+              '/chromium-crx-self-update',
               '/safari-install',
               '/other-browser-install',
             ]
@@ -67,7 +68,6 @@ export default defineUserConfig({
               '/account-management',
               '/service-guides',
               '/service-guides/fenno',
-              '/service-guides/xuanshuapi',
               '/service-guides/suixiang',
               '/api-credential-profiles',
               '/key-management',
@@ -115,6 +115,8 @@ export default defineUserConfig({
               '/managed-site-model-sync',
               '/self-hosted-site-management',
               '/cliproxyapi-integration',
+              '/omniroute-integration',
+              '/gpt-load-integration',
               '/model-redirect',
               '/new-api-security-verification',
             ]
@@ -152,6 +154,7 @@ export default defineUserConfig({
               '/en/options-overview',
               '/en/permissions',
               '/en/extension-update-install',
+              '/en/chromium-crx-self-update',
               '/en/safari-install',
               '/en/other-browser-install',
             ]
@@ -164,7 +167,6 @@ export default defineUserConfig({
               '/en/account-management',
               '/en/service-guides',
               '/en/service-guides/fenno',
-              '/en/service-guides/xuanshuapi',
               '/en/service-guides/suixiang',
               '/en/api-credential-profiles',
               '/en/key-management',
@@ -212,6 +214,8 @@ export default defineUserConfig({
               '/en/managed-site-model-sync',
               '/en/self-hosted-site-management',
               '/en/cliproxyapi-integration',
+              '/en/omniroute-integration',
+              '/en/gpt-load-integration',
               '/en/model-redirect',
               '/en/new-api-security-verification',
             ]
@@ -249,6 +253,7 @@ export default defineUserConfig({
               '/ja/options-overview',
               '/ja/permissions',
               '/ja/extension-update-install',
+              '/ja/chromium-crx-self-update',
               '/ja/safari-install',
               '/ja/other-browser-install',
             ]
@@ -261,7 +266,6 @@ export default defineUserConfig({
               '/ja/account-management',
               '/ja/service-guides',
               '/ja/service-guides/fenno',
-              '/ja/service-guides/xuanshuapi',
               '/ja/service-guides/suixiang',
               '/ja/api-credential-profiles',
               '/ja/key-management',
@@ -309,6 +313,8 @@ export default defineUserConfig({
               '/ja/managed-site-model-sync',
               '/ja/self-hosted-site-management',
               '/ja/cliproxyapi-integration',
+              '/ja/omniroute-integration',
+              '/ja/gpt-load-integration',
               '/ja/model-redirect',
               '/ja/new-api-security-verification',
             ]

@@ -2,8 +2,9 @@ import userEvent from "@testing-library/user-event"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { useUpdateLogDialogContext } from "~/components/dialogs/UpdateLogDialog"
 import HeaderSection from "~/entrypoints/popup/components/HeaderSection"
+import { POPUP_VIEW_TYPES } from "~/entrypoints/popup/viewTypes"
+import { useUpdateLogDialogContext } from "~/features/UpdateLog"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -19,15 +20,21 @@ import {
   type ProductAnalyticsFeatureId,
 } from "~/services/productAnalytics/contracts"
 import { isExtensionSidePanel } from "~/utils/browser"
-import { getSidePanelSupport } from "~/utils/browser/browserApi"
+import { getSidePanelSupport } from "~/utils/browser/sidePanel"
 import {
   openApiCredentialProfilesPage,
   openFullAccountManagerPage,
   openFullBookmarkManagerPage,
   openSettingsPage,
-  openSidePanelPage,
 } from "~/utils/navigation"
-import { fireEvent, render, screen, waitFor } from "~~/tests/test-utils/render"
+import { openSidePanelPage } from "~/utils/navigation/sidepanel"
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "~~/tests/test-utils/render"
 
 const createDeferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -58,11 +65,8 @@ vi.mock("~/assets/icon.png", () => ({
   default: "icon.png",
 }))
 
-vi.mock("~/components/dialogs/UpdateLogDialog", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("~/components/dialogs/UpdateLogDialog")
-    >()
+vi.mock("~/features/UpdateLog", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/features/UpdateLog")>()
 
   return {
     ...actual,
@@ -78,13 +82,10 @@ vi.mock("~/utils/browser", async (importOriginal) => {
   }
 })
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/sidePanel", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
-  return {
-    ...actual,
-    getSidePanelSupport: vi.fn(),
-  }
+    await importOriginal<typeof import("~/utils/browser/sidePanel")>()
+  return { ...actual, getSidePanelSupport: vi.fn() }
 })
 
 vi.mock("~/contexts/ReleaseUpdateStatusContext", () => ({
@@ -104,8 +105,8 @@ vi.mock("~/utils/navigation", () => ({
   openFullBookmarkManagerPage: vi.fn(),
   openPermissionsOnboardingPage: vi.fn(),
   openSettingsPage: vi.fn(),
-  openSidePanelPage: vi.fn(),
 }))
+vi.mock("~/utils/navigation/sidepanel", () => ({ openSidePanelPage: vi.fn() }))
 
 const {
   accountDataScenario,
@@ -121,7 +122,7 @@ const {
   trackProductAnalyticsActionStartedMock: vi.fn(),
 }))
 
-vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
+vi.mock("~/features/AccountManagement/data/AccountDataContext", () => ({
   useAccountDataContext: () => ({
     isRefreshing: accountDataScenario.isRefreshing,
     handleRefresh: handleRefreshMock,
@@ -231,7 +232,9 @@ describe("popup HeaderSection", () => {
       reason: "missing",
     })
 
-    render(<HeaderSection />, { withReleaseUpdateStatusProvider: false })
+    await act(async () => {
+      render(<HeaderSection />, { withReleaseUpdateStatusProvider: false })
+    })
 
     expect(
       screen.queryByRole("button", { name: "common:actions.openSidePanel" }),
@@ -255,7 +258,7 @@ describe("popup HeaderSection", () => {
   })
 
   it("routes open full page to account manager for accounts view", async () => {
-    render(<HeaderSection activeView="accounts" />, {
+    render(<HeaderSection activeView={POPUP_VIEW_TYPES.Accounts} />, {
       withReleaseUpdateStatusProvider: false,
     })
 
@@ -271,7 +274,7 @@ describe("popup HeaderSection", () => {
   })
 
   it("routes open full page to bookmark manager for bookmarks view", async () => {
-    render(<HeaderSection activeView="bookmarks" />, {
+    render(<HeaderSection activeView={POPUP_VIEW_TYPES.Bookmarks} />, {
       withReleaseUpdateStatusProvider: false,
     })
 
@@ -287,9 +290,12 @@ describe("popup HeaderSection", () => {
   })
 
   it("routes open full page to API credential profiles for API credentials view", async () => {
-    render(<HeaderSection activeView="apiCredentialProfiles" />, {
-      withReleaseUpdateStatusProvider: false,
-    })
+    render(
+      <HeaderSection activeView={POPUP_VIEW_TYPES.ApiCredentialProfiles} />,
+      {
+        withReleaseUpdateStatusProvider: false,
+      },
+    )
 
     fireEvent.click(
       await screen.findByRole("button", {

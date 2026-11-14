@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import CopyKeyDialog from "~/features/AccountManagement/components/CopyKeyDialog"
 import { useCopyKeyDialog } from "~/features/AccountManagement/components/CopyKeyDialog/hooks/useCopyKeyDialog"
-import type { AccountKeyCreationResult } from "~/services/accounts/accountKeyCreation"
-import { createUnattributedAccountCreatedRuntimeSecret } from "~/services/accounts/createdRuntimeSecret"
+import type { AccountKeyCreationResult } from "~/services/accounts/keys/accountKeyCreation"
+import { createUnattributedAccountCreatedRuntimeSecret } from "~/services/accounts/keys/createdRuntimeSecret"
 import { AccountKeyResourceError } from "~/services/apiAdapters/contracts/accountKeyResource"
 import { buildNewApiKeyCreationResult } from "~~/tests/test-utils/accountKeyFixtures"
 import {
@@ -35,7 +35,7 @@ const { manualResult, manualProps } = vi.hoisted(() => ({
   manualResult: { current: null as AccountKeyCreationResult | null },
   manualProps: vi.fn(),
 }))
-vi.mock("~/features/TokenProvisioning/components/AddTokenDialog", () => ({
+vi.mock("~/features/TokenProvisioning/creation/AddTokenDialog", () => ({
   default: (props: any) => {
     manualProps(props)
     return props.isOpen ? (
@@ -220,6 +220,56 @@ describe("CopyKeyDialog native creation handoff", () => {
     expect(manualProps).toHaveBeenCalledWith(
       expect.objectContaining({ showOneTimeKeyDialog: false }),
     )
+  })
+
+  it("keeps editor-opening feedback on the action without reporting required input as a failure", async () => {
+    fetchAccountTokensMock.mockResolvedValue([])
+    prepareAccountKeyCreationSpy.mockResolvedValue({ kind: "input-required" })
+    await start()
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    const createButton = await screen.findByRole("button", {
+      name: "keyManagement:native.editor.opening.loading",
+    })
+    expect(createButton).toBeDisabled()
+    expect(
+      screen.getByRole("button", { name: "ui:dialog.copyKey.createCustomKey" }),
+    ).toBeDisabled()
+    expect(createButton).toHaveAttribute("aria-busy", "true")
+
+    await act(async () => {
+      manualProps.mock.lastCall?.[0].onEditorReady()
+    })
+    expect(
+      screen.queryByRole("button", {
+        name: "keyManagement:native.editor.opening.loading",
+      }),
+    ).toBeNull()
+  })
+
+  it("shows opening progress on the custom action when that action was chosen", async () => {
+    fetchAccountTokensMock.mockResolvedValue([])
+    const user = userEvent.setup()
+    render(<CopyKeyDialog isOpen onClose={() => {}} account={ACCOUNT} />)
+    const custom = await screen.findByRole("button", {
+      name: "ui:dialog.copyKey.createCustomKey",
+    })
+    await user.click(custom)
+    expect(custom).toHaveAccessibleName(
+      "keyManagement:native.editor.opening.loading",
+    )
+    expect(custom).toHaveAttribute("aria-busy", "true")
+    expect(custom).toBeDisabled()
+    expect(
+      screen.getByRole("button", { name: "ui:dialog.copyKey.createKey" }),
+    ).toBeDisabled()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    act(() => manualProps.mock.lastCall?.[0].onClose())
+    expect(
+      screen.queryByRole("button", { name: "Submit native editor" }),
+    ).toBeNull()
+    expect(custom).toHaveAccessibleName("ui:dialog.copyKey.createCustomKey")
+    expect(custom).not.toBeDisabled()
   })
 
   it("drops a late creation handoff when credentials change", async () => {

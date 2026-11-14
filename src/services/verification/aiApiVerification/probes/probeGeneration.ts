@@ -12,9 +12,17 @@ type ProbeGenerationResult<
   TOOLS extends ToolSet,
   OUTPUT extends Output.Output,
 > = Pick<
-  GenerateTextResult<TOOLS, OUTPUT>,
-  "output" | "text" | "toolCalls" | "toolResults" | "sources"
->
+  GenerateTextResult<TOOLS, Record<string, unknown>, OUTPUT>,
+  | "text"
+  | "toolCalls"
+  | "toolResults"
+  | "sources"
+  | "usage"
+  | "finishReason"
+  | "rawFinishReason"
+> & {
+  output?: GenerateTextResult<TOOLS, Record<string, unknown>, OUTPUT>["output"]
+}
 
 /**
  * Run exactly the selected generation mode and aggregate streaming results.
@@ -24,7 +32,13 @@ export async function runProbeGeneration<
   TOOLS extends ToolSet,
   OUTPUT extends Output.Output,
 >(
-  options: Parameters<typeof generateText<TOOLS, OUTPUT>>[0],
+  options: Parameters<
+    typeof generateText<TOOLS, Record<string, unknown>, OUTPUT>
+  >[0] &
+    Pick<
+      Parameters<typeof streamText<TOOLS, Record<string, unknown>, OUTPUT>>[0],
+      "include" | "onChunk"
+    >,
   mode: ApiVerificationMode = API_VERIFICATION_MODES.Streaming,
 ): Promise<ProbeGenerationResult<TOOLS, OUTPUT>> {
   options.abortSignal?.throwIfAborted()
@@ -34,11 +48,16 @@ export async function runProbeGeneration<
       const result = await generateText(options)
       options.abortSignal?.throwIfAborted()
       return {
-        output: result.output,
+        // The SDK's default output getter throws for a tool-only final turn.
+        // Only structured-output probes require that getter to be evaluated.
+        output: options.output ? result.output : undefined,
         text: result.text,
         toolCalls: result.toolCalls,
         toolResults: result.toolResults,
         sources: result.sources,
+        usage: result.usage,
+        finishReason: result.finishReason,
+        rawFinishReason: result.rawFinishReason,
       }
     } catch (error) {
       options.abortSignal?.throwIfAborted()
@@ -57,22 +76,47 @@ export async function runProbeGeneration<
     },
   })
   try {
-    const [output, text, toolCalls, toolResults, sources, finishReason] =
-      await Promise.all([
-        result.output,
-        result.text,
-        result.toolCalls,
-        result.toolResults,
-        result.sources,
-        result.finishReason,
-      ])
+    const [
+      output,
+      text,
+      toolCalls,
+      toolResults,
+      sources,
+      finishReason,
+      usage,
+      rawFinishReason,
+    ] = await Promise.all([
+      options.output ? result.output : undefined,
+      result.text,
+      result.toolCalls,
+      result.toolResults,
+      result.sources,
+      result.finishReason,
+      result.usage,
+      result.rawFinishReason,
+    ])
 
     options.abortSignal?.throwIfAborted()
-    if (hasStreamError || finishReason === "error") {
+    // The SDK preserves partial output for interrupted streams without onError.
+    // A probe must receive a complete response before treating it as success.
+    if (
+      hasStreamError ||
+      finishReason === "error" ||
+      finishReason === "interrupted"
+    ) {
       throw streamError ?? new Error("AI generation stream failed")
     }
 
-    return { output, text, toolCalls, toolResults, sources }
+    return {
+      output,
+      text,
+      toolCalls,
+      toolResults,
+      sources,
+      finishReason,
+      usage,
+      rawFinishReason,
+    }
   } catch (error) {
     options.abortSignal?.throwIfAborted()
     // The SDK's aggregate output may reject with NoOutputGeneratedError before

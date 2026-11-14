@@ -161,6 +161,43 @@ export const refreshSearchControls: OptionsSearchItemDefinition[] = [
     },
   ),
   buildControlDefinition(
+    "control:shield-turnstile-assist",
+    "refresh",
+    SHIELD_SETTINGS_TARGET_IDS.turnstileAssist,
+    "settings:refresh.shieldTurnstileAssistTitle",
+    545,
+    {
+      descriptionKey: "settings:refresh.shieldTurnstileAssistDesc",
+      breadcrumbsKeys: shieldBreadcrumbs,
+      keywords: ["turnstile", "notification", "foreground", "captcha"],
+      keywordKeys: [
+        "settings:refresh.shieldTurnstileAssistNotify",
+        "settings:refresh.shieldTurnstileAssistPage",
+        "settings:refresh.turnstileNotificationEnable",
+        "settings:refresh.turnstileNotificationManage",
+      ],
+    },
+  ),
+  buildControlDefinition(
+    "control:shield-turnstile-solver",
+    "refresh",
+    SHIELD_SETTINGS_TARGET_IDS.turnstileSolver,
+    "settings:refresh.shieldTurnstileSolverTitle",
+    545,
+    {
+      descriptionKey: "settings:refresh.shieldTurnstileSolverDesc",
+      breadcrumbsKeys: shieldBreadcrumbs,
+      keywords: ["turnstile", "solver", "token", "captcha", "quota"],
+      keywordKeys: [
+        "settings:refresh.shieldTurnstileSolverEnabled",
+        "settings:refresh.shieldTurnstileSolverEndpoint",
+        "settings:refresh.shieldTurnstileSolverApiKey",
+        "settings:refresh.shieldTurnstileSolverModeTitle",
+        "settings:refresh.shieldTurnstileSolverTimeout",
+      ],
+    },
+  ),
+  buildControlDefinition(
     "control:shield-automatic-features",
     "refresh",
     SHIELD_SETTINGS_TARGET_IDS.automaticFeatures,

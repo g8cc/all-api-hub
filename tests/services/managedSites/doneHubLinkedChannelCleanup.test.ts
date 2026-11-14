@@ -11,6 +11,7 @@ import {
   runLinkedChannelCleanup,
 } from "~/services/managedSites/linkedChannelCleanup"
 import { buildManagedSiteChannel } from "~~/tests/test-utils/factories"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const mocks = vi.hoisted(() => ({
   stored: new Map<string, unknown>(),
@@ -39,14 +40,19 @@ vi.mock("~/services/preferences/userPreferences", () => ({
 vi.mock("~/services/apiAdapters/registry", () => ({
   getManagedSiteCapabilities: () => ({ config: { get: async () => config } }),
 }))
-vi.mock("~/services/managedSites/runtimeConfig", async (original) => ({
-  ...(await original<typeof import("~/services/managedSites/runtimeConfig")>()),
-  getCurrentManagedSiteType: async () => "done-hub",
-}))
+vi.mock(
+  "~/services/managedSites/configuration/runtimeConfig",
+  async (original) => ({
+    ...(await original<
+      typeof import("~/services/managedSites/configuration/runtimeConfig")
+    >()),
+    getCurrentManagedSiteType: async () => "done-hub",
+  }),
+)
 vi.mock("~/services/apiAdapters/managedResources/registry", () => ({
   getManagedResourceRegistration: () => doneHubManagedResourceRegistration,
 }))
-vi.mock("~/services/apiAdapters/managedResources/doneHubOperations", () => ({
+vi.mock("~/services/apiAdapters/managedResources/doneHub/operations", () => ({
   doneHubChannelOperations: { list: mocks.list, delete: mocks.remove },
   doneHubManagedResourceModels: {},
 }))
@@ -112,7 +118,7 @@ it("reconciles an already-deleted pending channel without repeating deletion", a
     ),
   )
   await finishLinkedChannelCleanup(task)
-  const [pending] = await getLinkedChannelCleanupTasks()
+  const pending = atIndex(await getLinkedChannelCleanupTasks(), 0)
   expect(pending).toBeDefined()
   deleted = true
   await runLinkedChannelCleanup(pending)

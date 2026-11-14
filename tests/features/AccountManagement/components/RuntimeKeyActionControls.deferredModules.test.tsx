@@ -4,8 +4,8 @@ import { Suspense } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { RuntimeKeyActionControls } from "~/features/AccountManagement/components/CopyKeyDialog/RuntimeKeyActionControls"
-import { buildServiceCredentialRuntimeKey } from "~/services/accounts/accountRuntimeKeys"
-import type { AccountRuntimeKey } from "~/services/accounts/accountRuntimeKeys"
+import { buildServiceCredentialRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
+import type { AccountRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
 import { AuthTypeEnum } from "~/types"
 import { buildNewApiRuntimeKey } from "~~/tests/test-utils/accountKeyFixtures"
 import { render, screen, waitFor } from "~~/tests/test-utils/render"
@@ -47,7 +47,7 @@ vi.mock("~/contexts/FeatureGuidanceContext", () => ({
   }),
 }))
 
-vi.mock("~/components/dialogs/ChannelDialog", () => ({
+vi.mock("~/features/ManagedSiteChannels/editor/ChannelDialog", () => ({
   ChannelDialogProvider: ({ children }: { children: ReactNode }) => children,
   useChannelDialog: () => ({
     openWithAccount: vi.fn(),
@@ -55,26 +55,31 @@ vi.mock("~/components/dialogs/ChannelDialog", () => ({
   }),
 }))
 
-vi.mock("~/components/ManagedSiteImportButton", () => ({
+vi.mock("~/features/ManagedSiteWidgets/ManagedSiteImportButton", () => ({
   ManagedSiteImportButton: () => null,
 }))
 
-vi.mock("~/components/ExportActionsMenu", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/components/ExportActionsMenu")>()
-  return actual
-})
+vi.mock(
+  "~/features/CredentialExport/ExportActionsMenu",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/features/CredentialExport/ExportActionsMenu")
+      >()
+    return actual
+  },
+)
 
-vi.mock("~/components/ClaudeCodeRouterImportDialog", () => ({
+vi.mock("~/features/CredentialExport/ClaudeCodeRouterImportDialog", () => ({
   ClaudeCodeRouterImportDialog: () => null,
 }))
 vi.mock("~/components/CliProxyApiExportDialog", () => ({
   CliProxyApiExportDialog: () => null,
 }))
-vi.mock("~/components/CursorPlusExportDialog", () => ({
+vi.mock("~/features/CredentialExport/CursorPlusExportDialog", () => ({
   CursorPlusExportDialog: () => null,
 }))
-vi.mock("~/components/KelivoExportDialog", () => ({
+vi.mock("~/features/CredentialExport/KelivoExportDialog", () => ({
   KelivoExportDialog: () => null,
 }))
 
@@ -84,7 +89,7 @@ const kiloCodeModuleLoadMock = vi.hoisted(() => ({ count: 0 }))
 const kiloCodeProfileModuleLoadMock = vi.hoisted(() => ({ count: 0 }))
 const cherryStudioModuleLoadMock = vi.hoisted(() => ({ count: 0 }))
 
-vi.mock("~/components/KiloCodeExportDialog", () => {
+vi.mock("~/features/KiloCodeExport/KiloCodeExportDialog", () => {
   kiloCodeModuleLoadMock.count += 1
   return {
     KiloCodeExportDialog: (props: unknown) =>
@@ -93,7 +98,7 @@ vi.mock("~/components/KiloCodeExportDialog", () => {
 })
 
 vi.mock(
-  "~/features/ApiCredentialProfiles/components/KiloCodeProfileExportDialog",
+  "~/features/ApiCredentialProfiles/export/KiloCodeProfileExportDialog",
   () => {
     kiloCodeProfileModuleLoadMock.count += 1
     return {

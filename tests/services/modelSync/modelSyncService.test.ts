@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { DoneHubChannelType } from "~/constants/doneHub"
 import { ChannelType } from "~/constants/newApi"
-import { SITE_TYPES } from "~/constants/siteType"
-import type { ManagedSiteRuntimeConfig } from "~/services/managedSites/runtimeConfig"
+import { SITE_TYPES, type ManagedSiteType } from "~/constants/siteType"
+import type { ManagedSiteRuntimeConfig } from "~/services/managedSites/configuration/runtimeConfig"
 import {
   applyChannelModelFilters,
-  matchesProbeFilterRule,
+  matchesProbeFilterRule as evaluateProbeFilterRule,
+  type ProbeFilterContext,
 } from "~/services/models/modelSync/channelModelFilterEvaluator"
+import { ChannelModelSelection } from "~/services/models/modelSync/channelModelSelection"
 import { ModelSyncService } from "~/services/models/modelSync/modelSyncService"
 import { PROTECTION_BYPASS_USER_COMMANDS } from "~/services/protectionBypass/contracts"
 import type { ChannelResourceConfigMap } from "~/types/channelConfig"
@@ -71,6 +73,25 @@ vi.mock("~/services/verification/aiApiVerification", async (importOriginal) => {
     runApiVerificationProbe: runApiVerificationProbeMock,
   }
 })
+
+// Supply the same adapter-owned protocol decision that the real sync callers provide.
+const matchesProbeFilterRule = (
+  rule: ChannelModelProbeFilterRule,
+  modelId: string,
+  context: ProbeFilterContext,
+) => {
+  context.models = getSiteTypeCapabilitiesMock(
+    context.managedConfig.siteType,
+  )?.managedSites?.models
+  return evaluateProbeFilterRule(rule, modelId, context)
+}
+const resolveApiVerificationTypeForChannelType = (
+  siteType: ManagedSiteType,
+  channelType: unknown,
+) =>
+  getSiteTypeCapabilitiesMock(
+    siteType,
+  )?.managedSites?.models?.resolveVerificationProtocol?.(channelType) ?? null
 
 const makeFilterRule = (
   partial: Partial<ChannelModelPatternFilterRule>,
@@ -282,13 +303,19 @@ const makeChannelConfigs = (
     }),
   )
 
-beforeEach(() => {
+beforeEach(async () => {
+  const actual = await vi.importActual<
+    typeof import("~/services/apiAdapters/registry")
+  >("~/services/apiAdapters/registry")
   vi.clearAllMocks()
   getSiteTypeCapabilitiesMock.mockImplementation((siteType) => ({
     siteType,
     managedSites: {
       matching: getManagedSiteCapabilitiesForTypeMock()?.matching,
       models: {
+        resolveVerificationProtocol:
+          actual.getSiteTypeCapabilities(siteType).managedSites?.models
+            ?.resolveVerificationProtocol,
         list: listAllChannelsMock,
         fetchModels: fetchChannelModelsMock,
         updateModels: updateChannelModelsMock,
@@ -326,25 +353,24 @@ beforeEach(() => {
   })
 })
 
-describe("ModelSyncService - allowed model filtering", () => {
+describe("ChannelModelSelection - allowed model filtering", async () => {
   const createService = (allowed?: string[]) =>
-    new ModelSyncService(
+    new ChannelModelSelection(
       makeNewApiRuntimeConfig({
         baseUrl: "https://example.com",
         adminToken: "dummy-token",
         userId: "1",
       }),
-      undefined,
       allowed,
     )
 
-  const callFilter = (service: ModelSyncService, models: string[]) =>
-    (service as any).filterAllowedModels(models) as string[]
+  const callFilter = (selection: ChannelModelSelection, models: string[]) =>
+    selection.select(makeChannel({ id: 1 }), models)
 
-  it("returns trimmed unique models when no allow-list exists", () => {
+  it("returns trimmed unique models when no allow-list exists", async () => {
     const service = createService()
 
-    const result = callFilter(service, [
+    const result = await callFilter(service, [
       "  gpt-4o  ",
       "gpt-4o",
       "claude-3",
@@ -354,10 +380,10 @@ describe("ModelSyncService - allowed model filtering", () => {
     expect(result).toEqual(["gpt-4o", "claude-3"])
   })
 
-  it("filters models using the configured allow-list", () => {
+  it("filters models using the configured allow-list", async () => {
     const service = createService(["gpt-4o", "claude-3"])
 
-    const result = callFilter(service, [
+    const result = await callFilter(service, [
       " gpt-4o  ",
       "gpt-4o-mini",
       "claude-3",
@@ -367,16 +393,137 @@ describe("ModelSyncService - allowed model filtering", () => {
     expect(result).toEqual(["gpt-4o", "claude-3"])
   })
 
-  it("deduplicates after filtering", () => {
+  it("deduplicates after filtering", async () => {
     const service = createService(["gpt-4o"])
 
-    const result = callFilter(service, ["gpt-4o", " gpt-4o  ", "gpt-4o"])
+    const result = await callFilter(service, ["gpt-4o", " gpt-4o  ", "gpt-4o"])
 
     expect(result).toEqual(["gpt-4o"])
   })
 })
 
+describe("ChannelModelSelection - attempt lifetime", () => {
+  it("aborts an unfinished probe at the fallback deadline", async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal("AbortSignal", { timeout: undefined })
+    try {
+      let markStarted!: () => void
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve
+      })
+      let signal!: AbortSignal
+      runApiVerificationProbeMock.mockImplementationOnce(({ abortSignal }) => {
+        signal = abortSignal
+        return new Promise((_resolve, reject) => {
+          abortSignal.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          )
+          markStarted()
+        })
+      })
+      const selection = new ChannelModelSelection(
+        makeRuntimeConfig({ siteType: SITE_TYPES.NEW_API }),
+        undefined,
+        undefined,
+        [makeProbeRule()],
+      )
+      const result = selection.select(
+        makeChannel({ id: 79, credential: "sk-channel", models: [] }),
+        ["model-a"],
+      )
+      await started
+      expect(signal.aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(30_000)
+      await expect(result).resolves.toEqual([])
+      expect(signal.aborted).toBe(true)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
+  it("shares secret and probe evidence across scopes but refreshes it for each attempt", async () => {
+    const selection = new ChannelModelSelection(
+      makeRuntimeConfig({ siteType: SITE_TYPES.NEW_API }),
+      undefined,
+      makeChannelConfigs(
+        { 79: [makeProbeRule({ id: "channel-duplicate" })] },
+        "https://example.com",
+      ),
+      [makeProbeRule({ id: "global-duplicate" })],
+    )
+    const channel = makeChannel({ id: 79, credential: "", models: [] })
+    await expect(
+      selection.select(channel, ["model-a", "model-b"]),
+    ).resolves.toEqual(["model-a", "model-b"])
+    expect(fetchChannelSecretKeyMock).toHaveBeenCalledTimes(1)
+    expect(runApiVerificationProbeMock).toHaveBeenCalledTimes(2)
+
+    fetchChannelSecretKeyMock.mockResolvedValueOnce("sk-replacement")
+    runApiVerificationProbeMock.mockResolvedValue({
+      id: "text-generation",
+      status: "fail",
+      latencyMs: 1,
+      summary: "failed",
+    })
+    await expect(
+      selection.select(channel, ["model-a", "model-b"]),
+    ).resolves.toEqual([])
+    expect(fetchChannelSecretKeyMock).toHaveBeenCalledTimes(2)
+    expect(runApiVerificationProbeMock).toHaveBeenCalledTimes(4)
+    expect(runApiVerificationProbeMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ apiKey: "sk-replacement" }),
+    )
+  })
+
+  it.each(["success", "failure"] as const)(
+    "releases the fallback probe deadline after %s",
+    async (outcome) => {
+      vi.useFakeTimers()
+      vi.stubGlobal("AbortSignal", { timeout: undefined })
+      try {
+        const selection = new ChannelModelSelection(
+          makeRuntimeConfig({ siteType: SITE_TYPES.NEW_API }),
+          undefined,
+          undefined,
+          [makeProbeRule()],
+        )
+        if (outcome === "failure")
+          fetchChannelSecretKeyMock.mockRejectedValueOnce(
+            new Error("hidden key unavailable"),
+          )
+        const result = selection.select(
+          makeChannel({ id: 79, credential: "", models: [] }),
+          ["model-a"],
+        )
+        if (outcome === "success")
+          await expect(result).resolves.toEqual(["model-a"])
+        else await expect(result).rejects.toThrow()
+        expect(vi.getTimerCount()).toBe(0)
+      } finally {
+        vi.unstubAllGlobals()
+        vi.useRealTimers()
+      }
+    },
+  )
+})
+
 describe("ModelSyncService - siteType routing", () => {
+  it("includes GPT-Load management credentials in the service diagnostic snapshot", () => {
+    const service = new ModelSyncService({
+      siteType: SITE_TYPES.GPT_LOAD,
+      config: {
+        baseUrl: "https://gpt-load.example.invalid",
+        managementKey: "gpt-load-management-secret",
+      },
+    })
+    expect(service.knownSecrets).toContain("gpt-load-management-secret")
+    expect(service.knownSecretsComplete).toBe(true)
+  })
+
   it("exposes an immutable complete secret snapshot for the runtime config", () => {
     const service = new ModelSyncService(
       makeNewApiRuntimeConfig({ adminToken: "snapshot-secret-placeholder" }),
@@ -1276,11 +1423,43 @@ describe("ModelSyncService - probe-backed filters", () => {
     })
   })
 
-  it("maps supported string and numeric channel types to verification api types", async () => {
-    const { resolveApiVerificationTypeForChannelType } = await import(
-      "~/services/models/modelSync/channelModelFilterEvaluator"
+  it("uses the adapter's protocol decision for a native channel type", async () => {
+    getSiteTypeCapabilitiesMock.mockReturnValue({
+      managedSites: {
+        models: { resolveVerificationProtocol: () => "anthropic" },
+      },
+    })
+    await matchesProbeFilterRule(makeProbeRule(), "model-a", {
+      channel: makeChannel({
+        id: 1,
+        type: "adapter-native-type",
+        credential: "sk-test",
+      }),
+      managedConfig: makeExampleRuntimeConfig(),
+      cache: new Map(),
+    })
+    expect(runApiVerificationProbeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiType: "anthropic" }),
     )
+  })
 
+  it("does not infer a protocol when the adapter declares the channel unsupported", async () => {
+    getSiteTypeCapabilitiesMock.mockReturnValue({
+      managedSites: {
+        models: { resolveVerificationProtocol: () => null },
+      },
+    })
+    await expect(
+      matchesProbeFilterRule(makeProbeRule(), "model-a", {
+        channel: makeChannel({ id: 1, credential: "sk-test" }),
+        managedConfig: makeExampleRuntimeConfig(),
+        cache: new Map(),
+      }),
+    ).rejects.toMatchObject({ reason: "channel-type-unsupported" })
+    expect(runApiVerificationProbeMock).not.toHaveBeenCalled()
+  })
+
+  it("maps supported string and numeric channel types to verification api types", async () => {
     expect(
       resolveApiVerificationTypeForChannelType(
         SITE_TYPES.NEW_API,
@@ -1307,10 +1486,6 @@ describe("ModelSyncService - probe-backed filters", () => {
   it.each([undefined, null, {}])(
     "rejects malformed native channel type %j during protocol selection",
     async (channelType) => {
-      const { resolveApiVerificationTypeForChannelType } = await import(
-        "~/services/models/modelSync/channelModelFilterEvaluator"
-      )
-
       expect(
         resolveApiVerificationTypeForChannelType(
           SITE_TYPES.NEW_API,
@@ -1488,6 +1663,9 @@ describe("ModelSyncService - probe-backed filters", () => {
     ).rejects.toMatchObject({
       reason: "key-unavailable",
     })
+    const diagnostics = JSON.stringify(loggerMocks.warn.mock.calls)
+    expect(diagnostics).not.toContain("runtime-token")
+    expect(diagnostics).not.toContain("sk-hidden-channel-key")
   })
 
   it("redacts Octopus and AxonHub secrets from key-resolution failures", async () => {

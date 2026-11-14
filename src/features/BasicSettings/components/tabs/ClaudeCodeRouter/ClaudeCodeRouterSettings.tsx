@@ -5,9 +5,9 @@ import { Card, CardItem, CardList, Input } from "~/components/ui"
 import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
 import { createPreferenceDraftReset } from "~/features/BasicSettings/components/shared/createPreferenceDraftReset"
 import { PreferenceSettingSection as SettingSection } from "~/features/BasicSettings/components/shared/PreferenceSettingSection"
-import { blurInputOnEnter } from "~/hooks/useDeferredPreferenceField"
-import { usePreferenceDraft } from "~/hooks/usePreferenceDraft"
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
+import { blurInputOnEnter } from "~/hooks/preferences/useDeferredPreferenceField"
+import { usePreferenceDraft } from "~/hooks/preferences/usePreferenceDraft"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import { runPreferenceUpdateWithToast } from "~/utils/feedback/preferenceFeedback"
 
 /**

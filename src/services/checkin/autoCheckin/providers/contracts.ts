@@ -6,7 +6,7 @@ import type {
   ApiServiceRequest,
   ApiTransportRequestObserver,
 } from "~/services/apiTransport/type"
-import type { AutoCheckinProviderResult } from "~/services/checkin/autoCheckin/providers/types"
+import type { AutoCheckinProviderOutcome } from "~/services/checkin/autoCheckin/providers/types"
 import type { ProtectionBypassExecution } from "~/services/protectionBypass/contracts"
 import type { SiteAccount } from "~/types"
 import type {
@@ -56,12 +56,6 @@ export type KnownCheckInMethodStatus = Extract<
 export interface AutoCheckinProviderContext {
   tempWindowRequestSource: TempWindowRequestSource
   protectionBypassExecution: ProtectionBypassExecution
-  /**
-   * True only for user-initiated runs, where a provider may foreground a
-   * verification window and wait for the user to complete an interactive
-   * challenge. Automatic runs leave this unset so they never disturb the user.
-   */
-  allowInteractiveVerification?: boolean
   /** Process-local evidence for classifying a lost mutation response. */
   mutationLifecycle?: AutoCheckinMutationLifecycle
   /** Fresh status read by the Module in this execution cycle. */
@@ -81,10 +75,29 @@ export type AutoCheckinProviderReadiness =
 export interface AutoCheckinProvider {
   /** Maps provider-specific status errors for both discovery and execution. */
   classifyStatusError?: (error: unknown) => CheckInMethodUnknownReason
-  /** This protocol must never mutate without fresh authoritative readback. */
+  /**
+   * This protocol must confirm today's status before it mutates. Only a method
+   * with `getStatus` can honour it; a method without readback submits directly.
+   */
   readonly requiresAuthoritativeStatusBeforeMutation?: boolean
-  /** Pinned server idempotency permits a later status-first retry. */
-  readonly retryAfterUncertainNotChecked?: boolean
+  /**
+   * This protocol has one canonical route the account may replace with its
+   * deployment's own path. Declared only where the operations behind that route
+   * are otherwise identical, so an override never invents a new protocol.
+   */
+  readonly supportsRouteOverride?: boolean
+  /** The route's default path, so route discovery can skip it. */
+  readonly canonicalRoutePath?: string
+  /**
+   * Read-only probe for one candidate path offered by the deployment's own
+   * assets. Returns a verified status, or `undefined` when the path is not this
+   * method's contract; it never mutates and never falls back to a mutation.
+   */
+  probeRouteOverride?: (input: {
+    account: SiteAccount
+    path: string
+    signal?: AbortSignal
+  }) => Promise<CheckInMethodStatus | undefined>
   getReadiness(account: SiteAccount): AutoCheckinProviderReadiness
   /** Optional read-only protocol probe used by full discovery. */
   detect?: (
@@ -94,8 +107,17 @@ export interface AutoCheckinProvider {
   getStatus?: (
     context: AutoCheckinProviderReadContext,
   ) => Promise<CheckInMethodStatus | undefined>
+  /**
+   * Executes the daily check-in.
+   *
+   * A success whose response carries the award the deployment granted must also
+   * set `reward` as internal monetary quota or an explicitly identified native
+   * asset. A method whose response carries no authoritative amount leaves it unset rather
+   * than report a constant or an estimate. See `docs/agents/site-integrations.md`
+   * for the per-family helpers and the coverage table.
+   */
   checkIn(
     account: SiteAccount | AnyrouterCheckInParams,
     context: AutoCheckinProviderContext,
-  ): Promise<AutoCheckinProviderResult>
+  ): Promise<AutoCheckinProviderOutcome>
 }

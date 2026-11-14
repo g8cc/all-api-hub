@@ -6,41 +6,45 @@ import {
   CHECK_IN_METHOD_UNKNOWN_REASON_CODES,
   CHECK_IN_PROVIDER_READINESS_REASONS,
 } from "~/constants/checkIn"
-import {
-  TURNSTILE_DEFAULT_WAIT_TIMEOUT_MS,
-  TURNSTILE_INTERACTIVE_WAIT_TIMEOUT_MS,
-} from "~/constants/turnstile"
-import { normalizeAccountIdentity } from "~/services/accounts/accountIdentity"
-import {
-  resolveAccountSiteRouteUrl,
-  SITE_ROUTE_KINDS,
-} from "~/services/accounts/utils/siteRouteResolver"
 import type {
   NewApiCheckInRecord,
   NewApiCheckInResponse,
-  NewApiCheckInStatus,
 } from "~/services/apiService/newApiFamily/checkInDto"
-import { fetchSupportCheckIn } from "~/services/apiService/newApiFamily/default/accountBootstrap"
 import { newApiFamilyRequests } from "~/services/apiService/newApiFamily/request"
-import { buildCompatUserIdHeaders } from "~/services/apiTransport/compatHeaders"
-import { REQUEST_CONFIG } from "~/services/apiTransport/constant"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
-import type { ApiServiceRequest } from "~/services/apiTransport/type"
 import { getCheckInMethodUnknownReason } from "~/services/checkin/autoCheckin/errors"
 import type {
   AutoCheckinProvider,
   AutoCheckinProviderContext,
 } from "~/services/checkin/autoCheckin/providers/contracts"
 import { detectWithStatusReadback } from "~/services/checkin/autoCheckin/providers/detection"
+import { resolveNativePageCheckinResult } from "~/services/checkin/autoCheckin/providers/newApiNativePage"
+import {
+  createCheckInRequest,
+  fetchCheckedInTodayStatus,
+  getProviderErrorMessage,
+  isCheckInDisabled,
+  NEW_API_MESSAGE_KEYS,
+  probeCheckInRoute,
+  resolveCheckInEndpoint,
+  resolveStandardCheckinResult,
+} from "~/services/checkin/autoCheckin/providers/newApiProtocol"
+import {
+  isTurnstileRelatedMessage,
+  isTurnstileRequiredMessage,
+  resolveTurnstileAssistedCheckinResult,
+} from "~/services/checkin/autoCheckin/providers/newApiTurnstile"
 import {
   AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS,
   AUTO_CHECKIN_USER_CHECKIN_ENDPOINT,
   getEffectiveAuthType,
   isAlreadyCheckedMessage,
+  isPermissionFailureMessage,
   normalizeCheckinMessage,
+  readQuotaReward,
   resolveProviderErrorResult,
 } from "~/services/checkin/autoCheckin/providers/shared"
-import type { AutoCheckinProviderResult } from "~/services/checkin/autoCheckin/providers/types"
+import type { AutoCheckinProviderOutcome } from "~/services/checkin/autoCheckin/providers/types"
 import type { ProtectionBypassExecution } from "~/services/protectionBypass/contracts"
 import type { SiteAccount } from "~/types"
 import { AuthTypeEnum } from "~/types"
@@ -49,128 +53,10 @@ import {
   CHECKIN_RESULT_STATUS,
   type AutoCheckinSkipReason,
 } from "~/types/autoCheckin"
-import type {
-  TempWindowCheckinPageAction,
-  TempWindowRequestSource,
-  TempWindowTurnstileFetch,
-} from "~/types/tempWindowFetch"
-import type { TurnstilePreTrigger } from "~/types/turnstile"
-import { isAllowedIncognitoAccess } from "~/utils/browser/browserApi"
-import {
-  tempWindowTriggerCheckinPageAction,
-  tempWindowTurnstileFetch,
-} from "~/utils/browser/tempWindowFetch"
+import type { TempWindowRequestSource } from "~/types/tempWindowFetch"
 import { normalizeTempWindowRequestSource } from "~/utils/browser/tempWindowRequestSource"
-import { formatLocalMonthKey } from "~/utils/core/dayKey"
-import { safeRandomUUID } from "~/utils/core/identifier"
-import { joinUrl } from "~/utils/core/url"
 
-const NEW_API_MESSAGE_KEYS = {
-  turnstileManualRequired:
-    "autoCheckin:providerFallback.turnstileManualRequired",
-  turnstileIncognitoAccessRequired:
-    "autoCheckin:providerFallback.turnstileIncognitoAccessRequired",
-  nativePageIdentityMissing:
-    "autoCheckin:providerFallback.nativePageIdentityMissing",
-  nativePageIdentityMismatch:
-    "autoCheckin:providerFallback.nativePageIdentityMismatch",
-  nativePageTargetNotFound:
-    "autoCheckin:providerFallback.nativePageTargetNotFound",
-  nativePageTriggerFailed:
-    "autoCheckin:providerFallback.nativePageTriggerFailed",
-  nativePageStatusUnconfirmed:
-    "autoCheckin:providerFallback.nativePageStatusUnconfirmed",
-} as const
-
-/**
- * Provider result that the scheduler/UI understands.
- *
- * - `messageKey` should be an i18n key (e.g. `autoCheckin:providerFallback.*`).
- * - `rawMessage` is kept when the backend returns a human readable message.
- */
-type CheckinResult = AutoCheckinProviderResult
-
-/** Build the authenticated request shared by New API check-in operations. */
-function createCheckInRequest(
-  account: SiteAccount,
-  tempWindowRequestSource?: TempWindowRequestSource,
-  protectionBypassExecution?: ProtectionBypassExecution,
-  mutationLifecycle?: AutoCheckinProviderContext["mutationLifecycle"],
-): ApiServiceRequest {
-  return {
-    baseUrl: account.site_url,
-    accountId: account.id,
-    cookieAuthSessionCookie: account.cookieAuth?.sessionCookie,
-    auth: {
-      authType: getEffectiveAuthType(account),
-      userId: account.account_info.id,
-      accessToken: account.account_info.access_token,
-    },
-    tempWindowRequestSource,
-    protectionBypassExecution,
-    ...(mutationLifecycle ? { observer: mutationLifecycle } : {}),
-  }
-}
-
-/** Read the canonical public site flag instead of matching backend copy. */
-async function isCheckInDisabled(
-  request: ApiServiceRequest,
-  signal?: AbortSignal,
-): Promise<boolean> {
-  return (await fetchSupportCheckIn(request, signal)) === false
-}
-
-/**
- * daily check-in endpoint.
- *
- * - GET: fetch current day's check-in status.
- * - POST: perform check-in.
- */
-const ENDPOINT = AUTO_CHECKIN_USER_CHECKIN_ENDPOINT
-const TURNSTILE_ASSIST_TIMEOUT_MS = TURNSTILE_DEFAULT_WAIT_TIMEOUT_MS
-/**
- * Assist window used when the run was started by the user and the background
- * has foregrounded the page, so an interactive challenge can be completed by
- * hand before the attempt gives up.
- */
-const TURNSTILE_INTERACTIVE_ASSIST_TIMEOUT_MS =
-  TURNSTILE_INTERACTIVE_WAIT_TIMEOUT_MS
-const NATIVE_PAGE_STATUS_POLL_TIMEOUT_MS = 8_000
-const NATIVE_PAGE_STATUS_POLL_INTERVAL_MS = 1_000
-
-// New API exposes GET /api/user/checkin for readback and POST for mutation.
-// Its official UI treats the public /api/status checkin_enabled flag as the
-// availability contract, while check-in failures are HTTP 200 message-only
-// responses whose localized text is not stable enough for state detection:
-// https://github.com/QuantumNous/new-api/blob/2d8e50bf36e94200b809dfb39e73624ec48b1e23/controller/misc.go
-// https://github.com/QuantumNous/new-api/blob/2d8e50bf36e94200b809dfb39e73624ec48b1e23/controller/checkin.go
-// https://github.com/QuantumNous/new-api/blob/2d8e50bf36e94200b809dfb39e73624ec48b1e23/common/gin.go
-
-/**
- * Determine whether a check-in failure message indicates Turnstile verification is required.
- */
-function isTurnstileRequiredMessage(message: string): boolean {
-  const normalized = message.toLowerCase()
-  if (!normalized.includes("turnstile")) return false
-
-  return (
-    normalized.includes("token") ||
-    normalized.includes("verify") ||
-    normalized.includes("invalid") ||
-    normalized.includes("failed") ||
-    message.includes("校验") ||
-    message.includes("为空") ||
-    message.includes("失败")
-  )
-}
-
-/**
- * Detect messages that belong to the Turnstile/manual-verification path.
- */
-function isTurnstileRelatedMessage(message: string): boolean {
-  return message.toLowerCase().includes("turnstile")
-}
-
+type CheckinResult = AutoCheckinProviderOutcome
 /**
  * Extract a numeric HTTP status code from provider errors when present.
  */
@@ -271,695 +157,83 @@ function shouldAttemptNativePageCheckinFallback(params: {
 }
 
 /**
- * Resolve a user-openable URL for manual Turnstile verification.
- */
-function resolveCheckInUrl(account: SiteAccount): Promise<string | null> {
-  return resolveAccountSiteRouteUrl(
-    { baseUrl: account.site_url, siteType: account.site_type },
-    SITE_ROUTE_KINDS.CheckIn,
-  )
-}
-
-/**
- * Normalize a New-API check-in payload into the provider result for the common
- * success/already-checked outcomes.
+ * Decide whether a refused Turnstile token replay should be retried through the
+ * site's own check-in page inside a temporary window.
  *
- * Returns `null` when the payload doesn't match those outcomes so the caller
- * can fall back to Turnstile/manual-required handling.
+ * Only a refused *verification* qualifies: the attempt was rejected before any
+ * award, so a second, different execution path is the same daily operation and
+ * cannot double-claim. A concrete backend rejection (quota exhausted, business
+ * rule) is the site's answer and must be preserved. An incognito-permission
+ * prompt is an operator action, not something a page click can resolve.
  */
-function resolveStandardCheckinResult(params: {
-  payload: NewApiCheckInResponse | undefined
-  message?: string
-}): CheckinResult | null {
-  const payload = params.payload
-  if (!payload) return null
-
-  const message = params.message ?? normalizeCheckinMessage(payload.message)
-
-  if (message && isAlreadyCheckedMessage(message) && !payload.success) {
-    return {
-      status: CHECKIN_RESULT_STATUS.ALREADY_CHECKED,
-      rawMessage: message || undefined,
-      data: payload.data,
-    }
-  }
-
-  if (payload.success) {
-    return {
-      status: CHECKIN_RESULT_STATUS.SUCCESS,
-      rawMessage: message || undefined,
-      messageKey: message
-        ? undefined
-        : AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinSuccessful,
-      data: payload.data ?? undefined,
-    }
-  }
-
-  return null
-}
-
-/**
- * Defensive verification: resolve whether the user is already checked in today.
- *
- * Some deployments only render Turnstile after clicking a "check-in" button.
- * That click can also advance the server-side check-in flow, so we confirm the
- * actual status when the Turnstile-assisted attempt cannot obtain a token.
- */
-async function fetchCheckedInTodayStatus(
-  account: SiteAccount | undefined,
-  tempWindowRequestSource?: TempWindowRequestSource,
-  protectionBypassExecution?: ProtectionBypassExecution,
-  throwOnUnsupported = false,
-  signal?: AbortSignal,
-  strictResponse = false,
-  existingRequest?: ApiServiceRequest,
-): Promise<
-  | {
-      checkedInToday?: boolean
-      enabled: boolean
-    }
-  | undefined
-> {
-  const currentMonth = formatLocalMonthKey()
-  const request =
-    existingRequest ??
-    (account
-      ? createCheckInRequest(
-          account,
-          tempWindowRequestSource,
-          protectionBypassExecution,
-        )
-      : undefined)
-  if (!request) return undefined
-
-  try {
-    const checkInData = await newApiFamilyRequests.data<NewApiCheckInStatus>(
-      request,
-      {
-        endpoint: `${ENDPOINT}?month=${currentMonth}`,
-        ...(signal ? { options: { signal } } : {}),
-      },
-    )
-
-    if (
-      typeof checkInData?.stats?.checked_in_today === "boolean" &&
-      (!strictResponse || typeof checkInData?.enabled === "boolean")
-    ) {
-      return {
-        enabled: checkInData.enabled !== false,
-        checkedInToday: checkInData.stats.checked_in_today,
-      }
-    }
-
-    return !signal?.aborted && (await isCheckInDisabled(request, signal))
-      ? { enabled: false }
-      : undefined
-  } catch (error) {
-    if (!signal?.aborted && (await isCheckInDisabled(request, signal))) {
-      return { enabled: false }
-    }
-    if (strictResponse) throw error
-    if (
-      throwOnUnsupported &&
-      error instanceof ApiError &&
-      (error.statusCode === 404 || error.statusCode === 405)
-    ) {
-      throw error
-    }
-    if (
-      error instanceof ApiError &&
-      (error.statusCode === 404 || error.statusCode === 500)
-    ) {
-      return undefined
-    }
-
-    return undefined
-  }
-}
-
-/**
- * Poll the server-side check-in status after a native page click.
- */
-async function pollCheckedInTodayStatus(
-  account: SiteAccount,
-  tempWindowRequestSource: TempWindowRequestSource,
-  protectionBypassExecution: ProtectionBypassExecution,
-): Promise<boolean | undefined> {
-  const deadline = Date.now() + NATIVE_PAGE_STATUS_POLL_TIMEOUT_MS
-  let lastStatus: boolean | undefined
-
-  while (Date.now() <= deadline) {
-    lastStatus = (
-      await fetchCheckedInTodayStatus(
-        account,
-        tempWindowRequestSource,
-        protectionBypassExecution,
-      )
-    )?.checkedInToday
-    if (lastStatus === true) return true
-
-    const remainingMs = deadline - Date.now()
-    if (remainingMs <= 0) break
-
-    await new Promise((resolve) =>
-      setTimeout(
-        resolve,
-        Math.min(NATIVE_PAGE_STATUS_POLL_INTERVAL_MS, remainingMs),
-      ),
-    )
-  }
-
-  return lastStatus
-}
-
-/**
- * Resolve the Turnstile widget pre-trigger configuration for this account.
- *
- * This is an advanced escape hatch for sites that only render Turnstile after a
- * user action (e.g. clicking a "check-in" button).
- */
-function resolveTurnstilePreTrigger(account: SiteAccount): TurnstilePreTrigger {
-  return (
-    account.checkIn?.customCheckIn?.turnstilePreTrigger ?? {
-      kind: "checkinButton",
-    }
-  )
-}
-
-/**
- * Fetch options used for the Turnstile-assisted POST /api/user/checkin replay.
- */
-function getTurnstileAssistedFetchOptions(account: SiteAccount): RequestInit {
-  const authType = getEffectiveAuthType(account)
-
-  const userIdHeaders = buildCompatUserIdHeaders(account.account_info?.id)
-
-  const headers: Record<string, string> = {
-    "Content-Type": REQUEST_CONFIG.HEADERS.CONTENT_TYPE,
-    Pragma: REQUEST_CONFIG.HEADERS.PRAGMA,
-    ...userIdHeaders,
-  }
-
-  const accessToken = account.account_info?.access_token
-  if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`
-  }
-
-  return {
-    method: "POST",
-    body: "{}",
-    headers,
-    credentials: authType === AuthTypeEnum.Cookie ? "include" : "omit",
-  }
-}
-
-/**
- * When the initial check-in attempt indicates Turnstile verification is required,
- */
-function buildTurnstileAssistedParams(
-  account: SiteAccount,
-  checkInUrl: string,
-  tempWindowRequestSource: TempWindowRequestSource,
-  protectionBypassExecution: ProtectionBypassExecution,
-  allowInteractiveVerification: boolean,
-) {
-  const fetchUrl = joinUrl(account.site_url, ENDPOINT)
-
-  return {
-    originUrl: account.site_url,
-    pageUrl: checkInUrl,
-    fetchUrl,
-    fetchOptions: getTurnstileAssistedFetchOptions(account),
-    responseType: "json",
-    accountId: account.id,
-    authType: getEffectiveAuthType(account),
-    cookieAuthSessionCookie: account.cookieAuth?.sessionCookie,
-    // A user-initiated run may wait long enough for the user to complete an
-    // interactive challenge; an automatic run must fail fast and quietly.
-    turnstileTimeoutMs: allowInteractiveVerification
-      ? TURNSTILE_INTERACTIVE_ASSIST_TIMEOUT_MS
-      : TURNSTILE_ASSIST_TIMEOUT_MS,
-    turnstilePreTrigger: resolveTurnstilePreTrigger(account),
-    tempWindowRequestSource,
-    protectionBypassExecution,
-    ...(allowInteractiveVerification
-      ? { allowInteractiveVerification: true }
-      : {}),
-  } as const
-}
-
-/**
- * When the Turnstile-assisted check-in attempt fails due to missing token and no
- */
-async function maybeRetryTurnstileInIncognito(params: {
-  assisted: TempWindowTurnstileFetch
-  assistedParams: ReturnType<typeof buildTurnstileAssistedParams>
-  checkInUrl: string
-}): Promise<CheckinResult | null> {
-  const incognitoAllowed = await isAllowedIncognitoAccess()
-  if (incognitoAllowed === false) {
-    return {
-      status: CHECKIN_RESULT_STATUS.FAILED,
-      reasonCode: AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED,
-      messageKey: NEW_API_MESSAGE_KEYS.turnstileIncognitoAccessRequired,
-      messageParams: { checkInUrl: params.checkInUrl },
-      data: params.assisted ?? undefined,
-    }
-  }
-
-  const incognitoAssisted = await tempWindowTurnstileFetch({
-    ...params.assistedParams,
-    useIncognito: true,
-  })
-
-  if (!incognitoAssisted.success) {
-    return null
-  }
-
-  const incognitoPayload = incognitoAssisted.data as
-    | NewApiCheckInResponse
-    | undefined
-  const incognitoMessage = normalizeCheckinMessage(incognitoPayload?.message)
-
-  return (
-    resolveStandardCheckinResult({
-      payload: incognitoPayload,
-      message: incognitoMessage,
-    }) ?? null
-  )
-}
-
-type TurnstileAssistedAttempt = {
-  assisted: TempWindowTurnstileFetch | null
-  usedIncognito: boolean
-  incognitoAllowed: boolean | null
-}
-
-/**
- * Map native page trigger failures to provider-facing fallback keys.
- */
-function resolveNativePageFailureResult(params: {
-  action: TempWindowCheckinPageAction
-  checkInUrl: string
-}): CheckinResult {
-  const identityReasonCode =
-    params.action.reason === "identity_missing" ||
-    params.action.reason === "identity_mismatch"
-      ? AUTO_CHECKIN_SKIP_REASON.AUTHENTICATION_REQUIRED
-      : null
-  const base = {
-    status: CHECKIN_RESULT_STATUS.FAILED,
-    reasonCode:
-      identityReasonCode ?? AUTO_CHECKIN_SKIP_REASON.CHECKIN_PAGE_UNAVAILABLE,
-    retryable: identityReasonCode === null,
-    messageParams: { checkInUrl: params.checkInUrl },
-    rawMessage: params.action.error || undefined,
-    data: params.action,
-  } satisfies Partial<CheckinResult>
-
-  if (params.action.reason === "identity_missing") {
-    return {
-      ...base,
-      messageKey: NEW_API_MESSAGE_KEYS.nativePageIdentityMissing,
-    } as CheckinResult
-  }
-
-  if (params.action.reason === "identity_mismatch") {
-    return {
-      ...base,
-      messageKey: NEW_API_MESSAGE_KEYS.nativePageIdentityMismatch,
-    } as CheckinResult
-  }
-
-  if (params.action.reason === "target_not_found") {
-    return {
-      ...base,
-      messageKey: NEW_API_MESSAGE_KEYS.nativePageTargetNotFound,
-    } as CheckinResult
-  }
-
-  if (params.action.reason === "throttled") {
-    return {
-      ...base,
-      messageKey: NEW_API_MESSAGE_KEYS.nativePageTriggerFailed,
-    } as CheckinResult
-  }
-
-  return {
-    ...base,
-    messageKey: NEW_API_MESSAGE_KEYS.nativePageTriggerFailed,
-  } as CheckinResult
-}
-
-/**
- * Execute the site page's native check-in action and confirm it server-side.
- */
-async function resolveNativePageCheckinResult(params: {
-  account: SiteAccount
-  responseMessage: string
-  tempWindowRequestSource: TempWindowRequestSource
-  protectionBypassExecution: ProtectionBypassExecution
-}): Promise<CheckinResult> {
-  const checkInUrl = await resolveCheckInUrl(params.account)
-  if (!checkInUrl) {
-    return {
-      status: CHECKIN_RESULT_STATUS.FAILED,
-      reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_PAGE_UNAVAILABLE,
-      retryable: true,
-      messageKey: AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinFailed,
-      rawMessage: params.responseMessage,
-    }
-  }
-  const expectedUserId = normalizeAccountIdentity(
-    params.account.account_info?.id,
-  )
-
-  if (!expectedUserId) {
-    return {
-      status: CHECKIN_RESULT_STATUS.FAILED,
-      reasonCode: AUTO_CHECKIN_SKIP_REASON.AUTHENTICATION_REQUIRED,
-      messageKey: NEW_API_MESSAGE_KEYS.nativePageIdentityMissing,
-      messageParams: { checkInUrl },
-    }
-  }
-
-  let action: TempWindowCheckinPageAction
-  try {
-    action = await tempWindowTriggerCheckinPageAction({
-      originUrl: params.account.site_url,
-      pageUrl: checkInUrl,
-      requestId: safeRandomUUID(`native-checkin-${params.account.id}`),
-      accountId: params.account.id,
-      authType: getEffectiveAuthType(params.account),
-      cookieAuthSessionCookie: params.account.cookieAuth?.sessionCookie,
-      siteType: params.account.site_type,
-      expectedUserId,
-      trigger: resolveTurnstilePreTrigger(params.account),
-      tempWindowRequestSource: params.tempWindowRequestSource,
-      protectionBypassExecution: params.protectionBypassExecution,
-    })
-  } catch (error: unknown) {
-    const errorMessage = getProviderErrorMessage(error)
-    return {
-      status: CHECKIN_RESULT_STATUS.FAILED,
-      reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_PAGE_UNAVAILABLE,
-      retryable: true,
-      messageKey: NEW_API_MESSAGE_KEYS.nativePageTriggerFailed,
-      messageParams: { checkInUrl },
-      rawMessage: errorMessage || undefined,
-    }
-  }
-
-  if (!action.success || action.reason !== "clicked") {
-    return resolveNativePageFailureResult({
-      action,
-      checkInUrl,
-    })
-  }
-
-  const checkedInToday = await pollCheckedInTodayStatus(
-    params.account,
-    params.tempWindowRequestSource,
-    params.protectionBypassExecution,
-  )
-  if (checkedInToday === true) {
-    return {
-      status: CHECKIN_RESULT_STATUS.ALREADY_CHECKED,
-      messageKey:
-        AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.alreadyCheckedToday,
-      data: action,
-    }
-  }
-
-  return {
-    status: CHECKIN_RESULT_STATUS.FAILED,
-    reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_UNCONFIRMED,
-    retryable: true,
-    messageKey: NEW_API_MESSAGE_KEYS.nativePageStatusUnconfirmed,
-    messageParams: { checkInUrl },
-    rawMessage: action.error || undefined,
-    data: action,
-  }
-}
-
-/**
- * Run one Turnstile-assisted temp-window check-in attempt.
- */
-async function runTurnstileAssistedAttempt(params: {
-  assistedParams: ReturnType<typeof buildTurnstileAssistedParams>
-  useIncognito: boolean
-}): Promise<TempWindowTurnstileFetch | null> {
-  return await tempWindowTurnstileFetch({
-    ...params.assistedParams,
-    ...(params.useIncognito ? { useIncognito: true } : {}),
-  })
-}
-
-/**
- * Prefer an incognito Turnstile context for access-token accounts.
- */
-async function runPreferredTurnstileAssistedAttempt(params: {
-  account: SiteAccount
-  assistedParams: ReturnType<typeof buildTurnstileAssistedParams>
-}): Promise<TurnstileAssistedAttempt> {
-  if (getEffectiveAuthType(params.account) !== AuthTypeEnum.AccessToken) {
-    return {
-      assisted: await runTurnstileAssistedAttempt({
-        assistedParams: params.assistedParams,
-        useIncognito: false,
-      }),
-      usedIncognito: false,
-      incognitoAllowed: null,
-    }
-  }
-
-  const incognitoAllowed = await isAllowedIncognitoAccess()
-  if (incognitoAllowed === true) {
-    return {
-      assisted: await runTurnstileAssistedAttempt({
-        assistedParams: params.assistedParams,
-        useIncognito: true,
-      }),
-      usedIncognito: true,
-      incognitoAllowed,
-    }
-  }
-
-  return {
-    assisted: await runTurnstileAssistedAttempt({
-      assistedParams: params.assistedParams,
-      useIncognito: false,
-    }),
-    usedIncognito: false,
-    incognitoAllowed,
-  }
-}
-
-/**
- * When the initial check-in attempt indicates Turnstile verification is required,
- */
-async function resolveTurnstileAssistedCheckinResult(params: {
-  account: SiteAccount
-  responseMessage: string
-  tempWindowRequestSource: TempWindowRequestSource
-  protectionBypassExecution: ProtectionBypassExecution
-  allowInteractiveVerification?: boolean
-}): Promise<CheckinResult> {
-  const checkInUrl = await resolveCheckInUrl(params.account)
-  if (!checkInUrl) {
-    return {
-      status: CHECKIN_RESULT_STATUS.FAILED,
-      reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_PAGE_UNAVAILABLE,
-      retryable: true,
-      messageKey: AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinFailed,
-      rawMessage: params.responseMessage,
-    }
-  }
-  const assistedParams = buildTurnstileAssistedParams(
-    params.account,
-    checkInUrl,
-    params.tempWindowRequestSource,
-    params.protectionBypassExecution,
-    params.allowInteractiveVerification === true,
-  )
-
-  const initialAttempt = await runPreferredTurnstileAssistedAttempt({
-    account: params.account,
-    assistedParams,
-  })
-  let assisted = initialAttempt.assisted
-
-  if (!assisted) {
-    return {
-      status: CHECKIN_RESULT_STATUS.FAILED,
-      reasonCode: AUTO_CHECKIN_SKIP_REASON.CHECKIN_PAGE_UNAVAILABLE,
-      retryable: true,
-      messageKey: AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinFailed,
-      rawMessage: params.responseMessage,
-      data: assisted ?? undefined,
-    }
-  }
-
-  if (!assisted.success) {
-    if (assisted.turnstile?.status !== "token_obtained") {
-      const checkedInToday = (
-        await fetchCheckedInTodayStatus(
-          params.account,
-          params.tempWindowRequestSource,
-          params.protectionBypassExecution,
-        )
-      )?.checkedInToday
-      if (checkedInToday === true) {
-        return {
-          status: CHECKIN_RESULT_STATUS.ALREADY_CHECKED,
-          messageKey:
-            AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.alreadyCheckedToday,
-          data: assisted ?? undefined,
-        }
-      }
-
-      if (initialAttempt.usedIncognito) {
-        const normalAssisted = await runTurnstileAssistedAttempt({
-          assistedParams,
-          useIncognito: false,
-        })
-
-        if (normalAssisted) {
-          const normalPayload = normalAssisted.data as
-            | NewApiCheckInResponse
-            | undefined
-          const normalMessage = normalizeCheckinMessage(normalPayload?.message)
-          const normalResult = resolveStandardCheckinResult({
-            payload: normalPayload,
-            message: normalMessage,
-          })
-
-          if (normalResult) {
-            return normalResult
-          }
-
-          if (
-            normalAssisted.success ||
-            normalAssisted.turnstile?.status === "token_obtained"
-          ) {
-            assisted = normalAssisted
-          }
-        }
-      }
-
-      /**
-       * Multi-account edge case:
-       * - The API call is made with this account's auth (usually access token),
-       *   but the temp-context page inherits the user's currently logged-in web UI.
-       * - When that web UI user has already checked in, the check-in page may not
-       *   render Turnstile anymore, so no token can be obtained.
-       *
-       * Retrying once in an incognito/private temp window provides a clean storage
-       * context that can render Turnstile again (typically via login redirects),
-       * without mutating normal browsing state.
-       */
-      if (
-        !initialAttempt.usedIncognito &&
-        assisted.turnstile?.status === "not_present" &&
-        !assisted.turnstile?.hasTurnstile
-      ) {
-        if (initialAttempt.incognitoAllowed === false) {
-          return {
-            status: CHECKIN_RESULT_STATUS.FAILED,
-            messageKey: NEW_API_MESSAGE_KEYS.turnstileIncognitoAccessRequired,
-            messageParams: { checkInUrl },
-            reasonCode: AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED,
-            data: assisted ?? undefined,
-          }
-        }
-
-        const incognitoResult = await maybeRetryTurnstileInIncognito({
-          assisted,
-          assistedParams,
-          checkInUrl,
-        })
-        if (incognitoResult) {
-          return incognitoResult
-        }
-      }
-
-      return {
-        status: CHECKIN_RESULT_STATUS.FAILED,
-        messageKey: NEW_API_MESSAGE_KEYS.turnstileManualRequired,
-        messageParams: { checkInUrl },
-        rawMessage: assisted.error || params.responseMessage || undefined,
-        reasonCode: AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED,
-        data: assisted ?? undefined,
-      }
-    }
-
-    return {
-      status: CHECKIN_RESULT_STATUS.FAILED,
-      reasonCode: AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR,
-      retryable: true,
-      rawMessage: assisted.error || params.responseMessage || undefined,
-      messageKey: assisted.error
-        ? undefined
-        : AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinFailed,
-      data: assisted ?? undefined,
-    }
-  }
-
-  const assistedPayload = assisted.data as NewApiCheckInResponse | undefined
-  const assistedMessage = normalizeCheckinMessage(assistedPayload?.message)
-
-  const assistedResult = resolveStandardCheckinResult({
-    payload: assistedPayload,
-    message: assistedMessage,
-  })
-  if (assistedResult) {
-    return assistedResult
-  }
-
+function shouldAttemptShieldedNativePageCheckin(
+  assisted: CheckinResult,
+): boolean {
   if (
-    assisted.turnstile?.status &&
-    assisted.turnstile.status !== "token_obtained"
+    assisted.status !== CHECKIN_RESULT_STATUS.FAILED ||
+    assisted.reasonCode !==
+      AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED
   ) {
-    const checkedInToday = (
-      await fetchCheckedInTodayStatus(
-        params.account,
-        params.tempWindowRequestSource,
-        params.protectionBypassExecution,
-      )
-    )?.checkedInToday
-    if (checkedInToday === true) {
-      return {
-        status: CHECKIN_RESULT_STATUS.ALREADY_CHECKED,
-        messageKey:
-          AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.alreadyCheckedToday,
-        data: assistedPayload ?? undefined,
-      }
-    }
-
-    return {
-      status: CHECKIN_RESULT_STATUS.FAILED,
-      messageKey: NEW_API_MESSAGE_KEYS.turnstileManualRequired,
-      messageParams: { checkInUrl },
-      rawMessage: params.responseMessage || assistedMessage || undefined,
-      reasonCode: AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED,
-      data: assistedPayload ?? undefined,
-    }
+    return false
   }
-
-  return {
-    status: CHECKIN_RESULT_STATUS.FAILED,
-    reasonCode: AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR,
-    retryable: true,
-    rawMessage: assistedMessage || undefined,
-    messageKey: assistedMessage
-      ? undefined
-      : AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.checkinFailed,
-    data: assistedPayload ?? undefined,
-  }
+  return (
+    assisted.messageKey !==
+    NEW_API_MESSAGE_KEYS.turnstileIncognitoAccessRequired
+  )
 }
 
 /**
- * Call POST /api/user/checkin to perform the daily check-in.
+ * Run the account's check-in on its own page in a temporary window, where the
+ * genuine Turnstile widget is the only thing that has to succeed.
+ *
+ * The page action clicks the site's own button and waits for whatever
+ * verification it opens, so the deployment decides how its shield is satisfied.
+ * Readback stays authoritative: a page click is never reported as success.
+ */
+async function resolveShieldedNativePageCheckin(params: {
+  account: SiteAccount
+  failure: CheckinResult
+  responseMessage: string
+  tempWindowRequestSource: TempWindowRequestSource
+  protectionBypassExecution: ProtectionBypassExecution
+}): Promise<CheckinResult> {
+  const nativeResult = await resolveNativePageCheckinResult({
+    account: params.account,
+    responseMessage: params.responseMessage,
+    tempWindowRequestSource: params.tempWindowRequestSource,
+    protectionBypassExecution: params.protectionBypassExecution,
+  })
+
+  if (nativeResult.status !== CHECKIN_RESULT_STATUS.FAILED) return nativeResult
+
+  // Keep the more actionable evidence: the page attempt knows whether the site
+  // still demanded human verification, the token replay only knew it was refused.
+  const data = nativeResult.data ?? params.failure.data
+
+  // Both paths failed because the site kept its shield up. The user has to
+  // finish the verification on the site, so say exactly that instead of
+  // reporting the page attempt as an unavailable page.
+  if (
+    params.failure.reasonCode ===
+    AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED
+  ) {
+    const checkInUrl = nativeResult.messageParams?.checkInUrl
+    return {
+      status: CHECKIN_RESULT_STATUS.FAILED,
+      reasonCode: AUTO_CHECKIN_SKIP_REASON.MANUAL_VERIFICATION_REQUIRED,
+      messageKey:
+        AUTO_CHECKIN_PROVIDER_FALLBACK_MESSAGE_KEYS.nativePageVerificationRequired,
+      ...(checkInUrl ? { messageParams: { checkInUrl } } : {}),
+      rawMessage: nativeResult.rawMessage ?? params.failure.rawMessage,
+      data,
+    }
+  }
+
+  return { ...nativeResult, data }
+}
+
+/**
+ * Call the account's check-in route to perform the daily check-in.
  */
 async function performCheckin(
   account: SiteAccount,
@@ -975,26 +249,13 @@ async function performCheckin(
       mutationLifecycle,
     ),
     {
-      endpoint: ENDPOINT,
+      endpoint: resolveCheckInEndpoint(account),
       options: {
         method: "POST",
         body: "{}",
       },
     },
   )
-}
-
-/**
- * Extract a provider error message without assuming the thrown value shape.
- */
-function getProviderErrorMessage(error: unknown): string {
-  if (typeof error === "string") return error
-  if (error instanceof Error) return error.message
-  if (error && typeof error === "object") {
-    const record = error as Record<string, unknown>
-    if (typeof record.message === "string") return record.message
-  }
-  return ""
 }
 
 /**
@@ -1007,6 +268,9 @@ function resolveDirectFailureReason(params: {
 }): AutoCheckinSkipReason {
   if (isEndpointUnsupportedFailure(params)) {
     return AUTO_CHECKIN_SKIP_REASON.NO_PROVIDER
+  }
+  if (isPermissionFailureMessage(params.message)) {
+    return AUTO_CHECKIN_SKIP_REASON.PERMISSION_DENIED
   }
   if (isAuthOrPermissionFailureMessage(params.message)) {
     return AUTO_CHECKIN_SKIP_REASON.AUTHENTICATION_REQUIRED
@@ -1060,6 +324,7 @@ async function checkinNewApi(
         return {
           status: CHECKIN_RESULT_STATUS.ALREADY_CHECKED,
           rawMessage: responseMessage || undefined,
+          reward: readQuotaReward(statusAfterFailure.todayQuotaAwarded),
           data: checkinResponse.data,
         }
       }
@@ -1078,15 +343,28 @@ async function checkinNewApi(
       isTurnstileRequiredMessage(responseMessage) &&
       !checkinResponse.success
     ) {
-      return await resolveTurnstileAssistedCheckinResult({
+      const assisted = await resolveTurnstileAssistedCheckinResult({
         account,
         responseMessage,
         tempWindowRequestSource,
         protectionBypassExecution: context.protectionBypassExecution,
-        ...(context.allowInteractiveVerification === true
-          ? { allowInteractiveVerification: true }
-          : {}),
       })
+
+      // The token replay can be refused for reasons the extension cannot read
+      // (token placement, per-deployment field names, a second verification
+      // layer). The site's own check-in page inside a temporary window runs the
+      // genuine Turnstile widget, so it is the reliable second attempt.
+      if (shouldAttemptShieldedNativePageCheckin(assisted)) {
+        return await resolveShieldedNativePageCheckin({
+          account,
+          failure: assisted,
+          responseMessage,
+          tempWindowRequestSource,
+          protectionBypassExecution: context.protectionBypassExecution,
+        })
+      }
+
+      return assisted
     }
 
     if (
@@ -1109,7 +387,6 @@ async function checkinNewApi(
     return {
       status: CHECKIN_RESULT_STATUS.FAILED,
       reasonCode: directReason,
-      retryable: directReason === AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR,
       rawMessage: responseMessage || undefined,
       messageKey: responseMessage
         ? undefined
@@ -1207,9 +484,13 @@ const getStatus: NonNullable<AutoCheckinProvider["getStatus"]> = async ({
   return observation
     ? {
         outcome: CHECK_IN_METHOD_STATUS_OUTCOMES.Known,
-        availability: observation.enabled
-          ? CHECK_IN_METHOD_AVAILABILITIES.Enabled
-          : CHECK_IN_METHOD_AVAILABILITIES.Disabled,
+        ...(typeof observation.enabled === "boolean"
+          ? {
+              availability: observation.enabled
+                ? CHECK_IN_METHOD_AVAILABILITIES.Enabled
+                : CHECK_IN_METHOD_AVAILABILITIES.Disabled,
+            }
+          : {}),
         ...(typeof observation.checkedInToday === "boolean"
           ? {
               today: observation.checkedInToday
@@ -1245,6 +526,15 @@ function classifyStatusError(error: unknown) {
 
 export const newApiProvider: AutoCheckinProvider = {
   requiresAuthoritativeStatusBeforeMutation: true,
+  supportsRouteOverride: true,
+  canonicalRoutePath: AUTO_CHECKIN_USER_CHECKIN_ENDPOINT,
+  probeRouteOverride: ({ account, path, signal }) =>
+    probeCheckInRoute({
+      account,
+      path,
+      ...(signal ? { signal } : {}),
+      observedAt: Date.now(),
+    }),
   classifyStatusError,
   getReadiness,
   detect: (context) =>

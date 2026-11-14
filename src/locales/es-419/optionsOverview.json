@@ -19,7 +19,7 @@
     },
     "actions": {
       "addAccount": "Agregar cuenta",
-      "addProfile": "Agregar credencial",
+      "addProfile": "Agregar credencial de API",
       "editAccount": "Editar cuenta",
       "fixAccount": "Reparar cuenta",
       "handleCheckIn": "Resolver check-in",
@@ -37,8 +37,8 @@
       "title": "Aún no hay cuentas"
     },
     "addProfile": {
-      "description": "Agrega credenciales de API para que las herramientas y los flujos de exportación puedan reutilizarlas.",
-      "title": "Aún no hay perfiles de API"
+      "description": "La biblioteca guarda API Keys, claves de coding plan y otros tipos de clave, y monitorea saldo y uso en un solo lugar — incluido cuánto queda de la cuota de 5 horas / 7 días / mes de un coding plan.",
+      "title": "Aún no hay credenciales de API"
     },
     "autoCheckinGloballyDisabled": {
       "description_one": "{{count}} cuenta tiene el check-in automático activado, pero no se ejecutará mientras el interruptor global esté desactivado. Vuelve a activarlo en los ajustes de check-in.",
@@ -83,6 +83,10 @@
     },
     "filterAll": "Todos",
     "severityFilterLabel": "Gravedad",
+    "siteTypeMismatch": {
+      "description": "Este sitio corresponde a {{suggestedType}}, pero la cuenta está configurada como {{storedType}}. Edita la cuenta y define el Tipo de sitio como {{suggestedType}}.",
+      "title": "{{name}} podría tener el tipo de sitio equivocado"
+    },
     "siteTypeUnknown": {
       "description": "El check-in automático no puede determinar el protocolo de este sitio. Edita la cuenta y elige el tipo correcto, o vuelve a ejecutar la detección automática.",
       "title": "{{name}} tiene un tipo de sitio desconocido"
@@ -139,6 +143,7 @@
     "summary": "Resumen de ejecución de check-in automático"
   },
   "automation": {
+    "automaticEnabled": "La ejecución automática está activada",
     "empty": {
       "autoCheckin": {
         "disabled": "Activa el check-in automático cuando quieras reclamar recompensas automáticamente. Las programaciones y resultados futuros aparecerán aquí."
@@ -181,11 +186,28 @@
         "strategy": "Estrategia de sincronización"
       }
     },
+    "metrics": {
+      "failed": "Fallidos",
+      "skipped": "Omitidos",
+      "success": "Correctos",
+      "unsupported": "No compatibles"
+    },
     "neverChecked": "Aún no comprobado",
     "openItem": "Abrir {{name}}",
     "status": {
-      "enabled": "Habilitado"
-    }
+      "disabled": "Desactivado",
+      "failed": "Falló la ejecución",
+      "limited": "Compatibilidad parcial",
+      "notRun": "Esperando primera ejecución",
+      "partial": "Falló parcialmente",
+      "ready": "Listo",
+      "running": "En ejecución",
+      "skipped": "Sin ejecutar",
+      "success": "Ejecución correcta",
+      "unknown": "Estado desconocido",
+      "unsupported": "No compatible"
+    },
+    "statusUnavailable": "El estado de ejecución no está disponible. Abre los detalles o actualiza para volver a intentarlo."
   },
   "configurationOverview": {
     "accountFoundation": {
@@ -216,12 +238,12 @@
       }
     },
     "credentialAssets": {
-      "description": "Perfiles de API y claves de cuenta preparados para usar.",
+      "description": "Almacenamiento de tus claves, además del monitoreo de saldo, cuota y uso.",
       "label": "Credenciales",
       "state": {
-        "disabled": "Aún no hay credenciales reutilizables. Revisa la configuración de cuenta o perfil de API.",
-        "needs_setup": "Agrega perfiles de API para que las herramientas y flujos de exportación puedan reutilizarlos directamente.",
-        "not_applicable": "Este entorno no necesita perfiles de API separados."
+        "disabled": "Aún no hay credenciales reutilizables. Revisa la configuración de cuenta o credencial de API.",
+        "needs_setup": "Guarda una credencial de API (Base URL + API Key) para monitorear saldo, cuota y uso en un solo lugar.",
+        "not_applicable": "Este entorno no necesita credenciales de API separadas."
       }
     },
     "dataHistory": {
@@ -245,7 +267,7 @@
     "subItems": {
       "accounts": "Cuentas",
       "apiKeys": "Claves de API",
-      "apiProfiles": "Perfiles de API",
+      "apiProfiles": "Credenciales de API",
       "autoCheckin": "Check-in automático",
       "balanceHistory": "Historial de saldo",
       "managedSiteChannels": "Administración de canales",
@@ -290,7 +312,7 @@
       "label": "Atención"
     },
     "profiles": {
-      "label": "Perfiles"
+      "label": "Credenciales"
     },
     "todayUsage": {
       "label": "Hoy"

@@ -13,7 +13,7 @@ import { COOKIE_IMPORT_FAILURE_REASONS } from "~/constants/cookieImport"
 import { RuntimeActionIds } from "~/constants/runtimeActions"
 import { API_ERROR_CODES } from "~/services/apiTransport/errors"
 import { PreferencesMessageTypes } from "~/services/preferences/messaging"
-import { ProductAnalyticsMessageTypes } from "~/services/productAnalytics/messaging"
+import { ProductAnalyticsMessageTypes } from "~/services/productAnalytics/runtime/messaging"
 
 type RuntimeMessageListener = (
   request: any,
@@ -33,8 +33,23 @@ describe("setupRuntimeMessageListeners routing", () => {
   let setupProductAnalyticsMessagingListeners: ReturnType<typeof vi.fn>
   let executeProtectionBypassTask: ReturnType<typeof vi.fn>
   let handleOpenRouterManagementKeyAction: ReturnType<typeof vi.fn>
+  let handleTempContextDebugMessage: ReturnType<typeof vi.fn>
+  let appendLogHistory: ReturnType<typeof vi.fn>
+  let clearLogHistory: ReturnType<typeof vi.fn>
+  const recoverCookie = vi.fn()
+  const cancelRecovery = vi.fn()
+  const openFeedback = vi.fn().mockResolvedValue(undefined)
+  const dismissFeedback = vi.fn().mockResolvedValue(undefined)
 
   beforeAll(async () => {
+    vi.doMock("~/services/accountCredentialRecovery/manual", () => ({
+      recoverAccountCookieForDialog: recoverCookie,
+      cancelAccountCookieRecovery: cancelRecovery,
+    }))
+    vi.doMock("~/services/checkin/feedback/githubTab", () => ({
+      openCheckInFeedbackIssueTab: openFeedback,
+      dismissCheckInFeedbackTabHint: dismissFeedback,
+    }))
     getCookieHeaderForUrlResult = vi.fn()
     hasCookieReadPermissionForUrl = vi.fn()
     setupManagedSiteModelSyncMessagingListeners = vi.fn()
@@ -44,10 +59,23 @@ describe("setupRuntimeMessageListeners routing", () => {
     setupProductAnalyticsMessagingListeners = vi.fn()
     executeProtectionBypassTask = vi.fn()
     handleOpenRouterManagementKeyAction = vi.fn()
+    handleTempContextDebugMessage = vi.fn()
+    appendLogHistory = vi.fn()
+    clearLogHistory = vi.fn()
+    vi.doMock("~/services/logging/logHistory", () => ({
+      appendLogHistory,
+      clearLogHistory,
+    }))
 
-    vi.doMock("~/utils/browser/browserApi", async (importOriginal) => {
+    vi.doMock("~/entrypoints/background/tempContextDebug", () => ({
+      isTempContextDebugAction: (action: unknown) =>
+        action === RuntimeActionIds.TempContextDebugListMarkers,
+      handleTempContextDebugMessage,
+    }))
+
+    vi.doMock("~/utils/browser/runtimeMessages", async (importOriginal) => {
       const actual =
-        await importOriginal<typeof import("~/utils/browser/browserApi")>()
+        await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
       return {
         ...actual,
         onRuntimeMessage: vi.fn((listener: RuntimeMessageListener) => {
@@ -70,31 +98,40 @@ describe("setupRuntimeMessageListeners routing", () => {
       setupManagedSiteModelSyncMessagingListeners,
     }))
 
-    vi.doMock("~/services/preferences/runtimePreferencesService", () => ({
-      setupPreferencesMessagingListeners,
-    }))
+    vi.doMock(
+      "~/services/preferences/runtime/runtimePreferencesService",
+      () => ({
+        setupPreferencesMessagingListeners,
+      }),
+    )
 
     vi.doMock("~/services/productAnnouncements/service", () => ({
       setupProductAnnouncementMessagingListeners,
     }))
 
     // runtimeMessages imports these modules; provide minimal stubs to avoid heavy side effects.
-    vi.doMock("~/services/checkin/autoCheckin/scheduler", () => ({
-      setupAutoCheckinMessagingListeners: vi.fn(),
-    }))
-    vi.doMock("~/services/accounts/autoRefreshService", () => ({
+    vi.doMock(
+      "~/services/checkin/autoCheckin/scheduling/schedulerMessaging",
+      () => ({
+        setupAutoCheckinMessagingListeners: vi.fn(),
+      }),
+    )
+    vi.doMock("~/services/accounts/refresh/autoRefreshService", () => ({
       setupAutoRefreshMessagingListeners: vi.fn(),
     }))
-    vi.doMock("~/services/managedSites/channelConfigStorage", () => ({
-      setupChannelConfigMessagingListeners: vi.fn(),
-    }))
+    vi.doMock(
+      "~/services/managedSites/configuration/channelConfigHandlers",
+      () => ({
+        setupChannelConfigMessagingListeners: vi.fn(),
+      }),
+    )
     vi.doMock("~/services/checkin/externalCheckInService", () => ({
       setupExternalCheckInMessagingListeners: vi.fn(),
     }))
     vi.doMock("~/services/redemption/redemptionAssist", () => ({
       setupRedemptionAssistMessagingListeners,
     }))
-    vi.doMock("~/services/productAnalytics/runtime", () => ({
+    vi.doMock("~/services/productAnalytics/runtime/runtime", () => ({
       setupProductAnalyticsMessagingListeners,
     }))
     vi.doMock("~/entrypoints/background/protectionBypassCoordinator", () => ({
@@ -103,7 +140,7 @@ describe("setupRuntimeMessageListeners routing", () => {
       },
     }))
     vi.doMock(
-      "~/entrypoints/background/openrouter/managementKeyAction",
+      "~/services/browsingContext/tempPage/openrouterManagementKeyAction",
       () => ({
         handleTempWindowOpenRouterManagementKeyAction:
           handleOpenRouterManagementKeyAction,
@@ -114,9 +151,12 @@ describe("setupRuntimeMessageListeners routing", () => {
     vi.doMock("~/services/history/usageHistory/scheduler", () => ({
       setupUsageHistoryMessagingListeners: vi.fn(),
     }))
-    vi.doMock("~/services/webdav/webdavAutoSyncService", () => ({
-      setupWebdavAutoSyncMessagingListeners: vi.fn(),
-    }))
+    vi.doMock(
+      "~/services/webdav/autoSync/webdavAutoSyncMessageHandlers",
+      () => ({
+        setupWebdavAutoSyncMessagingListeners: vi.fn(),
+      }),
+    )
     vi.doMock("~/services/history/dailyBalanceHistory/scheduler", () => ({
       setupDailyBalanceHistoryMessagingListeners: vi.fn(),
       handleDailyBalanceHistoryMessage: vi.fn(),
@@ -127,7 +167,7 @@ describe("setupRuntimeMessageListeners routing", () => {
     vi.doMock("~/services/notifications/taskNotificationService", () => ({
       setupTaskNotificationMessagingListeners: vi.fn(),
     }))
-    vi.doMock("~/services/siteAnnouncements/scheduler", () => ({
+    vi.doMock("~/services/siteAnnouncements/runtimeMessages", () => ({
       setupSiteAnnouncementsMessagingListeners: vi.fn(),
     }))
 
@@ -148,34 +188,331 @@ describe("setupRuntimeMessageListeners routing", () => {
     setupProductAnalyticsMessagingListeners.mockReset()
     executeProtectionBypassTask.mockReset().mockResolvedValue({ success: true })
     handleOpenRouterManagementKeyAction.mockReset().mockResolvedValue(undefined)
+    handleTempContextDebugMessage.mockReset().mockResolvedValue(undefined)
+    appendLogHistory.mockReset().mockResolvedValue(undefined)
+    clearLogHistory.mockReset().mockResolvedValue(undefined)
   })
 
   afterEach(() => {
     ;(globalThis as any).browser.cookies = originalBrowserCookies
+    vi.unstubAllGlobals()
   })
 
   afterAll(() => {
-    vi.doUnmock("~/utils/browser/browserApi")
+    vi.doUnmock("~/utils/browser/extensionStorage")
+    vi.doUnmock("~/utils/browser/tabs")
+    vi.doUnmock("~/utils/browser/windows")
+    vi.doUnmock("~/utils/browser/runtimeMessages")
+    vi.doUnmock("~/utils/browser/runtime")
+    vi.doUnmock("~/utils/browser/bookmarks")
+    vi.doUnmock("~/utils/browser/storage")
+    vi.doUnmock("~/utils/browser/sidePanel")
+    vi.doUnmock("~/utils/browser/alarms")
+    vi.doUnmock("~/utils/browser/notifications")
+    vi.doUnmock("~/utils/browser/contextMenus")
+    vi.doUnmock("~/utils/browser/cookies")
+    vi.doUnmock("~/utils/browser/action")
+    vi.doUnmock("~/utils/browser/permissions")
     vi.doUnmock("~/utils/browser/cookieHelper")
     vi.doUnmock("~/services/models/modelSync")
-    vi.doUnmock("~/services/preferences/runtimePreferencesService")
+    vi.doUnmock("~/services/preferences/runtime/runtimePreferencesService")
     vi.doUnmock("~/services/productAnnouncements/service")
-    vi.doUnmock("~/services/checkin/autoCheckin/scheduler")
-    vi.doUnmock("~/services/accounts/autoRefreshService")
-    vi.doUnmock("~/services/managedSites/channelConfigStorage")
+    vi.doUnmock("~/services/checkin/autoCheckin/scheduling/schedulerMessaging")
+    vi.doUnmock("~/services/accounts/refresh/autoRefreshService")
+    vi.doUnmock("~/services/managedSites/configuration/channelConfigHandlers")
     vi.doUnmock("~/services/checkin/externalCheckInService")
     vi.doUnmock("~/services/redemption/redemptionAssist")
-    vi.doUnmock("~/services/productAnalytics/runtime")
+    vi.doUnmock("~/services/productAnalytics/runtime/runtime")
     vi.doUnmock("~/entrypoints/background/protectionBypassCoordinator")
-    vi.doUnmock("~/entrypoints/background/openrouter/managementKeyAction")
+    vi.doUnmock(
+      "~/services/browsingContext/tempPage/openrouterManagementKeyAction",
+    )
+    vi.doUnmock("~/entrypoints/background/tempContextDebug")
+    vi.doUnmock("~/services/logging/logHistory")
     vi.doUnmock("~/services/history/usageHistory/scheduler")
-    vi.doUnmock("~/services/webdav/webdavAutoSyncService")
+    vi.doUnmock("~/services/webdav/autoSync/webdavAutoSyncService")
+    vi.doUnmock("~/services/webdav/autoSync/webdavAutoSyncMessageHandlers")
     vi.doUnmock("~/services/history/dailyBalanceHistory/scheduler")
     vi.doUnmock("~/services/integrations/ldohSiteLookup/background")
     vi.doUnmock("~/services/notifications/taskNotificationService")
     vi.doUnmock("~/services/siteAnnouncements/scheduler")
+    vi.doUnmock("~/services/siteAnnouncements/runtimeMessages")
     vi.resetModules()
     vi.restoreAllMocks()
+  })
+
+  it("routes editor recovery and cancellation and sanitizes handler failures", async () => {
+    const { setupRuntimeMessageListeners } = await import(
+      "~/entrypoints/background/runtimeMessages"
+    )
+    setupRuntimeMessageListeners()
+    const call = (action: string) =>
+      new Promise((resolve) => {
+        expect(
+          runtimeMessageListener?.(
+            { action, requestId: "editor-1" },
+            {},
+            resolve,
+          ),
+        ).toBe(true)
+      })
+    recoverCookie.mockResolvedValueOnce({
+      status: "authenticated",
+      credential: { cookie: "session=test" },
+    })
+    expect(
+      await call(RuntimeActionIds.AccountDialogRecoverCookieSession),
+    ).toEqual({
+      status: "authenticated",
+      credential: { cookie: "session=test" },
+    })
+    expect(recoverCookie).toHaveBeenCalledWith({
+      action: RuntimeActionIds.AccountDialogRecoverCookieSession,
+      requestId: "editor-1",
+    })
+    recoverCookie.mockRejectedValueOnce(new Error("private detail"))
+    expect(
+      await call(RuntimeActionIds.AccountDialogRecoverCookieSession),
+    ).toEqual({ status: "failed" })
+    cancelRecovery.mockReturnValueOnce(true)
+    expect(await call(RuntimeActionIds.AccountDialogCancelCookieRecovery)).toBe(
+      true,
+    )
+    expect(cancelRecovery).toHaveBeenCalledWith("editor-1")
+    cancelRecovery.mockImplementationOnce(() => {
+      throw new Error("private detail")
+    })
+    expect(await call(RuntimeActionIds.AccountDialogCancelCookieRecovery)).toBe(
+      false,
+    )
+  })
+
+  it("opens guided feedback only for extension-page requests and dismisses only the sender tab", async () => {
+    const { setupRuntimeMessageListeners } = await import(
+      "~/entrypoints/background/runtimeMessages"
+    )
+    setupRuntimeMessageListeners()
+    const request = {
+      action: RuntimeActionIds.OpenCheckInFeedbackIssue,
+      url: "https://github.com/qixing-jk/all-api-hub/issues/new",
+      hint: { title: "Copied", description: "Paste report", dismiss: "Close" },
+    }
+    const denied = vi.fn()
+    runtimeMessageListener?.(request, { url: "https://github.com/" }, denied)
+    expect(denied).toHaveBeenCalledWith({ success: false })
+    expect(openFeedback).not.toHaveBeenCalled()
+    const accepted = vi.fn()
+    runtimeMessageListener?.(
+      request,
+      { url: browser.runtime.getURL("options.html") },
+      accepted,
+    )
+    await vi.waitFor(() =>
+      expect(accepted).toHaveBeenCalledWith({ success: true }),
+    )
+    expect(openFeedback).toHaveBeenCalledWith(request.url, request.hint)
+    const dismissed = vi.fn()
+    runtimeMessageListener?.(
+      { action: RuntimeActionIds.DismissCheckInFeedbackHint, tabId: 999 },
+      { tab: { id: 73 } },
+      dismissed,
+    )
+    await vi.waitFor(() =>
+      expect(dismissed).toHaveBeenCalledWith({ success: true }),
+    )
+    expect(dismissFeedback).toHaveBeenCalledWith(73)
+  })
+
+  it("reports guided feedback failures and rejects dismissal without a sender tab", async () => {
+    const { setupRuntimeMessageListeners } = await import(
+      "~/entrypoints/background/runtimeMessages"
+    )
+    setupRuntimeMessageListeners()
+    openFeedback.mockRejectedValueOnce(new Error("navigation failed"))
+    const opened = vi.fn()
+    runtimeMessageListener?.(
+      { action: RuntimeActionIds.OpenCheckInFeedbackIssue, url: "invalid" },
+      { url: browser.runtime.getURL("options.html") },
+      opened,
+    )
+    await vi.waitFor(() =>
+      expect(opened).toHaveBeenCalledWith({ success: false }),
+    )
+    for (const sender of [{}, { tab: {} }]) {
+      const denied = vi.fn()
+      runtimeMessageListener?.(
+        { action: RuntimeActionIds.DismissCheckInFeedbackHint },
+        sender,
+        denied,
+      )
+      expect(denied).toHaveBeenCalledWith({ success: false })
+    }
+    dismissFeedback.mockRejectedValueOnce(new Error("storage unavailable"))
+    const dismissed = vi.fn()
+    runtimeMessageListener?.(
+      { action: RuntimeActionIds.DismissCheckInFeedbackHint },
+      { tab: { id: 73 } },
+      dismissed,
+    )
+    await vi.waitFor(() =>
+      expect(dismissed).toHaveBeenCalledWith({ success: false }),
+    )
+  })
+
+  it("acknowledges relayed history only after persistence and reports write failures", async () => {
+    const { setupRuntimeMessageListeners } = await import(
+      "~/entrypoints/background/runtimeMessages"
+    )
+    setupRuntimeMessageListeners()
+    let persist!: () => void
+    appendLogHistory.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        persist = resolve
+      }),
+    )
+    const respond = vi.fn()
+    const logEntry = { id: "relayed-record", message: "account read" }
+    expect(
+      runtimeMessageListener?.(
+        { action: RuntimeActionIds.CloudflareGuardLog, logEntry },
+        {},
+        respond,
+      ),
+    ).toBe(true)
+    expect(appendLogHistory).toHaveBeenCalledWith(logEntry)
+    expect(respond).not.toHaveBeenCalled()
+    persist()
+    await vi.waitFor(() =>
+      expect(respond).toHaveBeenCalledWith({ success: true }),
+    )
+    appendLogHistory.mockRejectedValueOnce(new Error("storage failed"))
+    const failed = await new Promise((resolve) =>
+      runtimeMessageListener?.(
+        { action: RuntimeActionIds.CloudflareGuardLog, logEntry },
+        {},
+        resolve,
+      ),
+    )
+    expect(failed).toEqual({ success: false })
+  })
+
+  it("clears the background producer queue before acknowledging and reports failures", async () => {
+    const { setupRuntimeMessageListeners } = await import(
+      "~/entrypoints/background/runtimeMessages"
+    )
+    setupRuntimeMessageListeners()
+    let finish!: () => void
+    clearLogHistory.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve
+      }),
+    )
+    const respond = vi.fn()
+    runtimeMessageListener?.({ action: "logHistory:clear" }, {}, respond)
+    expect(clearLogHistory).toHaveBeenCalledTimes(1)
+    expect(respond).not.toHaveBeenCalled()
+    finish()
+    await vi.waitFor(() =>
+      expect(respond).toHaveBeenCalledWith({ success: true }),
+    )
+    clearLogHistory.mockRejectedValueOnce(new Error("storage failed"))
+    const failed = await new Promise((resolve) =>
+      runtimeMessageListener?.({ action: "logHistory:clear" }, {}, resolve),
+    )
+    expect(failed).toEqual({ success: false })
+  })
+
+  it("executes developer API methods with their receiver and returns properties or errors", async () => {
+    const { setupRuntimeMessageListeners } = await import(
+      "~/entrypoints/background/runtimeMessages"
+    )
+    const receiver = {
+      id: "test-extension",
+      getPlatformInfo: vi.fn(function (this: unknown) {
+        expect(this).toBe(receiver)
+        return Promise.resolve({ os: "win" })
+      }),
+    }
+    vi.stubGlobal("chrome", { runtime: receiver })
+    setupRuntimeMessageListeners()
+    for (const [path, args, expected] of [
+      ["runtime.getPlatformInfo", [], { success: true, data: { os: "win" } }],
+      ["runtime.id", [], { success: true, data: "test-extension" }],
+      [
+        "missing.method",
+        [],
+        {
+          success: false,
+          error: expect.stringContaining("Cannot read property"),
+        },
+      ],
+    ]) {
+      const response = new Promise((resolve) => {
+        expect(
+          runtimeMessageListener?.(
+            {
+              action: RuntimeActionIds.DevExecuteBrowserApi,
+              payload: { path, args },
+            },
+            {},
+            resolve,
+          ),
+        ).toBe(true)
+      })
+      expect(await response).toEqual(expected)
+    }
+  })
+
+  it("keeps the runtime channel open for a temp-context debug response", async () => {
+    const { setupRuntimeMessageListeners } = await import(
+      "~/entrypoints/background/runtimeMessages"
+    )
+    setupRuntimeMessageListeners()
+    const request = { action: RuntimeActionIds.TempContextDebugListMarkers }
+    const sendResponse = vi.fn()
+
+    expect(runtimeMessageListener?.(request, {}, sendResponse)).toBe(true)
+    expect(handleTempContextDebugMessage).toHaveBeenCalledWith(
+      request,
+      sendResponse,
+    )
+  })
+
+  it("keeps relayed account summaries visible at the normal info log level", async () => {
+    const { setupRuntimeMessageListeners } = await import(
+      "~/entrypoints/background/runtimeMessages"
+    )
+    const { setLoggingPreferences } = await import("~/utils/core/logger")
+    setupRuntimeMessageListeners()
+    const log = vi.spyOn(console, "info").mockImplementation(() => {})
+    const sendResponse = vi.fn()
+    setLoggingPreferences({ consoleEnabled: true, level: "info" })
+    try {
+      runtimeMessageListener?.(
+        {
+          action: RuntimeActionIds.CloudflareGuardLog,
+          event: "detection_finished",
+          details: {
+            diagnosticScope: "account_detection",
+            requestId: "detect-relay",
+            outcome: "failed",
+          },
+        },
+        { tab: { id: 8 } },
+        sendResponse,
+      )
+      expect(sendResponse).toHaveBeenCalledWith({ success: true })
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining("AccountDetectionRelay"),
+        expect.objectContaining({
+          requestId: "detect-relay",
+          details: expect.objectContaining({ outcome: "failed" }),
+          sender: expect.objectContaining({ tabId: 8 }),
+        }),
+      )
+    } finally {
+      setLoggingPreferences({ consoleEnabled: false, level: "debug" })
+    }
   })
 
   it("routes OpenRouter page mutation through protection-bypass authorization", async () => {
@@ -265,7 +602,7 @@ describe("setupRuntimeMessageListeners routing", () => {
     const { registerInternalTab, unregisterInternalTab } = await import(
       "~/services/browsingContext/internalTabsBackground"
     )
-    await registerInternalTab(901)
+    await registerInternalTab(901, { windowScope: "shared", createdAt: 1 })
     setupRuntimeMessageListeners()
     const response = new Promise<{ tabIds: number[] }>((resolve) => {
       expect(
@@ -286,7 +623,7 @@ describe("setupRuntimeMessageListeners routing", () => {
     )
     setupRuntimeMessageListeners()
     const read = vi
-      .spyOn(browser.storage.session, "get")
+      .spyOn(browser.storage.local, "get")
       .mockRejectedValue(new Error("storage unavailable"))
     try {
       const response = await new Promise((resolve) =>
@@ -333,7 +670,7 @@ describe("setupRuntimeMessageListeners routing", () => {
       const { registerInternalTab, unregisterInternalTab } = await import(
         "~/services/browsingContext/internalTabsBackground"
       )
-      await registerInternalTab(951)
+      await registerInternalTab(951, { windowScope: "shared", createdAt: 1 })
       setupRuntimeMessageListeners()
       try {
         const response = await new Promise((resolve) =>
@@ -360,7 +697,7 @@ describe("setupRuntimeMessageListeners routing", () => {
     )
     setupRuntimeMessageListeners()
     const read = vi
-      .spyOn(browser.storage.session, "get")
+      .spyOn(browser.storage.local, "get")
       .mockRejectedValue(new Error("unavailable"))
     try {
       const response = await new Promise((resolve) =>
@@ -583,6 +920,7 @@ describe("setupRuntimeMessageListeners routing", () => {
     expect(sendResponse).toHaveBeenCalledWith({
       success: true,
       data: "session=incognito",
+      cookieStoreId: "1-incognito",
     })
   })
 
@@ -632,6 +970,7 @@ describe("setupRuntimeMessageListeners routing", () => {
     expect(sendResponse).toHaveBeenCalledWith({
       success: true,
       data: "session=incognito",
+      cookieStoreId: "1-incognito",
     })
   })
 

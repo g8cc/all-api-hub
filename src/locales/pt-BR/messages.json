@@ -21,14 +21,30 @@
     "oneTimeKeyPromptCancelled": "Conta salva. Você pode criar manualmente uma chave de API do AIHubMix mais tarde no Gerenciamento de Chaves.",
     "oneTimeKeyUnavailableAfterCreate": "A conta foi salva, mas não foi possível recuperar a chave de API completa do AIHubMix. As chaves do AIHubMix são exibidas apenas uma vez após a criação; crie uma nova chave no Gerenciamento de Chaves e salve a chave completa imediatamente."
   },
+  "aimlapi": {
+    "credentialInvalid": "A chave do AI/ML API é inválida ou expirou.",
+    "credentialScopeDenied": "Esta credencial do AI/ML API não pode executar essa ação. O gerenciamento de chaves exige uma chave de gerenciamento; saldo e cobrança exigem uma chave de API comum.",
+    "malformedResponse": "O AI/ML API retornou uma resposta que este aplicativo não consegue ler.",
+    "managementKeyRequired": "O AI/ML API exige uma chave de gerenciamento. Crie uma em \"Management keys\" e cole aqui.",
+    "networkFallback": "Não foi possível acessar o AI/ML API. Verifique a rede e tente novamente."
+  },
+  "aiToolbox": {
+    "attemptingRedirect": "Tentando redirecionar para o AI Toolbox",
+    "invalidApp": "Aplicativo de destino do AI Toolbox não suportado",
+    "invalidBaseUrl": "URL base da API inválida ou ausente",
+    "invalidHomepage": "URL da página inicial inválida ou ausente",
+    "missingCredentials": "Informações obrigatórias de conta ou chave ausentes",
+    "unableToOpen": "Não foi possível abrir o AI Toolbox. Certifique-se de que ele esteja instalado"
+  },
   "autodetect": {
-    "currentTabNeedsReload": "Esta página pode ter sido aberta antes da extensão ser instalada ou atualizada, por isso a extensão ainda não consegue ler dados desta aba. Recarregue a página atual e tente a detecção automática novamente.",
+    "currentTabNeedsReload": "A extensão não consegue se conectar ao script de detecção desta página. Recarregue a página e tente a detecção automática novamente. Se o problema persistir, verifique se a extensão tem acesso a este site.",
     "failed": "Detecção automática falhou: {{error}}",
     "forbidden": "Acesso negado. Confirme se o firewall do site está bloqueando a requisição",
     "loginThisSite": "Fazer login neste site",
     "networkError": "Conexão de rede falhou. Verifique sua conexão de rede e tente novamente",
     "notFound": "Não foi possível detectar este site automaticamente. Verifique se o endereço está correto ou faça login no site de destino e tente novamente.",
     "notLoggedIn": "Você não está logado no site atual ou as informações de login expiraram. Não é possível adicionar automaticamente. Verifique a documentação de ajuda ou clique para fazer login primeiro",
+    "rateLimited": "Muitas solicitações. Tente novamente mais tarde.",
     "serverError": "Erro no servidor. Tente novamente mais tarde",
     "timeout": "Tempo limite da detecção automática esgotado. Tente adicionar manualmente",
     "unexpectedData": "Detecção automática falhou: o site retornou dados inesperados. Insira as informações manualmente ou certifique-se de estar logado no site de destino"
@@ -71,7 +87,6 @@
     "updateSuccess": "Provedor {{name}} do Claude Code Router atualizado com sucesso"
   },
   "cliProxyApi": {
-    "managementApiConnectionSuccess": "Conexão bem-sucedida",
     "managementApiForbidden": "CLIProxyAPI rejeitou a requisição. Verifique se a chave de gerenciamento foi digitada incorretamente muitas vezes ou se o acesso está restrito no servidor.",
     "managementApiHttpError": "A Management API do CLIProxyAPI retornou um código de status inesperado (HTTP {{status}})",
     "managementApiInvalidKey": "A Management Key do CLIProxyAPI é inválida. Verifique a chave nas configurações.",
@@ -82,6 +97,12 @@
     "userInfoNotFound": "Informações do usuário não encontradas. Certifique-se de estar logado",
     "waitUserInfoTimeout": "Tempo limite esgotado aguardando informações do usuário. Certifique-se de estar logado"
   },
+  "cookieTransport": {
+    "permissionRequired": "Este navegador não pode enviar uma solicitação usando o Cookie desta conta. Verifique as permissões da extensão ou atualize o navegador e tente novamente.",
+    "requestUnavailable": "Não foi possível preparar a solicitação. Tente novamente; se o erro persistir, recarregue a extensão.",
+    "scopeUnavailable": "Esta solicitação não pode usar o escopo de cookies selecionado. Importe o cookie da conta desejada ou use sua sessão normal do navegador.",
+    "sessionUnavailable": "A sessão não está disponível. Entre novamente na mesma conta; se estiver usando um cookie importado, importe-o novamente."
+  },
   "donehub": {
     "configMissing": "Configure o endereço do Done Hub, token do administrador e ID do usuário nas configurações básicas primeiro",
     "noChannelsToSync": "Nenhum canal para sincronizar"
@@ -89,14 +110,20 @@
   "errors": {
     "api": {
       "invalidResponseFormat": "Formato de resposta inválido",
+      "missingRecoveryPolicy": "A extensão não conseguiu preparar esta solicitação. Atualize a extensão ou relate o problema.",
+      "nonJsonContent": "retornou {{contentType}} em vez de JSON (HTTP {{status}})",
       "onlyJsonSupported": "Apenas respostas JSON são suportadas",
-      "requestFailed": "Requisição falhou: {{status}}"
+      "requestFailed": "Requisição falhou: {{status}}",
+      "verificationRequired": "O site retornou uma página de verificação. Conclua a verificação no site e tente novamente."
     },
+    "dayaRedemptionUnconfirmed": "Confira o resultado no console oficial. Verifique a entrega ou conclua a aplicação do desconto antes de tentar novamente.",
     "operation": {
       "accountDataFetchTimeout": "Tempo limite esgotado ao buscar dados da conta ({{seconds}}s)",
       "failed": "Operação falhou: {{error}}",
       "saveFailed": "Falha ao salvar: {{error}}"
     },
+    "relayForRedemptionUnconfirmed": "O resgate não foi confirmado. Confira o console oficial antes de tentar novamente.",
+    "relayForVerificationRequired": "Esta operação exige um código de verificação. Conclua no console oficial e atualize aqui.",
     "unknown": "Erro desconhecido",
     "validation": {
       "bookmarkNameRequired": "O nome do favorito não pode estar vazio",
@@ -108,6 +135,14 @@
       "userIdNumeric": "O ID do usuário deve ser um número"
     }
   },
+  "gptLoad": {
+    "configMissing": "Configure the gpt-load deployment address and management key in settings first",
+    "noChannelsToSync": "No channels to sync"
+  },
+  "grsai": {
+    "openApiTokenRejected": "Este é o Token exibido na página de informações do usuário da Grsai. Ele é destinado às APIs abertas da plataforma, e o console não o aceita. Use a detecção automática para ler a sessão do console já conectada ou cole o token de sessão do console.",
+    "sessionExpired": "A sessão do console da Grsai salva expirou (uma sessão dura cerca de 30 dias). Faça login novamente no console da Grsai e adicione a conta pela detecção automática."
+  },
   "kelivo": {
     "copied": "Código de importação do Kelivo móvel copiado. Cole-o na importação de provedores do Kelivo móvel.",
     "copyFailed": "Não foi possível copiar o código de importação do Kelivo. Verifique a permissão da área de transferência e tente novamente.",
@@ -116,6 +151,10 @@
     "missingCredentials": "É necessário informar o nome do provedor e uma chave de API completa.",
     "unsupportedApiType": "Este protocolo de API não pode ser exportado para o Kelivo."
   },
+  "magpie": {
+    "configMissing": "Configure primeiro o endereço Magpie Web e a chave de administração Web nas configurações.",
+    "noChannelsToSync": "Nenhum canal para sincronizar"
+  },
   "managedSite": {
     "unsupportedModelSync": "{{siteName}} não oferece suporte à sincronização de modelos de sites gerenciados nesta versão"
   },
@@ -123,9 +162,22 @@
     "configMissing": "Configure o endereço do New API, token do administrador e ID do usuário nas configurações básicas primeiro",
     "noChannelsToSync": "Nenhum canal para sincronizar"
   },
+  "novita": {
+    "apiKeyRequired": "Informe uma API Key completa da Novita ou entre na mesma conta para obter uma credencial do console. Ambas podem ser salvas juntas.",
+    "consoleAcquisitionFailed": "Não foi possível obter o token do console. Entre nesta conta Novita, atualize a página e tente novamente ou cole o token diretamente. Sua API Key será preservada.",
+    "consoleCredentialRequired": "Esta ação exige autorização do console. Edite a conta e obtenha uma credencial do console da mesma conta Novita.",
+    "credentialInvalid": "A credencial da Novita é inválida ou expirou. Para o console, entre e detecte novamente; caso contrário, substitua a API Key.",
+    "keyChanged": "A chave foi alterada na Novita. Abra o editor novamente.",
+    "malformedResponse": "A Novita retornou uma resposta inesperada. Tente novamente mais tarde.",
+    "networkFallback": "Não foi possível conectar à Novita. Verifique sua conexão de rede e tente novamente."
+  },
   "octopus": {
     "configMissing": "Configure o endereço do Octopus, nome de usuário e senha nas configurações básicas primeiro",
     "corsError": "Isso pode ser provocado pela configuração do CORS. Verifique a lista de permissões (whitelist) do CORS nas configurações do Octopus.",
+    "noChannelsToSync": "Nenhum canal para sincronizar"
+  },
+  "omniroute": {
+    "configMissing": "Configure primeiro o endereço e o token de acesso do OmniRoute nas configurações",
     "noChannelsToSync": "Nenhum canal para sincronizar"
   },
   "openrouter": {
@@ -148,12 +200,13 @@
   },
   "operations": {
     "detection": {
+      "cookieSessionRejected": "O site rejeitou a sessão de cookies. Entre novamente.",
       "failed": "Detecção automática falhou. Insira as informações manualmente ou certifique-se de estar logado no site de destino",
       "getAccessTokenFailedDetailed": "A conta foi detectada, mas nenhum token de acesso pôde ser recuperado. Confirme se a conta pode criar ou visualizar tokens de API, ou insira o token manualmente.",
       "getInfoFailed": "Falha ao obter o nome de usuário ou token de acesso",
       "getSiteStatusFailedDetailed": "A conta foi detectada, mas o status do site não pôde ser lido. Tente novamente mais tarde; se continuar falhando, salve a conta manualmente primeiro.",
       "getUserIdFailed": "Não foi possível obter o ID do usuário",
-      "getUserIdFailedDetailed": "Conectado ao site, mas não foi possível ler o ID do usuário. Certifique-se de estar logado no site de destino e tente novamente.",
+      "getUserIdFailedDetailed": "Não foi possível confirmar a conta conectada. Abra o site de destino neste navegador, confirme que você está conectado e tente novamente. Se ainda falhar, complete os dados da conta manualmente.",
       "getUsernameFailedDetailed": "A conta foi detectada, mas o site não retornou um nome de usuário. Certifique-se de estar logado ou insira a conta manualmente."
     }
   },
@@ -232,6 +285,9 @@
     "configMissing": "Configure o endereço do Veloera, token do administrador e ID do usuário nas configurações básicas primeiro",
     "noChannelsToSync": "Nenhum canal para sincronizar"
   },
+  "vercelAiGateway": {
+    "accessTokenRequired": "O Vercel AI Gateway exige um token de acesso da Vercel para a equipe proprietária do gateway."
+  },
   "warnings": {
     "accountSavedWithoutDataRefresh": "Conta salva, mas não foi possível obter o saldo, a cota e o uso de hoje mais recentes. Os valores atuais podem ser provisórios. Atualize esta conta mais tarde na lista de contas.",
     "accountUpdatedWithoutDataRefresh": "Configurações da conta salvas, mas não foi possível atualizar o saldo, a cota e o uso de hoje mais recentes. Os valores atuais ainda podem estar desatualizados. Atualize esta conta mais tarde na lista de contas."
@@ -246,10 +302,10 @@
     "encryptFailedNoPassword": "A criptografia está ativada, mas nenhuma senha foi definida",
     "fileNotFound": "O arquivo de backup remoto não existe",
     "invalidBackupJson": "O arquivo de backup na nuvem está incompleto e não pode ser usado para sincronização. A sincronização foi interrompida para evitar a fusão de dados danificados. Se este dispositivo possuir dados locais completos, use 'Enviar para WebDAV' para recriar o backup na nuvem. Caso contrário, envie a partir de outro dispositivo com dados completos ou importe um arquivo de backup completo primeiro.",
-    "safeCommitFailed": "Este serviço WebDAV não pôde salvar o backup com segurança. Seu backup na nuvem existente foi mantido. Tente novamente mais tarde ou use um serviço WebDAV que suporte mover ou renomear arquivos.",
+    "safeCommitFailed": "Não foi possível confirmar que o backup foi salvo na nuvem. Verifique a conexão e as permissões de leitura e gravação e tente novamente.",
     "syncDataSelectionRequired": "Selecione pelo menos um domínio de dados para sincronizar",
     "uploadFailed": "Falha no envio (upload), código de status: {{status}}",
-    "uploadStillProcessing": "O serviço de nuvem ainda está processando o backup enviado, portanto a verificação ainda não pôde ser concluída. Seu backup existente na nuvem não foi substituído. Tente novamente mais tarde.",
-    "uploadVerificationFailed": "A verificação do backup falhou após o envio (upload). O serviço na nuvem pode não ter salvo o arquivo completamente. Seu backup na nuvem existente foi mantido."
+    "uploadStillProcessing": "O serviço de nuvem ainda está processando o backup enviado, portanto a verificação ainda não pôde ser concluída. Tente novamente mais tarde.",
+    "uploadVerificationFailed": "A verificação do backup falhou após o envio. O arquivo na nuvem pode estar incompleto. Tente sincronizar novamente ou restaure um backup local, se necessário."
   }
 }

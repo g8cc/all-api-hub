@@ -1,27 +1,19 @@
 import { SITE_TYPES } from "~/constants/siteType"
-import { readIdentityStorageRecord } from "~/services/accountBrowserSession/localIdentityState"
-import { resolveStoredAccountUserIdentity } from "~/services/accounts/accountIdentity"
-import { isRecord } from "~/utils/core/object"
+import {
+  apiyiStoredUserHint,
+  resolveNewApiStoredUserHint,
+} from "~/services/accountBrowserSession/newApiStoredUserHint"
+import { resolveStoredAccountUserIdentity } from "~/services/accounts/identity/accountIdentity"
 
 import type { ContentSessionExtractor } from "../contracts"
-
-// https://api.apiyi.com/ (v29.8.9) stores its dashboard user in USER_STATE.user.
-// Forward identity only; its X-S-Token is unnecessary for the cookie API reads.
-const APIYI_USER_STATE_KEY = "USER_STATE"
-
-/** Shares APIyi's dashboard identity hint with passive browser verification. */
-export function readApiyiStoredUser() {
-  const user = readIdentityStorageRecord(APIYI_USER_STATE_KEY)?.user
-  return isRecord(user) ? user : null
-}
 
 export const apiyiContentSessionExtractor: ContentSessionExtractor = {
   id: "apiyi",
   canExtract: (context) =>
-    context.siteTypeHint === SITE_TYPES.APIYI &&
-    localStorage.getItem(APIYI_USER_STATE_KEY) !== null,
-  async extract() {
-    const user = readApiyiStoredUser()
+    resolveNewApiStoredUserHint(context.siteTypeHint).kind ===
+      apiyiStoredUserHint.kind && apiyiStoredUserHint.isPresent(),
+  async extract(context) {
+    const user = apiyiStoredUserHint.read()
     if (!user) return null
 
     const identity = resolveStoredAccountUserIdentity(
@@ -31,10 +23,10 @@ export const apiyiContentSessionExtractor: ContentSessionExtractor = {
           ? { username: user.username }
           : {}),
       },
-      SITE_TYPES.APIYI,
+      context.siteTypeHint ?? SITE_TYPES.APIYI,
     )
     if (!identity) return null
 
-    return { ...identity, siteTypeHint: SITE_TYPES.APIYI }
+    return { ...identity, siteTypeHint: context.siteTypeHint }
   },
 }

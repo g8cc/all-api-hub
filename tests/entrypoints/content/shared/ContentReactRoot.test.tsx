@@ -11,7 +11,7 @@ import {
   THEME_RADIUS,
 } from "~/constants/theme"
 import { USER_PREFERENCES_STORAGE_KEYS } from "~/services/core/storageKeys"
-import type { UserPreferences } from "~/services/preferences/userPreferences"
+import type { UserPreferences } from "~/services/preferences/preferencesSchema"
 import { EMPTY_DEV_IDENTITY } from "~/utils/core/devIdentity"
 import { createDeferred } from "~~/tests/test-utils/deferred"
 import {
@@ -19,6 +19,7 @@ import {
   DEV_IDENTITY_FIXTURE_PATH,
   DEV_IDENTITY_FIXTURE_PATH_TAIL,
 } from "~~/tests/test-utils/devIdentityFixtures"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { createMatchMediaController } from "~~/tests/test-utils/matchMedia"
 
 const {
@@ -61,14 +62,11 @@ vi.mock("~/utils/core/logger", () => ({
   }),
 }))
 
-vi.mock(
-  "~/entrypoints/content/webAiApiCheck/components/ApiCheckModalHost",
-  () => ({
-    ApiCheckModalHost: () => (
-      <input aria-label="API credential" data-testid="api-check-modal-host" />
-    ),
-  }),
-)
+vi.mock("~/features/WebAiApiCheck/content/modal/ApiCheckModalHost", () => ({
+  ApiCheckModalHost: () => (
+    <input aria-label="API credential" data-testid="api-check-modal-host" />
+  ),
+}))
 
 vi.mock(
   "~/entrypoints/content/redemptionAssist/components/RedemptionToaster",
@@ -144,7 +142,7 @@ describe("ContentReactRoot", () => {
       },
     })
     act(() => {
-      watchMock.mock.calls[0][0][
+      atIndex(watchMock.mock.calls, 0)[0][
         USER_PREFERENCES_STORAGE_KEYS.USER_PREFERENCES
       ]()
     })
@@ -175,7 +173,9 @@ describe("ContentReactRoot", () => {
       originalHostTheme,
     )
     unmount()
-    expect(unwatchMock).toHaveBeenCalledWith(watchMock.mock.calls[0][0])
+    expect(unwatchMock).toHaveBeenCalledWith(
+      atIndex(watchMock.mock.calls, 0)[0],
+    )
   })
 
   it("discards a stale initial read after a storage update has loaded", async () => {
@@ -195,7 +195,7 @@ describe("ContentReactRoot", () => {
     const { container } = render(<ContentReactRoot />)
 
     act(() => {
-      watchMock.mock.calls[0][0][
+      atIndex(watchMock.mock.calls, 0)[0][
         USER_PREFERENCES_STORAGE_KEYS.USER_PREFERENCES
       ]()
     })
@@ -248,7 +248,9 @@ describe("ContentReactRoot", () => {
       await pending.promise
     })
 
-    expect(unwatchMock).toHaveBeenCalledWith(watchMock.mock.calls[0][0])
+    expect(unwatchMock).toHaveBeenCalledWith(
+      atIndex(watchMock.mock.calls, 0)[0],
+    )
     expect(media.queryList.addEventListener).not.toHaveBeenCalled()
   })
 

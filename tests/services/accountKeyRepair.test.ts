@@ -5,8 +5,8 @@ import { SITE_TYPES } from "~/constants/siteType"
 import {
   ACCOUNT_KEY_RECONCILIATION_INVENTORY_STATUSES,
   ACCOUNT_KEY_RECONCILIATION_OUTCOMES,
-} from "~/services/accounts/accountKeyInventoryReconciliation"
-import { createAccountKeyResourceCreatedRuntimeSecret } from "~/services/accounts/createdRuntimeSecret"
+} from "~/services/accounts/keys/accountKeyInventoryReconciliation"
+import { createAccountKeyResourceCreatedRuntimeSecret } from "~/services/accounts/keys/createdRuntimeSecret"
 import {
   ACCOUNT_KEY_PROVISIONING_COVERAGE,
   ACCOUNT_KEY_PROVISIONING_PLACEMENT_KINDS,
@@ -32,6 +32,7 @@ import {
   buildDisplaySiteData,
   buildSiteAccount,
 } from "~~/tests/test-utils/factories"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const mocks = vi.hoisted(() => {
   const storageMap = new Map<string, unknown>()
@@ -116,13 +117,10 @@ vi.mock("~/services/apiAdapters/registry", () => ({
   getSiteTypeCapabilities: mocks.getSiteTypeCapabilities,
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
-  return {
-    ...actual,
-    sendRuntimeMessage: mocks.sendRuntimeMessage,
-  }
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
+  return { ...actual, sendRuntimeMessage: mocks.sendRuntimeMessage }
 })
 
 vi.mock("~/utils/core/identifier", async (importOriginal) => {
@@ -290,6 +288,50 @@ describe("accountKeyRepair", () => {
     )
   })
 
+  it("limits an explicit selection to those accounts without falling back to all accounts", async () => {
+    mocks.getAllAccounts.mockResolvedValue([
+      buildRepairAccount("selected", SITE_TYPES.SHAREDCHAT),
+      buildRepairAccount("other", SITE_TYPES.SHAREDCHAT),
+    ])
+    const { startAccountKeyRepair, accountKeyRepairRunner } = await import(
+      "~/services/accounts/accountKeyAutoProvisioning/repair"
+    )
+    await startAccountKeyRepair({ accountIds: ["selected"] })
+    await waitForStoredState(ACCOUNT_KEY_REPAIR_JOB_STATES.Completed)
+    const progress = await accountKeyRepairRunner.getProgress()
+    expect(progress.results.map((result) => result.accountId)).toEqual([
+      "selected",
+    ])
+    expect(progress.totals.enabledAccounts).toBe(1)
+  })
+
+  it.each([[], [""], [null], "all"])(
+    "rejects invalid explicit account selections: %j",
+    async (accountIds) => {
+      const { accountKeyRepairRunner } = await import(
+        "~/services/accounts/accountKeyAutoProvisioning/repair"
+      )
+      await expect(
+        accountKeyRepairRunner.start({ accountIds } as never),
+      ).rejects.toThrow("invalid_account_selection")
+      expect(mocks.getAllAccounts).not.toHaveBeenCalled()
+    },
+  )
+
+  it("keeps stale or disabled selections empty rather than auditing other accounts", async () => {
+    mocks.getAllAccounts.mockResolvedValue([
+      buildRepairAccount("disabled", SITE_TYPES.SHAREDCHAT, { disabled: true }),
+      buildRepairAccount("other", SITE_TYPES.SHAREDCHAT),
+    ])
+    const { startAccountKeyRepair, accountKeyRepairRunner } = await import(
+      "~/services/accounts/accountKeyAutoProvisioning/repair"
+    )
+    await startAccountKeyRepair({ accountIds: ["missing", "disabled"] })
+    await waitForStoredState(ACCOUNT_KEY_REPAIR_JOB_STATES.Completed)
+    expect((await accountKeyRepairRunner.getProgress()).results).toEqual([])
+    expect(mocks.openKeyResources).not.toHaveBeenCalled()
+  })
+
   it("orders progress snapshots even when the clock does not advance", async () => {
     const { startAccountKeyRepair } = await import(
       "~/services/accounts/accountKeyAutoProvisioning/repair"
@@ -303,8 +345,8 @@ describe("accountKeyRepair", () => {
       )
       expect(snapshots.length).toBeGreaterThan(1)
       for (let index = 1; index < snapshots.length; index++) {
-        expect(snapshots[index].updatedAt).toBeGreaterThan(
-          snapshots[index - 1].updatedAt!,
+        expect(atIndex(snapshots, index).updatedAt).toBeGreaterThan(
+          atIndex(snapshots, index - 1).updatedAt!,
         )
       }
     } finally {
@@ -1096,11 +1138,16 @@ describe("accountKeyRepair", () => {
     )
     await accountKeyRepairRunner.start()
     await vi.waitFor(() => expect(mocks.openKeyResources).toHaveBeenCalled())
+    const runCompletion = Reflect.get(
+      accountKeyRepairRunner,
+      "currentRun",
+    ) as Promise<void>
     await expect(accountKeyRepairRunner.cancel()).resolves.toMatchObject({
       success: true,
       data: { state: ACCOUNT_KEY_REPAIR_JOB_STATES.Cancelled },
     })
     releaseInspect()
+    await runCompletion
     await vi.waitFor(async () => {
       const progress = await accountKeyRepairRunner.getProgress()
       expect(progress.state).toBe(ACCOUNT_KEY_REPAIR_JOB_STATES.Cancelled)
@@ -1108,36 +1155,46 @@ describe("accountKeyRepair", () => {
     })
   })
 
-  it("does not reconcile when cancellation lands while opening native resources", async () => {
-    const account = buildRepairAccount("cancelled-open", SITE_TYPES.NEW_API)
-    let releaseOpen!: () => void
-    const openGate = new Promise<void>((resolve) => {
-      releaseOpen = resolve
-    })
-    const inspect = vi.fn()
-    mocks.getAllAccounts.mockResolvedValue([account])
-    mocks.openKeyResources.mockImplementationOnce(async () => {
-      await openGate
-      return createSession({ inspect, provision: vi.fn() })
-    })
+  it.each(["resolve", "reject"])(
+    "does not reconcile or report failure when cancellation lands before native resource opening settles by %s",
+    async (settlement) => {
+      const account = buildRepairAccount("cancelled-open", SITE_TYPES.NEW_API)
+      let releaseOpen!: () => void
+      const openGate = new Promise<void>((resolve) => {
+        releaseOpen = resolve
+      })
+      const inspect = vi.fn()
+      mocks.getAllAccounts.mockResolvedValue([account])
+      mocks.openKeyResources.mockImplementationOnce(async () => {
+        await openGate
+        if (settlement === "reject")
+          throw new Error("Opening failed after cancellation")
+        return createSession({ inspect, provision: vi.fn() })
+      })
 
-    const { accountKeyRepairRunner } = await import(
-      "~/services/accounts/accountKeyAutoProvisioning/repair"
-    )
-    await accountKeyRepairRunner.start()
-    await vi.waitFor(() =>
-      expect(mocks.openKeyResources).toHaveBeenCalledOnce(),
-    )
-    await accountKeyRepairRunner.cancel()
-    releaseOpen()
+      const { accountKeyRepairRunner } = await import(
+        "~/services/accounts/accountKeyAutoProvisioning/repair"
+      )
+      await accountKeyRepairRunner.start()
+      await vi.waitFor(() =>
+        expect(mocks.openKeyResources).toHaveBeenCalledOnce(),
+      )
+      const runCompletion = Reflect.get(
+        accountKeyRepairRunner,
+        "currentRun",
+      ) as Promise<void>
+      await accountKeyRepairRunner.cancel()
+      releaseOpen()
+      await runCompletion
 
-    await vi.waitFor(async () => {
-      const progress = await accountKeyRepairRunner.getProgress()
-      expect(progress.state).toBe(ACCOUNT_KEY_REPAIR_JOB_STATES.Cancelled)
-      expect(progress.results).toEqual([])
-    })
-    expect(inspect).not.toHaveBeenCalled()
-  })
+      await vi.waitFor(async () => {
+        const progress = await accountKeyRepairRunner.getProgress()
+        expect(progress.state).toBe(ACCOUNT_KEY_REPAIR_JOB_STATES.Cancelled)
+        expect(progress.results).toEqual([])
+      })
+      expect(inspect).not.toHaveBeenCalled()
+    },
+  )
 
   it("rolls back failed persistence and recovers the serialized storage queue", async () => {
     mocks.rejectNextStorageSet()
@@ -1221,7 +1278,12 @@ describe("accountKeyRepair", () => {
           activeDeletions--
         }
       })
-      const openCollection = vi.fn(async () => ({ delete: deleteResource }))
+      const openCollection = vi.fn(async () => ({
+        delete: deleteResource,
+        get: vi.fn(async () => ({
+          runtimeKey: { baseUrl: "https://key.example.invalid/v1" },
+        })),
+      }))
       mocks.sessionsByAccountId.set(account.id, {
         ...createSession(),
         openCollection,
@@ -1274,15 +1336,33 @@ describe("accountKeyRepair", () => {
       )
       if (cleanupLinkedChannels)
         expect(mocks.finishCleanup).toHaveBeenCalledWith({ id: "pending-task" })
-      expect(deleteResource).toHaveBeenNthCalledWith(1, resources[0].ref, {
-        signal: expect.any(AbortSignal),
-      })
-      expect(deleteResource).toHaveBeenNthCalledWith(2, resources[1].ref, {
-        signal: expect.any(AbortSignal),
-      })
-      expect(deleteResource).toHaveBeenNthCalledWith(3, resources[2].ref, {
-        signal: expect.any(AbortSignal),
-      })
+      if (cleanupLinkedChannels)
+        expect(mocks.prepareCleanup).toHaveBeenCalledWith(
+          expect.objectContaining({
+            baseUrl: "https://key.example.invalid",
+          }),
+        )
+      expect(deleteResource).toHaveBeenNthCalledWith(
+        1,
+        atIndex(resources, 0).ref,
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
+      expect(deleteResource).toHaveBeenNthCalledWith(
+        2,
+        atIndex(resources, 1).ref,
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
+      expect(deleteResource).toHaveBeenNthCalledWith(
+        3,
+        atIndex(resources, 2).ref,
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
       expect(openCollection).toHaveBeenCalledTimes(3)
       expect(openCollection).toHaveBeenCalledWith("default", {
         signal: expect.any(AbortSignal),
@@ -1294,7 +1374,9 @@ describe("accountKeyRepair", () => {
       const progress = mocks.storageMap.get(
         REPAIR_PROGRESS_STORAGE_KEY,
       ) as AccountKeyRepairProgress
-      expect(progress.results[0].invalidResources).toEqual(resources.slice(1))
+      expect(atIndex(progress.results, 0).invalidResources).toEqual(
+        resources.slice(1),
+      )
       expect(progress.summary).toMatchObject({
         invalidResources: 2,
         deleteApplied: 1,
@@ -1338,7 +1420,10 @@ describe("accountKeyRepair", () => {
                   },
                 }
               : {}),
-          openCollection: vi.fn(async () => ({ delete: deleteResource })),
+          openCollection: vi.fn(async () => ({
+            delete: deleteResource,
+            get: vi.fn(async () => ({ runtimeKey: {} })),
+          })),
         })
         mocks.getAllAccounts.mockResolvedValue([account])
         mocks.storageMap.set(
@@ -1386,7 +1471,7 @@ describe("accountKeyRepair", () => {
           signal: expect.any(AbortSignal),
         })
         await vi.advanceTimersByTimeAsync(30_000)
-        expect(stalled.mock.calls[0][1].signal.aborted).toBe(true)
+        expect(atIndex(stalled.mock.calls, 0)[1].signal.aborted).toBe(true)
         if (stage === "resolve") expect(deleteResource).not.toHaveBeenCalled()
 
         await expect(responsePromise).resolves.toMatchObject({

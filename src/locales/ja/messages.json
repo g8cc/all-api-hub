@@ -17,14 +17,30 @@
     "oneTimeKeyPromptCancelled": "アカウントは保存されました。あとでキー管理から AIHubMix API キーを手動作成できます。",
     "oneTimeKeyUnavailableAfterCreate": "アカウントは保存されましたが、完全な AIHubMix API キーを取得できませんでした。AIHubMix キーは作成直後に一度だけ表示されます。キー管理で新しいキーを作成し、完全なキーをすぐに保存してください。"
   },
+  "aimlapi": {
+    "credentialInvalid": "AI/ML API キーが無効か期限切れです。",
+    "credentialScopeDenied": "この AI/ML API 資格情報ではその操作を実行できません。キー管理には管理キー、残高と請求には通常の API キーが必要です。",
+    "malformedResponse": "AI/ML API が読み取れない応答を返しました。",
+    "managementKeyRequired": "AI/ML API には管理キーが必要です。「Management keys」で作成し、ここに貼り付けてください。",
+    "networkFallback": "AI/ML API に接続できませんでした。ネットワークを確認して再試行してください。"
+  },
+  "aiToolbox": {
+    "attemptingRedirect": "AI Toolbox へリダイレクトを試行中",
+    "invalidApp": "未対応の AI Toolbox 対象アプリです",
+    "invalidBaseUrl": "API ベース URL が無効、または不足しています",
+    "invalidHomepage": "ホームページ URL が無効、または不足しています",
+    "missingCredentials": "必要なアカウント情報またはキー情報が不足しています",
+    "unableToOpen": "AI Toolbox を開けません。インストールされているか確認してください"
+  },
   "autodetect": {
-    "currentTabNeedsReload": "このページは拡張機能のインストールまたは更新前から開かれている可能性があり、現時点ではこのタブの情報を読み取れません。現在のページを再読み込みしてから、もう一度自動検出を試してください。",
+    "currentTabNeedsReload": "拡張機能がこのページの検出スクリプトに接続できません。ページを再読み込みして自動検出を再試行してください。改善しない場合は、このサイトへのアクセスが拡張機能に許可されているか確認してください。",
     "failed": "自動検出に失敗しました: {{error}}",
     "forbidden": "アクセスが拒否されました。サイトのファイアウォールがリクエストを遮断していないか確認してください",
     "loginThisSite": "このサイトにログイン",
     "networkError": "ネットワーク接続に失敗しました。接続状況を確認して再試行してください",
     "notFound": "このサイトを自動検出できませんでした。アドレスが正しいか確認するか、対象サイトにログインしてから再試行してください。",
     "notLoggedIn": "現在のサイトにログインしていないか、ログイン情報の有効期限が切れています。自動追加できません。ヘルプドキュメントを確認するか、先にログインしてください",
+    "rateLimited": "リクエストが多すぎます。しばらくしてから再試行してください。",
     "serverError": "サーバーエラーです。しばらくしてからもう一度お試しください",
     "timeout": "自動検出がタイムアウトしました。手動追加をお試しください",
     "unexpectedData": "自動検出に失敗しました。サイトが予期しないデータを返しました。情報を手動入力するか、対象サイトにログインしていることを確認してください"
@@ -67,7 +83,6 @@
     "updateSuccess": "Claude Code Router のプロバイダー {{name}} を正常に更新しました"
   },
   "cliProxyApi": {
-    "managementApiConnectionSuccess": "接続に成功しました",
     "managementApiForbidden": "CLIProxyAPI がリクエストを拒否しました。管理キーの誤入力が多すぎないか、またはサーバー側でアクセス制限されていないか確認してください。",
     "managementApiHttpError": "CLIProxyAPI Management API が想定外のステータスコードを返しました（HTTP {{status}}）",
     "managementApiInvalidKey": "CLIProxyAPI の管理キーが無効です。設定内の管理キーを確認してください。",
@@ -78,6 +93,12 @@
     "userInfoNotFound": "ユーザー情報が見つかりません。ログイン済みか確認してください",
     "waitUserInfoTimeout": "ユーザー情報待機がタイムアウトしました。ログイン済みか確認してください"
   },
+  "cookieTransport": {
+    "permissionRequired": "このブラウザでは、このアカウントの Cookie を使用してリクエストを送信できません。拡張機能の権限を確認するか、ブラウザを更新してから再試行してください。",
+    "requestUnavailable": "リクエストを準備できませんでした。再試行しても失敗する場合は、拡張機能を再読み込みしてください。",
+    "scopeUnavailable": "選択した Cookie の範囲ではリクエストを実行できません。対象アカウントの Cookie をインポートするか、通常のブラウザーセッションを使用してください。",
+    "sessionUnavailable": "ログインセッションを利用できません。同じアカウントに再ログインしてください。インポートした Cookie を使用している場合は、再インポートしてください。"
+  },
   "donehub": {
     "configMissing": "先に設定で Done Hub のアドレス、管理者トークン、ユーザー ID を設定してください",
     "noChannelsToSync": "同期するチャネルがありません"
@@ -85,14 +106,20 @@
   "errors": {
     "api": {
       "invalidResponseFormat": "無効な応答形式です",
+      "missingRecoveryPolicy": "拡張機能がこのリクエストを準備できませんでした。拡張機能を更新するか、問題を報告してください。",
+      "nonJsonContent": "JSON ではなく {{contentType}} が返されました（HTTP {{status}}）",
       "onlyJsonSupported": "JSON 応答のみサポートしています",
-      "requestFailed": "リクエストに失敗しました: {{status}}"
+      "requestFailed": "リクエストに失敗しました: {{status}}",
+      "verificationRequired": "サイトから確認ページが返されました。サイトで確認を完了してから再試行してください。"
     },
+    "dayaRedemptionUnconfirmed": "公式コンソールで交換結果を確認し、特典の付与状況の確認または割引コードの適用を完了してから再試行してください。",
     "operation": {
       "accountDataFetchTimeout": "アカウントデータの取得がタイムアウトしました（{{seconds}} 秒）",
       "failed": "操作に失敗しました: {{error}}",
       "saveFailed": "保存に失敗しました: {{error}}"
     },
+    "relayForRedemptionUnconfirmed": "交換結果を確認できません。再実行前に公式コンソールで確認してください。",
+    "relayForVerificationRequired": "この操作には確認コードが必要です。公式コンソールで完了し、ここで更新してください。",
     "unknown": "不明なエラー",
     "validation": {
       "bookmarkNameRequired": "ブックマーク名は空にできません",
@@ -104,6 +131,14 @@
       "userIdNumeric": "ユーザー ID は数値である必要があります"
     }
   },
+  "gptLoad": {
+    "configMissing": "先に設定で gpt-load のデプロイアドレスと管理キーを設定してください",
+    "noChannelsToSync": "同期するチャンネルがありません"
+  },
+  "grsai": {
+    "openApiTokenRejected": "これは Grsai のユーザー情報ページに表示される Token です。プラットフォームのオープン API 用であり、コンソールは受け付けません。「自動検出」でログイン済みのコンソールセッションを読み取るか、コンソールのセッショントークンを貼り付けてください。",
+    "sessionExpired": "保存された Grsai コンソールセッションの有効期限が切れています（セッションは約 30 日）。Grsai コンソールに再ログインしてから、「自動検出」でアカウントを追加し直してください。"
+  },
   "kelivo": {
     "copied": "Kelivo モバイル版のインポートコードをコピーしました。モバイル版のプロバイダーインポートに貼り付けてください。",
     "copyFailed": "Kelivo インポートコードをコピーできません。クリップボードの権限を確認して再試行してください。",
@@ -112,6 +147,10 @@
     "missingCredentials": "プロバイダー名と完全な API キーが必要です。",
     "unsupportedApiType": "この API プロトコルは Kelivo にエクスポートできません。"
   },
+  "magpie": {
+    "configMissing": "設定で Magpie Web URL と Web 管理キーを設定してください。",
+    "noChannelsToSync": "同期するチャンネルがありません"
+  },
   "managedSite": {
     "unsupportedModelSync": "このバージョンでは {{siteName}} の管理サイトモデル同期はサポートされていません"
   },
@@ -119,10 +158,23 @@
     "configMissing": "先に設定で New API のアドレス、管理者トークン、ユーザー ID を設定してください",
     "noChannelsToSync": "同期するチャネルがありません"
   },
+  "novita": {
+    "apiKeyRequired": "完全な Novita API Key を入力するか、同じアカウントでログインしてコンソール認証情報を取得してください。両方を同時に保存できます。",
+    "consoleAcquisitionFailed": "コンソールトークンを取得できませんでした。Novita でこのアカウントにログインし、ページを更新して再試行するか、トークンを直接貼り付けてください。入力済みの API Key は保持されます。",
+    "consoleCredentialRequired": "この操作にはコンソール認証が必要です。アカウントを編集し、同じ Novita アカウントの認証情報を取得してください。",
+    "credentialInvalid": "Novita の認証情報が無効か期限切れです。コンソールの場合は再ログインして再検出し、API キーの場合は置き換えてください。",
+    "keyChanged": "Novita 上でキーが変更されました。編集画面を開き直してください。",
+    "malformedResponse": "Novita から予期しない応答が返されました。後でもう一度お試しください。",
+    "networkFallback": "Novita に接続できません。ネットワーク接続を確認して、もう一度お試しください。"
+  },
   "octopus": {
     "configMissing": "先に設定で Octopus のアドレス、ユーザー名、パスワードを設定してください",
     "corsError": "これは CORS 設定が原因の可能性があります。Octopus 設定の CORS ホワイトリストを確認してください。",
     "noChannelsToSync": "同期するチャネルがありません"
+  },
+  "omniroute": {
+    "configMissing": "先に設定で OmniRoute のデプロイ先アドレスとアクセストークンを設定してください",
+    "noChannelsToSync": "同期できるチャネルがありません"
   },
   "openrouter": {
     "bootstrap": {
@@ -144,12 +196,13 @@
   },
   "operations": {
     "detection": {
+      "cookieSessionRejected": "サイトが Cookie セッションを拒否しました。再度ログインしてください。",
       "failed": "自動検出に失敗しました。情報を手動入力するか、対象サイトにログインしていることを確認してください",
       "getAccessTokenFailedDetailed": "アカウントは検出されましたが、アクセストークンを取得できませんでした。API トークンを作成または表示できる権限があるか確認するか、手動で入力してください。",
       "getInfoFailed": "ユーザー名または Access Token の取得に失敗しました",
       "getSiteStatusFailedDetailed": "アカウントは検出されましたが、サイト状態を読み取れませんでした。時間をおいて再試行してください。解消しない場合は、先に手動で保存してください。",
       "getUserIdFailed": "ユーザー ID を取得できませんでした",
-      "getUserIdFailedDetailed": "サイトには接続できましたが、ユーザー ID を読み取れませんでした。対象サイトにログインしていることを確認してから再試行してください。",
+      "getUserIdFailedDetailed": "ログイン中のアカウントを確認できませんでした。このブラウザーで対象サイトを開き、ログインしていることを確認してから再試行してください。それでも失敗する場合は、アカウント情報を手動で補完してください。",
       "getUsernameFailedDetailed": "アカウントは検出されましたが、サイトがユーザー名を返しませんでした。ログインしていることを確認するか、手動で入力してください。"
     }
   },
@@ -219,6 +272,9 @@
     "configMissing": "先に設定で Veloera のアドレス、管理者トークン、ユーザー ID を設定してください",
     "noChannelsToSync": "同期するチャネルがありません"
   },
+  "vercelAiGateway": {
+    "accessTokenRequired": "Vercel AI Gateway には、ゲートウェイを所有するチームの Vercel アクセストークンが必要です。"
+  },
   "warnings": {
     "accountSavedWithoutDataRefresh": "アカウントは保存されましたが、最新の残高・クォータ・本日の使用量を取得できませんでした。現在の表示は仮の値の可能性があります。後でアカウント一覧から更新してください。",
     "accountUpdatedWithoutDataRefresh": "アカウント設定は保存されましたが、最新の残高・クォータ・本日の使用量を更新できませんでした。現在の表示は古いままの可能性があります。後でアカウント一覧から更新してください。"
@@ -233,10 +289,10 @@
     "encryptFailedNoPassword": "暗号化が有効ですが、パスワードが設定されていません",
     "fileNotFound": "リモートのバックアップファイルが存在しません",
     "invalidBackupJson": "クラウドバックアップファイルが不完全なため、同期に使用できません。破損したデータを結合しないよう、今回の同期は停止しました。この端末のローカルデータが完全な場合は、「WebDAV にアップロード」でクラウドバックアップを再作成してください。完全でない場合は、完全なデータがある別の端末からアップロードするか、完全なバックアップファイルを先にインポートしてください。",
-    "safeCommitFailed": "この WebDAV サービスではバックアップを安全に保存できませんでした。既存のクラウドバックアップは保持されています。後でもう一度試すか、ファイルの移動または名前変更に対応した WebDAV サービスを使用してください。",
+    "safeCommitFailed": "クラウドバックアップの保存を確認できませんでした。接続と読み書き権限を確認して、もう一度お試しください。",
     "syncDataSelectionRequired": "同期するデータ領域を少なくとも 1 つ選択してください",
     "uploadFailed": "アップロードに失敗しました。ステータスコード: {{status}}",
-    "uploadStillProcessing": "クラウドサービスがアップロードしたバックアップをまだ処理しているため、検証を完了できませんでした。既存のクラウドバックアップは置き換えられていません。しばらくしてからもう一度お試しください。",
-    "uploadVerificationFailed": "アップロード後のバックアップ検証に失敗しました。クラウドサービスがファイルを完全に保存できなかった可能性があります。既存のクラウドバックアップは保持されています。"
+    "uploadStillProcessing": "クラウドサービスがアップロードしたバックアップをまだ処理しているため、検証を完了できませんでした。しばらくしてからもう一度お試しください。",
+    "uploadVerificationFailed": "アップロード後のバックアップ検証に失敗しました。クラウド上のファイルが不完全な可能性があります。同期を再試行するか、必要に応じてローカルバックアップから復元してください。"
   }
 }

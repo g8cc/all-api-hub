@@ -5,13 +5,14 @@ import { SITE_TYPES } from "~/constants/siteType"
 import { KEY_MANAGEMENT_ALL_ACCOUNTS_VALUE } from "~/features/KeyManagement/constants"
 import { KEY_MANAGEMENT_TEST_IDS } from "~/features/KeyManagement/testIds"
 import { KEY_MANAGEMENT_LOAD_STATUSES } from "~/features/KeyManagement/types"
-import { buildServiceCredentialRuntimeKey } from "~/services/accounts/accountRuntimeKeys"
+import { buildServiceCredentialRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
   PRODUCT_ANALYTICS_FEATURE_IDS,
   PRODUCT_ANALYTICS_SURFACE_IDS,
 } from "~/services/productAnalytics/contracts"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { TokenListHarness as TokenList } from "~~/tests/test-utils/keyManagement/TokenListHarness"
 import { render, screen, waitFor, within } from "~~/tests/test-utils/render"
 import {
@@ -58,7 +59,7 @@ vi.mock("~/services/productAnalytics/actions", () => ({
 }))
 
 vi.mock(
-  "~/features/TokenProvisioning/utils/apiCredentialProfileSaveAction",
+  "~/features/TokenProvisioning/secretDelivery/apiCredentialProfileSaveAction",
   () => ({
     saveAccountRuntimeKeysToApiCredentialProfiles: (...args: unknown[]) =>
       mockSaveApiCredentialProfiles(...args),
@@ -66,20 +67,20 @@ vi.mock(
 )
 
 vi.mock(
-  "~/features/KeyManagement/components/AccountKeyResource/AccountKeyResourceListItem",
+  "~/features/KeyManagement/resources/AccountKeyResourceListItem",
   () => ({
     AccountKeyResourceListItem: ({
       row,
       isSelected,
       onSelectionChange,
       selectionDisabledReason,
-      onOpenCCSwitchDialog,
+      onOpenDeeplinkExport,
     }: {
       row: { facts: { displayName: string } }
       isSelected?: boolean
       onSelectionChange?: (checked: boolean) => void
       selectionDisabledReason?: string
-      onOpenCCSwitchDialog?: () => void
+      onOpenDeeplinkExport?: (target: string) => void
     }) => (
       <div>
         {onSelectionChange || selectionDisabledReason ? (
@@ -97,7 +98,10 @@ vi.mock(
         ) : (
           <span>{row.facts.displayName}</span>
         )}
-        <button type="button" onClick={onOpenCCSwitchDialog}>
+        <button
+          type="button"
+          onClick={() => onOpenDeeplinkExport?.("ccSwitch")}
+        >
           Open CC Switch for {row.facts.displayName}
         </button>
       </div>
@@ -105,29 +109,44 @@ vi.mock(
   }),
 )
 
-vi.mock("~/components/CCSwitchExportDialog", () => ({
-  CCSwitchExportDialog: ({
-    isOpen,
-    source,
-    onClose,
-  }: {
-    isOpen: boolean
-    source: { providerName: string }
-    onClose: () => void
-  }) =>
-    isOpen ? (
-      <div data-testid="cc-switch-export-dialog">
-        <span>CC Switch export for {source.providerName}</span>
-        <button type="button" onClick={onClose}>
-          Close CC Switch export
-        </button>
-      </div>
-    ) : null,
-}))
+vi.mock(
+  "~/features/CredentialExport/DeeplinkExportDialog",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/features/CredentialExport/DeeplinkExportDialog")
+      >()
+    return {
+      ...actual,
+      DeeplinkExportDialog: ({
+        request,
+        onClose,
+      }: {
+        request: { target: string; source: { providerName: string } }
+        onClose: () => void
+      }) => (
+        <div data-testid="deeplink-export-dialog">
+          <span>
+            {request.target} export for {request.source.providerName}
+          </span>
+          <button type="button" onClick={onClose}>
+            Close deeplink export
+          </button>
+        </div>
+      ),
+    }
+  },
+)
 
-vi.mock("~/services/managedSites/tokenBatchExport", () => ({
-  executeManagedSiteTokenBatchExport: (...args: unknown[]) =>
-    mockExecuteManagedSiteTokenBatchExport(...args),
+vi.mock(
+  "~/services/managedSites/batchImport/tokenBatchImportExecution",
+  () => ({
+    executeManagedSiteTokenBatchExport: (...args: unknown[]) =>
+      mockExecuteManagedSiteTokenBatchExport(...args),
+  }),
+)
+
+vi.mock("~/services/managedSites/batchImport/tokenBatchImportPreview", () => ({
   prepareManagedSiteTokenBatchExportPreview: (...args: unknown[]) =>
     mockPrepareManagedSiteTokenBatchExportPreview(...args),
 }))
@@ -213,7 +232,7 @@ describe("TokenList batch export selection", () => {
             draft: {
               name: runtimeKey.label,
               base_url: "https://example.invalid/v1",
-              key: "sk-test",
+              key: `sk-test-${runtimeKey.id}`,
               models: ["model-a"],
               groups: ["default"],
             },
@@ -346,7 +365,9 @@ describe("TokenList batch export selection", () => {
       ),
     ).toHaveLength(1)
     expect(
-      screen.getByText(/keyManagement:batchSelection\.eligibilityNotice/),
+      screen.getByRole("button", {
+        name: "keyManagement:batchSelection.helpLabel",
+      }),
     ).toBeVisible()
   })
 
@@ -397,7 +418,9 @@ describe("TokenList batch export selection", () => {
       }),
     ).toBeNull()
     expect(
-      screen.queryByText(/keyManagement:batchSelection\.eligibilityNotice/),
+      screen.queryByRole("button", {
+        name: "keyManagement:batchSelection.helpLabel",
+      }),
     ).toBeNull()
   })
 
@@ -670,14 +693,14 @@ describe("TokenList batch export selection", () => {
     await user.click(
       screen.getByRole("button", { name: "Open CC Switch for Token 1" }),
     )
-    expect(screen.getByTestId("cc-switch-export-dialog")).toHaveTextContent(
-      "CC Switch export for Account 1",
+    expect(screen.getByTestId("deeplink-export-dialog")).toHaveTextContent(
+      "ccSwitch export for Account 1",
     )
 
     await user.click(
-      screen.getByRole("button", { name: "Close CC Switch export" }),
+      screen.getByRole("button", { name: "Close deeplink export" }),
     )
-    expect(screen.queryByTestId("cc-switch-export-dialog")).toBeNull()
+    expect(screen.queryByTestId("deeplink-export-dialog")).toBeNull()
   })
 
   it("toggles all visible tokens in an account group from the group header", async () => {
@@ -693,7 +716,7 @@ describe("TokenList batch export selection", () => {
       name: "keyManagement:batchManagedSiteExport.selection.accountGroup",
     })
 
-    await user.click(groupSelections[0])
+    await user.click(atIndex(groupSelections, 0))
     await user.click(
       await screen.findByRole("button", {
         name: "keyManagement:actions.expandAll",
@@ -704,7 +727,7 @@ describe("TokenList batch export selection", () => {
     expect(screen.getByRole("checkbox", { name: "Token 2" })).toBeChecked()
     expect(screen.getByRole("checkbox", { name: "Token B" })).not.toBeChecked()
 
-    await user.click(groupSelections[0])
+    await user.click(atIndex(groupSelections, 0))
 
     expect(screen.getByRole("checkbox", { name: "Token 1" })).not.toBeChecked()
     expect(screen.getByRole("checkbox", { name: "Token 2" })).not.toBeChecked()
@@ -737,8 +760,8 @@ describe("TokenList batch export selection", () => {
       }),
     )
 
-    expect(screen.getByTestId("cc-switch-export-dialog")).toHaveTextContent(
-      "CC Switch export for Account 1",
+    expect(screen.getByTestId("deeplink-export-dialog")).toHaveTextContent(
+      "ccSwitch export for Account 1",
     )
   })
 
@@ -751,7 +774,7 @@ describe("TokenList batch export selection", () => {
         name: "Open CC Switch for Token 1",
       }),
     )
-    expect(screen.getByTestId("cc-switch-export-dialog")).toBeInTheDocument()
+    expect(screen.getByTestId("deeplink-export-dialog")).toBeInTheDocument()
 
     const createResponseOnlyAccount = createAccount({
       id: account.id,
@@ -772,7 +795,7 @@ describe("TokenList batch export selection", () => {
     )
 
     await waitFor(() => {
-      expect(screen.queryByTestId("cc-switch-export-dialog")).toBeNull()
+      expect(screen.queryByTestId("deeplink-export-dialog")).toBeNull()
     })
   })
 

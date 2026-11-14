@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { createDefaultAccountStorageConfig } from "~/services/accounts/accountDefaults"
 import { accountConfigStore } from "~/services/accounts/accountStorage/accountConfigStore"
 import { accountQueries } from "~/services/accounts/accountStorage/accountQueries"
 import {
@@ -8,7 +7,8 @@ import {
   type AccountManagementSnapshot,
   type AccountOverviewSnapshot,
 } from "~/services/accounts/accountStorage/accountReadModels"
-import type { SiteAccount, SiteBookmark } from "~/types"
+import { createDefaultAccountStorageConfig } from "~/services/accounts/editing/accountDefaults"
+import type { AccountNativeBalance, SiteAccount, SiteBookmark } from "~/types"
 import { buildSiteAccount } from "~~/tests/test-utils/factories"
 
 const buildNamedAccount = (
@@ -24,6 +24,57 @@ const buildNamedAccount = (
 }
 
 describe("accountReadModels", () => {
+  it("preserves independent XNO while counting only USD in overview totals", async () => {
+    const account = buildNamedAccount("nano", "nano", 500000)
+    account.account_info.nativeBalance = {
+      unit: "USD_XNO",
+      total: 1,
+      nanoBalance: 26.71801147,
+    }
+    vi.spyOn(accountQueries, "getAllAccounts").mockResolvedValue([account])
+    const snapshot = await accountReadModels.getAccountOverviewSnapshot()
+    expect(snapshot.stats.total_quota).toBe(500000)
+    expect(snapshot.displayAccounts[0]).toMatchObject({
+      nativeBalance: account.account_info.nativeBalance,
+      balance: { USD: 1 },
+      excludeFromTotalBalance: false,
+    })
+  })
+  it.each<AccountNativeBalance>([
+    { unit: "USD", total: 8, permanent: 2, daily: 3 },
+    { unit: "credits", total: 10, permanent: 8, daily: 2 },
+    {
+      unit: "quota",
+      total: 10,
+      asset: {
+        id: "https://emrank.tech/token",
+        label: "Token",
+        displayScale: 1000000,
+        displayLabel: "M Token",
+      },
+    },
+  ])(
+    "excludes native $unit balances from both overview totals and display eligibility",
+    async (nativeBalance) => {
+      const ordinary = buildNamedAccount("ordinary", "ordinary", 500000)
+      const scoped = buildNamedAccount("scoped", "scoped", 1000000)
+      scoped.account_info.nativeBalance = nativeBalance
+      vi.spyOn(accountQueries, "getAllAccounts").mockResolvedValue([
+        ordinary,
+        scoped,
+      ])
+      const snapshot = await accountReadModels.getAccountOverviewSnapshot()
+      expect(snapshot.stats.total_quota).toBe(500000)
+      expect(
+        snapshot.displayAccounts.find((item) => item.id === "scoped"),
+      ).toMatchObject({
+        nativeBalance,
+        excludeFromTotalBalance: true,
+      })
+      expect(scoped.excludeFromTotalBalance).not.toBe(true)
+    },
+  )
+
   beforeEach(() => {
     vi.restoreAllMocks()
   })

@@ -2,15 +2,18 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import ModelKeyDialog from "~/features/ModelList/components/ModelKeyDialog"
-import { useModelKeyDialog } from "~/features/ModelList/components/ModelKeyDialog/hooks/useModelKeyDialog"
+import ModelKeyDialog from "~/features/ModelList/keySelection"
+import { useModelKeyDialog } from "~/features/ModelList/keySelection/hooks/useModelKeyDialog"
 import { TOKEN_PROVISIONING_TEST_IDS } from "~/features/TokenProvisioning/testIds"
-import type { AccountKeyCreationResult } from "~/services/accounts/accountKeyCreation"
+import type { AccountKeyCreationResult } from "~/services/accounts/keys/accountKeyCreation"
 import {
   createAccountKeyResourceCreatedRuntimeSecret,
   createUnattributedAccountCreatedRuntimeSecret,
-} from "~/services/accounts/createdRuntimeSecret"
-import { AccountKeyResourceError } from "~/services/apiAdapters/contracts/accountKeyResource"
+} from "~/services/accounts/keys/createdRuntimeSecret"
+import {
+  AccountKeyResourceError,
+  ACCOUNT_KEY_DEFAULT_CREATION_POLICIES as creationPolicies,
+} from "~/services/apiAdapters/contracts/accountKeyResource"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -82,7 +85,7 @@ vi.mock(
         const inventory = await fetchAccountTokensMock(account)
         if (account.siteType === SITE_TYPES.SHAREDCHAT) {
           const { buildServiceCredentialRuntimeKey } = await import(
-            "~/services/accounts/accountRuntimeKeys"
+            "~/services/accounts/keys/accountRuntimeKeys"
           )
           return [buildServiceCredentialRuntimeKey(account, inventory)]
         }
@@ -108,7 +111,7 @@ vi.mock("~/services/apiAdapters/registry", () => ({
           }
         : {
             keyResourceManagement: {
-              defaultCreation: "editor-defaults",
+              defaultCreation: creationPolicies.EditorDefaults,
               inventorySecretAvailability:
                 siteType === SITE_TYPES.AIHUBMIX
                   ? "create-response-only"
@@ -117,13 +120,16 @@ vi.mock("~/services/apiAdapters/registry", () => ({
           },
   }),
 }))
-vi.mock("~/services/accounts/accountKeyCreation", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("~/services/accounts/accountKeyCreation")
-  >()),
-  prepareDefaultAccountKeyCreation: prepareCreationMock,
-}))
-vi.mock("~/features/TokenProvisioning/components/AddTokenDialog", () => ({
+vi.mock(
+  "~/services/accounts/keys/accountKeyCreation",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/accounts/keys/accountKeyCreation")
+    >()),
+    prepareDefaultAccountKeyCreation: prepareCreationMock,
+  }),
+)
+vi.mock("~/features/TokenProvisioning/creation/AddTokenDialog", () => ({
   default: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div>Native key editor</div> : null,
 }))
@@ -139,7 +145,7 @@ vi.mock("~/services/productAnalytics/actions", () => ({
     trackProductAnalyticsActionStartedMock(...args),
 }))
 
-vi.mock("~/services/apiCredentialProfiles/apiCredentialProfileLinks", () => ({
+vi.mock("~/services/apiCredentialProfiles/links", () => ({
   apiCredentialProfileLinks: {
     capture: async (input: { profile: unknown }) => {
       captureApiCredentialProfileMock(input)

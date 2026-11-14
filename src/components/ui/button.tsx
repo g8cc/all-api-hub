@@ -3,7 +3,7 @@ import { Slot } from "radix-ui"
 import * as React from "react"
 
 import { Spinner } from "~/components/ui/spinner"
-import { useProductAnalyticsActionTracking } from "~/hooks/useProductAnalyticsActionTracking"
+import { useProductAnalyticsActionTracking } from "~/hooks/analytics/useProductAnalyticsActionTracking"
 import { cn } from "~/lib/utils"
 import type { ProductAnalyticsScopedActionConfig } from "~/services/productAnalytics/actionConfig"
 
@@ -14,7 +14,7 @@ type SlottedChildProps = React.AriaAttributes & {
 }
 
 const buttonVariants = cva(
-  "inline-flex min-w-0 max-w-full shrink items-center justify-center gap-x-2 gap-y-density-2 rounded-md text-center text-sm font-medium whitespace-normal break-words transition-all disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "inline-flex min-w-0 max-w-full shrink items-center justify-center gap-x-2 gap-y-density-2 rounded-md text-center text-sm font-medium whitespace-normal break-words transition-[background-color,border-color,color,box-shadow,opacity] duration-150 ease-out motion-reduce:transition-none disabled:pointer-events-none disabled:not-aria-busy:opacity-50 aria-disabled:pointer-events-none aria-disabled:not-aria-busy:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
@@ -37,6 +37,7 @@ const buttonVariants = cva(
         link: "text-(--button-link-foreground) underline-offset-4 hover:text-(--button-link-hover-foreground) hover:underline focus-visible:ring-(--button-link-ring)",
       },
       size: {
+        xs: "h-auto min-h-(--density-control-xs) gap-1 rounded-sm px-2 py-0.5 text-xs [&_svg:not([class*='size-'])]:size-3",
         // Intrinsic min-height does not grow a fixed-height button in older
         // Chromium. Let content determine height and use the size as a floor.
         default:
@@ -108,7 +109,7 @@ function Button({
   const Comp = asChild ? Slot.Root : "button"
   const isDisabled = Boolean(
     disabled ||
-      (loading && loadingBehavior === BUTTON_LOADING_BEHAVIORS.Disabled),
+    (loading && loadingBehavior === BUTTON_LOADING_BEHAVIORS.Disabled),
   )
   const resolvedSize = size ?? "default"
   const analytics = useProductAnalyticsActionTracking({
@@ -122,7 +123,10 @@ function Button({
     variant: spinnerVariantProp,
     ...restSpinnerProps
   } = spinnerProps ?? {}
-  const resolvedSpinnerVariant = spinnerVariantProp ?? "primary"
+  // Follow the button's own foreground: the resolved --spinner-primary-color is
+  // --primary, which is also --button-primary-bg, so the default would paint the
+  // icon the same colour as a solid button's background.
+  const resolvedSpinnerVariant = spinnerVariantProp ?? "current"
   const resolvedSpinnerSize = spinnerSizeProp ?? "sm"
   const resolvedLeftIcon = loading ? (
     <Spinner
@@ -171,6 +175,7 @@ function Button({
       onClick={handleClick}
       {...props}
       data-size={resolvedSize}
+      data-variant={variant ?? "default"}
       aria-busy={loading ? true : ariaBusy}
     >
       {resolvedLeftIcon && <span>{resolvedLeftIcon}</span>}

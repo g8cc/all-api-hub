@@ -39,7 +39,7 @@ PackyCode 提供 Claude Code、Codex、Gemini 等多种中转服务。如果你�
 *   **QQ / 360 / Brave / Vivaldi / Opera 等浏览器**：Brave、Vivaldi、Opera 可优先尝试 Chrome Web Store；QQ、360、猎豹等浏览器如果找不到可用商店入口，再使用 Chromium 手动加载方式，详见 [其他浏览器安装指南](https://all-api-hub.qixing1217.top/other-browser-install.html)。
 *   **Safari (Mac)**：需要通过 Xcode 或 Safari 专用包安装，详见 [Safari 安装指南](https://all-api-hub.qixing1217.top/safari-install.html)。
 *   **手机端**：支持 Edge 手机版、Firefox Android、Kiwi 等，详见 [移动端使用指南](https://all-api-hub.qixing1217.top/faq.html#mobile-browser-support)。
-*   **最后备选方案**：如果你的浏览器无法使用商店版或 Chrome Web Store 兼容版本，也无法通过上面的安装指南完成安装，可从 [GitHub Releases](https://github.com/qixing-jk/all-api-hub/releases/latest) 下载 Stable 包手动安装。手动安装版本不会像商店版一样自动更新，后续升级需要重新下载并安装。
+*   **最后备选方案**：如果你的浏览器无法使用商店版或 Chrome Web Store 兼容版本，也无法通过上面的安装指南完成安装，可从 [GitHub Releases](https://github.com/qixing-jk/all-api-hub/releases/latest) 下载 Stable 包。Chromium 用户推荐安装 `.crx` 自更新版，它装一次之后就会像商店版一样自动更新；stock Chrome / Edge 安装前需按文档配置一次扩展白名单策略（Linux 无需配置）。详见 [Chromium 自更新安装](https://all-api-hub.qixing1217.top/chromium-crx-self-update.html)。
 
 ---
 
@@ -59,7 +59,7 @@ PackyCode 适合接入多种模型和客户端。加入 All API Hub 后，你可
 对于已经在多个 AI 工具中使用 PackyCode 的用户，这相当于把“账号状态、模型价格、API Key、客户端配置”整理成一条更顺的使用链路。
 
 ### 3.1 自动识别并添加
-1.  在浏览器中登录 [PackyCode](https://www.packyapi.com/register?aff=all-api-hub)。
+1.  在浏览器中登录 [PackyCode](https://www.packyapi.ai/register?aff=all-api-hub)。
 2.  点击浏览器右上角的 All API Hub 扩展图标。
 3.  点击 **“添加账号”**，使用当前站点地址或手动填写 PackyCode 地址。
 
@@ -171,6 +171,6 @@ PackyCode 提供丰富的模型与 API 调用入口，All API Hub 则让这些�
 
 安装插件并添加 PackyCode 账号后，你可以先从三个最常用的动作开始：查看余额、对比模型价格、管理密钥与导出到常用客户端。后续如果你需要接入自建后台、多设备同步或批量管理，再逐步启用更完整的管理能力。
 
-*   [PackyCode 官网](https://www.packyapi.com/register?aff=all-api-hub)
+*   [PackyCode 官网](https://www.packyapi.ai/register?aff=all-api-hub)
 *   [All API Hub GitHub 仓库](https://github.com/qixing-jk/all-api-hub)
 *   [All API Hub 文档](https://all-api-hub.qixing1217.top)

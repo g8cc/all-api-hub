@@ -135,7 +135,7 @@
   "autoProvisionKeyOnAccountAdd": {
     "description": "Nach dem Hinzufügen eines Kontos API-Schlüssel vorbereiten: einen Standardschlüssel oder Schlüssel für alle verfügbaren Gruppen.",
     "manualHint": "Für gespeicherte Konten können fehlende Schlüssel aller verfügbaren Gruppen unter Schlüsselverwaltung → {{actionLabel}} ergänzt werden.",
-    "modeDescription": "Standard erstellt nur dann einen Schlüssel, wenn das Konto noch keinen hat. Alle Gruppen erstellt einen Schlüssel für jede Gruppe ohne nutzbaren Schlüssel. Gruppen mit manuellem Handlungsbedarf werden gemeldet.",
+    "modeDescription": "Standard bereitet einen Schlüssel vor, wenn kein aktiver vorhanden ist. Alle Gruppen ergänzt fehlende Gruppen; Seiten ohne Gruppenanforderungen erhalten einen Standardschlüssel. Beide Modi können einen Dialog für erforderliche Eingaben oder einmalig sichtbare Schlüssel öffnen.",
     "modeLabel": "Umfang der automatischen Erstellung",
     "modes": {
       "allGroups": "Alle verfügbaren Gruppen",
@@ -170,16 +170,13 @@
       "description": "Prüfen, ob die aktuelle Konfiguration die Verbindung und Verwaltung der Website ermöglicht.",
       "failed": "AxonHub Validierung fehlgeschlagen: {{error}}",
       "missingFields": "Bitte füllen Sie alle erforderlichen Felder aus",
-      "success": "Verbindung erfolgreich",
-      "title": "Verbindung prüfen",
-      "validate": "Verbindung prüfen",
-      "validating": "Wird geprüft…"
+      "title": "Verbindung prüfen"
     }
   },
   "changelogOnUpdate": {
-    "description": "Steuern Sie, ob All API Hub beim ersten Öffnen der Erweiterungs-Benutzeroberfläche nach Aktualisierungen ein Dialogfeld „Neuigkeiten“ anzeigt.",
+    "description": "Steuern Sie, ob All API Hub beim ersten Öffnen der Einstellungsseite nach Aktualisierungen ein Dialogfeld „Neuigkeiten“ anzeigt.",
     "title": "Änderungsprotokoll",
-    "toggleDesc": "Wenn aktiviert, wird das Update-Protokoll beim ersten Öffnen der Benutzeroberfläche nach einem Update inline angezeigt (einmal pro Version). Sie können das vollständige Änderungsprotokoll der Dokumentation weiterhin manuell öffnen.",
+    "toggleDesc": "Wenn aktiviert, wird das Update-Protokoll beim ersten Öffnen der Einstellungsseite nach einem Update inline angezeigt (einmal pro Version). Sie können das vollständige Änderungsprotokoll der Dokumentation weiterhin manuell öffnen.",
     "toggleLabel": "Zeigt, was nach Updates neu ist"
   },
   "claudeCodeHub": {
@@ -203,10 +200,7 @@
       "description": "Prüfen, ob die aktuelle Konfiguration die Verbindung und Verwaltung der Website ermöglicht.",
       "failed": "Claude Code Hub Validierung fehlgeschlagen: {{error}}",
       "missingFields": "Bitte füllen Sie alle erforderlichen Felder aus",
-      "success": "Verbindung erfolgreich",
-      "title": "Verbindung prüfen",
-      "validate": "Verbindung prüfen",
-      "validating": "Wird geprüft…"
+      "title": "Verbindung prüfen"
     }
   },
   "claudeCodeRouter": {
@@ -221,7 +215,6 @@
   },
   "cliProxyApi": {
     "baseUrlLabel": "Management-API-Basis-URL",
-    "checkConnectionAction": "Verbindung prüfen",
     "checkConnectionDesc": "Prüfen, ob die aktuelle Konfiguration die Verbindung und Verwaltung der Website ermöglicht.",
     "checkConnectionLabel": "Verbindung prüfen",
     "description": "Verbindung zur CLIProxyAPI Management API konfigurieren",
@@ -289,10 +282,60 @@
     "toggleDesc": "Bestätigung anfordern, wenn dieselbe Benutzer-ID für diese Website bereits gespeichert ist. Bei OpenRouter wird nach einem identischen Management Key gesucht.",
     "toggleLabel": "Warnung vor dem Hinzufügen von Duplikaten"
   },
+  "gptLoad": {
+    "description": "Manage a self-hosted gpt-load instance: a lightweight Go AI gateway that load balances requests across provider channels.",
+    "fields": {
+      "baseUrlDesc": "The base URL of your gpt-load dashboard (for example https://gateway.example.com).",
+      "baseUrlLabel": "Gateway address",
+      "baseUrlPlaceholder": "https://gateway.example.com",
+      "hideManagementKey": "Hide management key",
+      "managementKeyDesc": "The gateway's root AUTH_KEY, presented to the management API as a bearer token. It holds the same power as every workspace channel key.",
+      "managementKeyLabel": "Management key",
+      "managementKeyPlaceholder": "The AUTH_KEY from your gateway config",
+      "showManagementKey": "Show management key"
+    },
+    "title": "gpt-load",
+    "validation": {
+      "description": "Send one request with the key above to verify the gateway is reachable and the key is accepted.",
+      "failed": "Could not reach the gateway: {{error}}",
+      "insufficientPrivilege": "The management key lacks permission: {{error}}",
+      "invalidCredential": "The management key was rejected: {{error}}",
+      "missingFields": "Enter the gateway address and management key first",
+      "title": "Check connection"
+    }
+  },
   "logging": {
-    "consoleEnabled": "Konsolenprotokollierung aktivieren",
-    "consoleEnabledDesc": "Wenn deaktiviert, gibt All API Hub auf keiner Ebene eine Konsolenausgabe aus (einschließlich Fehlern).",
-    "description": "Protokollierung der Steuerkonsole zur Fehlerbehebung und Diagnose.",
+    "consoleEnabled": "Protokollierung aktivieren",
+    "consoleEnabledDesc": "Bei Deaktivierung werden Konsolenausgabe und neue lokale Protokolle gestoppt.",
+    "description": "Protokollausgabe und lokalen Diagnoseverlauf konfigurieren.",
+    "history": {
+      "allContexts": "Alle Quellen",
+      "allLevels": "Alle Stufen",
+      "allTime": "Alle gespeicherten Protokolle",
+      "clearDescription": "Alle auf diesem Gerät gespeicherten Protokolle löschen.",
+      "clearError": "Protokolle konnten nicht gelöscht werden",
+      "clearTitle": "Lokale Protokolle löschen",
+      "context": "Quelle",
+      "copied": "Protokolle kopiert",
+      "copy": "Gefilterte Protokolle kopieren",
+      "copyError": "Protokolle konnten nicht kopiert werden",
+      "description": "Zeigt bis zu {{limit}} lokale Einträge der letzten {{hours}} Stunden. Veraltete Einträge werden beim Aufzeichnen oder Anzeigen von Protokollen bereinigt. Aktiviere die Protokollierung, um Ereignisse aufzuzeichnen; stelle die Mindestprotokollstufe für mehr Details auf Debug.",
+      "details": "Details",
+      "empty": "Keine passenden Protokolle. Protokollierung aktivieren, das Problem reproduzieren und hierher zurückkehren.",
+      "entryDescription": "Protokolle aller Erweiterungsseiten live verfolgen oder den Verlauf ansehen.",
+      "lastHour": "Letzte Stunde",
+      "lastMinutes": "Letzte 5 Minuten",
+      "level": "Protokollstufe",
+      "loadError": "Protokolle konnten nicht gelesen werden. Bereits angezeigte Einträge bleiben erhalten. Bitte erneut versuchen.",
+      "more": "Ältere Protokolle laden",
+      "open": "Protokolle anzeigen",
+      "pause": "Aktualisierung pausieren",
+      "period": "Zeitraum",
+      "resume": "Live-Aktualisierung fortsetzen",
+      "search": "Nach Meldung, Modul oder Anfrage-ID suchen",
+      "showing": "Anzeige {{visible}} / {{total}}",
+      "title": "Letzte Protokolle"
+    },
     "levels": {
       "debug": "Debug",
       "error": "Fehler",
@@ -300,8 +343,29 @@
       "warn": "Warnung"
     },
     "minLevel": "Mindestprotokollstufe",
-    "minLevelDesc": "Wenn die Konsolenprotokollierung aktiviert ist, werden Protokolle unterhalb dieser Ebene unterdrückt.",
+    "minLevelDesc": "Protokolle unter der gewählten Stufe werden weder ausgegeben noch gespeichert.",
     "title": "Protokollierung"
+  },
+  "magpie": {
+    "description": "Anbieter auf Ihrem selbst gehosteten Magpie-Webserver verwalten.",
+    "fields": {
+      "baseUrlDesc": "Starten Sie magpie web (Standardport 3430). Geben Sie die Web-URL ein, nicht die Inferenz-URL auf Port 3425.",
+      "baseUrlLabel": "Web-Verwaltungs-URL",
+      "baseUrlPlaceholder": "http://localhost:3430",
+      "hideWebKey": "Verwaltungsschlüssel ausblenden",
+      "showWebKey": "Verwaltungsschlüssel anzeigen",
+      "webKeyDesc": "Verwenden Sie MAGPIE_WEB_KEY oder den k-Wert im Startlink. Ein fester MAGPIE_WEB_KEY bleibt nach Neustarts gültig; andernfalls aktualisieren Sie diesen Wert nach einem Neustart. Inferenz-API-Schlüssel erlauben keine Verwaltung.",
+      "webKeyLabel": "Web-Verwaltungsschlüssel",
+      "webKeyPlaceholder": "Web-Verwaltungsschlüssel eingeben"
+    },
+    "title": "Magpie",
+    "validation": {
+      "description": "Mit dem obigen Schlüssel die Verbindung und den Zugriff auf die Anbieterliste prüfen.",
+      "failed": "Keine Verbindung zu Magpie. Prüfen Sie die Web-Adresse und ob der Server läuft.",
+      "invalidCredential": "Der Web-Schlüssel wurde abgelehnt. Prüfen Sie MAGPIE_WEB_KEY oder den aktuellen Startschlüssel.",
+      "missingFields": "Geben Sie zuerst die Gateway-Adresse und den Verwaltungsschlüssel ein",
+      "title": "Verbindung prüfen"
+    }
   },
   "managedSite": {
     "axonHub": "AxonHub",
@@ -326,14 +390,31 @@
         "title": "Konfigurieren Sie Ihr selbst gehostetes KI-Gateway"
       }
     },
+    "gptLoad": "gpt-load",
+    "magpie": "Magpie",
     "newApi": "New API",
     "octopus": "Octopus",
+    "omniroute": "OmniRoute",
     "popularityHint": "Nach einer Momentaufnahme der GitHub-Sterne sortiert.",
     "siteTypeDesc": "Wählen Sie die Plattform aus, die für die Kanalverwaltung und Modellsynchronisierung verwendet wird",
     "siteTypeLabel": "Gateway-Typ",
     "sub2api": "Sub2API",
     "title": "Selbstgehostete KI-Gateway-Konfiguration",
     "veloera": "Veloera"
+  },
+  "managedSiteConnection": {
+    "check": "Verbindung prüfen",
+    "checkError": "Konfiguration gespeichert, aber Verbindungsprüfung fehlgeschlagen. Bitte erneut versuchen.",
+    "checking": "Prüfen…",
+    "conflict": "Die Konfiguration wurde auf einer anderen Seite geändert. Ihre Eingabe wurde beibehalten. Prüfen Sie die aktuellen Einstellungen oder laden Sie die gespeicherte Konfiguration, um Ihre Eingabe zu ersetzen.",
+    "failed": "Konfiguration gespeichert, aber Verbindungsprüfung fehlgeschlagen: {{reason}}",
+    "invalidField": "Prüfen Sie {{field}} vor dem Speichern",
+    "reload": "Gespeicherte Konfiguration neu laden",
+    "saveError": "Konfiguration konnte nicht gespeichert werden. Ihre Eingabe wurde beibehalten. Bitte erneut versuchen.",
+    "saveFailed": "Konfiguration konnte nicht gespeichert werden: {{reason}}. Ihre Eingabe wurde beibehalten. Bitte erneut versuchen.",
+    "saving": "Speichern…",
+    "success": "Konfiguration gespeichert. Verbindung bestätigt.",
+    "unreachable": "Die Website konnte nicht erreicht werden"
   },
   "messages": {
     "alreadyDefault": "Bereits auf Standardwerten",
@@ -380,7 +461,6 @@
       "usernamePlaceholder": "admin"
     },
     "sessionTest": {
-      "action": "Testkonfiguration",
       "description": "Testen Sie, ob der eingegebene Login-Benutzername, das Passwort und das TOTP-Geheimnis korrekt und verwendbar sind. Nach erfolgreicher Prüfung können Sie mit Aktionen fortfahren, die eine Anmeldung und 2FA erfordern.",
       "testing": "Konfiguration testen...",
       "title": "Login und 2FA-Konfiguration testen"
@@ -411,10 +491,36 @@
       "error": "Bei der Validierung ist ein Fehler aufgetreten",
       "failed": "Konfigurationsvalidierung fehlgeschlagen, bitte überprüfen Sie Benutzernamen und Passwort",
       "missingFields": "Bitte füllen Sie alle erforderlichen Felder aus",
-      "success": "Verbindung erfolgreich",
+      "title": "Verbindung prüfen"
+    }
+  },
+  "omniroute": {
+    "accessTokens": {
+      "description": "Verwalte die Zugriffstoken im Dashboard des Gateways und widerrufe jederzeit das, welches diese Erweiterung nutzt.",
+      "missingBaseUrl": "Trage zuerst die Deployment-Adresse ein, um die Token-Seite des Gateways zu öffnen.",
+      "open": "Token-Seite öffnen",
+      "title": "Zugriffstoken des Gateways verwalten"
+    },
+    "description": "Konfiguriere die Verbindung zu deinem selbst gehosteten OmniRoute-Gateway.",
+    "fields": {
+      "baseUrlDesc": "Die Adresse, unter der du das OmniRoute-Dashboard im Browser öffnest.",
+      "baseUrlLabel": "Deployment-Adresse",
+      "baseUrlPlaceholder": "http://localhost:20128",
+      "credentialDesc": "Erstellen Sie in Settings → Access Tokens des Gateways ein Zugriffstoken mit admin-Berechtigung und fügen Sie es hier ein.",
+      "credentialLabel": "Zugriffstoken",
+      "credentialPlaceholder": "oma_…",
+      "hideCredential": "Zugriffstoken ausblenden",
+      "showCredential": "Zugriffstoken anzeigen"
+    },
+    "title": "OmniRoute-Integrationseinstellungen",
+    "validation": {
+      "description": "Prüft, ob die aktuelle Konfiguration die Verbindung und Verwaltung der Site erlaubt.",
+      "failed": "Prüfung der OmniRoute-Konfiguration fehlgeschlagen: {{error}}",
+      "insufficientScope": "Der Scope des Tokens reicht nicht: vorhanden ist {{have}}, benötigt wird {{need}}. Lege unter Settings → Access Tokens des Gateways ein neues Token mit dem Scope admin an.",
+      "invalidCredential": "Das Zugriffstoken ist ungültig oder abgelaufen: {{error}}",
+      "missingFields": "Geben Sie die Bereitstellungs-URL und das Zugriffstoken ein",
       "title": "Verbindung prüfen",
-      "validate": "Verbindung prüfen",
-      "validating": "Wird geprüft…"
+      "unknownScope": "unbekannt"
     }
   },
   "permissions": {
@@ -425,13 +531,35 @@
     },
     "description": "Gewähren Sie nach Bedarf optionale Berechtigungen für die Aktualisierung von Kontodaten, Hilfstools, Aufgabenbenachrichtigungen und Website-Importe.",
     "helper": "Jede Berechtigung wird nur von der zugehörigen Funktion verwendet und kann jederzeit widerrufen werden. Funktionen ohne Genehmigung können eingeschränkt sein, während andere weiterhin funktionieren.",
+    "incognito": {
+      "checking": "Zugriff auf private Fenster wird geprüft…",
+      "chromeInstructions": "Aktivieren Sie in den Chrome-Details dieser Erweiterung „Im Inkognitomodus zulassen“.",
+      "denied": "Zugriff auf private Fenster nicht erlaubt",
+      "details": "Einstellungen",
+      "edgeInstructions": "Aktivieren Sie in den Edge-Details dieser Erweiterung „In InPrivate zulassen“.",
+      "enabled": "Zugriff auf private Fenster erlaubt",
+      "firefoxInstructions": "Öffnen Sie in Firefox Add-ons und Themes, wählen Sie diese Erweiterung und erlauben Sie die Ausführung in privaten Fenstern.",
+      "firefoxMobileInstructions": "Firefox: Öffnen Sie die Erweiterungsverwaltung im Browsermenü und prüfen Sie den privaten Zugriff. Menüs und Unterstützung hängen von der Version ab.",
+      "genericInstructions": "Prüfen Sie den privaten Zugriff in der Erweiterungsverwaltung Ihres Browsers.",
+      "manualSteps": "Anleitung ansehen",
+      "mobileInstructions": "Öffnen Sie die Erweiterungsverwaltung im Browsermenü und prüfen Sie den privaten Zugriff. Menüs und Unterstützung hängen von der Version ab.",
+      "openChromeSettings": "Chrome-Einstellungen",
+      "openEdgeSettings": "Edge-Einstellungen",
+      "recommended": "Private Fenster für getrennte Anmeldungen erlauben",
+      "reloadWarning": "Eine Änderung kann die Erweiterung neu laden, Erweiterungsseiten schließen oder Aufgaben unterbrechen. Speichern Sie zuerst Ihre Änderungen.",
+      "safariInstructions": "Wählen Sie diese Erweiterung in den Safari-Erweiterungseinstellungen und erlauben Sie privates Surfen. Die Optionen hängen von der Safari-Version ab.",
+      "settingsFailed": "Die Einstellungen konnten nicht geöffnet werden. Erlauben Sie private Fenster über die Erweiterungsverwaltung Ihres Browsers.",
+      "summary": "Trennen Sie die Passwortanmeldung von normalen Fenstern, um Kontoverwechslungen und Sitzungskonflikte zu vermeiden.",
+      "title": "Zugriff auf private Fenster",
+      "unknown": "Privater Zugriff konnte nicht geprüft werden"
+    },
     "items": {
       "bookmarks": {
         "description": "Lesen Sie gespeicherte URLs nur, wenn Sie Websites aus Browser-Lesezeichen importieren.",
         "title": "Browser-Lesezeichen"
       },
       "clipboardRead": {
-        "description": "Nachdem Sie verwandte Inhalte kopiert haben, helfen Sie Redemption Assist oder AI API Test dabei, Einlösecodes und API-Details zu erkennen.",
+        "description": "Hilft nach dem Kopieren relevanter Inhalte dem Einlöseassistenten oder den API-Tests auf Webseiten, Einlösecodes und API-Daten zu erkennen.",
         "title": "Zwischenablage lesen"
       },
       "cookies": {
@@ -484,7 +612,7 @@
       "cta": "Entdecken Sie die Quelle und den neuesten Fortschritt auf GitHub. Sie können auch Probleme melden oder Ideen austauschen.",
       "getStartedCta": "Erste Schritte öffnen",
       "label": "Quellcode",
-      "starCta": "Finden Sie All API Hub nützlich? Markieren Sie es auf GitHub, um das Projekt zu unterstützen"
+      "starCta": "Unterstütze weitere Verbesserungen mit einem Stern auf GitHub"
     },
     "reason": {
       "newPermissions": "Neue Funktionen erfordern zusätzliche optionale Berechtigungen. Überprüfen Sie, was jede einzelne bewirkt, und lassen Sie nur das zu, was Sie benötigen."
@@ -504,13 +632,14 @@
   },
   "refresh": {
     "autoRefresh": "Automatische Aktualisierung",
-    "autoRefreshDesc": "Kontodaten regelmäßig automatisch aktualisieren",
+    "autoRefreshDesc": "Kontodaten regelmäßig automatisch aktualisieren (läuft auch nach dem Schließen der Erweiterungsoberfläche im Hintergrund weiter)",
     "description": "Konfigurieren Sie Einstellungen für die automatische Aktualisierung, z. B. Aktualisierungsintervall und Verhalten beim Start",
     "minRefreshInterval": "Mindestaktualisierungsintervall",
     "minRefreshIntervalDesc": "Mindestzeitintervall zwischen Aktualisierungen, um häufige Anfragen zu vermeiden (mindestens {{minSeconds}} Sekunden)",
     "minRefreshIntervalInvalid": "Bitte geben Sie ein gültiges Mindestaktualisierungsintervall ein (mindestens {{minSeconds}} Sekunden).",
     "refreshInterval": "Aktualisierungsintervall",
     "refreshIntervalDesc": "Legen Sie das Zeitintervall für die automatische Aktualisierung fest (Standard {{defaultInterval}} Sekunden, es wird empfohlen, es nicht zu klein einzustellen, um häufige Anfragen zu vermeiden)",
+    "refreshIntervalHint": "Häufiges Aktualisieren kann bei vielen Konten die Anfragelimits der Websites auslösen. Ein Intervall von mindestens {{minutes}} Minuten wird empfohlen.",
     "refreshIntervalInvalid": "Bitte geben Sie ein gültiges Aktualisierungsintervall ein (mindestens {{minSeconds}} Sekunden).",
     "refreshOnOpen": "Automatische Aktualisierung beim Öffnen des Plugins",
     "refreshOnOpenDesc": "Kontodaten automatisch aktualisieren, wenn das Plugin-Popup geöffnet wird",
@@ -554,10 +683,15 @@
     "shieldDevTriggerPresetLabel": "Zu simulierendes Verhalten",
     "shieldDevTriggerPresetLdohSiteLookupRecovery": "Wiederherstellung der Website-Suche",
     "shieldDevTriggerPresetRedemptionAssistRecovery": "Wiederherstellung der Einlösehilfe",
+    "shieldDevTriggerPresetTurnstileAutomatic": "Turnstile: automatischer Erfolg",
+    "shieldDevTriggerPresetTurnstileFailure": "Turnstile: fehlgeschlagene Verifizierung",
+    "shieldDevTriggerPresetTurnstileInteractive": "Turnstile: manuelle Verifizierung",
+    "shieldDevTriggerPresetTurnstileQueue": "Turnstile: Warteschlange für drei Websites",
     "shieldDevTriggerRunning": "Wird ausgelöst...",
     "shieldDevTriggerStart": "Nach Verzögerung auslösen",
     "shieldDevTriggerSuccess": "Anfrage abgeschlossen (HTTP {{status}})",
     "shieldDevTriggerTitle": "Entwicklungstest",
+    "shieldDevTriggerTurnstileHint": "Starten Sie zuerst pnpm dev:turnstile. Die Szenarien verwenden die offizielle lokale Testkomponente ohne echte Konto-Check-ins. Aktivieren Sie Hinweise in der Oberfläche und öffnen Sie jede Verifizierung per Klick auf den Hinweis.",
     "shieldDevTriggerUrlLabel": "Ziel-URL",
     "shieldEnabled": "Automatischen Aufgaben erlauben, temporäre Seiten zu öffnen",
     "shieldEnabledDescTempWindowOnly": "Wenn diese Option aktiviert ist, können automatische Aktualisierung, Check-in und ähnliche Aufgaben eine temporäre Seite öffnen, wenn eine Website-Verifizierung erforderlich ist. Wenn die Funktion deaktiviert ist, können Aktionen, die Sie selbst starten, diese Funktion gemäß den folgenden Einstellungen weiterhin verwenden.",
@@ -578,53 +712,76 @@
     "shieldPermissionWarningTitle": "Berechtigungen für Cookies, Webanfragen und Blockierung von Webanfragen erforderlich",
     "shieldPopupFirefoxNote": "In Firefox würde das Starten dieser Funktion über das Erweiterungs-Popup das Popup schließen. Dieser Einstiegspunkt ist daher nicht verfügbar. Verwenden Sie stattdessen die Seitenleiste oder die Einstellungsseite.",
     "shieldTitle": "Unterstützung bei der Website-Verifizierung",
+    "shieldTurnstileAssistDesc": "Wählen Sie, wie Sie informiert werden, wenn Turnstile von Hand abgeschlossen werden muss. Das Prüffenster bleibt offen, bis es fertig ist oder die Zeit abläuft.",
+    "shieldTurnstileAssistNotify": "Browser-Benachrichtigungen",
+    "shieldTurnstileAssistNotifyHint": "Sendet eine lokale Browser-Benachrichtigung. Ein Klick öffnet die Verifizierung; eine Benachrichtigungsberechtigung ist erforderlich.",
+    "shieldTurnstileAssistPage": "Hinweise in der Oberfläche",
+    "shieldTurnstileAssistPageHint": "Zeigt einen Hinweis auf der aktuellen Webseite oder Erweiterungsseite. Ein Klick öffnet die Verifizierung.",
+    "shieldTurnstileAssistQuietNotice": "Alle Erinnerungen sind deaktiviert. Die Verifizierung läuft im Hintergrundfenster weiter, fordert Sie jedoch nicht auf.",
+    "shieldTurnstileAssistTitle": "Wenn die Prüfung Sie braucht",
+    "shieldTurnstileSolverApiKey": "API-Key",
+    "shieldTurnstileSolverCostNotice": "Bezahlter Drittanbieter: Jede Anfrage verbraucht dein Kontingent. Lass es also nur an, wenn dir das passt.",
+    "shieldTurnstileSolverDesc": "Ein Drittanbieter besorgt das Turnstile-Token für dich. Der Dienst liefert nur das Token; Bild-CAPTCHAs, Slider und Prüfungen der zweiten Ebene bleiben unverändert und erfordern weiterhin dein manuelles Abschließen.",
+    "shieldTurnstileSolverEnabled": "Lösungsdienst verwenden",
+    "shieldTurnstileSolverEndpoint": "Dienst-URL",
+    "shieldTurnstileSolverKeyMissing": "Ohne API-Key bleibt der Dienst ausgeschaltet, der Check-in läuft dann wie bisher über den eingebauten Ablauf.",
+    "shieldTurnstileSolverModeApiFirst": "Dienst zuerst",
+    "shieldTurnstileSolverModeApiFirstHint": "Erst den Dienst fragen, dann die Seite zeigen: Seiten mit nur Turnstile schließen den Check-in ohne jeden Handgriff ab, und das Verifizierungsfenster wird nie in den Vordergrund geholt.",
+    "shieldTurnstileSolverModePageFirst": "Seite zuerst",
+    "shieldTurnstileSolverModePageFirstHint": "Die Seite darf es zuerst ruhig versuchen, der Dienst wird nur ohne Token gefragt – das spart Kontingent.",
+    "shieldTurnstileSolverModeTitle": "Reihenfolge",
+    "shieldTurnstileSolverTimeout": "Zeitlimit je Anfrage (Sekunden, 5-120)",
+    "shieldTurnstileSolverTitle": "Turnstile automatisch bestehen",
     "shieldWindowHeight": "Höhe (px)",
     "shieldWindowSizeDesc": "Breite und Höhe in Pixeln einstellen und speichern. Gilt für neu geöffnete Verifizierungsfenster; bestehende Fenster und Tabs behalten ihre Größe.",
     "shieldWindowSizeReset": "Standardwerte wiederherstellen",
     "shieldWindowSizeTitle": "Größe des Verifizierungsfensters",
     "shieldWindowWidth": "Breite (px)",
-    "title": "Aktualisierungseinstellungen"
+    "title": "Aktualisierungseinstellungen",
+    "turnstileNotificationEnable": "Systembenachrichtigungen erlauben",
+    "turnstileNotificationManage": "Benachrichtigungsrechte verwalten",
+    "turnstileNotificationPermissionTitle": "Browser-Benachrichtigungen von All API Hub erlauben",
+    "turnstileNotificationStatus": {
+      "available": "Systembenachrichtigungen: erlaubt. Ruhemodus oder Browsereinstellungen können sie weiterhin ausblenden.",
+      "blocked": "Der Browser blockiert Benachrichtigungen. Prüfen Sie die Benachrichtigungseinstellungen und versuchen Sie es hier erneut.",
+      "loading": "Benachrichtigungsrechte werden geprüft…",
+      "permission_required": "Systembenachrichtigungen: Berechtigung erforderlich. Seitenhinweise benötigen diese nicht.",
+      "unavailable": "Dieser Browser unterstützt keine Benachrichtigungen. Hinweise in der Oberfläche können separat aktiviert werden.",
+      "unknown": "Die Verfügbarkeit konnte nicht bestätigt werden. Prüfen Sie die Berechtigungen und versuchen Sie es erneut."
+    }
   },
   "releaseUpdate": {
-    "checkNow": "Jetzt prüfen",
+    "changelog": "Änderungsprotokoll",
+    "checkNow": "Nach Updates suchen",
     "downloadUpdate": "Update herunterladen",
     "helpers": {
-      "checkFailed": "Versuchen Sie es später noch einmal oder öffnen Sie die Release-Seite, um die neueste Version manuell zu überprüfen.",
+      "amoUpdate": "Eine neue Version ist auf Firefox Add-ons verfügbar. Öffnen Sie den Store oder warten Sie auf das automatische Update.",
+      "checkFailed": "Bitte erneut nach Updates suchen.",
       "manualUpdate": "Diese Installation wird manuell aktualisiert. Öffnen Sie die Release-Seite, um die neue Version zu erhalten.",
       "manualUpdateGeneric": "Aktualisieren Sie über Ihren aktuellen Installationskanal oder öffnen Sie die Release-Seite, wenn Sie manuell aktualisieren müssen.",
-      "notChecked": "Führen Sie „Jetzt prüfen“ aus, um zu bestätigen, ob Ihre aktuelle Version ein Update benötigt.",
-      "openLatest": "Öffnen Sie die Release-Seite, um die neueste stabile Version und Versionshinweise zu lesen.",
-      "storeUpdate": "Dieser Store installiert Updates über den Browser. Wenn GitHub neuer ist, der Store aber noch nicht bereit ist, ist die Überprüfung oder Einführung normalerweise noch im Gange.",
+      "selfUpdate": "Diese Installation aktualisiert sich selbst. Der Browser ruft neue Versionen von der Release-Seite ab, ein manueller Download ist nicht nötig.",
+      "storeUpdate": "Store-Versionen werden automatisch vom Browser aktualisiert. Bitte auf die Bereitstellung im Store warten.",
       "storeUpdateReady": "Der Browser hat ein Store-Update gefunden. Laden Sie die Erweiterung neu, um die neue Version zu verwenden.",
-      "unavailable": "Versuchen Sie es später noch einmal oder öffnen Sie die Release-Seite, um die neueste stabile Version direkt zu überprüfen.",
-      "upToDate": "Öffnen Sie die Release-Seite, wenn Sie überprüfen möchten, was sich in dieser Version geändert hat."
+      "unavailable": "Bitte erneut nach Updates suchen."
     },
-    "lastChecked": "Zuletzt überprüft: {{time}}",
-    "latestVersionPending": "Neueste stabile Version: noch nicht überprüft",
-    "latestVersionUnavailable": "Neueste stabile Version: nicht verfügbar",
-    "openLatest": "Neueste Version öffnen",
-    "reasons": {
-      "api-unavailable": "Diese Browserumgebung unterstützt keine automatische Erkennung. Sie können die neueste stabile Version weiterhin manuell überprüfen",
-      "chromium-development": "Dieser Installationskanal kann die neueste stabile Version überprüfen. Führen Sie eine manuelle Prüfung durch, um Versionen zu vergleichen",
-      "firefox-ambiguous": "Firefox kann den Installationskanal derzeit nicht zuverlässig bestimmen. Überprüfen Sie bei Bedarf manuell die neueste stabile Version",
-      "safari-unsupported": "Safari unterstützt noch keine automatische Erkennung. Öffnen Sie die Release-Seite, um die neueste stabile Version zu überprüfen",
-      "store-build": "Dies ist eine Browser-Store-Installation. Sie können nach Store-Updates suchen und sie mit der neuesten GitHub-Version vergleichen.",
-      "unknown": "Dieser Installationskanal unterstützt derzeit keine automatische Erkennung. Sie können die neueste stabile Version weiterhin manuell überprüfen"
-    },
+    "latestAmoVersion": "Firefox Add-ons: v{{version}}",
+    "latestNightlyVersion": "Neuestes Nightly: {{version}}",
     "reloadToUpdate": "Zum Aktualisieren neu laden",
     "states": {
-      "checkFailed": "Die Prüfung ist fehlgeschlagen, daher konnte die neueste stabile Version nicht abgerufen werden",
+      "checkFailed": "Updates konnten nicht geprüft werden",
       "notChecked": "Die neueste stabile Version wurde noch nicht überprüft. Führen Sie eine manuelle Prüfung durch, um Versionen zu vergleichen",
-      "storeUpdatePending": "GitHub hat eine neuere Version, aber das Store-Update ist noch nicht fertig",
-      "storeUpdateReady": "Store-Update ist bereit. Neu laden, um es anzuwenden",
-      "unavailable": "Update-Status ist derzeit nicht verfügbar",
-      "updateAvailable": "Eine neuere Version ist zum Upgrade verfügbar",
-      "upToDate": "Prüfung abgeschlossen. Ihre aktuelle Version ist bereits die neueste stabile Version"
+      "selfUpdatePending": "Eine neuere Version ist verfügbar. Der Browser installiert sie automatisch",
+      "storeUpdatePending": "Store-Update steht noch aus",
+      "storeUpdateReady": "Update bereit",
+      "unavailable": "Update-Status nicht verfügbar",
+      "updateAvailable": "Update verfügbar",
+      "upToDate": "Auf dem neuesten Stand"
     },
     "versionBadge": {
       "changelogAriaLabel": "Änderungsprotokoll für Version {{version}}",
       "updateAvailableAriaLabel": "Update für Version {{version}} verfügbar"
-    }
+    },
+    "viewReleaseNotes": "Versionshinweise anzeigen"
   },
   "siteAnnouncementNotifications": {
     "description": "Steuert, ob aktivierte Kontoseiten im Hintergrund auf Seitenankündigungen überprüft werden.",
@@ -687,10 +844,7 @@
       "description": "Prüfen, ob die aktuelle Konfiguration die Verbindung und Verwaltung der Website ermöglicht.",
       "failed": "Sub2API-Verbindungsprüfung fehlgeschlagen: {{error}}",
       "missingFields": "Gib zuerst die Website-URL und den Admin API Key ein",
-      "success": "Verbindung erfolgreich",
-      "title": "Verbindung prüfen",
-      "validate": "Verbindung prüfen",
-      "validating": "Wird geprüft…"
+      "title": "Verbindung prüfen"
     }
   },
   "tabs": {
@@ -707,7 +861,7 @@
     "refresh": "Datenaktualisierung",
     "select": "Wählen Sie eine Registerkarte",
     "siteAnnouncements": "Website-Ankündigungen",
-    "webAiApiCheck": "AI API-Test"
+    "webAiApiCheck": "API-Tests auf Webseiten"
   },
   "taskNotifications": {
     "channels": {

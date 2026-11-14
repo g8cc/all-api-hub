@@ -4,6 +4,8 @@
 
 ## Feature Overview
 
+![Balance History & Trend Analysis](../static/image/en/balance-history.png)
+
 - **Daily Snapshot Recording**: Each account records at most one snapshot per day.
 - **Records Balance and Transactions**: Can save balance, today's income, today's expenses, recording time, and source.
 - **Multi-Account Summary**: Supports viewing summaries by tag, account, and time range.
@@ -151,6 +153,7 @@ Clicking **`Clean Up Now`** deletes records older than the retention period base
 
 ## Important Limitations
 
+- **Native allowances are excluded**: Native assets such as credits and Tokens, and RelayFor's timed, subscription and group USD allowances, remain visible on account cards but do not contribute to total balance, balance history or income estimates. Balance sorting places them after comparable monetary balances. Confirmed USD spending still contributes to consumption statistics.
 - **Best-Effort**: Browser sleep, network anomalies, or site restrictions may result in missing snapshots for certain dates.
 - **No Historical Backfill**: Does not retroactively scan entire historical logs to fill in past dates, avoiding excessive requests.
 - **Local Storage Only**: In the current version, balance history data is stored locally and is not migrated with regular data import/export or WebDAV.

@@ -1,15 +1,21 @@
-import { Suspense, useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { AppLayout } from "~/components/AppLayout"
 import PopupInterruptionHintBanner from "~/components/PopupInterruptionHintBanner"
 import { Spinner } from "~/components/ui"
+import { isDevMenuItemId } from "~/constants/devOptionsMenuIds"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { THEME_CONTENT_WIDTH } from "~/constants/theme"
 import { useUserPreferencesContext } from "~/contexts/UserPreferencesContext"
 import { useAppearanceSave } from "~/features/Appearance/useAppearanceSave"
 import { DevPanel, DevPanelProvider } from "~/features/DevPanel"
+import { OptionsPageTransition } from "~/features/OptionsMenu/OptionsPageTransition"
 import { hasOptionalPermissions } from "~/features/OptionsSearch/basicSettingsMeta"
+import {
+  OPTIONS_SEARCH_ANCHOR_PARAM,
+  OPTIONS_SEARCH_HIGHLIGHT_PARAM,
+} from "~/features/OptionsSearch/navigation"
 import { OptionsSearchDialog } from "~/features/OptionsSearch/OptionsSearchDialog"
 import { useOptionsSearchContext } from "~/features/OptionsSearch/useOptionsSearch"
 import { useSearchHotkeys } from "~/features/OptionsSearch/useSearchHotkeys"
@@ -20,7 +26,7 @@ import {
   PRODUCT_TOUR_TARGETS,
 } from "~/features/ProductTour/constants"
 import { StarPromotionCard } from "~/features/StarPromotion"
-import { useProductAnalyticsPageView } from "~/hooks/useProductAnalyticsPageView"
+import { useProductAnalyticsPageView } from "~/hooks/analytics/useProductAnalyticsPageView"
 import { cn } from "~/lib/utils"
 import {
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -28,10 +34,11 @@ import {
   type ProductAnalyticsPageId,
 } from "~/services/productAnalytics/contracts"
 import { normalizeAppearance } from "~/types/theme"
+import { useDevUnlocked } from "~/utils/core/devMode"
 
 import Header from "./components/Header"
 import Sidebar from "./components/Sidebar"
-import { menuItems } from "./constants"
+import { menuItems, preloadOptionsPage } from "./constants"
 import { useHashNavigation } from "./hooks/useHashNavigation"
 import BasicSettings from "./pages/BasicSettings"
 import { OPTIONS_TEST_IDS } from "./testIds"
@@ -118,10 +125,26 @@ function OptionsPage() {
     pageId: mapOptionsMenuItemToAnalyticsPageId(activeMenuItem),
   })
 
+  const isDev = useDevUnlocked()
+
   // 获取当前活动的组件
   const ActiveComponent =
-    menuItems.find((item) => item.id === activeMenuItem)?.component ||
-    BasicSettings
+    !isDev && isDevMenuItemId(activeMenuItem)
+      ? BasicSettings
+      : menuItems.find((item) => item.id === activeMenuItem)?.component ||
+        BasicSettings
+
+  // A deep link or search result that targets a setting scrolls on arrival, so
+  // that page must not slide into place underneath its own landing position.
+  const arrivalAnchor = Boolean(
+    routeParams[OPTIONS_SEARCH_ANCHOR_PARAM] ??
+      routeParams[OPTIONS_SEARCH_HIGHLIGHT_PARAM],
+  )
+
+  useEffect(() => {
+    const selected = menuItems.find((item) => item.id === activeMenuItem)
+    if (selected) void preloadOptionsPage(selected.id).catch(() => undefined)
+  }, [activeMenuItem])
 
   const searchContext = useOptionsSearchContext({
     autoCheckinEnabled: preferences?.autoCheckin?.globalEnabled ?? true,
@@ -141,6 +164,8 @@ function OptionsPage() {
   }
 
   const handleMenuItemClick = (itemId: string) => {
+    const selected = menuItems.find((item) => item.id === itemId)
+    if (selected) void preloadOptionsPage(selected.id).catch(() => undefined)
     handleMenuItemChange(itemId)
     setIsMobileSidebarOpen(false) // 移动端选择后关闭侧边栏
   }
@@ -207,12 +232,16 @@ function OptionsPage() {
                       PRODUCT_TOUR_TARGETS.Content,
                   }}
                 >
-                  <Suspense fallback={<OptionsPageContentFallback />}>
+                  <OptionsPageTransition
+                    pageId={activeMenuItem}
+                    arrivalAnchor={arrivalAnchor}
+                    fallback={<OptionsPageContentFallback />}
+                  >
                     <ActiveComponent
                       routeParams={routeParams}
                       refreshKey={refreshKey}
                     />
-                  </Suspense>
+                  </OptionsPageTransition>
                 </div>
               </div>
             </main>

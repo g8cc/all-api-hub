@@ -1,15 +1,45 @@
+import { isAccountSiteType } from "~/constants/siteType"
+import type { AccountData } from "~/services/accounts/accountDataModel"
+import { removeEntryIdsFromLayout } from "~/services/accounts/accountEntryLayoutPolicy"
+import type { LoadedSub2ApiAuth } from "~/services/accounts/accountPersistence/request"
+import {
+  ACCOUNT_SITE_SUPPLEMENTAL_AUTH_KINDS,
+  getAccountSiteProductProfile,
+} from "~/services/accounts/accountSiteProfile"
+import { normalizeAccountSiteSupplementalAuth } from "~/services/accounts/accountSiteProfile/supplementalAuth"
 import {
   AccountUpdateUserTimestampMode,
   applySiteAccountUpdates,
   createPersistedSiteAccount,
   type AccountUpdateOptions,
-} from "~/services/accounts/accountDefaults"
-import { removeEntryIdsFromLayout } from "~/services/accounts/accountEntryLayoutPolicy"
+} from "~/services/accounts/editing/accountDefaults"
+import { parseManualQuotaFromUsd } from "~/services/accounts/editing/accountFormValidation"
+import {
+  hasSameAccountRequestIdentity,
+  hasSameCheckInRequestCredentials,
+} from "~/services/accounts/identity/accountIdentity"
+import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
+import { getAutoCheckinCandidateMethodIds } from "~/services/checkin/autoCheckin/providers/registry"
+import {
+  invalidateCheckInDiscovery,
+  mergeDiscoveredCheckInDraft,
+  mergeRefreshedCheckInStatus,
+  mergeUserOwnedCheckInDraft,
+} from "~/services/checkin/autoCheckin/state"
 import { autoCheckinStorage } from "~/services/checkin/autoCheckin/storage"
-import type { AccountWriteGuard } from "~/services/core/accountWriteGuard"
+import {
+  AccountWriteRejectedError,
+  type AccountWriteGuard,
+} from "~/services/core/accountWriteGuard"
 import { verificationResultHistoryStorage } from "~/services/verification/verificationResultHistory"
-import type { AccountStorageConfig, SiteAccount } from "~/types"
+import {
+  AuthTypeEnum,
+  type AccountStorageConfig,
+  type SiteAccount,
+} from "~/types"
+import type { CheckInMethodSelection } from "~/types/checkIn"
 import type { DeepPartial } from "~/types/utils"
+import { formatLocalDayKey } from "~/utils/core/dayKey"
 import { safeRandomUUID } from "~/utils/core/identifier"
 import { createLogger } from "~/utils/core/logger"
 import { t } from "~/utils/i18n/core"
@@ -18,6 +48,21 @@ import { accountConfigStore } from "./accountConfigStore"
 import { createAccountDeletedEntryRecord } from "./configPolicies"
 
 const logger = createLogger("AccountMutations")
+
+/** Provider cleanup follows the committed write and never changes its outcome. */
+async function cleanupDeletedAccounts(accounts: SiteAccount[]): Promise<void> {
+  for (const account of accounts) {
+    try {
+      await getSiteTypeCapabilities(
+        account.site_type,
+      ).account?.persistence?.cleanupDeletedAccount?.(account)
+    } catch {
+      logger.error("Failed to clean up deleted account credentials", {
+        accountId: account.id,
+      })
+    }
+  }
+}
 
 /**
  * Drops persisted verification results owned by accounts that no longer exist.
@@ -66,6 +111,275 @@ const removeAccountsFromConfig = (
 }
 
 class AccountMutations {
+  async updateAccountWithCheckInDraft(
+    id: string,
+    updates: Omit<DeepPartial<SiteAccount>, "checkIn">,
+    draft: SiteAccount["checkIn"],
+    options: AccountUpdateOptions & {
+      selectionChanged?: boolean
+      discoveryBaseSelection?: CheckInMethodSelection
+      refreshed?: SiteAccount["checkIn"]
+      /** Runs inside the account storage lock; throwing aborts the update. */
+      guard?: AccountWriteGuard
+      loadedSub2ApiAuth?: LoadedSub2ApiAuth
+      /** Credential pair loaded by the editor, before any background rotation. */
+      loadedKimiAuth?: {
+        accessToken: string
+        refreshToken?: string
+        organizationId?: string
+      }
+    },
+  ): Promise<boolean> {
+    const { guard, ...mutationOptions } = options
+    try {
+      return await accountConfigStore.mutateAccount(
+        id,
+        (account) => {
+          const loaded = mutationOptions.loadedKimiAuth
+          const effectiveUpdates = { ...updates }
+          const loadedSub2ApiAuth = mutationOptions.loadedSub2ApiAuth
+          // Compare the same canonical auth shape produced by form persistence.
+          const loadedSession = loadedSub2ApiAuth
+            ? normalizeAccountSiteSupplementalAuth({
+                siteType: account.site_type,
+                sub2apiAuth: {
+                  refreshToken: loadedSub2ApiAuth.refreshToken ?? "",
+                  tokenExpiresAt: loadedSub2ApiAuth.tokenExpiresAt,
+                },
+              }).sub2apiAuth
+            : undefined
+          if (
+            loadedSub2ApiAuth &&
+            getAccountSiteProductProfile(account.site_type).authSession.kind ===
+              ACCOUNT_SITE_SUPPLEMENTAL_AUTH_KINDS.Sub2ApiRefreshToken &&
+            (updates.site_type ?? account.site_type) === account.site_type &&
+            account.authType === AuthTypeEnum.AccessToken &&
+            (updates.authType ?? account.authType) ===
+              AuthTypeEnum.AccessToken &&
+            account.site_url === loadedSub2ApiAuth.siteUrl &&
+            (updates.site_url ?? account.site_url) ===
+              loadedSub2ApiAuth.siteUrl &&
+            account.account_info.id === loadedSub2ApiAuth.userId &&
+            (updates.account_info?.id ?? account.account_info.id) ===
+              loadedSub2ApiAuth.userId &&
+            updates.account_info?.access_token ===
+              loadedSub2ApiAuth.accessToken &&
+            updates.sub2apiAuth?.refreshToken === loadedSession?.refreshToken &&
+            updates.sub2apiAuth?.tokenExpiresAt ===
+              loadedSession?.tokenExpiresAt
+          ) {
+            // Unchanged drafts do not own credentials recovered or rotated while
+            // the editor was open. Preserve the latest complete pair under lock.
+            delete effectiveUpdates.sub2apiAuth
+            effectiveUpdates.account_info = { ...effectiveUpdates.account_info }
+            delete effectiveUpdates.account_info.access_token
+          }
+          // An unchanged editor does not own session credentials. Preserve the
+          // latest pair atomically with the unrelated form edit.
+          if (
+            loaded &&
+            updates.account_info?.access_token === loaded.accessToken &&
+            updates.kimiOpenPlatformAuth?.refreshToken ===
+              loaded.refreshToken &&
+            updates.kimiOpenPlatformAuth?.organizationId ===
+              loaded.organizationId &&
+            (account.account_info.access_token !== loaded.accessToken ||
+              account.kimiOpenPlatformAuth?.refreshToken !==
+                loaded.refreshToken ||
+              account.kimiOpenPlatformAuth?.organizationId !==
+                loaded.organizationId)
+          ) {
+            delete effectiveUpdates.kimiOpenPlatformAuth
+            if (effectiveUpdates.account_info) {
+              effectiveUpdates.account_info = {
+                ...effectiveUpdates.account_info,
+              }
+              delete effectiveUpdates.account_info.access_token
+            }
+          }
+          const effectiveSiteType = isAccountSiteType(updates.site_type)
+            ? updates.site_type
+            : account.site_type
+          const mergedUserDraft = mutationOptions.discoveryBaseSelection
+            ? mergeDiscoveredCheckInDraft({
+                latest: account.checkIn,
+                draft,
+                candidateMethodIds: getAutoCheckinCandidateMethodIds(
+                  effectiveSiteType,
+                  updates.site_url ?? account.site_url,
+                ),
+                discoveryBaseSelection: mutationOptions.discoveryBaseSelection,
+                selectionChanged: mutationOptions.selectionChanged,
+              })
+            : mergeUserOwnedCheckInDraft({
+                latest: account.checkIn,
+                draft,
+                selectionChanged: mutationOptions.selectionChanged,
+              })
+          const checkIn = mutationOptions.refreshed
+            ? mergeRefreshedCheckInStatus({
+                latest: mergedUserDraft,
+                refreshed: mutationOptions.refreshed,
+              })
+            : mergedUserDraft
+
+          const nextAccount = applySiteAccountUpdates({
+            account,
+            updates: { ...effectiveUpdates, checkIn },
+            now: Date.now(),
+            userTimestampMode: mutationOptions.userTimestampMode,
+          })
+          const hasFreshDraftDiscovery =
+            mutationOptions.discoveryBaseSelection &&
+            (checkIn.methodKnowledge.lastFullDiscoveryAt ?? 0) >
+              (account.checkIn.methodKnowledge.lastFullDiscoveryAt ?? 0)
+          if (
+            !hasSameCheckInRequestCredentials(nextAccount, account) &&
+            !hasFreshDraftDiscovery
+          ) {
+            // Existing facts may still be useful, but a different credential
+            // must establish its own completed discovery after this save.
+            nextAccount.checkIn = invalidateCheckInDiscovery(
+              nextAccount.checkIn,
+              { siteUrlChanged: nextAccount.site_url !== account.site_url },
+            )
+          }
+          return {
+            nextAccount,
+            result: true,
+            changed: true,
+          }
+        },
+        { guard },
+      )
+    } catch (error) {
+      // A rejected guard is a decided outcome, not a storage failure: the caller
+      // reports why the update was refused instead of a generic save error.
+      if (error instanceof AccountWriteRejectedError) throw error
+      logger.error(t("messages:storage.updateFailed", { error: "" }), error)
+      return false
+    }
+  }
+
+  async updateAccountCheckInDraft(
+    id: string,
+    draft: SiteAccount["checkIn"],
+    options: {
+      selectionChanged?: boolean
+      discoveryBaseSelection?: CheckInMethodSelection
+      refreshed?: SiteAccount["checkIn"]
+    } = {},
+  ): Promise<boolean> {
+    return this.updateAccountWithCheckInDraft(id, {}, draft, {
+      ...options,
+      userTimestampMode: AccountUpdateUserTimestampMode.Touch,
+    })
+  }
+
+  /**
+   * Applies refresh data without replacing newer user-owned fields and returns
+   * the committed snapshot for follow-ups, or null when the update is rejected.
+   */
+  async updateAccountFromRefresh(
+    id: string,
+    updates: DeepPartial<SiteAccount>,
+    refreshedCheckIn?: SiteAccount["checkIn"],
+    requestSnapshot?: SiteAccount,
+    providerBalance?: Pick<AccountData, "quota" | "balanceUnavailable">,
+  ): Promise<SiteAccount | null> {
+    try {
+      return await accountConfigStore.mutateAccount(id, (account) => {
+        if (
+          requestSnapshot &&
+          !hasSameAccountRequestIdentity(account, requestSnapshot)
+        ) {
+          return { nextAccount: account, result: null, changed: false }
+        }
+        const effectiveUpdates = {
+          ...updates,
+          account_info: { ...updates.account_info },
+        }
+        if (providerBalance) {
+          // The fetch snapshot may predate a manual balance edit. Resolve this
+          // under the storage lock, retaining the latest saved override or
+          // restoring the provider result when the override has been removed.
+          if (parseManualQuotaFromUsd(account.manualBalanceUsd) !== undefined) {
+            delete effectiveUpdates.account_info.quota
+            delete effectiveUpdates.account_info.balanceUnavailable
+          } else {
+            effectiveUpdates.account_info.quota = providerBalance.quota
+            effectiveUpdates.account_info.balanceUnavailable =
+              providerBalance.balanceUnavailable === true
+          }
+        }
+        if (
+          requestSnapshot &&
+          account.account_info.username !==
+            requestSnapshot.account_info.username
+        ) {
+          delete effectiveUpdates.account_info.username
+        }
+        if (
+          requestSnapshot &&
+          (account.authType !== requestSnapshot.authType ||
+            account.account_info.access_token !==
+              requestSnapshot.account_info.access_token ||
+            account.cookieAuth?.sessionCookie !==
+              requestSnapshot.cookieAuth?.sessionCookie ||
+            account.sub2apiAuth?.refreshToken !==
+              requestSnapshot.sub2apiAuth?.refreshToken ||
+            account.kimiOpenPlatformAuth?.refreshToken !==
+              requestSnapshot.kimiOpenPlatformAuth?.refreshToken)
+        ) {
+          delete effectiveUpdates.account_info.access_token
+          delete effectiveUpdates.account_info.id
+          delete effectiveUpdates.account_info.username
+          delete effectiveUpdates.sub2apiAuth
+          delete effectiveUpdates.kimiOpenPlatformAuth
+        }
+        let checkIn = account.checkIn
+        if (refreshedCheckIn) {
+          checkIn = mergeRefreshedCheckInStatus({
+            latest: checkIn,
+            refreshed: refreshedCheckIn,
+          })
+        }
+
+        const today = formatLocalDayKey()
+        if (
+          refreshedCheckIn &&
+          checkIn.customCheckIn?.url &&
+          checkIn.customCheckIn.lastCheckInDate &&
+          checkIn.customCheckIn.lastCheckInDate !== today
+        ) {
+          checkIn = {
+            ...checkIn,
+            customCheckIn: {
+              ...checkIn.customCheckIn,
+              isCheckedInToday: false,
+              lastCheckInDate: undefined,
+            },
+          }
+        }
+
+        const nextAccount = applySiteAccountUpdates({
+          account,
+          updates: { ...effectiveUpdates, checkIn },
+          now: Date.now(),
+          userTimestampMode: AccountUpdateUserTimestampMode.Preserve,
+        })
+        return {
+          nextAccount,
+          result: nextAccount,
+          changed: true,
+        }
+      })
+    } catch (error) {
+      logger.error(t("messages:storage.updateFailed", { error: "" }), error)
+      return null
+    }
+  }
+
   /**
    * Appends one account under the account storage lock.
    *
@@ -210,7 +524,7 @@ class AccountMutations {
 
   async deleteAccount(id: string): Promise<boolean> {
     try {
-      const deleted = await accountConfigStore.mutate((config) => {
+      const deletedAccount = await accountConfigStore.mutate((config) => {
         const account = config.accounts.find((item) => item.id === id)
         if (!account) {
           logger.warn("Attempted to delete missing account", {
@@ -224,13 +538,14 @@ class AccountMutations {
         }
 
         removeAccountsFromConfig(config, [account], new Set([id]), Date.now())
-        return { result: true, changed: true }
+        return { result: account, changed: true }
       })
       void autoCheckinStorage.pruneStatusForAccountIds([id]).catch((error) => {
         logger.error("清理自动签到账号状态失败", { accountId: id, error })
       })
       await pruneDeletedAccountVerificationResults([id])
-      return deleted
+      await cleanupDeletedAccounts([deletedAccount])
+      return true
     } catch (error) {
       logger.error("删除账号失败", { accountId: id, error })
       throw error
@@ -252,7 +567,7 @@ class AccountMutations {
         const deletedIds = deletedAccounts.map((account) => account.id)
         if (deletedIds.length === 0) {
           return {
-            result: { deletedCount: 0, deletedIds: [] },
+            result: { deletedCount: 0, deletedIds: [], deletedAccounts: [] },
             changed: false,
           }
         }
@@ -260,7 +575,11 @@ class AccountMutations {
         const now = Date.now()
         removeAccountsFromConfig(config, deletedAccounts, idSet, now)
         return {
-          result: { deletedCount: deletedIds.length, deletedIds },
+          result: {
+            deletedCount: deletedIds.length,
+            deletedIds,
+            deletedAccounts,
+          },
           changed: true,
         }
       })
@@ -275,8 +594,12 @@ class AccountMutations {
             })
           })
         await pruneDeletedAccountVerificationResults(result.deletedIds)
+        await cleanupDeletedAccounts(result.deletedAccounts)
       }
-      return result
+      return {
+        deletedCount: result.deletedCount,
+        deletedIds: result.deletedIds,
+      }
     } catch (error) {
       logger.error("批量删除账号失败", { accountIds: uniqueIds, error })
       throw error

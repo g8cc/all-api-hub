@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { tempWindowOpenRouterManagementKeyAction } from "~/services/apiAdapters/openrouter/managementKeyActionClient"
+import { tempWindowOpenRouterManagementKeyAction } from "~/services/apiAdapters/openrouter/keys/managementKeyActionClient"
 import {
   PROTECTION_BYPASS_AUTOMATIC_TRIGGERS,
   PROTECTION_BYPASS_FEATURES,
@@ -50,13 +50,10 @@ vi.mock("~/utils/browser", async (importOriginal) => {
   }
 })
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
-  return {
-    ...actual,
-    sendRuntimeMessage: sendRuntimeMessageMock,
-  }
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
+  return { ...actual, sendRuntimeMessage: sendRuntimeMessageMock }
 })
 
 vi.mock("~/entrypoints/background/protectionBypassCoordinator", () => ({

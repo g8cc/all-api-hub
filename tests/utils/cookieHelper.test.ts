@@ -5,6 +5,7 @@ import {
   getCookieHeaderForUrl,
   getCookieHeaderForUrlResult,
   hasCookieReadPermissionForUrl,
+  hasCookiesForUrl,
 } from "~/utils/browser/cookieHelper"
 
 describe("cookieHelper", () => {
@@ -57,6 +58,35 @@ describe("cookieHelper", () => {
     expect(header).toBe("valid=2")
   })
 
+  it.each(["header", "presence"])(
+    "reads cookie %s on browsers that reject partitionKey",
+    async (operation) => {
+      const getAll = vi.fn().mockImplementation((details) => {
+        if ("partitionKey" in details) {
+          throw new Error(
+            "Error in invocation of cookies.getAll(object details, function callback): Error at parameter 'details': Unexpected property: 'partitionKey'.",
+          )
+        }
+        return Promise.resolve([{ name: "session", value: "user-a" }])
+      })
+      ;(globalThis as any).browser.cookies.getAll = getAll
+
+      if (operation === "header") {
+        await expect(
+          getCookieHeaderForUrlResult("https://example.com", { storeId: "1" }),
+        ).resolves.toEqual({ header: "session=user-a" })
+      } else {
+        await expect(
+          hasCookiesForUrl("https://example.com", { storeId: "1" }),
+        ).resolves.toBe(true)
+      }
+      expect(getAll).toHaveBeenLastCalledWith({
+        url: "https://example.com",
+        storeId: "1",
+      })
+    },
+  )
+
   it("excludes the session cookie when includeSession is false", async () => {
     const getAll = vi
       .fn()
@@ -91,6 +121,42 @@ describe("cookieHelper", () => {
     })
   })
 
+  it("reports cookies present when a non-expired cookie exists", async () => {
+    ;(globalThis as any).browser.cookies.getAll = vi
+      .fn()
+      .mockResolvedValue([{ name: "a", value: "1" } as any])
+
+    await expect(hasCookiesForUrl("https://example.com")).resolves.toBe(true)
+  })
+
+  it("reports no cookies when only expired cookies exist", async () => {
+    ;(globalThis as any).browser.cookies.getAll = vi.fn().mockResolvedValue([
+      {
+        name: "a",
+        value: "1",
+        expirationDate: Date.now() / 1000 - 10,
+      } as any,
+    ])
+
+    await expect(hasCookiesForUrl("https://example.com")).resolves.toBe(false)
+  })
+
+  it("reports no cookies when cookie read permission is missing", async () => {
+    ;(globalThis as any).browser.permissions.contains = vi
+      .fn()
+      .mockResolvedValue(false)
+
+    await expect(hasCookiesForUrl("https://example.com")).resolves.toBe(false)
+  })
+
+  it("reports no cookies when cookies.getAll fails", async () => {
+    ;(globalThis as any).browser.cookies.getAll = vi
+      .fn()
+      .mockRejectedValue(new Error("boom"))
+
+    await expect(hasCookiesForUrl("https://example.com")).resolves.toBe(false)
+  })
+
   it("returns an empty string when cookies.getAll fails", async () => {
     const getAll = vi.fn().mockRejectedValue(new Error("boom"))
     ;(globalThis as any).browser.cookies.getAll = getAll
@@ -111,6 +177,7 @@ describe("cookieHelper", () => {
       failureReason: COOKIE_HEADER_READ_FAILURE_REASONS.PermissionDenied,
       errorMessage: "Missing host permission for the tab",
     })
+    expect(getAll).toHaveBeenCalledTimes(1)
   })
 
   it("reports read-failed for non-permission cookie read errors", async () => {
@@ -126,6 +193,24 @@ describe("cookieHelper", () => {
       failureReason: COOKIE_HEADER_READ_FAILURE_REASONS.ReadFailed,
       errorMessage: "storage backend failed",
     })
+    expect(getAll).toHaveBeenCalledTimes(1)
+  })
+
+  it("preserves permission diagnostics when the legacy cookie read fails", async () => {
+    const getAll = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Unexpected property: 'partitionKey'."))
+      .mockRejectedValueOnce(new Error("Missing host permission for the tab"))
+    ;(globalThis as any).browser.cookies.getAll = getAll
+
+    await expect(
+      getCookieHeaderForUrlResult("https://example.com"),
+    ).resolves.toMatchObject({
+      header: "",
+      failureReason: COOKIE_HEADER_READ_FAILURE_REASONS.PermissionDenied,
+      errorMessage: "Missing host permission for the tab",
+    })
+    expect(getAll).toHaveBeenCalledTimes(2)
   })
 
   it("checks both cookies permission and target origin before cookie reads", async () => {

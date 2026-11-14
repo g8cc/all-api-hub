@@ -3,15 +3,17 @@ import type { BrowserContext, Page, Route, Worker } from "@playwright/test"
 import { OPTIONS_PAGE_PATH } from "~/constants/extensionPages"
 import { ChannelType } from "~/constants/newApi"
 import { SITE_TYPES } from "~/constants/siteType"
-import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/compatibilityConfig"
-import { STORAGE_KEYS } from "~/services/core/storageKeys"
+import { AutoRefreshMessageTypes } from "~/services/accounts/refresh/autoRefreshMessaging"
+import { ACCOUNT_AUTO_REFRESH_ALARM_NAME } from "~/services/accounts/refresh/constants"
+import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/configuration/compatibilityConfig"
+import { STORAGE_KEYS, STORAGE_LOCKS } from "~/services/core/storageKeys"
 import { DAILY_BALANCE_HISTORY_ALARM_NAME } from "~/services/history/dailyBalanceHistory/constants"
 import {
   USAGE_HISTORY_ALARM_NAME,
   USAGE_HISTORY_STORAGE_KEYS,
 } from "~/services/history/usageHistory/constants"
 import { LogType } from "~/services/history/usageHistory/usageLogModel"
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import {
   AutoCheckinMessageTypes,
   BalanceHistoryMessageTypes,
@@ -36,6 +38,7 @@ import {
   createStoredBookmark,
   forceExtensionLanguage,
   installExtensionPageGuards,
+  seedAutoCheckinStatus,
   seedStoredAccounts,
   seedStoredBookmarks,
   seedUserPreferences,
@@ -46,10 +49,10 @@ import {
   expectPermissionOnboardingHidden,
   getPlasmoStorageRawValue,
   getServiceWorker,
-  setPlasmoStorageValue,
 } from "~~/e2e/utils/extensionState"
 import { waitForExtensionRoot } from "~~/e2e/utils/lazyLoading"
 import { sendTypedRuntimeMessageFromPage } from "~~/e2e/utils/runtimeMessaging"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const AUTO_CHECKIN_LEGACY_ALARM_NAME = "autoCheckin"
 const AUTO_CHECKIN_DAILY_ALARM_NAME = "autoCheckinDaily"
@@ -64,6 +67,7 @@ const MANAGED_SITE_ALARM_USER_ID = "1"
 const AUTO_CHECKIN_STATUS_STORAGE_KEY = "autoCheckin_status"
 
 const EXPECTED_ENABLED_ALARMS = [
+  ACCOUNT_AUTO_REFRESH_ALARM_NAME,
   AUTO_CHECKIN_DAILY_ALARM_NAME,
   DAILY_BALANCE_HISTORY_ALARM_NAME,
   MANAGED_SITE_MODEL_SYNC_ALARM_NAME,
@@ -74,6 +78,7 @@ const EXPECTED_ENABLED_ALARMS = [
 ] as const
 
 const CONFIGURABLE_ALARMS = [
+  ACCOUNT_AUTO_REFRESH_ALARM_NAME,
   AUTO_CHECKIN_LEGACY_ALARM_NAME,
   AUTO_CHECKIN_DAILY_ALARM_NAME,
   AUTO_CHECKIN_RETRY_ALARM_NAME,
@@ -236,17 +241,6 @@ async function scheduleAlarmSoon(serviceWorker: Worker, alarmName: string) {
       when: Date.now() + 1_000,
     })
   }, alarmName)
-}
-
-async function seedAutoCheckinStatus(
-  serviceWorker: Worker,
-  status: AutoCheckinStatus,
-) {
-  await setPlasmoStorageValue(
-    serviceWorker,
-    AUTO_CHECKIN_STATUS_STORAGE_KEY,
-    status,
-  )
 }
 
 function getLocalDay(date = new Date()) {
@@ -573,6 +567,11 @@ async function enableAlarmBackedFeatures(page: Page, serviceWorker: Worker) {
   const responses = [
     await sendTypedRuntimeMessageFromPage<{ success: boolean }>(
       page,
+      AutoRefreshMessageTypes.UpdateSettings,
+      { settings: { accountAutoRefresh: { enabled: true, interval: 900 } } },
+    ),
+    await sendTypedRuntimeMessageFromPage<{ success: boolean }>(
+      page,
       UsageHistoryMessageTypes.UpdateSettings,
       {
         settings: {
@@ -654,6 +653,11 @@ async function enableAlarmBackedFeatures(page: Page, serviceWorker: Worker) {
 
 async function disableConfigurableAlarmFeatures(page: Page) {
   const responses = [
+    await sendTypedRuntimeMessageFromPage<{ success: boolean }>(
+      page,
+      AutoRefreshMessageTypes.UpdateSettings,
+      { settings: { accountAutoRefresh: { enabled: false } } },
+    ),
     await sendTypedRuntimeMessageFromPage<{ success: boolean }>(
       page,
       UsageHistoryMessageTypes.UpdateSettings,
@@ -739,6 +743,10 @@ test("reconciles every enabled background scheduler into production MV3 alarms w
     })
     .toEqual(
       expect.objectContaining({
+        [ACCOUNT_AUTO_REFRESH_ALARM_NAME]: expect.objectContaining({
+          name: ACCOUNT_AUTO_REFRESH_ALARM_NAME,
+          periodInMinutes: 15,
+        }),
         [AUTO_CHECKIN_DAILY_ALARM_NAME]: expect.objectContaining({
           name: AUTO_CHECKIN_DAILY_ALARM_NAME,
         }),
@@ -784,8 +792,8 @@ test("reconciles every enabled background scheduler into production MV3 alarms w
             name,
             expect.objectContaining({
               name,
-              scheduledTime: beforeReconcile[name].scheduledTime,
-              periodInMinutes: beforeReconcile[name].periodInMinutes,
+              scheduledTime: atIndex(beforeReconcile, name).scheduledTime,
+              periodInMinutes: atIndex(beforeReconcile, name).periodInMinutes,
             }),
           ]),
         ),
@@ -825,6 +833,94 @@ test("clears scheduler-owned MV3 alarms when features are disabled", async ({
         message: `${alarmName} should be cleared by its owning scheduler`,
       })
       .toBeNull()
+  }
+})
+
+test("wakes a stopped MV3 worker to refresh saved accounts", async ({
+  context,
+  extensionId,
+  page,
+}) => {
+  const worker = await getServiceWorker(context)
+  const baseUrl = "https://account-refresh-alarm.example.com"
+  const accountId = "account-refresh-alarm-account"
+  await stubNewApiSiteRoutes(context, { baseUrl, initialQuota: 9_876_543 })
+  await seedStoredAccounts(worker, [
+    createStoredAccount({
+      id: accountId,
+      site_url: baseUrl,
+      last_sync_time: 0,
+    }),
+  ])
+  await openExtensionPage(page, extensionId)
+  const response = await sendTypedRuntimeMessageFromPage<{ success: boolean }>(
+    page,
+    AutoRefreshMessageTypes.UpdateSettings,
+    {
+      settings: {
+        accountAutoRefresh: { enabled: true, interval: 60, minInterval: 0 },
+      },
+    },
+  )
+  expect(response.success).toBe(true)
+  // Remove UI consumers so only the alarm can wake the stopped background.
+  await page.goto(`chrome-extension://${extensionId}/manifest.json`)
+  const cdp = await context.newCDPSession(page)
+  const versions = new Map<
+    string,
+    { scriptURL: string; runningStatus: string }
+  >()
+  cdp.on("ServiceWorker.workerVersionUpdated", ({ versions: updated }) => {
+    for (const version of updated) versions.set(version.versionId, version)
+  })
+  try {
+    await cdp.send("ServiceWorker.enable")
+    await expect
+      .poll(() =>
+        [...versions.values()].some(
+          (version) => version.scriptURL === worker.url(),
+        ),
+      )
+      .toBe(true)
+    const versionId = [...versions.entries()].find(
+      ([, version]) => version.scriptURL === worker.url(),
+    )![0]
+    // Keep the configured repeating period so startup reconciliation must preserve it.
+    await worker.evaluate(async (name) => {
+      await (globalThis as any).chrome.alarms.create(name, {
+        when: Date.now() + 3_000,
+        periodInMinutes: 1,
+      })
+    }, ACCOUNT_AUTO_REFRESH_ALARM_NAME)
+    const refreshed = context.waitForEvent("request", {
+      predicate: (request) => request.url() === `${baseUrl}/api/user/self`,
+      timeout: 15_000,
+    })
+    await cdp.send("ServiceWorker.stopWorker", { versionId })
+    await expect
+      .poll(() => versions.get(versionId)?.runningStatus)
+      .toBe("stopped")
+    await refreshed
+
+    await page.goto(`chrome-extension://${extensionId}/${OPTIONS_PAGE_PATH}`)
+    await expect
+      .poll(() =>
+        page.evaluate(
+          async ({ storageKey, accountId }) => {
+            const stored = await (globalThis as any).chrome.storage.local.get(
+              storageKey,
+            )
+            const config = JSON.parse(stored[storageKey] ?? "{}")
+            return config.accounts?.find(
+              (account: { id: string }) => account.id === accountId,
+            )?.account_info?.quota
+          },
+          { storageKey: STORAGE_KEYS.ACCOUNTS, accountId },
+        ),
+      )
+      .toBe(9_876_543)
+  } finally {
+    await cdp.detach()
   }
 })
 
@@ -1232,6 +1328,86 @@ test("runs WebDAV best-effort upload when its dedicated MV3 alarm fires", async 
   )
 })
 
+test("auto-checkin status seeding survives an in-flight scheduler write", async ({
+  context,
+}) => {
+  const serviceWorker = await getServiceWorker(context)
+  const lockRequestEvent = "aah-e2e-auto-checkin-seed-lock-requested"
+  const write = await serviceWorker.evaluateHandle(
+    async ({ lock, key, lockRequestEvent }) => {
+      const checkpoint = { seedRequested: false }
+      const onSeedRequested = () => {
+        checkpoint.seedRequested = true
+      }
+      globalThis.addEventListener(lockRequestEvent, onSeedRequested)
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let acquired!: () => void
+      const ready = new Promise<void>((resolve) => {
+        acquired = resolve
+      })
+      const finished = navigator.locks.request(lock, async () => {
+        acquired()
+        await gate
+        await chrome.storage.local.set({
+          [key]: JSON.stringify({ lastRunResult: "failed" }),
+        })
+      })
+      await ready
+      return {
+        release,
+        finished,
+        checkpoint,
+        dispose: () =>
+          globalThis.removeEventListener(lockRequestEvent, onSeedRequested),
+      }
+    },
+    {
+      lock: STORAGE_LOCKS.AUTO_CHECKIN_STATUS,
+      key: AUTO_CHECKIN_STATUS_STORAGE_KEY,
+      lockRequestEvent,
+    },
+  )
+  const seeding = seedAutoCheckinStatus(
+    serviceWorker,
+    { lastRunResult: "success" },
+    { lockRequestEvent },
+  )
+  try {
+    // Observe either a queued locked seed or an already-written unsafe seed.
+    // Only then let the older scheduler write commit its stale snapshot.
+    await expect
+      .poll(() =>
+        write.evaluate(async ({ checkpoint }, key) => {
+          const stored = await chrome.storage.local.get(key)
+          return (
+            checkpoint.seedRequested ||
+            JSON.parse(stored[key] ?? "null")?.lastRunResult === "success"
+          )
+        }, AUTO_CHECKIN_STATUS_STORAGE_KEY),
+      )
+      .toBe(true)
+  } finally {
+    await write.evaluate(async (pending) => {
+      pending.release()
+      await pending.finished
+      pending.dispose()
+    })
+    await seeding
+    await write.dispose()
+  }
+  // Scheduler reconciliation may add retry/schedule fields after the seed.
+  // The regression contract is that its older snapshot cannot lose this result.
+  expect(
+    await readJsonStorageValue<AutoCheckinStatus>(
+      serviceWorker,
+      AUTO_CHECKIN_STATUS_STORAGE_KEY,
+    ),
+  ).toMatchObject({ lastRunResult: "success" })
+})
+
 test("runs auto-checkin retries when its MV3 alarm fires", async ({
   context,
   extensionId,
@@ -1396,7 +1572,8 @@ test("runs auto-checkin retries when its MV3 alarm fires", async ({
     serviceWorker,
     AUTO_CHECKIN_STATUS_STORAGE_KEY,
   )
-  expect(statusAfterRetry?.retryState).toBeUndefined()
+  expect(statusAfterRetry?.pendingRetry).toBe(false)
+  expect(statusAfterRetry?.retryState?.pendingAccountIds).toEqual([])
   expect(checkinRequests).toBe(1)
 })
 

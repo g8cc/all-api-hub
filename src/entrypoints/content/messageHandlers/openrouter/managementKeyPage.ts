@@ -12,18 +12,18 @@ import {
   OPENROUTER_MANAGEMENT_KEY_LABEL_MAX_LENGTH,
   OPENROUTER_MANAGEMENT_KEYS_ORIGIN,
   OPENROUTER_MANAGEMENT_KEYS_PATH,
-} from "~/services/apiAdapters/openrouter/managementKeyPageContract"
+} from "~/services/apiAdapters/openrouter/keys/managementKeyPageContract"
 import type {
   TempWindowOpenRouterManagementKeyActionParams,
   TempWindowOpenRouterManagementKeyActionResult,
-} from "~/services/apiAdapters/openrouter/managementKeyPageContract"
-import { normalizeOpenRouterManagementKeySecret } from "~/services/apiAdapters/openrouter/managementKeySecret"
+} from "~/services/apiAdapters/openrouter/keys/managementKeyPageContract"
+import { normalizeOpenRouterManagementKeySecret } from "~/services/apiAdapters/openrouter/keys/managementKeySecret"
 
 export {
   OPENROUTER_MANAGEMENT_KEY_LABEL_MAX_LENGTH,
   OPENROUTER_MANAGEMENT_KEYS_ORIGIN,
   OPENROUTER_MANAGEMENT_KEYS_PATH,
-} from "~/services/apiAdapters/openrouter/managementKeyPageContract"
+} from "~/services/apiAdapters/openrouter/keys/managementKeyPageContract"
 
 type PageEnvironment = {
   document: Document
@@ -437,8 +437,9 @@ export async function performOpenRouterManagementKeyPageAction(
         )
           return []
         const codes = Array.from(dialog.querySelectorAll("code"))
-        if (codes.length !== 1 || !isVisible(codes[0])) return []
-        const secret = normalizeOpenRouterManagementKeySecret(text(codes[0]))
+        const [code] = codes
+        if (codes.length !== 1 || !code || !isVisible(code)) return []
+        const secret = normalizeOpenRouterManagementKeySecret(text(code))
         return secret ? [{ dialog, secret }] : []
       })
     const secretReady = await waitUntil(

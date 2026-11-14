@@ -1,17 +1,22 @@
 import { SITE_TYPES } from "~/constants/siteType"
+import { MANAGED_RESOURCE_EXACT_MATCH_BASES } from "~/services/apiAdapters/contracts/managedResourceMatching"
 import type { ManagedSiteCapabilities } from "~/services/apiAdapters/contracts/managedSiteCapabilities"
 import {
   cliProxyApiKeys,
   cliProxyApiRef,
   cliProxyApiScope,
   getCliProxyApiResource,
-} from "~/services/apiAdapters/managedResources/cliProxyApi"
-import { listAllCliProxyApiProviders } from "~/services/apiService/cliProxyApi"
+} from "~/services/apiAdapters/managedResources/cliProxyApi/nativeRuntime"
 import {
-  sharePendingConfigRead,
-  type ScheduledReadOptions,
-} from "~/services/apiTransport/requestScheduling"
-import { getManagedSiteRuntimeConfigForType } from "~/services/managedSites/runtimeConfig"
+  listAllCliProxyApiProviders,
+  type CliProxyApiProviderKind,
+} from "~/services/apiService/cliProxyApi"
+import {
+  shareInventoryRead,
+  type InventoryReadOptions,
+} from "~/services/apiTransport/inventoryReads"
+import type { ScheduledReadOptions } from "~/services/apiTransport/requestScheduling"
+import { getManagedSiteRuntimeConfigForType } from "~/services/managedSites/configuration/runtimeConfig"
 import { fetchManagedSiteImportModels } from "~/services/managedSites/utils/fetchManagedSiteImportModels"
 import { API_TYPES } from "~/services/verification/aiApiVerification"
 import type { CliProxyApiConfig } from "~/types/cliProxyApiConfig"
@@ -19,23 +24,34 @@ import { transformNormalizedUrlPath } from "~/utils/core/urlParsing"
 
 import { createManagedSiteConfigCapability } from "./config"
 
-const readMatchingInventory = sharePendingConfigRead(
-  listAllCliProxyApiProviders,
-)
+const IMPORT_PROVIDER_KINDS = {
+  OpenAi: "openai-compatibility",
+  Codex: "codex-api-key",
+  Claude: "claude-api-key",
+  Gemini: "gemini-api-key",
+} as const satisfies Record<string, CliProxyApiProviderKind>
+
+const readMatchingInventory = shareInventoryRead(listAllCliProxyApiProviders)
 
 /** Match the request paths appended by CLIProxyAPI's native executors. */
-function importedProviderUrl(baseUrl: string, kind: string): string {
+function importedProviderUrl(
+  baseUrl: string,
+  kind: CliProxyApiProviderKind,
+): string {
   return transformNormalizedUrlPath(baseUrl, (pathname) => {
     const path = pathname.replace(/\/+$/, "")
-    if (kind === "claude-api-key")
+    if (kind === IMPORT_PROVIDER_KINDS.Claude)
       return path.replace(/\/v1(?:\/messages)?$/, "") || "/"
-    if (kind === "gemini-api-key")
+    if (kind === IMPORT_PROVIDER_KINDS.Gemini)
       return path.replace(/\/v1(?:beta)?(?:\/models(?:\/[^/]+)?)?$/, "") || "/"
     const base = path.replace(
       /\/(?:chat\/completions|responses(?:\/compact)?|models)$/,
       "",
     )
-    if (kind === "codex-api-key" && base.endsWith("/backend-api/codex"))
+    if (
+      kind === IMPORT_PROVIDER_KINDS.Codex &&
+      base.endsWith("/backend-api/codex")
+    )
       return base
     return /\/v\d+(?:beta)?$/.test(base) ? base : `${base}/v1`
   })
@@ -59,8 +75,8 @@ export const cliProxyApiCapabilities = {
     },
   ),
   matching: {
-    exactMatchBasis: "url-key",
-    search: async (config, baseUrl, options?: ScheduledReadOptions) => {
+    exactMatchBasis: MANAGED_RESOURCE_EXACT_MATCH_BASES.URL_KEY,
+    search: async (config, baseUrl, options?: InventoryReadOptions) => {
       const resources = (await readMatchingInventory(config, options)).filter(
         (item) => (item.value["base-url"] ?? "").includes(baseUrl),
       )
@@ -92,21 +108,24 @@ export const cliProxyApiCapabilities = {
       )
       const keys = cliProxyApiKeys(resource)
       if (keys.length !== 1) throw new Error("Multiple provider credentials")
-      return keys[0]
+      const [key] = keys
+      if (key === undefined) throw new Error("Provider credential is missing")
+      return key
     },
   },
   channelDrafts: {
     prepareFormData: async (source, options?: ScheduledReadOptions) => {
       const kind =
         source.apiType === API_TYPES.ANTHROPIC
-          ? "claude-api-key"
+          ? IMPORT_PROVIDER_KINDS.Claude
           : source.apiType === API_TYPES.GOOGLE
-            ? "gemini-api-key"
+            ? IMPORT_PROVIDER_KINDS.Gemini
             : source.apiType === API_TYPES.OPENAI
-              ? "codex-api-key"
-              : "openai-compatibility"
+              ? IMPORT_PROVIDER_KINDS.Codex
+              : IMPORT_PROVIDER_KINDS.OpenAi
       const { models, fetchFailed } =
-        kind === "openai-compatibility" || kind === "codex-api-key"
+        kind === IMPORT_PROVIDER_KINDS.OpenAi ||
+        kind === IMPORT_PROVIDER_KINDS.Codex
           ? await fetchManagedSiteImportModels(source, options)
           : { models: [...source.modelHints], fetchFailed: false }
       return {

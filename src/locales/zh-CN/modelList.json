@@ -32,13 +32,21 @@
     "keyForModel": "模型对应密钥",
     "openSelectedAccountKeys": "管理账号密钥",
     "openSite": "打开站点",
-    "verifyApi": "验证接口",
-    "verifyCliSupport": "验证 CLI 兼容性"
+    "verifyApi": "测试 API",
+    "verifyCliSupport": "CLI 兼容性测试"
   },
+  "allAccountGroups": "全部分组",
   "allAccounts": "所有账号",
   "allBillingModes": "所有计费方式",
   "allGroups": "所有分组",
   "allProviders": "所有厂商",
+  "availability": {
+    "details": "查看访问限制详情",
+    "restrictedHint": "站点当前将此模型标记为不可用。",
+    "unavailable": "当前不可用",
+    "unknown": "可用性待确认",
+    "unknownHint": "站点尚未确认此模型的可用性。"
+  },
   "batchVerify": {
     "actions": {
       "open": "批量测试",
@@ -107,12 +115,15 @@
     "actions": "操作",
     "filters": "筛选条件"
   },
+  "convertedPrice": "已换算",
+  "convertedPriceTitle": "按当前汇率换算显示，原币种价格不变。",
   "copyAllNames": "复制所有模型名称",
   "currentUsableGroups": "当前账号可用分组",
   "description": "浏览账号与 API 凭据的模型，查看价格、能力和可用性。",
   "detailedPricing": "详细定价",
   "diagnostics": {
     "all": "全部报价",
+    "attention": "需检查 {{value}}",
     "byGroup": "按计费分组",
     "byOrigin": "按站点 Origin",
     "clearSearch": "清空搜索",
@@ -121,26 +132,42 @@
     "copy": "复制完整诊断报告",
     "copyFailed": "复制失败，请重试",
     "copyFiltered": "复制筛选结果",
+    "copyRecord": "复制此条",
     "empty": "当前筛选没有诊断项，可切换到全部报价检查计费规则。",
     "filter": "筛选诊断项",
     "flat": "不分组",
     "groupBy": "展示分组",
     "inspect": "查看诊断详情",
+    "issueLabels": {
+      "requestCondition": "暂不支持此请求计费条件",
+      "sourceConflict": "官方价格记录相互矛盾",
+      "thresholdBasisUnverified": "价格档位选择依据未核实"
+    },
     "issuesOnly": "仅需检查的报价",
     "locate": "定位模型",
-    "matched": "匹配 {{records}} 条报价 · {{models}} 个独立模型",
-    "more": "显示更多",
+    "matched": "{{records}} 条记录 · {{models}} 个模型",
     "noGroup": "未提供计费分组",
     "noOrigin": "来源地址未知",
-    "scope": "仅检查当前已加载、已筛选的报价，不额外请求站点。数量按报价记录统计；同一模型可能对应多个站点。错误码也可能表示需要补充条件。导出省略凭据和完整接口响应。",
+    "overview": "共 {{total}} 条 · 已公布 {{published}} · 已报价 {{quoted}} · 需检查 {{attention}}",
+    "results": "诊断结果",
+    "scope": "仅检查当前已加载的价格与报价，不会额外请求站点。导出不含凭据。",
     "search": "搜索模型、来源或分组",
     "searchHint": "模型 / 域名或完整 URL / 分组 / 错误码；空格组合筛选",
-    "shown": "显示 {{shown}} / {{total}} 条",
-    "summary": "共 {{total}} 条 · 完整 {{complete}} · 部分 {{partial}} · 无法报价 {{unavailable}} · 未计算 {{notQuoted}} · 需检查 {{attention}}",
-    "title": "[DEV] 报价诊断",
-    "units": "计费单位分布"
+    "status": {
+      "complete": "报价完整",
+      "notQuoted": "尚未报价",
+      "partial": "报价部分缺失",
+      "published": "已公布价格",
+      "reference": "参考价",
+      "unavailable": "无法报价"
+    },
+    "title": "[DEV] 报价诊断"
   },
   "displayFacts": {
+    "accessReason": "访问条件",
+    "auditCharge": "风控拒绝审计费用",
+    "auditConsent": "需要提示词审计授权",
+    "baseContextTier": "当前显示基础档，按上下文长度计费",
     "benchmarkTable": {
       "arena": "竞技场",
       "category": "类别",
@@ -152,9 +179,21 @@
       "no": "否",
       "yes": "是"
     },
+    "callExamples": "调用示例",
+    "catalogOwner": "目录归属",
+    "catalogScope": "目录范围",
+    "compactionCharge": "远程压缩费用",
+    "consoleSettings": "前往官网设置",
     "contextLimit": "上下文上限",
+    "defaultDimensions": "默认维度",
     "inputModalities": "输入模态",
     "maximumOutputTokens": "最大输出 Token 数",
+    "modelKind": "模型用途",
+    "modelKinds": {
+      "decision": "决策",
+      "embedding": "嵌入",
+      "reranker": "重排"
+    },
     "openRouter": {
       "architecture": {
         "instructType": "指令格式",
@@ -234,6 +273,7 @@
       }
     },
     "outputModalities": "输出模态",
+    "planRestricted": "当前套餐不支持此模型",
     "priceConditions": {
       "minimumPromptTokens": "提示词超过 {{formattedCount}} 个 Token",
       "utcWindow": "UTC {{start}}–{{end}}"
@@ -254,16 +294,32 @@
       "request": "次请求",
       "webSearch": "次网络搜索"
     },
+    "pricingConditions": "计价条件",
+    "promptAudit": "已启用提示词审计",
+    "providerAvailable": "站点可用",
+    "providerReferenceCatalog": "站点公共目录",
+    "releaseDate": "发布日期",
     "sections": {
       "specifications": "规格"
     },
-    "tokenCount": "{{formattedCount}} Token"
+    "subscriptionMultiplier": "套餐倍率",
+    "subscriptionPlan": "适用套餐",
+    "supportedDimensions": "支持维度",
+    "supportsImages": "图片支持",
+    "tokenCount": "{{formattedCount}} Token",
+    "trainingChannels": "含数据训练渠道",
+    "trainingConsent": "需要数据训练授权",
+    "vercelVerificationRequired": "请先在 Vercel AI Gateway 控制台完成客户验证，再发送请求",
+    "viewOnSite": "前往官网查看"
   },
   "displayOptions": "显示内容",
   "endpointType": "端点类型",
   "endpointTypes": "端点类型",
+  "endpointTypesHint": "显示模型支持的 API 端点类型。",
   "estimatedPrice": "估算价",
-  "estimatedPriceTitle": "基于官方价格表和此密钥的 Sub2API 分组倍率估算。",
+  "estimatedPriceTitle": "根据参考费率或计价假设推算；实际费用可能不同。",
+  "expandAccountGroups": "平铺账号分组",
+  "expandAccountGroupsHint": "同一模型的可用分组分别列出，同一账号可以显示多条报价。 候选分组由账号分组筛选决定，卡片内改选只调整当前模型的报价。",
   "expandDetails": "展开详细信息",
   "fallbackSourceNotice": {
     "description": "当前模型目录通过账号密钥回退加载，仅支持模型发现与验证。点击刷新数据会重新尝试账号接口。",
@@ -272,6 +328,10 @@
   "groupRatioTooltip": "{{group}} 分组倍率: {{ratio}}x",
   "groupRatioUnavailable": "分组倍率不可用",
   "groupSelectionHint": "留空表示所有分组；价格排序会在已选分组范围内自动取最优价",
+  "inferenceRouteFallbackNotice": {
+    "description": "无法获取最新线路信息，已使用内置地址读取模型列表。线路地址可能已过时；模型仍来自接口实时返回。",
+    "title": "正在使用内置线路"
+  },
   "input": "输入:",
   "input1MTokens": "输入(1M tokens)",
   "keyDialog": {
@@ -355,6 +415,7 @@
     },
     "selectionHint": "选择多个能力时，模型需要同时满足所有条件。"
   },
+  "modelGroupQuickSelect": "模型分组",
   "noMatchingModels": "没有找到匹配的模型",
   "noSourcesDescription": "请先添加站点账号或 API 凭据，然后查看模型列表。",
   "noSourcesTitle": "暂无可用数据源",
@@ -421,6 +482,25 @@
   },
   "pricingDescription": "价格来自站点。不同计费单位（如百万 Token、张、秒、次）分别比较，请留意每条报价的单位。实际扣费以站点为准。",
   "pricingNote": "模型定价说明",
+  "pricingNotes": {
+    "allChannels": "全部渠道",
+    "ambiguousCharges": "多项费用对应同一种用量，但当前无法区分各自的数量或计费阶段，已保留其余已知费率。",
+    "ambiguousVariantCharges": "官方同时公布了不同单位的费用和参数档位，尚未明确两者是叠加费用还是替代费率，暂不能合计报价。",
+    "dedicatedPrices": "专属价格，已含倍率",
+    "defaultRoute": "默认线路",
+    "endpointSourceConflict": "同一模型在官方不同接口记录中的计费规则不一致，暂不能确定适用价格。",
+    "excludedCharges": "已知费用可估算，尚未计入这些独立费用：{{charges}}。",
+    "multiplier": "倍率 {{value}}",
+    "namedChannel": "全部渠道（{{name}}）",
+    "providerReportedEstimate": "按上游实际费用结算；此处仅为公开费率估算。",
+    "routingContext": "{{route}} · {{channel}} · {{price}}。采用原站默认价格视图；实际费用取决于请求线路和渠道。",
+    "runtimeDependent": "官方声明费用随实际任务变化，尚未提供完整的预先计算规则；已公布的数值仅供参考。",
+    "thresholdBasisUnverified": "已保留官方分档费率供参考；当前适配尚未核实完整的用量口径、缓存计入和边界，暂不能自动选择价格档位。",
+    "thresholdSourceConflict": "官方基础费率与零阈值档位存在矛盾或不完整，不能确定参考费率。",
+    "timeWindow": "{{label}} {{start}}–{{end}}：输入 ${{input}} · 输出 ${{output}} · 缓存读 ${{cacheRead}} / 百万 Token",
+    "timeWindowTimezoneUnavailable": "原站未提供时区，当前显示常规价格，未自动应用时段优惠。",
+    "wholeRequestTier": "匹配的上下文价格档位适用于整次请求。"
+  },
   "profileSourceNotice": {
     "description": "已保存的 API 凭据仅支持模型发现与验证，不提供定价、分组筛选、账号概览或密钥兼容性能力。",
     "title": "API 凭据模型目录"
@@ -431,13 +511,32 @@
     "description": "未能确认该账号的实际可用模型范围，当前显示站点完整模型目录。部分模型可能无法通过此账号调用，请以站点账号权限和实际验证结果为准。",
     "title": "已回退到站点完整模型目录"
   },
+  "providerGroup": {
+    "action": "切换官网路由分组",
+    "apply": "保存到官网",
+    "description": "保存后将修改官网中此模型的路由偏好，可能影响后续请求和价格。",
+    "label": "官网路由分组",
+    "locked": "当前会话锁定了路由偏好，请先前往官网管理会话。",
+    "refreshRequired": "{{error}}。修改可能已生效，请刷新模型列表确认后再操作。",
+    "saving": "正在保存…"
+  },
   "providerTabs": {
     "scrollLeft": "向左滚动厂商标签",
     "scrollRight": "向右滚动厂商标签",
     "unclassified": "未分类",
     "unclassifiedDescription": "无法识别模型厂商；这并不表示该模型不可用。"
   },
+  "quotaBilling": {
+    "adjustments": "额外计费因素：{{names}}。",
+    "comparison": "每百万模拟 Token 消耗 {{amount}}。",
+    "invalid": "额度价格暂不可用。",
+    "reference": "仅为基础消耗，未包含额外倍率。",
+    "sortAsc": "额度消耗：从低到高",
+    "sortDesc": "额度消耗：从高到低",
+    "source": "计费规则"
+  },
   "realAmount": "真实充值金额",
+  "realAmountHint": "按各账号配置的转换比率换算价格。",
   "refreshData": "刷新数据",
   "runtimeKeyFallbackSourceNotice": {
     "description": "当前模型目录通过该账号已有的密钥加载，仅支持模型发现与验证。该账号不支持在此创建新的 API 密钥；点击刷新数据会重新尝试账号接口。",
@@ -445,6 +544,7 @@
   },
   "scenario": {
     "additionalChargesExcluded": "估价不包含尚未确认的其他计费项目。",
+    "annotatedDocument": "带标注输出",
     "appliedConversion": "金额换算：1 USD = {{value}} CNY",
     "appliedMultiplier": "分组倍率 ×{{value}}",
     "audio": "音频秒数",
@@ -465,6 +565,7 @@
     "catalogExplanation": "根据站点公开标价和当前使用场景估算，不代表账号实际扣费。",
     "character": "字符",
     "characters": "每次文本字符数",
+    "codeExecution": "代码执行次数",
     "collected": "价格采集时间：{{time}}",
     "compareEffect": "选择接近你用法的场景，比较模型单价。需要时可调整占比，或展开相关计费条件。",
     "conditional": "条件价格",
@@ -476,10 +577,12 @@
     "currentBaseTier": "当前使用基础价格档位",
     "currentTier": "当前使用价格档位",
     "day": "日期",
+    "documentAnnotation": "文档标注",
     "effectiveRate": "适用单价",
     "excludedCosts": "未计入：{{meters}}。这些费用可能使实际金额更高。",
     "fixedPriceUnavailable": "来源未提供可比较的固定单价（返回了价格占位值）。这不是缺少设置，也不表示免费；请查看定价来源，按实际调用的模型或服务确认费用。",
     "freeQuantity": "每次任务前 {{value}} 个免费",
+    "generationMode": "生成操作",
     "groups": {
       "image": "图片设置",
       "other": "其他计费条件",
@@ -488,6 +591,7 @@
     },
     "hour": "小时",
     "image": "图片",
+    "imageCache": "缓存图片 tokens",
     "imageInput": "图片输入 tokens",
     "imageMegapixels": "图片像素面积（百万像素）",
     "imageOutput": "图片输出 tokens",
@@ -505,7 +609,8 @@
       "cacheRead": "缓存读取",
       "cacheWrite": "缓存写入",
       "input": "输入",
-      "output": "输出"
+      "output": "输出",
+      "request": "按次计费"
     },
     "minute": "分钟",
     "missingConversion": "缺少人民币换算依据，可关闭“真实价格”查看美元标价。",
@@ -536,6 +641,7 @@
     "perMillionVideoTokens": "百万视频输出 Token",
     "perRequest": "每次请求",
     "perUnit": "每单位",
+    "plainDocument": "普通输出",
     "pricingSourceUnavailable": "未能加载来源的完整计费规则，暂时无法比价。请刷新价格重试，或打开定价来源查看；这不是缺少输入条件。",
     "pricingTime": "按此时间比较价格",
     "pricingTimeEffect": "用于比较不同时段的价格，请按设备本地时间填写。仅影响采用分时定价的模型；不是价格数据的更新时间。",
@@ -543,8 +649,14 @@
     "publishedPrices": "单项价格参考：",
     "rateChange": "{{meter}}：{{from}} → {{to}} / 百万 Token",
     "referenceImages": "每次参考图片数",
+    "referenceRate": "参考单价",
+    "requestUnit": "次",
     "responseFormat": "计费响应格式",
     "search": "搜索次数",
+    "searchContext": "搜索上下文",
+    "searchContextHigh": "高",
+    "searchContextLow": "低",
+    "searchContextMedium": "中",
     "searchUnit": "搜索计费单元",
     "searchUnits": "每次搜索计费单元数",
     "second": "秒",
@@ -568,14 +680,20 @@
     "unspecified": "未指定",
     "unsupportedRule": "部分计费规则暂无法计算，请查看站点价格说明。",
     "unverifiedCacheBasis": "站点未说明阶梯输入长度是否包含缓存，暂无法确认当前场景的档位。可将缓存读取和写入权重设为 0，改为不含缓存的比较；这会改变比较用量。也可查看计算明细中的价格表或定价来源。",
+    "videoAudio": "视频音频",
     "videoComparisonHint": "按视频输出 Token 单价和视频参考条件比较，实际费用以生成结果为准。",
+    "videoDynamicRange": "视频动态范围",
     "videoInput": "视频参考",
+    "videoInputTokens": "视频输入 tokens",
+    "videoMode": "视频生成模式",
     "videoOutput": "视频输出",
     "videoPrice": "预估视频输出单价",
     "videoQuality": "视频清晰度",
     "videoSeconds": "每次生成视频时长（秒）",
     "websiteRulesUnavailable": "暂未取得可计算的完整计费规则，请查看站点价格说明。",
     "weekday": "星期（0 为周日）",
+    "withAudio": "生成音频",
+    "withoutAudio": "不生成音频",
     "withoutVideo": "不含视频参考",
     "withVideo": "包含视频参考"
   },
@@ -584,6 +702,7 @@
   "selectSource": "选择数据源",
   "selectSourceToContinue": "请先在上方选择一个数据源，然后查看模型列表。",
   "showing": "显示 {{count}} 个模型",
+  "showingGroupQuotes": "显示 {{count}} 条报价",
   "showUnavailableModels": "同时显示无权使用的模型",
   "siteDescription": "站点说明：",
   "siteSupportedGroups": "站点支持的分组",
@@ -643,15 +762,15 @@
   },
   "title": "模型列表",
   "totalModels": "总计 {{count}} 个模型",
-  "unavailable": "不可用",
   "unavailableModelsHint": "额外显示已获取数据中，当前账号明确没有可用分组的模型。这些模型不受分组选择限制，但仍受其他筛选条件限制；不会额外获取全站模型。仅当前页面会话有效。",
   "unavailablePriceReasons": {
     "groupRatioUnavailable": "价格不可用，因为当前可用分组没有分组倍率。",
     "keyGroupUnknown": "价格不可用，因为无法解析此密钥的 Sub2API 分组。",
     "modelListOnly": "此密钥可使用这些模型，但价格不可用。",
     "officialPriceInvalid": "此模型的官方价格数据无效。",
-    "officialPriceMissing": "此模型不在价格表中。",
-    "pricingSourceUnavailable": "此来源的价格数据不可用。"
+    "officialPriceMissing": "未查到此模型的价格。",
+    "pricingRulesUnavailable": "计费条件不完整，暂显示参考价。",
+    "pricingSourceUnavailable": "暂未获取到价格数据。"
   },
   "userGroup": "用户分组",
   "verificationResults": {

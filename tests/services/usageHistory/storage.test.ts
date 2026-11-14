@@ -5,6 +5,7 @@ import { Storage } from "@plasmohq/storage"
 import { USAGE_HISTORY_STORAGE_KEYS } from "~/services/history/usageHistory/constants"
 import { usageHistoryStorage } from "~/services/history/usageHistory/storage"
 import { USAGE_HISTORY_STORE_SCHEMA_VERSION } from "~/types/usageHistory"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 describe("usageHistoryStorage", () => {
   beforeEach(async () => {
@@ -194,7 +195,7 @@ describe("usageHistoryStorage", () => {
     })
 
     const store = await usageHistoryStorage.getStore()
-    const account = store.accounts[" account-1 "]
+    const account = atIndex(store.accounts, " account-1 ")
 
     expect(store.schemaVersion).toBe(USAGE_HISTORY_STORE_SCHEMA_VERSION)
     expect(Object.keys(store.accounts)).toEqual([" account-1 "])
@@ -281,30 +282,36 @@ describe("usageHistoryStorage", () => {
         },
       },
     })
-    expect(account.latencyDaily["2026-03-27"]).toMatchObject({
+    expect(atIndex(account.latencyDaily, "2026-03-27")).toMatchObject({
       count: 2,
       sum: 4,
       max: 5,
       slowCount: 0,
       unknownCount: 3,
     })
-    expect(account.latencyDaily["2026-03-27"].buckets.slice(0, 3)).toEqual([
-      1, 2, 0,
-    ])
-    expect(account.latencyDailyByModel["gpt-4"]["2026-03-27"]).toMatchObject({
+    expect(
+      atIndex(account.latencyDaily, "2026-03-27").buckets.slice(0, 3),
+    ).toEqual([1, 2, 0])
+    expect(
+      atIndex(account.latencyDailyByModel, "gpt-4")["2026-03-27"],
+    ).toMatchObject({
       count: 1,
       sum: 2,
       max: 3,
       slowCount: 4,
       unknownCount: 5,
     })
-    expect(account.latencyDailyByToken["1"]["2026-03-27"]).toMatchObject({
+    expect(
+      atIndex(account.latencyDailyByToken, "1")["2026-03-27"],
+    ).toMatchObject({
       count: 1,
       sum: 1,
       max: 1,
     })
     expect(
-      account.latencyDailyByTokenByModel["1"]["gpt-4"]["2026-03-27"],
+      atIndex(atIndex(account.latencyDailyByTokenByModel, "1"), "gpt-4")[
+        "2026-03-27"
+      ],
     ).toMatchObject({
       count: 2,
       sum: 3,
@@ -534,26 +541,22 @@ describe("usageHistoryStorage", () => {
       new Error("read failed"),
     )
 
-    await expect(usageHistoryStorage.updateStore(updater)).resolves.toEqual({
-      schemaVersion: USAGE_HISTORY_STORE_SCHEMA_VERSION,
-      accounts: {},
-    })
+    await expect(usageHistoryStorage.updateStore(updater)).rejects.toThrow(
+      "read failed",
+    )
 
     expect(updater).not.toHaveBeenCalled()
     expect(set).not.toHaveBeenCalled()
   })
 
-  it("returns false when persisting or pruning fails", async () => {
+  it("rejects failed writes and returns false when pruning fails", async () => {
     vi.spyOn((usageHistoryStorage as any).storage, "set").mockRejectedValueOnce(
       new Error("write failed"),
     )
 
     await expect(
-      usageHistoryStorage.setStore({
-        schemaVersion: USAGE_HISTORY_STORE_SCHEMA_VERSION,
-        accounts: {},
-      }),
-    ).resolves.toBe(false)
+      usageHistoryStorage.updateStore((store) => store),
+    ).rejects.toThrow("write failed")
 
     vi.spyOn(usageHistoryStorage, "updateStore").mockRejectedValueOnce(
       new Error("prune failed"),

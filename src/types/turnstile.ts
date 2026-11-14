@@ -31,19 +31,23 @@ export type TurnstilePreTrigger =
   | {
       kind: typeof TURNSTILE_PRE_TRIGGER_KINDS.CheckinButton
       /**
-       * Regex pattern strings tested against element `textContent`.
+       * Regex pattern strings tested against the element's own label.
        * Patterns are treated as case-insensitive.
        */
       positivePattern?: string
       negativePattern?: string
       /** Candidate selector used when searching for the trigger element. */
       candidateSelector?: string
+      /** Read-only target wait before a native page click; capped at 10 seconds. */
+      targetWaitMs?: number
       throttle?: TurnstilePreTriggerThrottle
     }
   | {
       kind: typeof TURNSTILE_PRE_TRIGGER_KINDS.ClickSelector
       /** CSS selector for the element to click. */
       selector: string
+      /** Read-only target wait before a native page click; capped at 10 seconds. */
+      targetWaitMs?: number
       /** Optional label for logging/debugging. */
       label?: string
       throttle?: TurnstilePreTriggerThrottle
@@ -51,7 +55,7 @@ export type TurnstilePreTrigger =
   | {
       kind: typeof TURNSTILE_PRE_TRIGGER_KINDS.ClickText
       /**
-       * Regex pattern string tested against element `textContent`.
+       * Regex pattern string tested against the element's own label.
        * The match is case-insensitive.
        */
       positivePattern: string
@@ -59,6 +63,8 @@ export type TurnstilePreTrigger =
       negativePattern?: string
       /** Candidate selector used when searching for the trigger element. */
       candidateSelector?: string
+      /** Read-only target wait before a native page click; capped at 10 seconds. */
+      targetWaitMs?: number
       /** Optional label for logging/debugging. */
       label?: string
       throttle?: TurnstilePreTriggerThrottle
@@ -89,7 +95,31 @@ export type CheckinPageActionTriggerResult = {
     text: string
   }
   error?: string
+  verification?: PageVerificationResult
 }
+
+/** Verification UI the native page may present before it accepts an action. */
+export type PageVerificationProvider =
+  | "turnstile"
+  | "recaptcha"
+  | "hcaptcha"
+  | "image"
+  | "interactive"
+
+/** Evidence from observing a native page action, without exporting captcha tokens. */
+export type PageVerificationResult =
+  | { status: "not_present" }
+  | {
+      status: "completed" | "required"
+      provider: PageVerificationProvider
+      /**
+       * Providers in the order the page presented them.
+       *
+       * Deployments can chain verification (for example Turnstile followed by an
+       * image code); the last entry is the layer that decided the status.
+       */
+      layers?: PageVerificationProvider[]
+    }
 
 /**
  * Serializable detection information produced by the content script when it

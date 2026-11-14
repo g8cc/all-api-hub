@@ -1,5 +1,5 @@
 import type { AccountSiteType } from "~/constants/siteType"
-import type { AccountKeyInventoryReconciliationResult } from "~/services/accounts/accountKeyInventoryReconciliation"
+import type { AccountKeyInventoryReconciliationResult } from "~/services/accounts/keys/accountKeyInventoryReconciliation"
 import type {
   AccountKeyResourceRef,
   ResourceFailure,
@@ -116,6 +116,8 @@ export interface AccountKeyRepairDeleteInvalidResourcesResult {
 
 export interface AccountKeyRepairStartOptions {
   renameAutoTemplateTokens?: boolean
+  /** Omitted for all enabled accounts; an explicit selection never expands to all accounts. */
+  accountIds?: string[]
 }
 
 export type AccountKeyRepairRenameResult =

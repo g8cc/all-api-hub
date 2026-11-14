@@ -1,15 +1,18 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { createAIHubMixKeyEditor } from "~/services/apiAdapters/aihubmix/keyResourceEditor"
+import { createAIHubMixKeyEditor } from "~/services/apiAdapters/aihubmix/keys/keyResourceEditor"
 import type { EditableResourceProjection } from "~/services/apiAdapters/contracts/resourceNative"
-import { createNewApiKeyEditor } from "~/services/apiAdapters/newApi/keyResourceEditor"
-import { createSub2ApiKeyEditor } from "~/services/apiAdapters/sub2api/keyResourceEditor"
+import { createNewApiKeyEditor } from "~/services/apiAdapters/newApi/keys/keyResourceEditor"
+import { resolveNewApiKeyVariant } from "~/services/apiAdapters/newApi/keys/keyVariant"
+import { createSub2ApiKeyEditor } from "~/services/apiAdapters/sub2api/keys/keyResourceEditor"
 import { createVoApiV2KeyEditor } from "~/services/apiAdapters/voapiV2/keyResourceEditor"
 import { defaultKeyManagementImplementation } from "~/services/apiService/newApiFamily/default/keyManagement"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 
 const request = {
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://example.invalid",
   auth: { authType: AuthTypeEnum.AccessToken, accessToken: "test" },
 }
@@ -42,7 +45,14 @@ const editors: Array<{
   },
   {
     name: "New API",
-    editor: () => createNewApiKeyEditor(SITE_TYPES.NEW_API, request, transport),
+    editor: () =>
+      createNewApiKeyEditor(
+        {
+          ...resolveNewApiKeyVariant(SITE_TYPES.NEW_API),
+          transport: transport,
+        },
+        request,
+      ),
     valid: {},
     fields: {
       name: "required",
@@ -64,6 +74,31 @@ const editors: Array<{
       group_id: "invalid_value",
       ip_whitelist: "invalid_value",
       expires_in_days: "out_of_range",
+    },
+  },
+  {
+    name: "Rix API",
+    editor: () =>
+      createNewApiKeyEditor(
+        {
+          ...resolveNewApiKeyVariant(SITE_TYPES.RIX_API),
+          transport: transport,
+        },
+        request,
+      ),
+    valid: {},
+    fields: {
+      name: "required",
+      unlimited_quota: "invalid_value",
+      model_limits_enabled: "invalid_value",
+      model_limits: "invalid_value",
+      allow_ips: "invalid_value",
+      group: "required",
+      expires_at: "invalid_value",
+      unlimited_count: "invalid_value",
+      exclude_ips: "invalid_value",
+      storage_location: "unsupported_option",
+      group_only: "invalid_value",
     },
   },
   {
@@ -107,12 +142,73 @@ describe.each(editors)(
   },
 )
 
+it.each([NaN, Infinity, -1, 1.5, "1"])(
+  "rejects a Rix call limit without a usable count %s",
+  (remain_count) => {
+    const editor = createNewApiKeyEditor(
+      { ...resolveNewApiKeyVariant(SITE_TYPES.RIX_API), transport: transport },
+      request,
+    )
+    expect(
+      editor.validate({
+        ...editor.initialValues,
+        unlimited_count: false,
+        remain_count,
+      }),
+    ).toMatchObject({
+      valid: false,
+      issues: expect.arrayContaining([
+        { fieldId: "remain_count", code: "out_of_range" },
+      ]),
+    })
+  },
+)
+
+it("requires a group when a Rix key is pinned to it", () => {
+  const editor = createNewApiKeyEditor(
+    { ...resolveNewApiKeyVariant(SITE_TYPES.RIX_API), transport: transport },
+    request,
+  )
+  expect(
+    editor.validate({ ...editor.initialValues, group: null, group_only: true }),
+  ).toMatchObject({
+    valid: false,
+    issues: expect.arrayContaining([{ fieldId: "group", code: "required" }]),
+  })
+  expect(
+    editor.validate({
+      ...editor.initialValues,
+      group: "openai",
+      group_only: true,
+    }),
+  ).toEqual({ valid: true })
+})
+
+it.each(["global", "none", null])(
+  "accepts the Rix storage choice %s",
+  (storage_location) => {
+    const editor = createNewApiKeyEditor(
+      { ...resolveNewApiKeyVariant(SITE_TYPES.RIX_API), transport: transport },
+      request,
+    )
+    expect(
+      editor.validate({ ...editor.initialValues, storage_location }),
+    ).toEqual({ valid: true })
+  },
+)
+
 it.each([NaN, Infinity, -1, "1", Number.MAX_VALUE])(
   "rejects invalid limited dollar quota %s",
   (quotaUsd) => {
     for (const editor of [
       createAIHubMixKeyEditor(request),
-      createNewApiKeyEditor(SITE_TYPES.NEW_API, request, transport),
+      createNewApiKeyEditor(
+        {
+          ...resolveNewApiKeyVariant(SITE_TYPES.NEW_API),
+          transport: transport,
+        },
+        request,
+      ),
     ]) {
       expect(
         editor.validate({
@@ -144,11 +240,16 @@ it.each([NaN, Infinity, -1, "1", 0])(
 )
 
 it.each([NaN, Infinity, -1, "1", 0])(
-  "rejects invalid initial VoAPI amount %s",
+  "rejects invalid finite VoAPI amount %s",
   (amount) => {
     const editor = createVoApiV2KeyEditor(request)
     expect(
-      editor.validate({ ...editor.initialValues, groups: ["1"], amount }),
+      editor.validate({
+        ...editor.initialValues,
+        groups: ["1"],
+        boundlessAmount: false,
+        amount,
+      }),
     ).toMatchObject({
       valid: false,
       issues: [{ fieldId: "amount", code: "out_of_range" }],
@@ -178,7 +279,13 @@ it("rejects malformed dates and model arrays", () => {
   for (const [editor, models] of [
     [createAIHubMixKeyEditor(request), "models"],
     [
-      createNewApiKeyEditor(SITE_TYPES.NEW_API, request, transport),
+      createNewApiKeyEditor(
+        {
+          ...resolveNewApiKeyVariant(SITE_TYPES.NEW_API),
+          transport: transport,
+        },
+        request,
+      ),
       "model_limits",
     ],
   ] as const) {

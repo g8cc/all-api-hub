@@ -135,7 +135,7 @@
   "autoProvisionKeyOnAccountAdd": {
     "description": "Prepare API keys after adding an account: a default key or keys for all available groups.",
     "manualHint": "For saved accounts, use Key Management → {{actionLabel}} to fill missing keys across all available groups.",
-    "modeDescription": "Default creates one key only when the account has none. All groups creates a key for each group without a usable key. Groups that need manual setup are reported.",
+    "modeDescription": "Default prepares one key when no active key exists. All groups fills each missing group; sites without group requirements prepare one default key. Both modes may open a dialog for required input or one-time key handling.",
     "modeLabel": "Automatic creation scope",
     "modes": {
       "allGroups": "All available groups",
@@ -170,16 +170,13 @@
       "description": "Check whether the current configuration can connect to and manage the site.",
       "failed": "AxonHub validation failed: {{error}}",
       "missingFields": "Please fill in all required fields",
-      "success": "Connection successful",
-      "title": "Verify connection",
-      "validate": "Verify connection",
-      "validating": "Verifying…"
+      "title": "Verify connection"
     }
   },
   "changelogOnUpdate": {
-    "description": "Control whether All API Hub shows a What's New dialog the first time you open the extension UI after updates.",
+    "description": "Control whether All API Hub shows a What's New dialog the first time you open the settings page after updates.",
     "title": "Changelog",
-    "toggleDesc": "When enabled, the update log is shown inline on first UI open after an update (once per version). You can still open the full docs changelog manually.",
+    "toggleDesc": "When enabled, the update log is shown inline when you first open the settings page after an update (once per version). You can still open the full docs changelog manually.",
     "toggleLabel": "Show What's New after updates"
   },
   "claudeCodeHub": {
@@ -203,10 +200,7 @@
       "description": "Check whether the current configuration can connect to and manage the site.",
       "failed": "Claude Code Hub validation failed: {{error}}",
       "missingFields": "Please fill in all required fields",
-      "success": "Connection successful",
-      "title": "Verify connection",
-      "validate": "Verify connection",
-      "validating": "Verifying…"
+      "title": "Verify connection"
     }
   },
   "claudeCodeRouter": {
@@ -221,7 +215,6 @@
   },
   "cliProxyApi": {
     "baseUrlLabel": "Management API Base URL",
-    "checkConnectionAction": "Verify connection",
     "checkConnectionDesc": "Check whether the current configuration can connect to and manage the site.",
     "checkConnectionLabel": "Verify connection",
     "description": "Configure connection to CLIProxyAPI Management API",
@@ -289,10 +282,60 @@
     "toggleDesc": "Ask for confirmation when the same user ID is already saved for this site. OpenRouter checks for an identical Management Key.",
     "toggleLabel": "Warn before adding duplicates"
   },
+  "gptLoad": {
+    "description": "Manage a self-hosted gpt-load instance: a lightweight Go AI gateway that load balances requests across provider channels.",
+    "fields": {
+      "baseUrlDesc": "The base URL of your gpt-load dashboard (for example https://gateway.example.com).",
+      "baseUrlLabel": "Gateway address",
+      "baseUrlPlaceholder": "https://gateway.example.com",
+      "hideManagementKey": "Hide management key",
+      "managementKeyDesc": "The gateway's root AUTH_KEY, presented to the management API as a bearer token. It holds the same power as every workspace channel key.",
+      "managementKeyLabel": "Management key",
+      "managementKeyPlaceholder": "The AUTH_KEY from your gateway config",
+      "showManagementKey": "Show management key"
+    },
+    "title": "gpt-load",
+    "validation": {
+      "description": "Send one request with the key above to verify the gateway is reachable and the key is accepted.",
+      "failed": "Could not reach the gateway: {{error}}",
+      "insufficientPrivilege": "The management key lacks permission: {{error}}",
+      "invalidCredential": "The management key was rejected: {{error}}",
+      "missingFields": "Enter the gateway address and management key first",
+      "title": "Check connection"
+    }
+  },
   "logging": {
-    "consoleEnabled": "Enable console logging",
-    "consoleEnabledDesc": "When disabled, All API Hub will not emit any console output at any level (including errors).",
-    "description": "Control console logging for troubleshooting and diagnostics.",
+    "consoleEnabled": "Enable logging",
+    "consoleEnabledDesc": "When disabled, console output and new local log recording stop.",
+    "description": "Configure log output and local diagnostic history.",
+    "history": {
+      "allContexts": "All sources",
+      "allLevels": "All levels",
+      "allTime": "All retained logs",
+      "clearDescription": "Delete all log entries retained on this device.",
+      "clearError": "Failed to clear logs",
+      "clearTitle": "Clear local logs",
+      "context": "Source",
+      "copied": "Logs copied",
+      "copy": "Copy filtered logs",
+      "copyError": "Failed to copy logs",
+      "description": "Shows up to {{limit}} local entries from the last {{hours}} hours. Cleanup of expired entries runs when recording or viewing logs. Enable logging to record events; set Minimum log level to Debug for more detail.",
+      "details": "Details",
+      "empty": "No matching logs. Enable logging, reproduce the issue, then return here.",
+      "entryDescription": "Follow logs from all extension pages live or review recent history.",
+      "lastHour": "Last hour",
+      "lastMinutes": "Last 5 minutes",
+      "level": "Log level",
+      "loadError": "Failed to read logs. Previously displayed entries are retained. Please retry.",
+      "more": "Load older logs",
+      "open": "View logs",
+      "pause": "Pause updates",
+      "period": "Time range",
+      "resume": "Resume live updates",
+      "search": "Search message, scope or request ID",
+      "showing": "Showing {{visible}} / {{total}}",
+      "title": "Recent logs"
+    },
     "levels": {
       "debug": "Debug",
       "error": "Error",
@@ -300,8 +343,29 @@
       "warn": "Warn"
     },
     "minLevel": "Minimum log level",
-    "minLevelDesc": "When console logging is enabled, logs below this level are suppressed.",
+    "minLevelDesc": "Logs below the selected level are neither emitted nor saved.",
     "title": "Logging"
+  },
+  "magpie": {
+    "description": "Manage providers on your self-hosted Magpie Web server.",
+    "fields": {
+      "baseUrlDesc": "Start magpie web (default port 3430). Enter its Web URL, not the inference URL on port 3425.",
+      "baseUrlLabel": "Web management URL",
+      "baseUrlPlaceholder": "http://localhost:3430",
+      "hideWebKey": "Hide management key",
+      "showWebKey": "Show management key",
+      "webKeyDesc": "Use MAGPIE_WEB_KEY or the k value in the startup link. A fixed MAGPIE_WEB_KEY survives restarts; otherwise update this field after restarting. Inference API keys cannot manage Magpie.",
+      "webKeyLabel": "Web management key",
+      "webKeyPlaceholder": "Enter the Web management key"
+    },
+    "title": "Magpie",
+    "validation": {
+      "description": "Use the key above to check connectivity and access to the provider inventory.",
+      "failed": "Unable to connect to Magpie. Check the Web address and that the server is running.",
+      "invalidCredential": "The Web key was rejected. Check MAGPIE_WEB_KEY or copy the current startup key.",
+      "missingFields": "Enter the gateway address and management key first",
+      "title": "Check connection"
+    }
   },
   "managedSite": {
     "axonHub": "AxonHub",
@@ -326,14 +390,31 @@
         "title": "Configure your self-hosted AI gateway"
       }
     },
+    "gptLoad": "gpt-load",
+    "magpie": "Magpie",
     "newApi": "New API",
     "octopus": "Octopus",
+    "omniroute": "OmniRoute",
     "popularityHint": "Ordered by a snapshot of GitHub star counts.",
     "siteTypeDesc": "Choose the platform used for channel management and model sync",
     "siteTypeLabel": "Gateway type",
     "sub2api": "Sub2API",
     "title": "Self-hosted AI gateway configuration",
     "veloera": "Veloera"
+  },
+  "managedSiteConnection": {
+    "check": "Check connection",
+    "checkError": "Configuration saved, but connection check failed. Please retry.",
+    "checking": "Checking…",
+    "conflict": "Configuration changed in another page. Your input was kept. Review the latest settings and retry, or reload saved configuration to replace your input.",
+    "failed": "Configuration saved, but connection check failed: {{reason}}",
+    "invalidField": "Check {{field}} before saving",
+    "reload": "Reload saved configuration",
+    "saveError": "Could not save configuration. Your input was kept. Please retry.",
+    "saveFailed": "Could not save configuration: {{reason}}. Your input was kept. Please retry.",
+    "saving": "Saving…",
+    "success": "Configuration saved. Connection verified.",
+    "unreachable": "The site could not be reached"
   },
   "messages": {
     "alreadyDefault": "Already at defaults",
@@ -380,7 +461,6 @@
       "usernamePlaceholder": "admin"
     },
     "sessionTest": {
-      "action": "Test config",
       "description": "Test whether the entered login username, password, and TOTP secret are correct and usable. After a successful check, you can continue with actions that require login and 2FA.",
       "testing": "Testing config...",
       "title": "Test login & 2FA config"
@@ -411,10 +491,36 @@
       "error": "An error occurred during validation",
       "failed": "Configuration validation failed, please check username and password",
       "missingFields": "Please fill in all required fields",
-      "success": "Connection successful",
+      "title": "Verify connection"
+    }
+  },
+  "omniroute": {
+    "accessTokens": {
+      "description": "Manage access tokens on the gateway dashboard and revoke the one this extension uses at any time.",
+      "missingBaseUrl": "Enter the deployment address first to open the gateway's access-token page.",
+      "open": "Open access-token page",
+      "title": "Manage gateway access tokens"
+    },
+    "description": "Configure the connection to your self-hosted OmniRoute gateway.",
+    "fields": {
+      "baseUrlDesc": "The address you use to open the OmniRoute dashboard in your browser.",
+      "baseUrlLabel": "Deployment address",
+      "baseUrlPlaceholder": "http://localhost:20128",
+      "credentialDesc": "Generate an admin-scoped access token in the gateway's Settings → Access Tokens and paste it here.",
+      "credentialLabel": "Access token",
+      "credentialPlaceholder": "oma_…",
+      "hideCredential": "Hide access token",
+      "showCredential": "Show access token"
+    },
+    "title": "OmniRoute Integration Settings",
+    "validation": {
+      "description": "Check whether the current configuration can connect to and manage the site.",
+      "failed": "OmniRoute configuration check failed: {{error}}",
+      "insufficientScope": "The token scope is insufficient: it has {{have}} but needs {{need}}. Create a new token with the admin scope under the gateway's Settings → Access Tokens.",
+      "invalidCredential": "The access token is invalid or expired: {{error}}",
+      "missingFields": "Enter the deployment URL and access token",
       "title": "Verify connection",
-      "validate": "Verify connection",
-      "validating": "Verifying…"
+      "unknownScope": "unknown"
     }
   },
   "permissions": {
@@ -425,13 +531,35 @@
     },
     "description": "Grant optional permissions as needed for account data refresh, assistive tools, task notifications, and site imports.",
     "helper": "Each permission is used only by its related feature and can be revoked at any time. Features without permission may be limited, while others keep working.",
+    "incognito": {
+      "checking": "Checking private browsing access…",
+      "chromeInstructions": "In this extension’s Chrome details, enable “Allow in incognito”.",
+      "denied": "Private browsing access is not allowed",
+      "details": "Settings",
+      "edgeInstructions": "In this extension’s Edge details, enable “Allow in InPrivate”.",
+      "enabled": "Private browsing access allowed",
+      "firefoxInstructions": "Open Firefox Add-ons and themes, select this extension and allow Run in Private Windows.",
+      "firefoxMobileInstructions": "Firefox: Open extension management from your browser menu and check this extension’s private browsing options. Menus and support vary by browser version.",
+      "genericInstructions": "Check this extension’s private browsing access in your browser’s extension manager.",
+      "manualSteps": "View setup steps",
+      "mobileInstructions": "Open extension management from your browser menu and check this extension’s private browsing options. Menus and support vary by browser version.",
+      "openChromeSettings": "Chrome settings",
+      "openEdgeSettings": "Edge settings",
+      "recommended": "Allow private browsing for isolated login",
+      "reloadWarning": "Changing this permission may reload the extension, close extension pages or interrupt tasks. Save unfinished edits first.",
+      "safariInstructions": "Select this extension in Safari’s extension settings and allow it in Private Browsing. Available options depend on your Safari version.",
+      "settingsFailed": "Could not open settings. Open your browser’s extensions manager and allow this extension in private windows.",
+      "summary": "Keep password login separate from regular windows to avoid account mix-ups and session interference.",
+      "title": "Incognito / private browsing access",
+      "unknown": "Could not check private browsing access"
+    },
     "items": {
       "bookmarks": {
         "description": "Read saved URLs only when you choose to import sites from browser bookmarks.",
         "title": "Browser bookmarks"
       },
       "clipboardRead": {
-        "description": "After you copy related content, help Redemption Assist or AI API Test recognize redemption codes and API details.",
+        "description": "After you copy relevant content, helps Redemption Assist or Web API Testing recognize redemption codes and API details.",
         "title": "Clipboard Read"
       },
       "cookies": {
@@ -484,7 +612,7 @@
       "cta": "Explore the source and latest progress on GitHub. You can also report problems or share ideas.",
       "getStartedCta": "Open getting started",
       "label": "Source code",
-      "starCta": "Finding All API Hub useful? Star it on GitHub to support the project"
+      "starCta": "Star on GitHub to support continued improvements"
     },
     "reason": {
       "newPermissions": "New features need additional optional permissions. Review what each one does and allow only what you need."
@@ -504,13 +632,14 @@
   },
   "refresh": {
     "autoRefresh": "Auto Refresh",
-    "autoRefreshDesc": "Regularly auto-refresh account data",
+    "autoRefreshDesc": "Regularly auto-refresh account data (runs in the background even after closing the extension interface)",
     "description": "Configure auto-refresh related settings, such as refresh interval and behavior at startup",
     "minRefreshInterval": "Minimum Refresh Interval",
     "minRefreshIntervalDesc": "Minimum time interval between refreshes to avoid frequent requests (at least {{minSeconds}} seconds)",
     "minRefreshIntervalInvalid": "Please enter a valid minimum refresh interval (at least {{minSeconds}} seconds).",
     "refreshInterval": "Refresh Interval",
     "refreshIntervalDesc": "Set the time interval for auto-refresh (default {{defaultInterval}} seconds, it is recommended not to set too small to avoid frequent requests)",
+    "refreshIntervalHint": "Frequent refreshes may trigger site rate limits when you have many accounts. Consider an interval of {{minutes}} minutes or longer.",
     "refreshIntervalInvalid": "Please enter a valid refresh interval (at least {{minSeconds}} seconds).",
     "refreshOnOpen": "Auto-refresh when opening plugin",
     "refreshOnOpenDesc": "Auto-refresh account data when opening the plugin popup",
@@ -554,10 +683,15 @@
     "shieldDevTriggerPresetLabel": "Behavior to simulate",
     "shieldDevTriggerPresetLdohSiteLookupRecovery": "Site lookup recovery",
     "shieldDevTriggerPresetRedemptionAssistRecovery": "Redemption recovery",
+    "shieldDevTriggerPresetTurnstileAutomatic": "Turnstile: automatic success",
+    "shieldDevTriggerPresetTurnstileFailure": "Turnstile: verification failure",
+    "shieldDevTriggerPresetTurnstileInteractive": "Turnstile: manual verification",
+    "shieldDevTriggerPresetTurnstileQueue": "Turnstile: three-site queue",
     "shieldDevTriggerRunning": "Triggering...",
     "shieldDevTriggerStart": "Trigger after delay",
     "shieldDevTriggerSuccess": "Request completed (HTTP {{status}})",
     "shieldDevTriggerTitle": "Development test",
+    "shieldDevTriggerTurnstileHint": "Run pnpm dev:turnstile first. These presets use the official local test component without checking in to real accounts. Enable in-page reminders, then click each reminder to open verification.",
     "shieldDevTriggerUrlLabel": "Target URL",
     "shieldEnabled": "Allow automatic tasks to open temporary pages",
     "shieldEnabledDescTempWindowOnly": "When enabled, automatic refresh, check-in, and similar tasks can open a temporary page when site verification is required. When disabled, actions you start yourself can still use this feature according to the settings below.",
@@ -578,53 +712,76 @@
     "shieldPermissionWarningTitle": "Cookies, Web Request, and Web Request Blocking permissions required",
     "shieldPopupFirefoxNote": "On Firefox, starting this feature from the extension popup would close the popup, so this entry point is unavailable. Use the side panel or settings page instead.",
     "shieldTitle": "Website verification assistance",
+    "shieldTurnstileAssistDesc": "Choose how to be told when Turnstile must be completed by hand. The verification window stays open until it finishes or times out.",
+    "shieldTurnstileAssistNotify": "Browser notifications",
+    "shieldTurnstileAssistNotifyHint": "Send a local browser notification. Click it to open verification; notification permission is required.",
+    "shieldTurnstileAssistPage": "In-page reminders",
+    "shieldTurnstileAssistPageHint": "Show a reminder on your current web or extension page. Click it to open verification.",
+    "shieldTurnstileAssistQuietNotice": "All reminders are off. Verification still proceeds in the background window, but will not prompt you.",
+    "shieldTurnstileAssistTitle": "When verification needs you",
+    "shieldTurnstileSolverApiKey": "API Key",
+    "shieldTurnstileSolverCostNotice": "Paid third-party service: every request uses up your account quota, so keep it on only when that is acceptable.",
+    "shieldTurnstileSolverDesc": "Lets a third-party service fetch the Turnstile token for you. The service only returns a token: image captchas, sliders and second-layer checks stay untouched, so those sites still ask you to finish by hand.",
+    "shieldTurnstileSolverEnabled": "Use the solving service",
+    "shieldTurnstileSolverEndpoint": "Service URL",
+    "shieldTurnstileSolverKeyMissing": "With an empty API Key the service stays off and check-in keeps using the built-in flow.",
+    "shieldTurnstileSolverModeApiFirst": "Service first",
+    "shieldTurnstileSolverModeApiFirstHint": "Ask the service before showing the page: a site that only needs Turnstile finishes without you lifting a finger, and the verification window is never brought to the front.",
+    "shieldTurnstileSolverModePageFirst": "Page first",
+    "shieldTurnstileSolverModePageFirstHint": "Let the page try quietly first and only ask the service when no token comes back, which saves quota.",
+    "shieldTurnstileSolverModeTitle": "Request order",
+    "shieldTurnstileSolverTimeout": "Timeout per request (seconds, 5-120)",
+    "shieldTurnstileSolverTitle": "Turnstile auto pass",
     "shieldWindowHeight": "Height (px)",
     "shieldWindowSizeDesc": "Set the width and height in pixels, then save. Applies to newly opened verification windows; existing windows and tabs keep their size.",
     "shieldWindowSizeReset": "Restore defaults",
     "shieldWindowSizeTitle": "Verification window size",
     "shieldWindowWidth": "Width (px)",
-    "title": "Refresh Settings"
+    "title": "Refresh Settings",
+    "turnstileNotificationEnable": "Enable system notifications",
+    "turnstileNotificationManage": "Manage notification permissions",
+    "turnstileNotificationPermissionTitle": "Allow browser notifications from All API Hub",
+    "turnstileNotificationStatus": {
+      "available": "System notifications: permission granted. OS quiet mode or browser settings may still hide notifications.",
+      "blocked": "Notifications are blocked by the browser. Check your browser notification settings, then return here and try again.",
+      "loading": "Checking system notification permission…",
+      "permission_required": "System notifications: permission needed. Page reminders do not need this permission.",
+      "unavailable": "This browser does not support notifications. You can enable in-page reminders separately.",
+      "unknown": "Notification availability could not be confirmed. Check permissions and try again."
+    }
   },
   "releaseUpdate": {
-    "checkNow": "Check now",
+    "changelog": "Changelog",
+    "checkNow": "Check for updates",
     "downloadUpdate": "Download update",
     "helpers": {
-      "checkFailed": "Try again later, or open the release page to verify the latest version manually.",
+      "amoUpdate": "A newer version is published on Firefox Add-ons. Open the store to update, or let Firefox update automatically.",
+      "checkFailed": "Try checking for updates again.",
       "manualUpdate": "This install is updated manually. Open the release page to get the new version.",
       "manualUpdateGeneric": "Update through your current install channel, or open the release page if you need to update manually.",
-      "notChecked": "Run “Check now” to confirm whether your current version needs an update.",
-      "openLatest": "Open the release page to review the latest stable release and release notes.",
-      "storeUpdate": "This store install updates through the browser. If GitHub is newer but the store is not ready yet, review or rollout is usually still in progress.",
+      "selfUpdate": "This install updates itself. The browser fetches new versions from the release page, so no download is needed.",
+      "storeUpdate": "Store installs update automatically through the browser. Wait for the store rollout.",
       "storeUpdateReady": "The browser found a store update. Reload the extension to start using the new version.",
-      "unavailable": "Try again later, or open the release page to review the latest stable release directly.",
-      "upToDate": "Open the release page if you want to review what changed in this version."
+      "unavailable": "Try checking for updates again."
     },
-    "lastChecked": "Last checked: {{time}}",
-    "latestVersionPending": "Latest stable: not checked yet",
-    "latestVersionUnavailable": "Latest stable: unavailable",
-    "openLatest": "Open latest release",
-    "reasons": {
-      "api-unavailable": "This browser environment does not support automatic detection. You can still check the latest stable release manually",
-      "chromium-development": "This install channel can check the latest stable release. Run a manual check to compare versions",
-      "firefox-ambiguous": "Firefox cannot reliably determine the install channel right now. Manually check the latest stable release when needed",
-      "safari-unsupported": "Safari does not support automatic detection yet. Open the release page to review the latest stable release",
-      "store-build": "This is a browser-store install. You can check store updates and compare against the latest GitHub release",
-      "unknown": "This install channel does not currently support automatic detection. You can still check the latest stable release manually"
-    },
+    "latestAmoVersion": "Firefox Add-ons: v{{version}}",
+    "latestNightlyVersion": "Latest Nightly: {{version}}",
     "reloadToUpdate": "Reload to update",
     "states": {
-      "checkFailed": "Check failed, so the latest stable release could not be retrieved",
+      "checkFailed": "Could not check for updates",
       "notChecked": "The latest stable release has not been checked yet. Run a manual check to compare versions",
-      "storeUpdatePending": "GitHub has a newer release, but the store update is not ready yet",
-      "storeUpdateReady": "Store update is ready. Reload to apply it",
-      "unavailable": "Update status is currently unavailable",
-      "updateAvailable": "A newer version is available to upgrade",
-      "upToDate": "Check complete. Your current version is already the latest stable release"
+      "selfUpdatePending": "A newer version exists. The browser will install it automatically",
+      "storeUpdatePending": "Waiting for the store update",
+      "storeUpdateReady": "Update ready to apply",
+      "unavailable": "Update status unavailable",
+      "updateAvailable": "Update available",
+      "upToDate": "You’re up to date"
     },
     "versionBadge": {
       "changelogAriaLabel": "Version {{version}} changelog",
       "updateAvailableAriaLabel": "Version {{version}} update available"
-    }
+    },
+    "viewReleaseNotes": "View release notes"
   },
   "siteAnnouncementNotifications": {
     "description": "Controls whether enabled account sites are checked for site announcements in the background.",
@@ -687,10 +844,7 @@
       "description": "Check whether the current configuration can connect to and manage the site.",
       "failed": "Sub2API connection check failed: {{error}}",
       "missingFields": "Enter the site URL and Admin API Key first",
-      "success": "Connection successful",
-      "title": "Verify connection",
-      "validate": "Verify connection",
-      "validating": "Verifying…"
+      "title": "Verify connection"
     }
   },
   "tabs": {
@@ -707,7 +861,7 @@
     "refresh": "Data Refresh",
     "select": "Select a tab",
     "siteAnnouncements": "Site announcements",
-    "webAiApiCheck": "AI API Test"
+    "webAiApiCheck": "Web API Testing"
   },
   "taskNotifications": {
     "channels": {

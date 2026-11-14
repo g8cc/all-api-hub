@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { defaultModelPricingImplementation } from "~/services/apiService/newApiFamily/default/modelPricing"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
 
 const { fetchApiMock, loggerErrorMock } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ vi.mock("~/utils/core/logger", () => ({
 }))
 
 const request = {
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://pricing.example.invalid",
   accountId: "account-1",
   auth: {
@@ -64,6 +66,7 @@ describe("newApiFamily modelPricing", () => {
     )
 
     expect(fetchApiMock).toHaveBeenCalledWith(request, {
+      credentialRecovery: "read",
       endpoint: "/api/pricing",
     })
   })

@@ -4,10 +4,11 @@ import { SITE_TYPES } from "~/constants/siteType"
 import {
   ACCOUNT_RUNTIME_KEY_SOURCES,
   buildServiceCredentialRuntimeKey,
-} from "~/services/accounts/accountRuntimeKeys"
+} from "~/services/accounts/keys/accountRuntimeKeys"
 import { MODEL_PRICING_RUNTIME_KEY_FALLBACKS } from "~/services/apiAdapters/contracts/modelPricing"
-import { sub2ApiModelCatalog } from "~/services/apiAdapters/sub2api/modelCatalog"
+import { sub2ApiModelCatalog } from "~/services/apiAdapters/sub2api/models/modelCatalog"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ModelCatalogSnapshot } from "~/services/modelCatalog/snapshot"
 import {
   ACCOUNT_RUNTIME_KEY_FALLBACK_LOAD_FAILED,
@@ -22,6 +23,7 @@ import {
 import { MODEL_VENDOR_EVIDENCE_KINDS } from "~/services/models/modelDescriptor"
 import { AuthTypeEnum } from "~/types"
 import { buildCheckInConfig } from "~~/tests/test-utils/checkIn"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 import { loadAccountRuntimeKeyFallbackPricingResponseFromToken } from "./runtimeKeyFallbackTestUtils"
 
@@ -67,13 +69,31 @@ vi.mock(
   },
 )
 
-vi.mock("~/services/apiService/sub2api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/services/apiService/sub2api")>()),
-  fetchSub2ApiAvailableGroups: fetchSub2ApiAvailableGroupsMock,
-  fetchSub2ApiGroupRates: fetchSub2ApiGroupRatesMock,
+vi.mock(
+  "~/services/apiService/sub2api/account/groups",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/account/groups")
+    >()),
+    fetchSub2ApiAvailableGroups: fetchSub2ApiAvailableGroupsMock,
+    fetchSub2ApiGroupRates: fetchSub2ApiGroupRatesMock,
+  }),
+)
+vi.mock("~/services/apiService/sub2api/keys", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("~/services/apiService/sub2api/keys")
+  >()),
   fetchSub2ApiKeys: fetchSub2ApiKeysMock,
-  fetchSub2ApiPricingCatalogs: fetchSub2ApiPricingCatalogsMock,
 }))
+vi.mock(
+  "~/services/apiService/sub2api/models/pricingCatalog",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/apiService/sub2api/models/pricingCatalog")
+    >()),
+    fetchSub2ApiPricingCatalogs: fetchSub2ApiPricingCatalogsMock,
+  }),
+)
 
 vi.mock("~/services/apiAdapters/registry", () => ({
   getSiteTypeCapabilities: getSiteTypeCapabilitiesMock,
@@ -148,7 +168,7 @@ const createSub2ApiModelCatalogAdapter = (
 })
 
 const createModelCatalogAdapter = (
-  siteType: typeof SITE_TYPES.SHAREDCHAT,
+  siteType: typeof SITE_TYPES.SHAREDCHAT | typeof SITE_TYPES.FREEMODEL,
   fetchModels = fetchSub2ApiRuntimeModelsMock,
 ) => ({
   siteType,
@@ -195,6 +215,25 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken", () => {
     loadModelPriceTableMock.mockResolvedValue({
       source: "synthetic-test",
       models: {},
+    })
+  })
+
+  it("preserves the local inference route fallback notice in the model snapshot", async () => {
+    getSiteTypeCapabilitiesMock.mockReturnValueOnce(
+      createModelCatalogAdapter(SITE_TYPES.FREEMODEL),
+    )
+    fetchSub2ApiRuntimeModelsMock.mockResolvedValueOnce({
+      models: [{ id: "gpt-live" }],
+      inferenceRouteFallback: true,
+    })
+    const result = await loadAccountRuntimeKeyFallbackPricingResponseFromToken({
+      account: { ...ACCOUNT, siteType: SITE_TYPES.FREEMODEL },
+      token: TOKEN,
+    })
+    expect(result.data.map((model) => model.model_name)).toEqual(["gpt-live"])
+    expect(result.model_list_source).toMatchObject({
+      inferenceRouteFallback: true,
+      supportsPricing: false,
     })
   })
 
@@ -390,6 +429,7 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken", () => {
       SITE_TYPES.AIHUBMIX,
     )
     expect(fetchPricingMock).toHaveBeenCalledWith({
+      directRequestReason: API_DIRECT_REQUEST_REASONS.CallerManaged,
       baseUrl: "https://aihubmix.com",
       accountId: "account-1",
       auth: {
@@ -502,6 +542,16 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken", () => {
           apiKey: "sk-real-sub2api-secret",
         },
       }),
+      {
+        accountRequest: expect.objectContaining({
+          baseUrl: "https://sub2api.example.invalid",
+          auth: expect.objectContaining({
+            authType: AuthTypeEnum.AccessToken,
+            accessToken: ACCOUNT.token,
+            userId: ACCOUNT.userId,
+          }),
+        }),
+      },
     )
     expect(fetchOpenAICompatibleModelIdsMock).not.toHaveBeenCalled()
     expect(fetchSub2ApiAvailableGroupsMock).toHaveBeenCalledWith(
@@ -569,6 +619,16 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken", () => {
           apiKey: "sk-sharedchat-codex",
         },
       }),
+      {
+        accountRequest: expect.objectContaining({
+          baseUrl: "https://new.sharedchat.cc",
+          auth: expect.objectContaining({
+            authType: AuthTypeEnum.AccessToken,
+            accessToken: ACCOUNT.token,
+            userId: ACCOUNT.userId,
+          }),
+        }),
+      },
     )
     expect(fetchSub2ApiAvailableGroupsMock).not.toHaveBeenCalled()
     expect(loadModelPriceTableMock).not.toHaveBeenCalled()
@@ -605,6 +665,7 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken", () => {
     })
     const result = await sub2ApiModelCatalog.enrichPricing!({
       accountRequest: {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: ACCOUNT.baseUrl,
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -617,7 +678,7 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken", () => {
     expect(result.data.map((model) => model.model_name)).toEqual([
       "claude-sonnet-4",
     ])
-    expect(result.data[0].price_metadata?.precision).toBe(
+    expect(atIndex(result.data, 0).price_metadata?.precision).toBe(
       MODEL_PRICE_PRECISION_KINDS.UNAVAILABLE,
     )
     expect(fetchSub2ApiAvailableGroupsMock).not.toHaveBeenCalled()
@@ -664,6 +725,16 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken", () => {
           apiKey: "service-secret",
         },
       }),
+      {
+        accountRequest: expect.objectContaining({
+          baseUrl: "https://example.com",
+          auth: expect.objectContaining({
+            authType: AuthTypeEnum.AccessToken,
+            accessToken: ACCOUNT.token,
+            userId: ACCOUNT.userId,
+          }),
+        }),
+      },
     )
     expect(result.data.map((model) => model.model_name)).toEqual([
       "claude-sonnet-4",
@@ -734,6 +805,17 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken", () => {
     )
     expect(fetchSub2ApiRuntimeModelsMock).toHaveBeenCalledWith(
       expect.objectContaining({ abortSignal: abortController.signal }),
+      {
+        accountRequest: expect.objectContaining({
+          baseUrl: "https://sub2api.example.invalid",
+          auth: expect.objectContaining({
+            authType: AuthTypeEnum.AccessToken,
+            accessToken: ACCOUNT.token,
+            userId: ACCOUNT.userId,
+          }),
+          abortSignal: abortController.signal,
+        }),
+      },
     )
     expect(fetchSub2ApiAvailableGroupsMock).toHaveBeenCalledWith(
       expect.objectContaining({ abortSignal: abortController.signal }),
@@ -776,8 +858,12 @@ describe("loadAccountRuntimeKeyFallbackPricingResponseFromToken", () => {
       token: { ...TOKEN, key: "sk-station" },
     })
     expect(fetchSub2ApiPricingCatalogsMock).toHaveBeenCalledTimes(1)
-    expect(result.data[0].pricingPlan?.rates.input?.amount).toBe(0.000003)
-    expect(result.data[0].pricingPlan?.rates.output?.amount).toBe(0.000015)
+    expect(atIndex(result.data, 0).pricingPlan?.rates.input?.amount).toBe(
+      0.000003,
+    )
+    expect(atIndex(result.data, 0).pricingPlan?.rates.output?.amount).toBe(
+      0.000015,
+    )
   })
 
   it("preserves Sub2API evidence when official-rate estimation succeeds", async () => {

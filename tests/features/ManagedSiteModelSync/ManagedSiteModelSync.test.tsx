@@ -1,6 +1,7 @@
 import {
   act,
   fireEvent,
+  renderHook,
   render as rtlRender,
   screen,
   waitFor,
@@ -11,10 +12,15 @@ import type { ReactNode } from "react"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { useManagedSiteModelSyncData } from "~/features/ManagedSiteModelSync/data/useManagedSiteModelSyncData"
+import { MODEL_SYNC_EXCLUSIONS_TARGET_ID } from "~/features/ManagedSiteModelSync/exclusions/targetIds"
 import ManagedSiteModelSync from "~/features/ManagedSiteModelSync/ManagedSiteModelSync"
+import { OPTIONS_SEARCH_REGISTRY } from "~/features/OptionsSearch/registry"
 import toast from "~/lib/notify"
 import type { ManagedResourceRef } from "~/services/apiAdapters/contracts/managedResourceNative"
-import { getManagedSiteRuntimeConfigFingerprint } from "~/services/managedSites/runtimeConfig"
+import { channelConfigStorage } from "~/services/managedSites/configuration/channelConfigStorage"
+import { getManagedSiteRuntimeConfigFingerprint } from "~/services/managedSites/configuration/runtimeConfig"
+import { toManagedUpstreamResourceRef } from "~/services/managedSites/managedResourceIdentity"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -32,11 +38,14 @@ import {
   type ProtectionBypassUserCommand,
 } from "~/services/protectionBypass/contracts"
 import { ModelSyncMessageTypes } from "~/services/runtimeMessaging/messageTypes"
+import type { ExecutionResult } from "~/types/managedSiteModelSync"
 import { formatFullTime } from "~/utils/core/formatters"
 import { userCommandExecution } from "~~/tests/services/protectionBypass/fixtures"
 import { createDeferred } from "~~/tests/test-utils/deferred"
 import { testI18n } from "~~/tests/test-utils/i18n"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { modelResourceRef } from "~~/tests/test-utils/managedModelResource"
+import { render as renderWithProviders } from "~~/tests/test-utils/render"
 
 const {
   mockSendRuntimeMessage,
@@ -89,6 +98,7 @@ vi.mock("~/lib/notify", () => ({
     success: vi.fn(),
     error: vi.fn(),
     warning: mockWarningToast,
+    info: vi.fn(),
   },
 }))
 
@@ -96,13 +106,10 @@ vi.mock("~/utils/core/logger", () => ({
   createLogger: () => loggerMocks,
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
-  return {
-    ...actual,
-    sendRuntimeMessage: mockSendRuntimeMessage,
-  }
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
+  return { ...actual, sendRuntimeMessage: mockSendRuntimeMessage }
 })
 
 vi.mock("~/services/models/modelSync/messaging", async (importOriginal) => {
@@ -118,7 +125,10 @@ vi.mock("~/services/models/modelSync/messaging", async (importOriginal) => {
   }
 })
 
-vi.mock("~/services/protectionBypass/client", () => ({
+vi.mock("~/services/protectionBypass/client", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("~/services/protectionBypass/client")
+  >()),
   withProtectionBypassUserCommand: mockWithProtectionBypassUserCommand,
 }))
 
@@ -137,13 +147,13 @@ vi.mock("~/utils/navigation", () => ({
   openSettingsTab: mockOpenSettingsTab,
 }))
 
-vi.mock("~/components/ManagedSiteTypeSwitcher", () => ({
+vi.mock("~/features/ManagedSiteWidgets/ManagedSiteTypeSwitcher", () => ({
   default: ({ ariaLabel }: { ariaLabel: string }) => (
     <div data-testid="managed-site-switcher">{ariaLabel}</div>
   ),
 }))
 
-vi.mock("~/components/ManagedSiteChannelLinkButton", () => ({
+vi.mock("~/features/ManagedSiteWidgets/ManagedSiteChannelLinkButton", () => ({
   default: ({
     resourceRef,
     channelName,
@@ -249,6 +259,28 @@ const actionBarAnalyticsContext = (actionId: string) => ({
   entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
 })
 
+function createSkippedExecution(): ExecutionResult {
+  return {
+    items: [101, 102].map((id) => ({
+      resourceRef: pageRef(id),
+      channelName: `Skipped ${id}`,
+      ok: false,
+      skipReason: "excluded",
+      attempts: 0,
+      finishedAt: 100,
+    })),
+    statistics: {
+      total: 0,
+      successCount: 0,
+      failureCount: 0,
+      skippedCount: 2,
+      startedAt: 100,
+      endedAt: 100,
+      durationMs: 0,
+    },
+  }
+}
+
 const manualPanelAnalyticsContext = (actionId: string) => ({
   featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ManagedSiteModelSync,
   actionId,
@@ -266,6 +298,320 @@ const resultsTableAnalyticsContext = (actionId: string) => ({
 })
 
 describe("ManagedSiteModelSync page", () => {
+  it("recovers saved skip settings through the load-error retry action", async () => {
+    const user = userEvent.setup()
+    const ref = pageRef(101)
+    await channelConfigStorage.setModelSyncExcluded(
+      toManagedUpstreamResourceRef(ref),
+      true,
+    )
+    const saved = await channelConfigStorage.getConfigsForScope({
+      managedSiteType: ref.siteType,
+      scopeKey: ref.scopeKey,
+    })
+    const retry = createDeferred<typeof saved>()
+    const read = vi
+      .spyOn(channelConfigStorage, "getConfigsForScope")
+      .mockRejectedValueOnce(new Error("storage unavailable"))
+      .mockReturnValueOnce(retry.promise)
+    try {
+      renderWithProviders(<ManagedSiteModelSync />, {
+        withUserPreferencesProvider: false,
+        withThemeProvider: false,
+      })
+      const alert = await screen.findByRole("alert")
+      expect(alert).toHaveTextContent(
+        "managedSiteModelSync:execution.exclusions.loadFailed",
+      )
+      const row = (await screen.findByText("Alpha#101")).closest("tr")!
+      const toggle = within(row).getByRole("switch")
+      expect(toggle).toBeDisabled()
+      await user.click(
+        within(alert).getByRole("button", { name: "common:actions.retry" }),
+      )
+      expect(toggle).toBeDisabled()
+      await act(async () => retry.resolve(saved))
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+      expect(toggle).toBeEnabled()
+      expect(toggle).toBeChecked()
+      expect(
+        screen.getByRole("button", {
+          name: "managedSiteModelSync:execution.actions.runAll",
+        }),
+      ).toBeEnabled()
+    } finally {
+      read.mockRestore()
+    }
+  })
+
+  it("shows all-skipped completion as visible history with no failed-only retry", async () => {
+    const user = userEvent.setup()
+    const fallback = mockSendRuntimeMessage.getMockImplementation()!
+    mockSendRuntimeMessage.mockImplementation(async (type, ...args) =>
+      type === ModelSyncMessageTypes.TriggerAll
+        ? { success: true, data: createSkippedExecution() }
+        : fallback(type, ...args),
+    )
+    render(<ManagedSiteModelSync />)
+    const run = await screen.findByRole("button", {
+      name: "managedSiteModelSync:execution.actions.runAll",
+    })
+    await waitFor(() => expect(run).toBeEnabled())
+    await user.click(run)
+    expect(await screen.findByText("Skipped 101#101")).toBeVisible()
+    expect(screen.getByText("Skipped 102#102")).toBeVisible()
+    await user.click(
+      screen.getByRole("button", {
+        name: /managedSiteModelSync:execution.filters.skipped/,
+      }),
+    )
+    expect(screen.getByText("Skipped 101#101")).toBeVisible()
+    expect(screen.getByText("Skipped 102#102")).toBeVisible()
+    expect(
+      screen.getAllByText("managedSiteModelSync:execution.status.skipped"),
+    ).toHaveLength(2)
+    expect(toast.info).toHaveBeenCalledWith(
+      "managedSiteModelSync:messages.info.allSkipped",
+    )
+    expect(
+      screen.getByRole("button", {
+        name: "managedSiteModelSync:execution.actions.retryFailed",
+      }),
+    ).toBeDisabled()
+    expect(mockCompleteProductAnalyticsAction).toHaveBeenCalledWith(
+      PRODUCT_ANALYTICS_RESULTS.Skipped,
+      expect.objectContaining({
+        insights: expect.objectContaining({
+          skippedCount: 2,
+          successCount: 0,
+          failureCount: 0,
+        }),
+      }),
+    )
+  })
+
+  it("includes skipped channels in the completion toast when every executed channel succeeds", async () => {
+    const user = userEvent.setup()
+    const mixed = createSkippedExecution()
+    mixed.items.push(...createExecution("Successful", 103).items)
+    mixed.statistics = { ...mixed.statistics, total: 1, successCount: 1 }
+    const fallback = mockSendRuntimeMessage.getMockImplementation()!
+    mockSendRuntimeMessage.mockImplementation(async (type, ...args) =>
+      type === ModelSyncMessageTypes.TriggerAll
+        ? { success: true, data: mixed }
+        : fallback(type, ...args),
+    )
+    render(<ManagedSiteModelSync />)
+    const run = await screen.findByRole("button", {
+      name: "managedSiteModelSync:execution.actions.runAll",
+    })
+    await waitFor(() => expect(run).toBeEnabled())
+    await user.click(run)
+    expect(await screen.findByText("Successful#103")).toBeVisible()
+    expect(toast.success).toHaveBeenCalledWith(
+      expect.stringContaining("managedSiteModelSync:messages.skippedSummary"),
+    )
+    expect(mockWarningToast).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
+  })
+
+  it("keeps other skipped results and counts when explicitly syncing one skipped channel", async () => {
+    const user = userEvent.setup()
+    const fallback = mockSendRuntimeMessage.getMockImplementation()!
+    mockSendRuntimeMessage.mockImplementation(async (type, ...args) =>
+      type === ModelSyncMessageTypes.GetLastExecution
+        ? { success: true, data: createSkippedExecution() }
+        : fallback(type, ...args),
+    )
+    render(<ManagedSiteModelSync />)
+    const row = (await screen.findByText("Skipped 101#101")).closest("tr")!
+    const run = within(row).getByRole("button", {
+      name: "managedSiteModelSync:execution.table.syncChannel",
+    })
+    await waitFor(() => expect(run).toBeEnabled())
+    await user.click(run)
+    await screen.findByText("Alpha#101")
+    expect(screen.getByText("Skipped 102#102")).toBeVisible()
+    for (const [stat, value] of [
+      ["success", "1"],
+      ["failed", "0"],
+      ["skipped", "1"],
+      ["total", "1"],
+    ]) {
+      const label = screen.getByText(
+        `managedSiteModelSync:execution.statistics.${stat}`,
+      )
+      expect(within(label.parentElement!).getByText(value!)).toBeVisible()
+    }
+  })
+
+  it("excludes skipped results from the history and completion-toast retry actions", async () => {
+    const user = userEvent.setup()
+    const mixed = createSkippedExecution()
+    mixed.items.push({
+      ...createExecution("Failure", 103).items[0]!,
+      ok: false,
+    })
+    mixed.statistics = { ...mixed.statistics, total: 1, failureCount: 1 }
+    const fallback = mockSendRuntimeMessage.getMockImplementation()!
+    mockSendRuntimeMessage.mockImplementation(async (type, ...args) =>
+      type === ModelSyncMessageTypes.TriggerAll
+        ? { success: true, data: mixed }
+        : fallback(type, ...args),
+    )
+    render(<ManagedSiteModelSync />)
+    const run = await screen.findByRole("button", {
+      name: "managedSiteModelSync:execution.actions.runAll",
+    })
+    await waitFor(() => expect(run).toBeEnabled())
+    await user.click(run)
+    await screen.findByText("Failure#103")
+    expect(mockWarningToast).toHaveBeenCalledWith(
+      expect.stringContaining("managedSiteModelSync:messages.skippedSummary"),
+      expect.any(Object),
+    )
+    await user.click(
+      screen.getByRole("button", {
+        name: "managedSiteModelSync:execution.actions.retryFailed",
+      }),
+    )
+    expect(mockSendRuntimeMessage).toHaveBeenCalledWith(
+      ModelSyncMessageTypes.TriggerSelected,
+      expect.objectContaining({ resourceRefs: [pageRef(103)] }),
+    )
+    mockSendRuntimeMessage.mockClear()
+    await act(async () => mockWarningToast.mock.calls[0]![1].action.onClick())
+    expect(mockSendRuntimeMessage).toHaveBeenCalledWith(
+      ModelSyncMessageTypes.TriggerSelected,
+      expect.objectContaining({ resourceRefs: [pageRef(103)] }),
+    )
+  })
+
+  it("can find currently excluded channels before running a sync", async () => {
+    const user = userEvent.setup()
+    await channelConfigStorage.setModelSyncExcluded(
+      toManagedUpstreamResourceRef(pageRef(201)),
+      true,
+    )
+    render(<ManagedSiteModelSync />)
+    await screen.findByText("Alpha#101")
+    await user.click(
+      screen.getByRole("tab", {
+        name: "managedSiteModelSync:execution.tabs.manual",
+      }),
+    )
+    const filter = await screen.findByRole("button", {
+      name: /managedSiteModelSync:execution.exclusions.showOnly/,
+    })
+    await waitFor(() => expect(filter).toBeEnabled())
+    await user.click(filter)
+    expect(await screen.findByText("Manual Alpha#201")).toBeVisible()
+    expect(screen.queryByText("Manual Beta#202")).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        "managedSiteModelSync:execution.exclusions.excludedLabel",
+      ),
+    ).toBeVisible()
+    await user.type(
+      screen.getByPlaceholderText(
+        "managedSiteModelSync:execution.manual.searchPlaceholder",
+      ),
+      "Beta",
+    )
+    expect(
+      await screen.findByText("managedSiteModelSync:execution.empty.noResults"),
+    ).toBeVisible()
+    await user.click(filter)
+    expect(await screen.findByText("Manual Beta#202")).toBeVisible()
+  })
+
+  it("blocks sync commands until an exclusion finishes saving", async () => {
+    const user = userEvent.setup()
+    const pending = createDeferred<void>()
+    const save = vi
+      .spyOn(channelConfigStorage, "setModelSyncExcluded")
+      .mockReturnValueOnce(pending.promise)
+    try {
+      render(<ManagedSiteModelSync />)
+      const row = (await screen.findByText("Alpha#101")).closest("tr")!
+      const toggle = within(row).getByRole("switch")
+      await waitFor(() => expect(toggle).toBeEnabled())
+      await user.click(toggle)
+      expect(toggle).toHaveAccessibleDescription(
+        "managedSiteModelSync:execution.exclusions.autoSave",
+      )
+      expect(within(row).getByRole("status")).toHaveTextContent(
+        "common:status.saving",
+      )
+      expect(toggle).toHaveAttribute("aria-busy", "true")
+      expect(toast.success).not.toHaveBeenCalled()
+      expect(
+        screen.getByRole("button", {
+          name: "managedSiteModelSync:execution.actions.runAll",
+        }),
+      ).toBeDisabled()
+      expect(
+        within(row).getByRole("button", {
+          name: "managedSiteModelSync:execution.table.syncChannel",
+        }),
+      ).toBeDisabled()
+      await act(async () => pending.resolve())
+      await waitFor(() => expect(toggle).toBeEnabled())
+      expect(within(row).queryByRole("status")).not.toBeInTheDocument()
+      expect(toast.success).toHaveBeenCalledWith(
+        "managedSiteModelSync:execution.exclusions.savedExcluded",
+      )
+    } finally {
+      save.mockRestore()
+    }
+  })
+
+  it("persists channel exclusions and still permits a deliberate single sync", async () => {
+    const user = userEvent.setup()
+    const ref = pageRef(101)
+    await channelConfigStorage.setModelSyncExcluded(
+      toManagedUpstreamResourceRef(ref),
+      false,
+    )
+    const view = render(<ManagedSiteModelSync />)
+    const row = (await screen.findByText("Alpha#101")).closest("tr")!
+    const searchEntry = OPTIONS_SEARCH_REGISTRY.find(
+      (item) => item.targetId === MODEL_SYNC_EXCLUSIONS_TARGET_ID,
+    )
+    expect(searchEntry?.pageId).toBe("managedSiteModelSync")
+    expect(
+      document.getElementById(MODEL_SYNC_EXCLUSIONS_TARGET_ID),
+    ).toBeVisible()
+    const toggle = within(row).getByRole("switch", {
+      name: "managedSiteModelSync:execution.exclusions.toggle",
+    })
+    await waitFor(() => expect(toggle).toBeEnabled())
+    await user.click(toggle)
+    await waitFor(() => expect(toggle).toBeChecked())
+    expect(toast.success).toHaveBeenCalledWith(
+      "managedSiteModelSync:execution.exclusions.savedExcluded",
+    )
+    expect(
+      (await channelConfigStorage.getConfig(toManagedUpstreamResourceRef(ref)))
+        .modelSyncExcluded,
+    ).toBe(true)
+    await user.click(
+      within(row).getByRole("button", {
+        name: "managedSiteModelSync:execution.table.syncChannel",
+      }),
+    )
+    expect(mockSendRuntimeMessage).toHaveBeenCalledWith(
+      ModelSyncMessageTypes.TriggerSelected,
+      expect.objectContaining({ resourceRefs: [ref] }),
+    )
+    view.unmount()
+    render(<ManagedSiteModelSync />)
+    const restored = await screen.findAllByRole("switch", {
+      name: "managedSiteModelSync:execution.exclusions.toggle",
+    })
+    await waitFor(() => expect(restored[0]).toBeChecked())
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockWithProtectionBypassUserCommand.mockImplementation(
@@ -412,7 +758,7 @@ describe("ManagedSiteModelSync page", () => {
       expect(screen.queryByText("Beta#102")).not.toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getAllByRole("checkbox")[1])
+    fireEvent.click(atIndex(screen.getAllByRole("checkbox"), 1))
     fireEvent.click(
       screen.getByRole("button", {
         name: "managedSiteModelSync:execution.actions.runSelected (1)",
@@ -477,7 +823,7 @@ describe("ManagedSiteModelSync page", () => {
       expect(await screen.findByText("Alpha#101")).toBeInTheDocument()
 
       if (selectRow) {
-        fireEvent.click(screen.getAllByRole("checkbox")[1])
+        fireEvent.click(atIndex(screen.getAllByRole("checkbox"), 1))
       }
 
       fireEvent.click(screen.getByRole("button", { name: startName }))
@@ -537,7 +883,7 @@ describe("ManagedSiteModelSync page", () => {
     })
     act(() => {
       runAllButton.click()
-      rowSyncButtons[0].click()
+      atIndex(rowSyncButtons, 0).click()
     })
 
     const pendingRunAll = screen.getByRole("button", {
@@ -676,7 +1022,7 @@ describe("ManagedSiteModelSync page", () => {
       name: "managedSiteModelSync:execution.actions.runSelected (1)",
     })
     const lockedManualRefresh = screen.getByRole("button", {
-      name: "managedSiteModelSync:execution.actions.refresh",
+      name: "managedSiteModelSync:execution.manual.refresh",
     })
     for (const lockedManualButton of [
       lockedManualRunSelected,
@@ -696,7 +1042,7 @@ describe("ManagedSiteModelSync page", () => {
     manualDeferred.reject(new Error("manual row sync failed"))
     expect(
       await screen.findByRole("button", {
-        name: "managedSiteModelSync:execution.actions.refresh",
+        name: "managedSiteModelSync:execution.manual.refresh",
       }),
     ).toBeEnabled()
   })
@@ -1597,7 +1943,7 @@ describe("ManagedSiteModelSync page", () => {
       mockSendRuntimeMessage.getMockImplementation()!
     let history = createExecution("Alpha", 101)
     const failedExecution = createExecution("Beta", 102)
-    failedExecution.items[0].ok = false
+    atIndex(failedExecution.items, 0).ok = false
     failedExecution.statistics.successCount = 0
     failedExecution.statistics.failureCount = 1
     mockSendRuntimeMessage.mockImplementation(
@@ -1621,7 +1967,7 @@ describe("ManagedSiteModelSync page", () => {
       }),
     )
     await waitFor(() => expect(mockWarningToast).toHaveBeenCalledOnce())
-    const retry = mockWarningToast.mock.calls[0][1].action.onClick
+    const retry = atIndex(mockWarningToast.mock.calls, 0)[1].action.onClick
 
     history = createExecution("Gamma", 103)
     await user.click(
@@ -2093,6 +2439,37 @@ describe("ManagedSiteModelSync page", () => {
     },
   )
 
+  it("shows an animated indicator while the manual tab loads channels", async () => {
+    const pending = createDeferred<{ success: boolean; data: any }>()
+    const originalImplementation =
+      mockSendRuntimeMessage.getMockImplementation()!
+    mockSendRuntimeMessage.mockImplementation(
+      async (type: string, data?: any) => {
+        if (type === ModelSyncMessageTypes.ListChannels) {
+          return await pending.promise
+        }
+        return await originalImplementation(type, data)
+      },
+    )
+
+    render(<ManagedSiteModelSync routeParams={{ tab: "manual" }} />)
+
+    const placeholder = await screen.findByText(
+      "managedSiteModelSync:execution.manual.loading",
+    )
+    // The dashed placeholder has to look busy on its own, not only say so.
+    expect(placeholder.querySelector("svg.animate-spin")).not.toBeNull()
+
+    await act(async () => {
+      pending.resolve({
+        success: true,
+        data: { items: [{ ref: pageRef(201), name: "Manual Alpha" }] },
+      })
+    })
+
+    expect(await screen.findByText("Manual Alpha#201")).toBeVisible()
+  })
+
   it("reloads and clears selection when the deployment URL changes within one site type", async () => {
     let context = mockUseUserPreferencesContext.getMockImplementation()!()
     mockUseUserPreferencesContext.mockImplementation(() => context)
@@ -2301,7 +2678,10 @@ describe("ManagedSiteModelSync page", () => {
       const refreshButton = () =>
         screen
           .getAllByRole("button", {
-            name: "managedSiteModelSync:execution.actions.refresh",
+            name:
+              tab === "manual"
+                ? "managedSiteModelSync:execution.manual.refresh"
+                : "managedSiteModelSync:execution.actions.refresh",
           })
           .at(-1)!
       await user.click(refreshButton())
@@ -2652,7 +3032,7 @@ describe("ManagedSiteModelSync page", () => {
       }),
     )
 
-    const [selectAllCheckbox] = screen.getAllByRole("checkbox")
+    const selectAllCheckbox = atIndex(screen.getAllByRole("checkbox"), 0)
     fireEvent.click(selectAllCheckbox)
 
     expect(
@@ -2942,7 +3322,7 @@ describe("ManagedSiteModelSync page", () => {
       ).length
     fireEvent.click(
       screen.getByRole("button", {
-        name: "managedSiteModelSync:execution.actions.refresh",
+        name: "managedSiteModelSync:execution.manual.refresh",
       }),
     )
     await waitFor(() => {
@@ -2953,7 +3333,7 @@ describe("ManagedSiteModelSync page", () => {
       ).toBeGreaterThan(listChannelCallsBeforeRefresh)
     })
 
-    const [selectAllCheckbox] = screen.getAllByRole("checkbox")
+    const selectAllCheckbox = atIndex(screen.getAllByRole("checkbox"), 0)
     fireEvent.click(selectAllCheckbox)
 
     const runSelectedButton = screen.getByRole("button", {
@@ -2964,7 +3344,7 @@ describe("ManagedSiteModelSync page", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "managedSiteModelSync:execution.actions.refresh",
+        name: "managedSiteModelSync:execution.manual.refresh",
       }),
     ).not.toHaveAttribute("data-analytics-action")
 
@@ -3238,7 +3618,7 @@ describe("ManagedSiteModelSync page", () => {
     expect(pendingButton).toBeDisabled()
     expect(pendingButton).toHaveAttribute("aria-busy", "true")
     const refreshButton = screen.getByRole("button", {
-      name: "managedSiteModelSync:execution.actions.refresh",
+      name: "managedSiteModelSync:execution.manual.refresh",
     })
     expect(refreshButton).toBeDisabled()
     expect(refreshButton).not.toHaveAttribute("aria-busy")
@@ -3276,7 +3656,7 @@ describe("ManagedSiteModelSync page", () => {
     render(<ManagedSiteModelSync routeParams={{ tab: "manual" }} />)
 
     const automaticallyLockedRefresh = await screen.findByRole("button", {
-      name: "managedSiteModelSync:execution.actions.refresh",
+      name: "managedSiteModelSync:execution.manual.refresh",
     })
     expect(automaticallyLockedRefresh).toBeDisabled()
     expect(automaticallyLockedRefresh).not.toHaveAttribute("aria-busy")
@@ -3292,7 +3672,7 @@ describe("ManagedSiteModelSync page", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "managedSiteModelSync:execution.actions.refresh",
+        name: "managedSiteModelSync:execution.manual.refresh",
       }),
     )
 
@@ -3317,7 +3697,7 @@ describe("ManagedSiteModelSync page", () => {
 
     manualRefresh.reject(new Error("refresh failed"))
     const restoredRefresh = await screen.findByRole("button", {
-      name: "managedSiteModelSync:execution.actions.refresh",
+      name: "managedSiteModelSync:execution.manual.refresh",
     })
     expect(restoredRefresh).toBeEnabled()
 
@@ -4324,6 +4704,168 @@ describe("ManagedSiteModelSync page", () => {
 
     unmount()
     expect(removeListener).toHaveBeenCalledWith(listener)
+  })
+
+  describe("progress snapshot acceptance", () => {
+    const options = () => ({
+      isConfigMissing: false,
+      isModelSyncUnsupported: false,
+      managedSiteConfigFingerprint: currentConfigFingerprint(),
+      managedSiteType: "new-api" as const,
+      refreshKey: 0,
+    })
+    const snapshot = (isRunning: boolean, completed: number) => ({
+      configFingerprint: currentConfigFingerprint(),
+      isRunning,
+      completed,
+      total: 2,
+      failed: 0,
+    })
+
+    it.each(["running", "empty"])(
+      "keeps a completed broadcast when an older %s query returns",
+      async (kind) => {
+        const pending = createDeferred<{ success: boolean; data: any }>()
+        const original = mockSendRuntimeMessage.getMockImplementation()!
+        mockSendRuntimeMessage.mockImplementation((type: string, data?: any) =>
+          type === ModelSyncMessageTypes.GetProgress
+            ? pending.promise
+            : original(type, data),
+        )
+        const addListener = vi.spyOn(browser.runtime.onMessage, "addListener")
+        const { result } = renderHook(() =>
+          useManagedSiteModelSyncData(options()),
+        )
+        const listener = addListener.mock.calls.at(-1)![0]
+        await act(async () => {
+          listener(
+            {
+              type: "MANAGED_SITE_MODEL_SYNC_PROGRESS",
+              payload: snapshot(true, 1),
+            },
+            {} as any,
+            vi.fn(),
+          )
+          listener(
+            {
+              type: "MANAGED_SITE_MODEL_SYNC_PROGRESS",
+              payload: snapshot(false, 2),
+            },
+            {} as any,
+            vi.fn(),
+          )
+        })
+        expect(result.current.progress).toEqual(snapshot(false, 2))
+        await act(async () =>
+          pending.resolve({
+            success: true,
+            data: kind === "running" ? snapshot(true, 0) : null,
+          }),
+        )
+        expect(result.current.progress).toEqual(snapshot(false, 2))
+        expect(result.current.requestGate.tryStart()).not.toBeNull()
+      },
+    )
+
+    it("keeps the newest query result when earlier progress queries return later", async () => {
+      const older = createDeferred<{ success: boolean; data: any }>()
+      const newer = createDeferred<{ success: boolean; data: any }>()
+      let attempt = 0
+      const original = mockSendRuntimeMessage.getMockImplementation()!
+      mockSendRuntimeMessage.mockImplementation((type: string, data?: any) =>
+        type === ModelSyncMessageTypes.GetProgress
+          ? ++attempt === 1
+            ? older.promise
+            : newer.promise
+          : original(type, data),
+      )
+      const { result, rerender } = renderHook(
+        (props) => useManagedSiteModelSyncData(props),
+        { initialProps: options() },
+      )
+      rerender({ ...options(), refreshKey: 1 })
+      await act(async () =>
+        newer.resolve({ success: true, data: snapshot(false, 2) }),
+      )
+      await act(async () =>
+        older.resolve({ success: true, data: snapshot(true, 0) }),
+      )
+      expect(result.current.progress).toEqual(snapshot(false, 2))
+    })
+
+    it("does not invalidate a current query for an unrelated configuration broadcast", async () => {
+      const pending = createDeferred<{ success: boolean; data: any }>()
+      const original = mockSendRuntimeMessage.getMockImplementation()!
+      mockSendRuntimeMessage.mockImplementation((type: string, data?: any) =>
+        type === ModelSyncMessageTypes.GetProgress
+          ? pending.promise
+          : original(type, data),
+      )
+      const addListener = vi.spyOn(browser.runtime.onMessage, "addListener")
+      const { result } = renderHook(() =>
+        useManagedSiteModelSyncData(options()),
+      )
+      await act(async () => {
+        addListener.mock.calls.at(-1)![0](
+          {
+            type: "MANAGED_SITE_MODEL_SYNC_PROGRESS",
+            payload: { ...snapshot(false, 2), configFingerprint: "other" },
+          },
+          {} as any,
+          vi.fn(),
+        )
+        pending.resolve({ success: true, data: snapshot(true, 1) })
+      })
+      expect(result.current.progress).toEqual(snapshot(true, 1))
+    })
+
+    it("drops progress query failures after a current broadcast supersedes them", async () => {
+      const pending = createDeferred<{ success: boolean; data: any }>()
+      const original = mockSendRuntimeMessage.getMockImplementation()!
+      mockSendRuntimeMessage.mockImplementation((type: string, data?: any) =>
+        type === ModelSyncMessageTypes.GetProgress
+          ? pending.promise
+          : original(type, data),
+      )
+      const addListener = vi.spyOn(browser.runtime.onMessage, "addListener")
+      const { result } = renderHook(() =>
+        useManagedSiteModelSyncData(options()),
+      )
+      await act(async () => {
+        addListener.mock.calls.at(-1)![0](
+          {
+            type: "MANAGED_SITE_MODEL_SYNC_PROGRESS",
+            payload: snapshot(false, 2),
+          },
+          {} as any,
+          vi.fn(),
+        )
+        pending.reject(new Error("obsolete progress read"))
+      })
+      expect(result.current.progress).toEqual(snapshot(false, 2))
+      expect(loggerMocks.error).not.toHaveBeenCalled()
+    })
+
+    it("invalidates pending progress queries and foreground request tokens on unmount", async () => {
+      const pending = createDeferred<{ success: boolean; data: any }>()
+      const original = mockSendRuntimeMessage.getMockImplementation()!
+      mockSendRuntimeMessage.mockImplementation((type: string, data?: any) =>
+        type === ModelSyncMessageTypes.GetProgress
+          ? pending.promise
+          : original(type, data),
+      )
+      const { result, unmount } = renderHook(() =>
+        useManagedSiteModelSyncData(options()),
+      )
+      const gate = result.current.requestGate
+      const token = gate.tryStart()!
+      unmount()
+      await act(async () =>
+        pending.reject(new Error("unmounted progress read")),
+      )
+      expect(gate.isCurrent(token)).toBe(false)
+      expect(loggerMocks.error).not.toHaveBeenCalled()
+    })
   })
 
   it("polls background progress while a sync is still running", async () => {

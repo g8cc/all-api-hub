@@ -4,8 +4,9 @@ import { RuntimeActionIds } from "~/constants/runtimeActions"
 import { SITE_TYPES, type AccountSiteType } from "~/constants/siteType"
 import { handleGetUserFromLocalStorage } from "~/entrypoints/content/messageHandlers/handlers/storage"
 import { setupAccountBrowserIdentityRateLimitMessaging } from "~/services/accountBrowserSession/identityRateLimit"
-import { sub2ApiBrowserIdentity } from "~/services/apiAdapters/sub2api/browserIdentity"
+import { sub2ApiBrowserIdentity } from "~/services/apiAdapters/sub2api/auth/browserIdentity"
 import { ACCOUNT_BROWSER_IDENTITY_STORAGE_KEYS } from "~/services/core/storageKeys"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 /** Verifies identity through the same message-handler boundary as the popup. */
 function verifyIdentity(
@@ -36,6 +37,67 @@ describe("current browser account identity verification", () => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it("rechecks Cubence after an HttpOnly login switches with unchanged visible cookies", async () => {
+    vi.stubGlobal("location", new URL("https://cubence.com/dashboard"))
+    vi.spyOn(document, "cookie", "get").mockReturnValue("analytics=unchanged")
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ user: { id: 7, active: true } })),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ user: { id: 8, active: true } })),
+      )
+    vi.stubGlobal("fetch", fetchMock)
+    expect(await verifyIdentity(SITE_TYPES.CUBENCE)).toMatchObject({
+      success: true,
+      data: { userId: "7", identityVerified: true },
+    })
+    expect(await verifyIdentity(SITE_TYPES.CUBENCE)).toMatchObject({
+      success: true,
+      data: { userId: "8", identityVerified: true },
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("rechecks Dahl after an HttpOnly login switches with unchanged visible cookies", async () => {
+    vi.stubGlobal("location", new URL("https://inference.dahl.global/account"))
+    vi.spyOn(document, "cookie", "get").mockReturnValue("analytics=unchanged")
+    const ids = [
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000002",
+    ]
+    const fetchMock = vi.fn()
+    for (const userId of ids)
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ user: { user_id: userId, username: "sample" } }),
+        ),
+      )
+    vi.stubGlobal("fetch", fetchMock)
+    for (const userId of ids)
+      expect(await verifyIdentity(SITE_TYPES.DAHL)).toMatchObject({
+        success: true,
+        data: { userId, identityVerified: true },
+      })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("refuses Dahl identity verification when the account response has no valid UUID", async () => {
+    vi.stubGlobal("location", new URL("https://inference.dahl.global/account"))
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ user: { user_id: "invalid" } })),
+        ),
+    )
+    expect(await verifyIdentity(SITE_TYPES.DAHL)).toMatchObject({
+      success: false,
+    })
   })
 
   it("skips token verification when page storage access is denied", async () => {
@@ -77,7 +139,9 @@ describe("current browser account identity verification", () => {
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(
-      new Headers(fetchMock.mock.calls[0][1].headers).has("Authorization"),
+      new Headers(atIndex(fetchMock.mock.calls, 0)[1].headers).has(
+        "Authorization",
+      ),
     ).toBe(false)
   })
 
@@ -98,7 +162,9 @@ describe("current browser account identity verification", () => {
       })
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(
-        new Headers(fetchMock.mock.calls[0][1].headers).get("Authorization"),
+        new Headers(atIndex(fetchMock.mock.calls, 0)[1].headers).get(
+          "Authorization",
+        ),
       ).toBe(`Bearer ${token}`)
       expect(localStorage.getItem("auth_token")).toBe(token)
     },
@@ -207,7 +273,7 @@ describe("current browser account identity verification", () => {
 
     expect(await verifyIdentity(SITE_TYPES.NEW_API)).toEqual({ success: false })
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock.mock.calls[0][1].method).toBe("GET")
+    expect(atIndex(fetchMock.mock.calls, 0)[1].method).toBe("GET")
   })
 
   it("reuses a verified browser token without repeating the identity request", async () => {
@@ -353,7 +419,7 @@ describe("current browser account identity verification", () => {
       data: { userId: "new-user", identityVerified: true },
     })
     expect(await oldIdentity).toEqual({ success: false })
-    expect(fetchMock.mock.calls[0][1].signal?.aborted).toBe(true)
+    expect(atIndex(fetchMock.mock.calls, 0)[1].signal?.aborted).toBe(true)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -433,7 +499,9 @@ describe("current browser account identity verification", () => {
         expect.objectContaining({ credentials: "include", redirect: "error" }),
       )
       expect(
-        new Headers(fetchMock.mock.calls[0][1].headers).has("Authorization"),
+        new Headers(atIndex(fetchMock.mock.calls, 0)[1].headers).has(
+          "Authorization",
+        ),
       ).toBe(false)
     },
   )
@@ -625,7 +693,7 @@ describe("current browser account identity verification", () => {
     const pending = verifyIdentity(SITE_TYPES.ONE_API)
 
     await vi.advanceTimersByTimeAsync(5001)
-    expect(fetchMock.mock.calls[0][1].signal?.aborted).toBe(true)
+    expect(atIndex(fetchMock.mock.calls, 0)[1].signal?.aborted).toBe(true)
     resolveBody({ success: true, data: { id: "old-user" } })
 
     expect(await pending).toEqual({ success: false })
@@ -891,12 +959,14 @@ describe("current browser account identity verification", () => {
     vi.stubGlobal("document", document.implementation.createHTMLDocument())
     const second = verifyIdentity(SITE_TYPES.ONE_API)
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-    responses[0](
-      new Response("{}", { status: 429, headers: { "Retry-After": "120" } }),
-    )
-    responses[1](
-      new Response("{}", { status: 429, headers: { "Retry-After": "10" } }),
-    )
+    atIndex(
+      responses,
+      0,
+    )(new Response("{}", { status: 429, headers: { "Retry-After": "120" } }))
+    atIndex(
+      responses,
+      1,
+    )(new Response("{}", { status: 429, headers: { "Retry-After": "10" } }))
     expect(await Promise.all([first, second])).toEqual([
       { success: false },
       { success: false },
@@ -1095,7 +1165,7 @@ describe("current browser account identity verification", () => {
     const pending = verifyIdentity(SITE_TYPES.ONE_API)
     await vi.advanceTimersByTimeAsync(5001)
     expect(await pending).toEqual({ success: false })
-    expect(fetchMock.mock.calls[0][1].signal?.aborted).toBe(true)
+    expect(atIndex(fetchMock.mock.calls, 0)[1].signal?.aborted).toBe(true)
   })
 
   it("uses a unique saved identity as a legacy header hint without enumerating accounts", async () => {
@@ -1257,7 +1327,7 @@ describe("current browser account identity verification", () => {
           redirect: "error",
         }),
       )
-      const headers = new Headers(fetchMock.mock.calls[0][1].headers)
+      const headers = new Headers(atIndex(fetchMock.mock.calls, 0)[1].headers)
       expect(headers.get("Authorization")).toBe(scenario.authorization ?? null)
 
       vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31_000)

@@ -1,5 +1,6 @@
 {
   "actions": {
+    "add": "追加",
     "cancel": "キャンセル",
     "clear": "クリア",
     "close": "閉じる",
@@ -11,9 +12,12 @@
     "import": "インポート",
     "loadField": "{{field}}を取得",
     "more": "その他",
+    "moveDownItem": "{{name}}を下に移動",
+    "moveUpItem": "{{name}}を上に移動",
     "openSidePanel": "サイドパネルで開く",
     "refresh": "更新",
     "refreshField": "{{field}}を更新",
+    "remove": "削除",
     "reset": "リセット",
     "retry": "再試行",
     "save": "保存"
@@ -68,7 +72,6 @@
     "disabled": "無効",
     "disabling": "無効化中...",
     "enabled": "有効",
-    "enabling": "有効化中...",
     "error": "エラー",
     "exporting": "エクスポート中...",
     "failed": "失敗",

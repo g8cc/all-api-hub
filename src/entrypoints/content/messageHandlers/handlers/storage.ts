@@ -1,10 +1,17 @@
 import { isAccountSiteType, SITE_TYPES } from "~/constants/siteType"
 import { verifyAccountBrowserIdentity } from "~/services/accountBrowserSession/identityVerification"
 import {
+  ContentSessionOriginMismatchError,
+  extractContentSession,
+} from "~/services/accountSiteOnboarding/contentSession/extraction"
+import {
   SUB2API_LOGIN_REQUIRED_I18N_KEY,
   Sub2ApiContentSessionLoginRequiredError,
 } from "~/services/accountSiteOnboarding/contentSession/sub2api"
-import { getContentSessionExtractors } from "~/services/accountSiteOnboarding/registry"
+import {
+  createAccountDetectionDiagnostics,
+  type AccountDetectionDiagnostics,
+} from "~/services/accountSiteOnboarding/diagnostics"
 import {
   PAGE_CONTEXT,
   readCurrentPageContext,
@@ -52,14 +59,15 @@ export function handleGetUserFromLocalStorage(
   sendResponse: (res: any) => void,
 ) {
   ;(async () => {
+    let diagnostics: AccountDetectionDiagnostics | undefined
     try {
       const context = {
         url: typeof request?.url === "string" ? request.url : undefined,
         siteTypeHint: isAccountSiteType(request?.siteType)
           ? request.siteType
           : SITE_TYPES.UNKNOWN,
-        ...(request?.allowNewApiAuthProbe === true
-          ? { allowNewApiAuthProbe: true }
+        ...(request?.allowSessionProbe === true
+          ? { allowSessionProbe: true }
           : {}),
       }
 
@@ -93,23 +101,52 @@ export function handleGetUserFromLocalStorage(
         return
       }
 
-      for (const extractor of getContentSessionExtractors()) {
-        if (!extractor.canExtract(context)) continue
-        const result = await extractor.extract(context)
-        if (!result) continue
-
-        sendResponse({
-          success: true,
-          data: result,
-        })
+      diagnostics = createAccountDetectionDiagnostics({
+        requestId:
+          typeof request?.diagnosticId === "string"
+            ? request.diagnosticId
+            : undefined,
+        relayToBackground: true,
+      })
+      // A tab ID can survive navigation after the caller's eligibility query.
+      // Bind existing-tab reads to the live document before reading credentials
+      // and again after an asynchronous extractor completes.
+      const assertOrigin = () => {
+        if (
+          request?.expectedOrigin !== undefined &&
+          (typeof location === "undefined" ||
+            location.origin !== request.expectedOrigin)
+        ) {
+          throw new ContentSessionOriginMismatchError()
+        }
+      }
+      const result = await extractContentSession(
+        { ...context, diagnostics },
+        assertOrigin,
+      )
+      if (result) {
+        sendResponse({ success: true, data: result })
         return
       }
 
+      diagnostics.finish("failed", { reason: "no_extractor_session" })
       sendResponse({
         success: false,
         error: t("messages:content.userInfoNotFound"),
       })
     } catch (error) {
+      if (error instanceof ContentSessionOriginMismatchError) {
+        diagnostics?.finish("failed", { reason: "origin_mismatch" })
+        sendResponse({
+          success: false,
+          error: t("messages:content.userInfoNotFound"),
+        })
+        return
+      }
+      diagnostics?.finish("failed", {
+        reason: "extraction_error",
+        error: getErrorMessage(error),
+      })
       if (error instanceof Sub2ApiContentSessionLoginRequiredError) {
         sendResponse({
           success: false,

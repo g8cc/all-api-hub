@@ -8,14 +8,16 @@ import {
   DATA_TYPE_CUSTOM_REDEEM_URL,
   DATA_TYPE_HEALTH_STATUS,
   DATA_TYPE_INCOME,
+  DATA_TYPE_NAME,
 } from "~/constants"
 import type { AccountSiteType } from "~/constants/siteType"
+import type { QuotaAsset } from "~/services/quotaAssets/quotaAsset"
 import type {
   AccountMetricCoverage,
   AccountTodayStatsAvailability,
   AccountTodayStatsCoverage,
 } from "~/types/accountTodayStats"
-import type { AuthTypeEnum } from "~/types/auth"
+import type { AccountAuthHealthStatusCode, AuthTypeEnum } from "~/types/auth"
 import type { CheckInConfig } from "~/types/checkIn"
 import { type TempWindowHealthStatusCode } from "~/types/tempWindow"
 
@@ -39,7 +41,9 @@ export interface HealthStatus {
 /**
  * Subset of health status codes that the UI can act on (e.g., open Settings).
  */
-export type HealthStatusCode = TempWindowHealthStatusCode
+export type HealthStatusCode =
+  | TempWindowHealthStatusCode
+  | AccountAuthHealthStatusCode
 
 export type AccountIdentity = string
 
@@ -49,6 +53,8 @@ export interface AccountInfo {
   access_token: string
   username: string
   quota: number // 总余额点数
+  /** Zero quota is a placeholder when no authoritative monetary balance was obtainable. */
+  balanceUnavailable?: boolean
   today_prompt_tokens: number // 今日 prompt_tokens
   today_completion_tokens: number // 今日 completion_tokens
   today_quota_consumption: number // 今日消耗 quota
@@ -57,6 +63,7 @@ export interface AccountInfo {
   todayStatsAvailability?: AccountTodayStatsAvailability
   usage?: AccountUsageSummary
   subscription?: AccountSubscriptionSummary
+  nativeBalance?: AccountNativeBalance
   recentUsageRecords?: AccountUsageRecord[]
 }
 
@@ -78,7 +85,17 @@ export interface AccountUsageSummary {
   lastRequestTime?: string
 }
 
+export const ACCOUNT_SUBSCRIPTION_STATUSES = {
+  Active: "active",
+  Grace: "grace",
+  Inactive: "inactive",
+  Expired: "expired",
+  Unavailable: "unavailable",
+} as const
+
 export interface AccountSubscriptionSummary {
+  /** Provider-proven lifecycle or failed observation; omitted for legacy adapters. */
+  status?: (typeof ACCOUNT_SUBSCRIPTION_STATUSES)[keyof typeof ACCOUNT_SUBSCRIPTION_STATUSES]
   name?: string
   billingType?: string
   limit?: number
@@ -87,11 +104,47 @@ export interface AccountSubscriptionSummary {
   remainingAmount?: number
   usedCount?: number
   remainingCount?: number
+  /** Remaining token allowance, including provider-owned pool/key allocations. */
+  remainingTokens?: number
   period?: string
   periodResetTime?: string
   expireTime?: string
   isLongTerm?: boolean
   isActive?: boolean
+}
+
+/** Native assets and scoped allowances; excluded from fungible monetary balance features. */
+export type AccountNativeBalance =
+  | {
+      /** Independent cash assets; total is USD only, never an XNO conversion. */
+      unit: "USD_XNO"
+      total: number
+      nanoBalance: number
+    }
+  | {
+      unit: "credits" | "USD"
+      total: number
+      permanent: number
+      daily: number
+      components?: AccountBalanceComponent[]
+      timedDetails?: AccountBalanceComponent[]
+      timedDetailsUnavailable?: boolean
+    }
+  | {
+      unit: "quota"
+      asset: QuotaAsset
+      total: number
+    }
+
+export interface AccountBalanceComponent {
+  kind: "permanent" | "timed" | "subscription" | "group"
+  name?: string
+  amount: number
+  scope?: string
+  unlockedModels?: string[]
+  unlimited?: boolean
+  expiresAt?: string
+  resetAt?: string
 }
 
 export interface AccountUsageRecord {
@@ -119,6 +172,17 @@ export interface CookieAuthConfig {
   sessionCookie: string
 }
 
+export interface KimiOpenPlatformAuthConfig {
+  /**
+   * Console refresh JWT. This is a long-lived secret included in exports.
+   */
+  refreshToken: string
+  /** Organization selected in the console. BFF calls are scoped to it. */
+  organizationId: string
+  /** Access-token expiry in milliseconds since epoch, when the JWT exposes exp. */
+  tokenExpiresAt?: number
+}
+
 export interface Sub2ApiAuthConfig {
   /**
    * Exportable refresh token used for extension-managed Sub2API sessions.
@@ -134,8 +198,24 @@ export interface Sub2ApiAuthConfig {
   tokenExpiresAt?: number
 }
 
+/**
+ * A second static credential for sites whose console splits capabilities across
+ * credential classes.
+ *
+ * AI/ML API rejects regular API keys on key management and management keys on
+ * billing, so one saved account carries both. Like other supplemental secrets
+ * this value is exportable and belongs in WebDAV backups.
+ */
+export interface AimlApiAuthConfig {
+  /** Regular (inference) API key: reads balance, billing, usage and logs. */
+  apiKey: string
+}
+
 // 站点账号完整信息
 export interface SiteAccount {
+  login?: import("~/types/accountLogin").AccountLoginConfiguration
+  /** @deprecated Read-only migration compatibility; canonical writes use login.credentials. */
+  passwordAuth?: import("~/types/accountLogin").AccountPasswordCredentials
   id: string // 此项 id
   /**
    * Emoji icon previously used for the account label in legacy UIs.
@@ -217,6 +297,17 @@ export interface SiteAccount {
    * dashboard localStorage.
    */
   sub2apiAuth?: Sub2ApiAuthConfig
+  /**
+   * Kimi Open Platform console refresh session.
+   * Absent for API-key-only accounts that never opened the console.
+   */
+  kimiOpenPlatformAuth?: KimiOpenPlatformAuthConfig
+  /**
+   * AI/ML API's regular API key, stored beside the management key that is the
+   * account's primary credential. Absent accounts keep key management working
+   * but report balance and usage as unavailable.
+   */
+  aimlApiAuth?: AimlApiAuthConfig
   /**
    * 站点签到相关
    */
@@ -346,7 +437,7 @@ export interface AccountStats {
 
 // 用于排序的字段类型
 export const SORT_FIELDS = [
-  "name",
+  DATA_TYPE_NAME,
   DATA_TYPE_CHECK_IN_REQUIREMENT,
   DATA_TYPE_CUSTOM_CHECK_IN_URL,
   DATA_TYPE_CUSTOM_REDEEM_URL,
@@ -391,6 +482,8 @@ export interface DisplaySiteData {
   baseName?: string
   username: string
   balance: CurrencyAmount
+  balanceUnavailable?: boolean
+  nativeBalance?: AccountNativeBalance
   todayConsumption: CurrencyAmount
   todayIncome: CurrencyAmount
   estimatedTodayIncome?: CurrencyAmount | null
@@ -427,7 +520,8 @@ export interface DisplaySiteData {
    */
   disabled?: boolean
   /**
-   * "Exclude from Total Balance" state projected from {@link SiteAccount.excludeFromTotalBalance}.
+   * Effective total-balance exclusion, combining the saved preference with
+   * native balance eligibility.
    *
    * This affects only the Total Balance aggregate; it must not be interpreted as
    * a disabled state for actions like refresh or check-in.
@@ -458,7 +552,7 @@ export const DASHBOARD_TAB_TYPES = [
 ] as const
 export type DashboardTabType = (typeof DASHBOARD_TAB_TYPES)[number]
 
-export { AuthTypeEnum } from "~/types/auth"
+export { AuthTypeEnum, ACCOUNT_AUTH_HEALTH_STATUS_CODES } from "~/types/auth"
 export * from "~/types/accountTodayStats"
 export type { TempWindowHealthStatusCode } from "~/types/tempWindow"
 export { TEMP_WINDOW_HEALTH_STATUS_CODES } from "~/types/tempWindow"

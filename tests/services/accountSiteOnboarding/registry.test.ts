@@ -9,6 +9,7 @@ import {
 } from "~/constants/siteType"
 import { getAccountSiteDefinition } from "~/services/accountSiteDefinitions"
 import {
+  getAccountBrowserIdentityCapability,
   getAccountSiteCompatUserIdHeaderRules,
   getAccountSiteDomainRules,
   getAccountSiteTitleRules,
@@ -156,12 +157,29 @@ describe("account site onboarding registry", () => {
     expect(
       getContentSessionExtractors().map((extractor) => extractor.id),
     ).toEqual([
+      "krill",
+      "daya",
+      "pmapi",
+      "xiaoen",
+      "foxcode",
+      "cubence",
+      "freemodel",
+      "dahl",
+      "emrank",
       "sub2api",
       "sharedchat",
       "voapi-v2",
+      "kimi-open-platform",
+      "right-code",
+      "relayfor",
+      "grsai",
+      "vercel",
+      "nanogpt",
       "v-api",
       "apiyi",
       "new-api-auth-bundle",
+      "novita",
+      "aimlapi",
       "compatible-user",
     ])
   })
@@ -172,5 +190,15 @@ describe("account site onboarding registry", () => {
       usagePath: "/console/log",
       redeemPath: "/console/topup",
     })
+  })
+
+  it("resolves RelayFor browser identity capability", () => {
+    expect(
+      getAccountBrowserIdentityCapability({
+        siteType: SITE_TYPES.RELAYFOR,
+        origin: "https://relayfor.xyz",
+        candidateUserIds: [],
+      }),
+    ).toBeDefined()
   })
 })

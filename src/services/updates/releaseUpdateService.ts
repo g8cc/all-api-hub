@@ -1,20 +1,31 @@
 import { Storage } from "@plasmohq/storage"
 
-import { EXTENSION_STORE_IDS } from "~/constants/extensionStores"
+import {
+  EXTENSION_STORE_IDS,
+  EXTENSION_STORE_LISTING_URLS,
+} from "~/constants/extensionStores"
 import { STORAGE_KEYS, STORAGE_LOCKS } from "~/services/core/storageKeys"
 import { withExtensionStorageWriteLock } from "~/services/core/storageWriteLock"
 import { createRuntimeMessageFailure } from "~/services/runtimeMessaging/result"
 import {
   createAlarm,
   getAlarm,
+  hasAlarmsAPI,
+  onAlarm,
+} from "~/utils/browser/alarms"
+import {
   getExtensionURL,
   getExtensionVersion,
   getManagementSelf,
+  getManifest,
   getRuntimeId,
-  hasAlarmsAPI,
-  onAlarm,
-  requestRuntimeUpdateCheck,
-} from "~/utils/browser/browserApi"
+} from "~/utils/browser/runtime"
+import { requestRuntimeUpdateCheck } from "~/utils/browser/runtimeUpdateCheck"
+import { getBuildRevision, isBuildRevision } from "~/utils/core/buildRevision"
+import {
+  DISTRIBUTION_CHANNEL,
+  getDistributionChannel,
+} from "~/utils/core/distributionChannel"
 import { getErrorMessage } from "~/utils/core/error"
 import { createLogger } from "~/utils/core/logger"
 
@@ -27,6 +38,7 @@ import {
   BROWSER_STORE_UPDATE_STATUSES,
   createDefaultBrowserStoreUpdateState,
   createDefaultReleaseUpdateStatus,
+  LATEST_NIGHTLY_RELEASE_URL,
   LATEST_STABLE_RELEASE_URL,
   RELEASE_UPDATE_REASONS,
   type BrowserStoreUpdateState,
@@ -48,6 +60,7 @@ type DetectInstallEligibilityResult = {
 type LatestReleaseInfo = {
   latestVersion: string
   releaseUrl: string
+  updateAvailable?: boolean
 }
 
 class ReleaseUpdateService {
@@ -116,23 +129,22 @@ class ReleaseUpdateService {
 
   async checkNow(): Promise<ReleaseUpdateStatus> {
     const base = await this.ensureBaseStatus()
-    if (!base.eligible) {
-      return base
-    }
 
     return await this.refreshStatus(base, {
-      allowNetwork: true,
       includeBrowserStoreCheck: true,
     })
   }
 
   private async runScheduledCheck(): Promise<ReleaseUpdateStatus> {
     const base = await this.ensureBaseStatus()
-    if (!base.eligible) {
+    if (
+      !base.eligible ||
+      getDistributionChannel() === DISTRIBUTION_CHANNEL.LocalDevelopment
+    ) {
       return base
     }
 
-    return await this.refreshStatus(base, { allowNetwork: true })
+    return await this.refreshStatus(base)
   }
 
   private async setupAlarm(): Promise<void> {
@@ -169,35 +181,45 @@ class ReleaseUpdateService {
 
   private async refreshStatus(
     base: ReleaseUpdateStatus,
-    options?: { allowNetwork?: boolean; includeBrowserStoreCheck?: boolean },
+    options?: { includeBrowserStoreCheck?: boolean },
   ): Promise<ReleaseUpdateStatus> {
-    if (!options?.allowNetwork) {
-      return base
-    }
-
     let latestRelease: LatestReleaseInfo | null = null
     let latestReleaseError: unknown = null
     let storeUpdate = base.storeUpdate
+    const githubLookup =
+      base.reason === RELEASE_UPDATE_REASONS.FirefoxAmo
+        ? fetchLatestStableRelease()
+            .then((info) => info.latestVersion)
+            .catch(() => null)
+        : Promise.resolve(undefined)
 
     try {
-      latestRelease = await fetchLatestStableRelease()
+      latestRelease =
+        base.reason === RELEASE_UPDATE_REASONS.FirefoxAmo
+          ? await fetchLatestAmoRelease()
+          : base.reason === RELEASE_UPDATE_REASONS.GithubNightly
+            ? await fetchLatestNightlyRelease()
+            : await fetchLatestStableRelease()
     } catch (error) {
       logger.warn("Failed to fetch latest stable release", error)
       latestReleaseError = error
     }
 
     if (
-      options.includeBrowserStoreCheck &&
+      options?.includeBrowserStoreCheck &&
       base.reason === RELEASE_UPDATE_REASONS.StoreBuild
     ) {
       storeUpdate = await checkBrowserStoreUpdate()
     }
 
+    const githubLatestVersion = await githubLookup
     const next: ReleaseUpdateStatus = latestRelease
       ? {
           ...base,
+          githubLatestVersion,
           latestVersion: latestRelease.latestVersion,
           updateAvailable:
+            latestRelease.updateAvailable ??
             compareNormalizedVersions(
               normalizeVersion(base.currentVersion),
               latestRelease.latestVersion,
@@ -209,6 +231,7 @@ class ReleaseUpdateService {
         }
       : {
           ...base,
+          githubLatestVersion,
           checkedAt: Date.now(),
           lastError: getErrorMessage(latestReleaseError),
           storeUpdate,
@@ -221,11 +244,25 @@ class ReleaseUpdateService {
   private async buildBaseStatus(
     stored: ReleaseUpdateStatus | null,
   ): Promise<ReleaseUpdateStatus> {
-    const currentVersion = getCurrentManifestVersion()
+    const currentVersion = getExtensionVersion()
+    const distributionChannel = getDistributionChannel()
+    const selfUpdate = isSelfUpdatingBuild()
     const detected = await detectInstallEligibility()
     const fallback = createDefaultReleaseUpdateStatus(currentVersion)
+    if (detected.reason === RELEASE_UPDATE_REASONS.FirefoxAmo)
+      fallback.releaseUrl = EXTENSION_STORE_LISTING_URLS.firefox
+    if (detected.reason === RELEASE_UPDATE_REASONS.GithubNightly)
+      fallback.releaseUrl = LATEST_NIGHTLY_RELEASE_URL
     const isSameVersion = stored?.currentVersion === currentVersion
-    const canReuseStoredReleaseFields = isSameVersion && detected.eligible
+    const canReuseStoredReleaseFields =
+      isSameVersion &&
+      stored?.reason === detected.reason &&
+      stored?.selfUpdate === selfUpdate &&
+      (stored?.distributionChannel ?? DISTRIBUTION_CHANNEL.Unknown) ===
+        distributionChannel &&
+      (detected.reason !== RELEASE_UPDATE_REASONS.GithubNightly ||
+        stored?.buildRevision === getBuildRevision())
+    const reusableStatus = canReuseStoredReleaseFields ? stored : null
     const fallbackStoreUpdate =
       detected.reason === RELEASE_UPDATE_REASONS.StoreBuild
         ? createStoreBuildNotCheckedState()
@@ -233,22 +270,20 @@ class ReleaseUpdateService {
 
     return {
       ...fallback,
+      distributionChannel,
+      selfUpdate,
+      ...(detected.reason === RELEASE_UPDATE_REASONS.GithubNightly
+        ? { buildRevision: getBuildRevision() }
+        : {}),
       eligible: detected.eligible,
       reason: detected.reason,
-      latestVersion: canReuseStoredReleaseFields
-        ? stored?.latestVersion ?? null
-        : null,
-      updateAvailable: canReuseStoredReleaseFields
-        ? stored?.updateAvailable ?? false
-        : false,
-      releaseUrl: canReuseStoredReleaseFields
-        ? stored?.releaseUrl ?? fallback.releaseUrl
-        : fallback.releaseUrl,
-      checkedAt: canReuseStoredReleaseFields ? stored?.checkedAt ?? null : null,
-      lastError: canReuseStoredReleaseFields ? stored?.lastError ?? null : null,
-      storeUpdate: canReuseStoredReleaseFields
-        ? stored?.storeUpdate ?? fallbackStoreUpdate
-        : fallbackStoreUpdate,
+      latestVersion: reusableStatus?.latestVersion ?? null,
+      updateAvailable: reusableStatus?.updateAvailable ?? false,
+      releaseUrl: reusableStatus?.releaseUrl ?? fallback.releaseUrl,
+      checkedAt: reusableStatus?.checkedAt ?? null,
+      lastError: reusableStatus?.lastError ?? null,
+      githubLatestVersion: reusableStatus?.githubLatestVersion ?? null,
+      storeUpdate: reusableStatus?.storeUpdate ?? fallbackStoreUpdate,
     }
   }
 
@@ -276,17 +311,60 @@ class ReleaseUpdateService {
   }
 }
 
+/** Nightly can change without a package-version bump, so compare baked commit IDs. */
+async function fetchLatestNightlyRelease(): Promise<LatestReleaseInfo> {
+  const response = await fetch(
+    "https://api.github.com/repos/qixing-jk/all-api-hub/git/ref/tags/nightly",
+    {
+      headers: { Accept: "application/vnd.github+json" },
+    },
+  )
+  if (!response.ok)
+    throw new Error(`Nightly request failed with HTTP ${response.status}`)
+  const payload = (await response.json()) as {
+    object?: { type?: unknown; sha?: unknown }
+  } | null
+  const revision =
+    payload?.object?.type === "commit" && typeof payload.object.sha === "string"
+      ? payload.object.sha
+      : ""
+  const currentRevision = getBuildRevision()
+  if (!isBuildRevision(revision) || !currentRevision)
+    throw new Error("Nightly revision unavailable")
+  return {
+    latestVersion: revision.slice(0, 7),
+    updateAvailable: revision !== currentRevision,
+    releaseUrl: LATEST_NIGHTLY_RELEASE_URL,
+  }
+}
+
 /**
  * Detect whether the current installation can safely participate in automatic
  * new-version reminders.
  */
 async function detectInstallEligibility(): Promise<DetectInstallEligibilityResult> {
+  switch (getDistributionChannel()) {
+    case DISTRIBUTION_CHANNEL.FirefoxAmo:
+      return { eligible: true, reason: RELEASE_UPDATE_REASONS.FirefoxAmo }
+    case DISTRIBUTION_CHANNEL.ChromeWebStore:
+    case DISTRIBUTION_CHANNEL.EdgeAddons:
+      return { eligible: true, reason: RELEASE_UPDATE_REASONS.StoreBuild }
+    case DISTRIBUTION_CHANNEL.GithubRelease:
+      return { eligible: true, reason: RELEASE_UPDATE_REASONS.GithubRelease }
+    case DISTRIBUTION_CHANNEL.GithubNightly:
+      return { eligible: true, reason: RELEASE_UPDATE_REASONS.GithubNightly }
+    case DISTRIBUTION_CHANNEL.LocalDevelopment:
+      return {
+        eligible: true,
+        reason: RELEASE_UPDATE_REASONS.ChromiumDevelopment,
+      }
+  }
   const runtimeUrl = getRuntimeBaseUrl()
   if (runtimeUrl.startsWith("safari-web-extension://")) {
     return { eligible: false, reason: RELEASE_UPDATE_REASONS.SafariUnsupported }
   }
 
-  let info: Awaited<ReturnType<typeof getManagementSelf>> = null
+  let info: Awaited<ReturnType<typeof getManagementSelf>>
   try {
     info = await getManagementSelf()
   } catch (error) {
@@ -369,13 +447,6 @@ async function checkBrowserStoreUpdate(): Promise<BrowserStoreUpdateState> {
 }
 
 /**
- * Read the packaged extension version from the runtime manifest.
- */
-function getCurrentManifestVersion(): string {
-  return getExtensionVersion()
-}
-
-/**
  * Resolve the runtime base URL for browser-family detection.
  */
 function getRuntimeBaseUrl(): string {
@@ -384,6 +455,17 @@ function getRuntimeBaseUrl(): string {
   } catch {
     return ""
   }
+}
+
+/**
+ * Check whether the packaged manifest advertises a self-hosted update URL.
+ *
+ * Only the dedicated CRX build carries `update_url`; the unpacked ZIP from the
+ * same channel does not, and the two need different guidance.
+ */
+function isSelfUpdatingBuild(): boolean {
+  const updateUrl = (getManifest() as { update_url?: unknown }).update_url
+  return typeof updateUrl === "string" && updateUrl.trim().length > 0
 }
 
 /**
@@ -436,10 +518,26 @@ async function fetchLatestStableRelease(): Promise<LatestReleaseInfo> {
   }
 }
 
+/** AMO's published version is actionable; it does not imply Firefox downloaded it. */
+async function fetchLatestAmoRelease(): Promise<LatestReleaseInfo> {
+  const response = await fetch(
+    "https://addons.mozilla.org/api/v5/addons/addon/%7Bbc73541a-133d-4b50-b261-36ea20df0d24%7D/",
+    { credentials: "omit" },
+  )
+  if (!response.ok)
+    throw new Error(`AMO version request failed with HTTP ${response.status}`)
+  const payload = (await response.json()) as {
+    current_version?: { version?: unknown }
+  } | null
+  const latestVersion = normalizeVersion(payload?.current_version?.version)
+  if (!latestVersion) throw new Error("AMO did not return a published version")
+  return { latestVersion, releaseUrl: EXTENSION_STORE_LISTING_URLS.firefox }
+}
+
 /**
  * Normalize semver-like version strings into a comparable dotted form.
  */
-function normalizeVersion(value: string | null | undefined): string | null {
+function normalizeVersion(value: unknown): string | null {
   if (typeof value !== "string") {
     return null
   }
@@ -489,12 +587,16 @@ function areStatusesEquivalent(
   return (
     left.eligible === right.eligible &&
     left.reason === right.reason &&
+    left.distributionChannel === right.distributionChannel &&
+    left.buildRevision === right.buildRevision &&
     left.currentVersion === right.currentVersion &&
     left.latestVersion === right.latestVersion &&
     left.updateAvailable === right.updateAvailable &&
     left.releaseUrl === right.releaseUrl &&
     left.checkedAt === right.checkedAt &&
     left.lastError === right.lastError &&
+    left.selfUpdate === right.selfUpdate &&
+    left.githubLatestVersion === right.githubLatestVersion &&
     left.storeUpdate.supported === right.storeUpdate.supported &&
     left.storeUpdate.status === right.storeUpdate.status &&
     left.storeUpdate.version === right.storeUpdate.version

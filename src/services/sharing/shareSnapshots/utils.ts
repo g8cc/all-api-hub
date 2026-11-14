@@ -66,24 +66,12 @@ export const formatAsOfTimestamp = (
  */
 export const createShareSnapshotSeed = (): number => {
   if (globalThis.crypto?.getRandomValues) {
-    return globalThis.crypto.getRandomValues(new Uint32Array(1))[0] >>> 0
+    const [value] = globalThis.crypto.getRandomValues(new Uint32Array(1))
+    if (value !== undefined) return value >>> 0
   }
 
   const UINT32_RANGE = 2 ** 32
   return Math.floor(Math.random() * UINT32_RANGE) >>> 0
-}
-
-/**
- * Deterministic PRNG for seeded visuals.
- */
-export const mulberry32 = (seed: number) => {
-  let t = seed >>> 0
-  return () => {
-    t += 0x6d2b79f5
-    let r = Math.imul(t ^ (t >>> 15), 1 | t)
-    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r)
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296
-  }
 }
 
 /**

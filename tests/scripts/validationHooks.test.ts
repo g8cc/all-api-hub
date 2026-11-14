@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from "node:child_process"
+import { execFileSync, spawn, spawnSync } from "node:child_process"
 import {
   existsSync,
   mkdirSync,
@@ -11,9 +11,59 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
+import {
+  getPnpmInvocation,
+  resolvePnpmInvocation,
+} from "~~/scripts/utils/run-pnpm.mjs"
+
 const temporaryRoots: string[] = []
 const scriptsRoot = path.resolve("scripts")
 const zeroSha = "0".repeat(40)
+/** Stands for a process started outside a package manager, so `npm_execpath` is unset. */
+const noExportedEntryPoint = ""
+
+describe("pnpm invocation", () => {
+  it("runs a native pnpm executable directly", () => {
+    expect(getPnpmInvocation(["run", "lint"], "C:\\tools\\pnpm.exe")).toEqual({
+      command: "C:\\tools\\pnpm.exe",
+      args: ["run", "lint"],
+    })
+  })
+
+  it("runs a JavaScript pnpm entry point through Node.js", () => {
+    expect(getPnpmInvocation(["run", "lint"], "/tools/pnpm.cjs")).toEqual({
+      command: process.execPath,
+      args: ["/tools/pnpm.cjs", "run", "lint"],
+    })
+  })
+
+  it("prefers an exported entry point over the platform fallback", () => {
+    expect(
+      resolvePnpmInvocation(["run", "lint"], "/tools/pnpm.cjs", "win32"),
+    ).toEqual({
+      command: process.execPath,
+      args: ["/tools/pnpm.cjs", "run", "lint"],
+    })
+  })
+
+  it("runs the Windows command shim through the command interpreter", () => {
+    expect(
+      resolvePnpmInvocation(["run", "lint"], noExportedEntryPoint, "win32"),
+    ).toEqual({
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "pnpm", "run", "lint"],
+    })
+  })
+
+  it("finds pnpm on the PATH on other platforms", () => {
+    expect(
+      resolvePnpmInvocation(["run", "lint"], noExportedEntryPoint, "linux"),
+    ).toEqual({
+      command: "pnpm",
+      args: ["run", "lint"],
+    })
+  })
+})
 
 /** Create a real isolated Git repository with a recording pnpm substitute. */
 function createRepository() {
@@ -53,10 +103,15 @@ function createRepository() {
     git("commit", "-qm", "fixture")
     return git("rev-parse", "HEAD")
   }
-  const run = (script: string, input = "", exitCode = 0) => {
+  const run = (
+    script: string,
+    input = "",
+    exitCode = 0,
+    args: string[] = [],
+  ) => {
     const result = spawnSync(
       process.execPath,
-      [path.join(scriptsRoot, script)],
+      [path.join(scriptsRoot, script), ...args],
       {
         cwd,
         env: { ...env, VALIDATION_EXIT_CODE: String(exitCode) },
@@ -78,9 +133,67 @@ function createRepository() {
   git("config", "user.email", "validation@example.invalid")
   git("config", "core.autocrlf", "false")
   git("config", "core.hooksPath", path.join(root, "disabled-hooks"))
+  const runWithOpenPipe = (script: string, args: string[] = []) => {
+    const result = spawnSync(
+      process.execPath,
+      [path.join(scriptsRoot, script), ...args],
+      {
+        cwd,
+        env,
+        encoding: "utf8",
+        timeout: 2000,
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    )
+    const calls = existsSync(callsPath)
+      ? readFileSync(callsPath, "utf8")
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line))
+      : []
+    return { ...result, calls }
+  }
+
   write("README.md")
   const base = commit()
-  return { git, write, commit, run, base }
+  const runWithPartialOpenPipe = async (
+    script: string,
+    partialInput = "",
+    args: string[] = [],
+  ) => {
+    const child = spawn(
+      process.execPath,
+      [path.join(scriptsRoot, script), ...args],
+      {
+        cwd,
+        env,
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    )
+    if (partialInput) {
+      child.stdin.write(partialInput)
+    }
+    const status = await new Promise<number | null>((resolve) => {
+      child.on("close", resolve)
+    })
+    const calls: string[][] = existsSync(callsPath)
+      ? readFileSync(callsPath, "utf8")
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line))
+      : []
+    return { status, calls }
+  }
+
+  return {
+    git,
+    write,
+    commit,
+    run,
+    runWithOpenPipe,
+    runWithPartialOpenPipe,
+    base,
+  }
 }
 
 afterEach(() => {
@@ -90,29 +203,41 @@ afterEach(() => {
 })
 
 describe("staged i18n validation", () => {
+  const EXTRACT_AND_STATUS = [
+    ["run", "i18n:extract:ci"],
+    ["run", "i18n:status"],
+  ]
+  // Locale inputs additionally run the static registry key integrity test.
+  const EXTRACT_STATUS_AND_INTEGRITY = [
+    ...EXTRACT_AND_STATUS,
+    ["run", "i18n:integrity"],
+  ]
+
   it.each([
-    ["src/example.ts", true],
-    ["src/component.tsx", true],
-    ["src/locales/zh_CN/common.json", true],
-    ["src/public/_locales/en/messages.json", true],
-    ["src/assets/icon.svg", false],
-    ["src/styles/example.css", false],
-    ["docs/docs/guide.md", false],
-    ["i18next.config.ts", true],
-  ])("selects checks for %s", (file, shouldCheck) => {
+    ["src/example.ts", EXTRACT_AND_STATUS],
+    ["src/component.tsx", EXTRACT_AND_STATUS],
+    ["src/locales/zh_CN/common.json", EXTRACT_STATUS_AND_INTEGRITY],
+    ["src/public/_locales/en/messages.json", EXTRACT_AND_STATUS],
+    ["src/assets/icon.svg", []],
+    ["src/styles/example.css", []],
+    ["docs/docs/guide.md", []],
+    ["i18next.config.ts", EXTRACT_AND_STATUS],
+    [
+      "src/features/ImportExport/DataBackup.search.ts",
+      EXTRACT_STATUS_AND_INTEGRITY,
+    ],
+    [
+      "tests/features/OptionsSearch/searchRegistryKeys.test.ts",
+      [["run", "i18n:integrity"]],
+    ],
+    ["scripts/run-i18n-check-if-staged.mjs", EXTRACT_STATUS_AND_INTEGRITY],
+  ])("selects checks for %s", (file, expectedCalls) => {
     const repo = createRepository()
     repo.write(file)
     repo.git("add", ".")
     const result = repo.run("run-i18n-check-if-staged.mjs")
     expect(result.status, result.stderr).toBe(0)
-    expect(result.calls).toEqual(
-      shouldCheck
-        ? [
-            ["run", "i18n:extract:ci"],
-            ["run", "i18n:status"],
-          ]
-        : [],
-    )
+    expect(result.calls).toEqual(expectedCalls)
   })
 
   it.each(["delete", "rename"])(
@@ -139,6 +264,80 @@ describe("staged i18n validation", () => {
     const result = repo.run("run-i18n-check-if-staged.mjs", "", 1)
     expect(result.status).not.toBe(0)
     expect(result.calls).toEqual([["run", "i18n:extract:ci"]])
+  })
+})
+
+describe("permission warning validation", () => {
+  const GATE = [
+    [
+      "exec",
+      "playwright",
+      "test",
+      "e2e/extensionPermissionWarnings.spec.ts",
+      "--project=chromium",
+      "--workers=1",
+      "--output=test-results/permission-warning-check",
+    ],
+  ]
+  it.each([
+    "wxt.config.ts",
+    "src/entrypoints/content/index.ts",
+    "src/entrypoints/new.content.ts",
+    "plugins/manifest.ts",
+    "package.json",
+    "e2e/fixtures/permission-warnings-baseline.json",
+  ])("requires the real-browser warning gate for %s", (file) => {
+    const repo = createRepository()
+    repo.write(file)
+    repo.git("add", ".")
+    const result = repo.run("run-permission-warning-check.mjs", "", 0, [
+      "--staged",
+    ])
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.calls).toEqual(GATE)
+  })
+  it("skips unrelated staged changes", () => {
+    const repo = createRepository()
+    repo.write("src/features/example.ts")
+    repo.git("add", ".")
+    const result = repo.run("run-permission-warning-check.mjs", "", 0, [
+      "--staged",
+    ])
+    expect(result.status).toBe(0)
+    expect(result.calls).toEqual([])
+  })
+  it.each(["delete", "rename"])(
+    "still checks when a manifest input is removed by %s",
+    (operation) => {
+      const repo = createRepository()
+      repo.write("plugins/manifest input.ts")
+      repo.commit()
+      if (operation === "delete") repo.git("rm", "plugins/manifest input.ts")
+      else repo.git("mv", "plugins/manifest input.ts", "notes.md")
+      const result = repo.run("run-permission-warning-check.mjs", "", 0, [
+        "--staged",
+      ])
+      expect(result.status).toBe(0)
+      expect(result.calls).toEqual(GATE)
+    },
+  )
+  it("does not validate unstaged permission inputs as if they were committed", () => {
+    const repo = createRepository()
+    repo.write("wxt.config.ts", "staged permissions")
+    repo.git("add", ".")
+    repo.write("wxt.config.ts", "different permissions")
+    const result = repo.run("run-permission-warning-check.mjs", "", 0, [
+      "--staged",
+    ])
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("unstaged")
+    expect(result.calls).toEqual([])
+  })
+  it("propagates browser-check failure", () => {
+    const repo = createRepository()
+    const result = repo.run("run-permission-warning-check.mjs", "", 1)
+    expect(result.status).not.toBe(0)
+    expect(result.calls).toEqual(GATE)
   })
 })
 
@@ -247,6 +446,27 @@ describe("push validation", () => {
     const repo = createRepository()
     const result = repo.run("run-push-check-if-needed.mjs", "", 1)
     expect(result.status).not.toBe(0)
+    expect(result.calls).toEqual([["run", "validate:push"]])
+  })
+
+  it("runs the full gate without hanging when stdin is an open pipe with no input", () => {
+    const repo = createRepository()
+    const result = repo.runWithOpenPipe("run-push-check-if-needed.mjs")
+    expect(result.error).toBeUndefined()
+    expect(result.status).toBe(0)
+    expect(result.calls).toEqual([["run", "validate:push"]])
+  })
+
+  it("runs the full gate when stdin times out after partial documentation input", async () => {
+    const repo = createRepository()
+    repo.write("docs/docs/guide.md")
+    const head = repo.commit()
+    const docUpdate = update(head, repo.base)
+    const result = await repo.runWithPartialOpenPipe(
+      "run-push-check-if-needed.mjs",
+      docUpdate,
+    )
+    expect(result.status).toBe(0)
     expect(result.calls).toEqual([["run", "validate:push"]])
   })
 })

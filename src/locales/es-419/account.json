@@ -39,6 +39,7 @@
     "modelManagement": "Lista de modelos",
     "openAllExternalCheckIn": "Abrir todos los check-ins externos",
     "openAllExternalCheckInHint": "Abrir check-ins externos pendientes. Ctrl/Cmd: abrir todos. Shift: abrir en ventana nueva. Ctrl/Cmd+Shift: abrir todos en una ventana nueva.",
+    "openSite": "Abrir sitio",
     "pin": "Fijar cuenta",
     "pinned": "Fijada",
     "quickCheckin": "Check-in rápido",
@@ -58,7 +59,7 @@
   "addFirstAccount": "Agrega tu primera cuenta",
   "bulk": {
     "clearAll": "Limpiar selección",
-    "clearVisible": "Borrar selección visible",
+    "clearVisible": "Anular selección en esta lista",
     "copyInviteLinks": "Copiar enlaces de invitación",
     "copyInviteLinksClipboardFailed": "El navegador no pudo escribir en el portapapeles. Copia manualmente los enlaces generados.",
     "copyInviteLinksClipboardFailedWithReasons": "El navegador no pudo escribir en el portapapeles. Copia manualmente los enlaces generados. Otras cuentas: {{reasonSummary}}.",
@@ -69,6 +70,12 @@
     "copyInviteLinksSuccess_many": "Se copiaron {{count}} enlaces de invitación.",
     "copyInviteLinksSuccess_other": "Se copiaron {{count}} enlaces de invitación.",
     "copyInviteLinksUnsupported": "La selección actual no admite enlaces de invitación.",
+    "copySiteUrls": "Copiar URL de los sitios",
+    "copySiteUrlsClipboardFailed": "El navegador no pudo escribir en el portapapeles. Copia manualmente las URL de los sitios desde la lista de cuentas.",
+    "copySiteUrlsNone": "Las cuentas seleccionadas no tienen URL de sitios para copiar.",
+    "copySiteUrlsSuccess_one": "Se copió {{count}} URL del sitio.",
+    "copySiteUrlsSuccess_many": "Se copiaron {{count}} URL de los sitios.",
+    "copySiteUrlsSuccess_other": "Se copiaron {{count}} URL de los sitios.",
     "deleteConfirmAction": "Eliminar seleccionadas",
     "deleteConfirmDescription_one": "Estás por eliminar {{count}} cuenta seleccionada. Revisa la selección con cuidado antes de confirmar.",
     "deleteConfirmDescription_many": "Estás por eliminar {{count}} cuentas seleccionadas. Revisa la selección con cuidado antes de confirmar.",
@@ -104,13 +111,15 @@
     "selectedSummary_other": "{{selected}} seleccionadas",
     "selectionEmpty": "No hay cuentas seleccionadas",
     "selectionScope": "Selección",
-    "selectVisible": "Seleccionar resultados visibles"
+    "selectVisible": "Seleccionar todo en esta lista"
   },
-  "currentLoginAdded": "⚠️El inicio de sesión actual de {{siteName}} ya está en tu lista",
-  "currentSiteAdded": "⚠️{{siteName}} ya tiene una cuenta guardada",
-  "currentSiteAddedCount_one": "⚠️Este sitio ya tiene {{count}} cuenta guardada",
-  "currentSiteAddedCount_many": "⚠️Este sitio ya tiene {{count}} cuentas guardadas",
-  "currentSiteAddedCount_other": "⚠️Este sitio ya tiene {{count}} cuentas guardadas",
+  "currentLoginAdded": "El inicio de sesión actual de {{siteName}} ya está en tu lista",
+  "currentSiteAdded": "{{siteName}} ya tiene una cuenta guardada",
+  "currentSiteAddedCount_one": "Este sitio ya tiene {{count}} cuenta guardada",
+  "currentSiteAddedCount_many": "Este sitio ya tiene {{count}} cuentas guardadas",
+  "currentSiteAddedCount_other": "Este sitio ya tiene {{count}} cuentas guardadas",
+  "currentSiteFilterAction": "Ver",
+  "currentSiteFilterHint": "Haz clic para filtrar las cuentas de este sitio en tu lista",
   "description": "Administra cuentas de sitios y consulta saldos, uso y estado.",
   "emptyState": "Todavía no hay cuentas",
   "emptyStateDescription": "Agrega una cuenta para administrar saldos, estado, claves de API y uso en un solo lugar.",
@@ -118,10 +127,14 @@
     "checkIn": {
       "all": "Todos los estados de check-in",
       "checked-in": "Con check-in",
+      "configuration": "Configuración / método no disponible",
+      "manual": "No se puede consultar",
       "not-checked-in": "Sin check-in",
-      "outdated": "Estado desactualizado",
+      "outdated": "Por actualizar",
+      "pending": "Aún sin consultar",
       "placeholder": "Estado de check-in",
-      "status-unavailable": "Estado no disponible",
+      "query-failed": "Consulta fallida",
+      "site-disabled": "Desactivado por el sitio",
       "unsupported": "No compatible"
     },
     "disabled": {
@@ -248,7 +261,21 @@
     "resetSort": "Restablecer orden predeterminado",
     "site": {
       "checkedInToday": "Check-in realizado hoy, haz clic para ver",
-      "checkInStatusOutdated": "El estado de check-in no se detectó hoy (última comprobación: {{time}}). Haz clic para actualizar",
+      "checkInAccountDisabled": "Cuenta desactivada; registro automático en pausa",
+      "checkInAutomationBlocked": "El registro automático está bloqueado: {{reason}}",
+      "checkInAutomationDisabled": "El registro automático de la cuenta está desactivado",
+      "checkInAutomationEnabled": "El registro automático de la cuenta está activado",
+      "checkInAutomationGloballyDisabled": "El registro automático de la cuenta está activado, pero el interruptor global está apagado",
+      "checkInLastKnownChecked": "Última confirmación de registro realizado: {{time}}",
+      "checkInLastKnownNotChecked": "Última confirmación de registro pendiente: {{time}}",
+      "checkInNeedsConfiguration": "El registro automático requiere configuración: {{reason}}. Haz clic para editar la cuenta",
+      "checkInNeedsRedetection": "El método de registro requiere una nueva detección: {{reason}}. Haz clic para detectar",
+      "checkInRefreshPartial": "Se actualizaron los datos de {{accountName}}, pero no el estado de registro. Vuelve a intentarlo",
+      "checkInSiteDisabled": "El sitio tiene el registro desactivado. Haz clic para ver el sitio",
+      "checkInStatusFailed": "No se pudo actualizar el estado de registro (intento: {{time}}). Haz clic para reintentar",
+      "checkInStatusManual": "Este método no permite consultar el estado. Haz clic para revisar el sitio",
+      "checkInStatusOutdated": "El estado de registro necesita actualizarse (última confirmación: {{time}}). Haz clic para actualizar",
+      "checkInStatusPending": "Aún no se consultó el estado de registro. Haz clic para actualizar",
       "currentSite": "Sitio actual",
       "currentSiteBoostHint": "Coincide con la cuenta con sesión iniciada en el sitio actual y aparece antes que las demás. Las cuentas deshabilitadas permanecen al final.",
       "currentSiteExists": "Mismo sitio que la pestaña actual",
@@ -267,7 +294,13 @@
     "sortMenu": "Ordenar por",
     "toggleSortOrder": "Cambiar orden"
   },
+  "popupOnboarding": {
+    "signInHint": "Inicia sesión en tu sitio de API y agrega una cuenta mediante detección automática o de forma manual."
+  },
   "refresh": {
+    "checkInStatusFailed_one": "No se pudo actualizar el estado del registro diario de {{count}} cuenta. Inténtalo de nuevo",
+    "checkInStatusFailed_many": "No se pudo actualizar el estado del registro diario de {{count}} cuentas. Inténtalo de nuevo",
+    "checkInStatusFailed_other": "No se pudo actualizar el estado del registro diario de {{count}} cuentas. Inténtalo de nuevo",
     "refreshComplete": "Actualización completa: {{success}} correctas, {{failed}} fallidas",
     "refreshDisabledComplete": "Sondeo de cuentas deshabilitadas completo: {{restored}} restauradas, {{stillDisabled}} aún deshabilitadas",
     "refreshDisabledCompleteWithFailures": "Sondeo de cuentas deshabilitadas completo: {{restored}} restauradas, {{stillDisabled}} aún deshabilitadas, {{failed}} fallidas",
@@ -293,6 +326,15 @@
       "description": "Regístrate en el sitio web de un proveedor y sigue las indicaciones de la tarjeta para agregar una cuenta, guardar credenciales de API o guardar el sitio en marcadores.",
       "title": "Explora proveedores disponibles"
     },
+    "openWorkflowFailed": "No se pudo abrir la configuración. Inténtalo de nuevo.",
+    "popupApiCredentialProfiles": {
+      "description": "¿Necesitas API para desarrolladores o cuota de Coding Plan? Rellena la URL base y obtén claves rápidamente:",
+      "title": "Proveedores y suscripciones recomendados"
+    },
+    "popupBookmarks": {
+      "description": "Agrega a marcadores con un clic para un acceso rápido en cualquier momento:",
+      "title": "Sitios recomendados"
+    },
     "recommendedProviders": "Proveedores recomendados",
     "supportStatus": {
       "fallbackApiCredentialProfiles": "Agregar como credencial",
@@ -303,17 +345,44 @@
     }
   },
   "stats": {
+    "allowanceExpiry": "Vence: {{time}}",
+    "allowanceReset": "Se restablece: {{time}}",
+    "allowances": "Detalles del saldo",
+    "allowanceScope": "Grupo de cuota: {{scope}}",
     "completion": "Salida",
     "estimatedTodayIncome": "Ingresos estimados",
+    "groupAllowance": "Saldo del grupo",
+    "nativeCredits": "créditos",
+    "nativeCreditsDetail": "Permanentes {{permanent, number}} · Hoy {{daily, number}} (vencen a diario)",
+    "novitaBalance": {
+      "available": "Saldo disponible",
+      "cash": "Saldo de recargas",
+      "creditLimit": "Límite de crédito (deuda máxima)",
+      "description": "El saldo disponible es el valor que informa Novita. El saldo de recargas son los fondos recargados restantes; el límite de crédito es la deuda máxima permitida. Actualmente, la extensión excluye los saldos de Novita del saldo total, el historial de saldo y las estimaciones de ingresos.",
+      "title": "Detalle del saldo"
+    },
+    "permanentAllowance": "Permanente",
     "prompt": "Entrada",
-    "subscriptionInactive": "Inactiva o vencida",
+    "scopedAllowances": "Las cuotas de grupos y suscripciones pueden tener restricciones de uso. Las cuotas nativas se excluyen del saldo total, el historial de saldos y las estimaciones de ingresos.",
     "subscriptionRemainingCount": "Solicitudes de suscripción restantes",
+    "subscriptionRemainingTokens": "Tokens restantes (fondo y claves); el saldo en dólares es el equivalente al precio publicado e incluye tokens gratuitos.",
+    "subscriptionState": {
+      "active": "Suscripción activa",
+      "expired": "Suscripción vencida",
+      "grace": "Periodo de gracia de la suscripción",
+      "inactive": "Sin suscripción activa",
+      "unavailable": "Estado de suscripción no disponible"
+    },
     "subscriptionStatus": "Estado de suscripción",
     "subscriptionTitle": "Suscripción",
+    "timedAllowance": "Saldo temporal",
+    "timedDetailsUnavailable": "No se pudieron cargar los saldos temporales. Actualiza la cuenta.",
     "todayConsumption": "Consumo de hoy",
     "todayIncome": "Ingresos de hoy",
+    "tokenCredit": "tokens",
     "totalBalance": "Saldo total",
     "trustedTodayIncome": "Ingresos confiables",
+    "unlockedModels": "Modelos desbloqueados: {{models}}",
     "usageRequests": "Solicitudes del periodo",
     "usageTokens": "Tokens del periodo"
   },

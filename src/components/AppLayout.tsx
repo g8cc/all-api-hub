@@ -2,17 +2,7 @@ import { type ReactNode } from "react"
 
 import "~/styles/style.css"
 
-import { AutoCheckinUiOpenPretrigger } from "~/components/AutoCheckinUiOpenPretrigger"
 import { ChangelogOnUpdateUiOpenHandler } from "~/components/ChangelogOnUpdateUiOpenHandler"
-import {
-  ChannelDialogContainer,
-  ChannelDialogProvider,
-  DuplicateChannelWarningDialogContainer,
-} from "~/components/dialogs/ChannelDialog"
-import {
-  UpdateLogDialogContainer,
-  UpdateLogDialogProvider,
-} from "~/components/dialogs/UpdateLogDialog"
 import { ThemeAwareToaster } from "~/components/ThemeAwareToaster"
 import { ToasterPortalProvider } from "~/components/toast/ToasterPortal"
 import { DeviceProvider } from "~/contexts/DeviceContext"
@@ -20,6 +10,16 @@ import { FeatureGuidanceProvider } from "~/contexts/FeatureGuidanceContext"
 import { ReleaseUpdateStatusProvider } from "~/contexts/ReleaseUpdateStatusContext"
 import { ThemeProvider } from "~/contexts/ThemeContext"
 import { UserPreferencesProvider } from "~/contexts/UserPreferencesContext"
+import { AutoCheckinUiOpenPretrigger } from "~/features/AutoCheckin/pretrigger/AutoCheckinUiOpenPretrigger"
+import {
+  ChannelDialogContainer,
+  ChannelDialogProvider,
+  DuplicateChannelWarningDialogContainer,
+} from "~/features/ManagedSiteChannels/editor/ChannelDialog"
+import {
+  UpdateLogDialogContainer,
+  UpdateLogDialogProvider,
+} from "~/features/UpdateLog"
 
 interface AppLayoutProps {
   children: ReactNode

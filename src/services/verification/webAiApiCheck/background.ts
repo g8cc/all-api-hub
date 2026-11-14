@@ -1,12 +1,11 @@
 import { fetchAnthropicModelIds } from "~/services/aiApi/anthropic"
 import { fetchGoogleModelIds } from "~/services/aiApi/google"
 import { fetchOpenAICompatibleModelIds } from "~/services/aiApi/openaiCompatible"
-import { apiCredentialProfilesStorage } from "~/services/apiCredentialProfiles/apiCredentialProfilesStorage"
-import {
-  DEFAULT_PREFERENCES,
-  userPreferences,
-  type UserPreferences,
-} from "~/services/preferences/userPreferences"
+import { toVersionedProtocolMount } from "~/services/aiApi/protocolAddress"
+import { apiCredentialProfilesStorage } from "~/services/apiCredentialProfiles/storage/profiles"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { type UserPreferences } from "~/services/preferences/preferencesSchema"
+import { userPreferences } from "~/services/preferences/userPreferences"
 import { resolveProductAnalyticsErrorCategoryFromError } from "~/services/productAnalytics/actions"
 import { PRODUCT_ANALYTICS_ERROR_CATEGORIES } from "~/services/productAnalytics/contracts"
 import { tagStorage } from "~/services/tags/tagStorage"
@@ -16,29 +15,57 @@ import {
   API_VERIFICATION_PROBE_IDS,
   API_VERIFICATION_PROBE_STATUSES,
   runApiVerificationProbe,
-  type ApiVerificationApiType,
   type ApiVerificationProbeId,
   type ApiVerificationProbeResult,
 } from "~/services/verification/aiApiVerification"
+import {
+  getVerificationRequestProfileOptions,
+  isVerificationRequestProfile,
+} from "~/services/verification/aiApiVerification/requestProfiles"
 import {
   buildSafeProbeFailureDiagnostics,
   inferStructuredHttpStatus,
   toSanitizedErrorSummary,
 } from "~/services/verification/aiApiVerification/utils"
+import { PELICAN_EXECUTION_MODES } from "~/services/verification/modelQuality/constants"
+import { CONTEXT_CHECKPOINT_LIMIT_ERROR_NAME } from "~/services/verification/modelQuality/contextCapacityConstants"
+import { CONTEXT_CAPACITY_DEFAULTS } from "~/services/verification/modelQuality/contextCapacityDefaults"
+import { getModelContextInfo } from "~/services/verification/modelQuality/contextTokens"
+import type { NeedleRunControls } from "~/services/verification/modelQuality/needleRun"
+import { runPelicanTest } from "~/services/verification/modelQuality/pelican"
+import { runQuestionAnswerTest } from "~/services/verification/modelQuality/questionAnswer"
+import { contextCapacityHistory } from "~/services/verification/verificationResultHistory/contextCapacityHistory"
+import { needleHistory } from "~/services/verification/verificationResultHistory/needleHistory"
 import { webAiApiCheckBaseUrlHistoryStorage } from "~/services/verification/webAiApiCheck/baseUrlHistory"
-import { WEB_AI_API_CHECK_BASE_URL_HISTORY_SUGGESTION_LIMIT } from "~/services/verification/webAiApiCheck/constants"
 import {
-  normalizeApiCheckBaseUrl,
-  normalizeGoogleFamilyBaseUrl,
-  normalizeOpenAiFamilyBaseUrl,
-} from "~/services/verification/webAiApiCheck/credentialExtraction/baseUrlCandidates"
+  CONTEXT_HISTORY_ACTIONS,
+  WEB_AI_API_CHECK_BASE_URL_HISTORY_SUGGESTION_LIMIT,
+} from "~/services/verification/webAiApiCheck/constants"
+import {
+  discardInactiveContextCheckpoints,
+  runDurableContextCapacity,
+} from "~/services/verification/webAiApiCheck/contextCapacityCheckpoint"
+import { normalizeProbeBaseUrl } from "~/services/verification/webAiApiCheck/credentialExtraction/baseUrlCandidates"
+import { createApiCheckProbeRunRegistry } from "~/services/verification/webAiApiCheck/probeRunRegistry"
+import { onTabRemoved, onTabUpdated } from "~/utils/browser/tabs"
 import { createLogger } from "~/utils/core/logger"
-import { isUrlAllowedByRegexList } from "~/utils/core/urlWhitelist"
+import { isHttpUrl } from "~/utils/core/urlParsing"
 
-import { onWebAiApiCheckMessage, WebAiApiCheckMessageTypes } from "./messaging"
+import {
+  onWebAiApiCheckMessage,
+  sendWebAiApiCheckMessage,
+  WebAiApiCheckMessageTypes,
+} from "./messaging"
+import {
+  discardInactiveNeedleCheckpoints,
+  runDurableNeedleTest,
+} from "./needleCheckpoint"
+import { isWebAiApiCheckPageAllowed } from "./siteAccess"
 import type {
   ApiCheckCancelRunProbeRequest,
   ApiCheckCancelRunProbeResponse,
+  ApiCheckContextHistoryRequest,
+  ApiCheckContextHistoryResponse,
   ApiCheckCreateTagRequest,
   ApiCheckCreateTagResponse,
   ApiCheckFetchModelsRequest,
@@ -47,12 +74,20 @@ import type {
   ApiCheckGetBaseUrlHistorySuggestionsResponse,
   ApiCheckListTagsRequest,
   ApiCheckListTagsResponse,
+  ApiCheckQuestionAnswerRequest,
+  ApiCheckQuestionAnswerResponse,
   ApiCheckRecordBaseUrlHistoryRequest,
   ApiCheckRecordBaseUrlHistoryResponse,
   ApiCheckRemoveBaseUrlHistoryRequest,
   ApiCheckRemoveBaseUrlHistoryResponse,
   ApiCheckRenameTagRequest,
   ApiCheckRenameTagResponse,
+  ApiCheckRunContextCapacityRequest,
+  ApiCheckRunContextCapacityResponse,
+  ApiCheckRunNeedleRequest,
+  ApiCheckRunNeedleResponse,
+  ApiCheckRunPelicanRequest,
+  ApiCheckRunPelicanResponse,
   ApiCheckRunProbeRequest,
   ApiCheckRunProbeResponse,
   ApiCheckSaveProfileRequest,
@@ -66,7 +101,112 @@ import type {
  */
 const logger = createLogger("WebAiApiCheck")
 
-const activeProbeAbortControllers = new Map<string, AbortController>()
+const probeRuns = createApiCheckProbeRunRegistry()
+const needleRunControls = new Map<string, NeedleRunControls>()
+
+/** Validate optional custom headers consistently for webpage verification tools. */
+function hasValidRequestHeaders(headers: unknown): boolean {
+  return (
+    headers === undefined ||
+    Boolean(
+      headers &&
+        typeof headers === "object" &&
+        !Array.isArray(headers) &&
+        Object.entries(headers).every(
+          ([name, value]) =>
+            typeof value === "string" &&
+            Boolean(name.trim()) &&
+            !/[\r\n]/.test(name + value),
+        ),
+    )
+  )
+}
+
+/** Run on-demand questions for webpage callers using the existing cancellation registry. */
+export async function resolveWebAiApiCheckQuestionAnswerMessage(
+  request: ApiCheckQuestionAnswerRequest,
+  ownerTabId?: number,
+): Promise<ApiCheckQuestionAnswerResponse> {
+  if (
+    !Object.values(API_TYPES).includes(request.apiType) ||
+    typeof request.runId !== "string" ||
+    !request.runId.trim() ||
+    typeof request.apiKey !== "string" ||
+    !request.apiKey.trim() ||
+    typeof request.modelId !== "string" ||
+    !request.modelId.trim() ||
+    typeof request.baseUrl !== "string" ||
+    typeof request.question !== "string" ||
+    !request.question.trim() ||
+    typeof request.referenceAnswer !== "string" ||
+    (request.mode !== undefined &&
+      !Object.values(API_VERIFICATION_MODES).includes(request.mode)) ||
+    (request.requestProfile !== undefined &&
+      !isVerificationRequestProfile(request.requestProfile))
+  ) {
+    return { success: false, error: "Invalid question test request" }
+  }
+  const baseUrl = normalizeProbeBaseUrl(request)
+  if (!baseUrl) return { success: false, error: "Invalid baseUrl" }
+  if (!hasValidRequestHeaders(request.requestHeaders))
+    return { success: false, error: "Invalid request headers" }
+  try {
+    const result = await probeRuns.run(
+      request.runId,
+      (abortSignal) =>
+        runQuestionAnswerTest({ ...request, baseUrl, abortSignal }),
+      ownerTabId,
+    )
+    return { success: true, result }
+  } catch (error) {
+    return {
+      success: false,
+      error: toSanitizedErrorSummary(error, [
+        request.apiKey,
+        ...Object.values(request.requestHeaders ?? {}),
+      ]),
+    }
+  }
+}
+
+/** Keep request fingerprinting and persistence in the secure extension context. */
+async function resolveContextHistory({
+  request,
+  action,
+  result,
+}: ApiCheckContextHistoryRequest): Promise<ApiCheckContextHistoryResponse> {
+  if (
+    !request ||
+    !Object.values(API_TYPES).includes(request.apiType) ||
+    typeof request.apiKey !== "string" ||
+    !request.apiKey.trim() ||
+    typeof request.baseUrl !== "string" ||
+    typeof request.modelId !== "string" ||
+    !request.modelId.trim() ||
+    !normalizeProbeBaseUrl(request) ||
+    !Object.values(CONTEXT_HISTORY_ACTIONS).includes(action)
+  )
+    return { success: false }
+  if (
+    request.mode !== undefined &&
+    !Object.values(API_VERIFICATION_MODES).includes(request.mode)
+  )
+    return { success: false }
+  if (
+    request.requestProfile !== undefined &&
+    !isVerificationRequestProfile(request.requestProfile)
+  )
+    return { success: false }
+  try {
+    const summary =
+      action === CONTEXT_HISTORY_ACTIONS.Get
+        ? await contextCapacityHistory.get(request)
+        : await contextCapacityHistory.save(request, result ?? null)
+    return { success: true, summary }
+  } catch {
+    return { success: false }
+  }
+}
 
 /**
  * Read Web AI API Check preferences with safe defaults.
@@ -91,28 +231,6 @@ function getWebAiApiCheckPreferences(
       },
     }
   )
-}
-
-/**
- * Normalize a base URL for probe execution, keeping behavior consistent across api types.
- */
-function normalizeProbeBaseUrl(params: {
-  apiType: ApiVerificationApiType
-  baseUrl: string
-}): string | null {
-  if (
-    params.apiType === API_TYPES.OPENAI_COMPATIBLE ||
-    params.apiType === API_TYPES.OPENAI ||
-    params.apiType === API_TYPES.ANTHROPIC
-  ) {
-    return normalizeOpenAiFamilyBaseUrl(params.baseUrl)
-  }
-
-  if (params.apiType === API_TYPES.GOOGLE) {
-    return normalizeGoogleFamilyBaseUrl(params.baseUrl)
-  }
-
-  return normalizeApiCheckBaseUrl(params.baseUrl)
 }
 
 /**
@@ -169,11 +287,10 @@ export async function resolveWebAiApiCheckShouldPromptMessage(
       }
     }
 
-    const prefs = await userPreferences.getPreferences()
+    const prefs = await userPreferences.getPreferencesStrict()
     const config = getWebAiApiCheckPreferences(prefs)
-    const patterns = config.autoDetect?.urlWhitelist?.patterns ?? []
     const autoDetectEnabled = config.enabled && !!config.autoDetect?.enabled
-    const urlAllowed = isUrlAllowedByRegexList(pageUrl, patterns)
+    const urlAllowed = isWebAiApiCheckPageAllowed(pageUrl, config.autoDetect)
     const shouldPrompt = autoDetectEnabled && urlAllowed
     const enhancedShouldPrompt =
       shouldPrompt && !!config.autoDetect?.enhanced?.enabled
@@ -182,6 +299,8 @@ export async function resolveWebAiApiCheckShouldPromptMessage(
       success: true,
       shouldPrompt,
       enhancedShouldPrompt,
+      siteAllowed: urlAllowed,
+      autoDetectEnabled,
       apiKeyCleanupPatterns: config.keyCleanup?.removalPatterns ?? [],
     }
   } catch (error) {
@@ -408,6 +527,7 @@ export async function resolveWebAiApiCheckFetchModelsMessage(
  */
 export async function resolveWebAiApiCheckRunProbeMessage(
   request: ApiCheckRunProbeRequest,
+  ownerTabId?: number,
 ): Promise<ApiCheckRunProbeResponse> {
   try {
     const {
@@ -418,6 +538,8 @@ export async function resolveWebAiApiCheckRunProbeMessage(
       modelId,
       probeId,
       mode = API_VERIFICATION_MODES.Streaming,
+      requestProfile,
+      requestProfileEnhanced,
     } = request
 
     if (!apiType || !baseUrl?.trim() || !apiKey?.trim() || !probeId) {
@@ -439,6 +561,17 @@ export async function resolveWebAiApiCheckRunProbeMessage(
       }
     }
 
+    if (
+      requestProfile !== undefined &&
+      !isVerificationRequestProfile(requestProfile)
+    ) {
+      return {
+        success: false,
+        error: "Invalid request profile",
+        errorCategory: PRODUCT_ANALYTICS_ERROR_CATEGORIES.Validation,
+      }
+    }
+
     const normalizedBaseUrl = normalizeProbeBaseUrl({ apiType, baseUrl })
     if (!normalizedBaseUrl) {
       return {
@@ -449,20 +582,24 @@ export async function resolveWebAiApiCheckRunProbeMessage(
     }
 
     try {
-      const abortController = runId ? new AbortController() : undefined
-      if (runId && abortController) {
-        activeProbeAbortControllers.set(runId, abortController)
-      }
-
-      const result = await runApiVerificationProbe({
-        baseUrl: normalizedBaseUrl,
-        apiKey,
-        apiType,
-        modelId: modelId?.trim() || undefined,
-        probeId: probeId as ApiVerificationProbeId,
-        mode,
-        abortSignal: abortController?.signal,
-      })
+      const result = await probeRuns.run(
+        runId,
+        (signal) =>
+          runApiVerificationProbe({
+            ...(requestProfile ? { requestProfile } : {}),
+            ...(requestProfileEnhanced === true
+              ? { requestProfileEnhanced: true }
+              : {}),
+            baseUrl: normalizedBaseUrl,
+            apiKey,
+            apiType,
+            modelId: modelId?.trim() || undefined,
+            probeId: probeId as ApiVerificationProbeId,
+            mode,
+            abortSignal: signal,
+          }),
+        ownerTabId,
+      )
 
       return { success: true, result }
     } catch (error) {
@@ -479,6 +616,12 @@ export async function resolveWebAiApiCheckRunProbeMessage(
 
       const result: ApiVerificationProbeResult = {
         id: probeId as ApiVerificationProbeId,
+        ...(isVerificationRequestProfile(requestProfile)
+          ? getVerificationRequestProfileOptions(
+              requestProfile,
+              requestProfileEnhanced === true,
+            )
+          : {}),
         mode: probeId === API_VERIFICATION_PROBE_IDS.Models ? undefined : mode,
         status: API_VERIFICATION_PROBE_STATUSES.Fail,
         latencyMs: 0,
@@ -491,16 +634,274 @@ export async function resolveWebAiApiCheckRunProbeMessage(
       }
 
       return { success: true, result }
-    } finally {
-      if (runId) {
-        activeProbeAbortControllers.delete(runId)
-      }
     }
   } catch (error) {
     logger.error("ApiCheck message handling failed", {
       message: toSanitizedErrorSummary(error, []),
     })
     return toGenericFailureResponse()
+  }
+}
+
+/**
+ * Run the pelican drawing test for the content-script dialog.
+ *
+ * The content script cannot reach the provider directly, so the request runs in
+ * the background and only the SVG analysis crosses the message boundary.
+ */
+async function resolveWebAiApiCheckRunPelicanMessage(
+  request: ApiCheckRunPelicanRequest,
+  ownerTabId?: number,
+): Promise<ApiCheckRunPelicanResponse> {
+  const {
+    apiType,
+    baseUrl,
+    apiKey,
+    modelId,
+    mode,
+    prompt,
+    runId,
+    executionMode,
+    requestProfile,
+    requestProfileEnhanced,
+  } = request
+
+  if (!apiType || !baseUrl?.trim() || !apiKey?.trim() || !modelId?.trim()) {
+    return {
+      success: false,
+      error: "Missing apiType, baseUrl, apiKey, or modelId",
+    }
+  }
+
+  if (
+    mode !== undefined &&
+    mode !== API_VERIFICATION_MODES.Streaming &&
+    mode !== API_VERIFICATION_MODES.NonStreaming
+  ) {
+    return { success: false, error: "Invalid verification mode" }
+  }
+  if (
+    executionMode !== undefined &&
+    executionMode !== PELICAN_EXECUTION_MODES.Reply &&
+    executionMode !== PELICAN_EXECUTION_MODES.Agent
+  ) {
+    return { success: false, error: "Invalid drawing execution mode" }
+  }
+  if (
+    requestProfile !== undefined &&
+    !isVerificationRequestProfile(requestProfile)
+  ) {
+    return { success: false, error: "Invalid request profile" }
+  }
+  const normalizedBaseUrl = normalizeProbeBaseUrl({ apiType, baseUrl })
+  if (!normalizedBaseUrl) {
+    return { success: false, error: "Invalid baseUrl" }
+  }
+
+  try {
+    const result = await probeRuns.run(
+      runId,
+      (signal) =>
+        runPelicanTest({
+          baseUrl: normalizedBaseUrl,
+          apiKey,
+          apiType,
+          modelId: modelId.trim(),
+          ...(mode ? { mode } : {}),
+          ...(prompt?.trim() ? { prompt: prompt.trim() } : {}),
+          executionMode,
+          requestProfile,
+          requestProfileEnhanced,
+          abortSignal: signal,
+        }),
+      ownerTabId,
+    )
+    return { success: true, result }
+  } catch (error) {
+    const message = toSanitizedErrorSummary(error, [apiKey])
+    logger.error("Pelican test failed", {
+      apiType,
+      baseUrl: normalizedBaseUrl,
+      message,
+    })
+    return { success: false, error: message }
+  }
+}
+
+/** Run a validated retrieval plan in the background, sharing the existing run registry. */
+async function resolveNeedleRun(
+  request: ApiCheckRunNeedleRequest,
+  sender?: browser.runtime.MessageSender,
+): Promise<ApiCheckRunNeedleResponse> {
+  const { runId, apiKey, modelId, apiType, mode, requestProfile } = request
+  if (
+    typeof runId !== "string" ||
+    !runId.trim() ||
+    typeof apiKey !== "string" ||
+    !apiKey.trim() ||
+    typeof modelId !== "string" ||
+    !modelId.trim() ||
+    !Object.values(API_TYPES).includes(apiType)
+  )
+    return { success: false, error: "Missing or invalid needle configuration" }
+  if (
+    mode !== undefined &&
+    !Object.values(API_VERIFICATION_MODES).includes(mode)
+  )
+    return { success: false, error: "Invalid verification mode" }
+  if (
+    requestProfile !== undefined &&
+    !isVerificationRequestProfile(requestProfile)
+  )
+    return { success: false, error: "Invalid request profile" }
+  const baseUrl = toVersionedProtocolMount(apiType, request.baseUrl)
+  if (!baseUrl) return { success: false, error: "Invalid base URL" }
+  if (!hasValidRequestHeaders(request.requestHeaders))
+    return { success: false, error: "Invalid request headers" }
+  let controls: NeedleRunControls | undefined
+  try {
+    const result = await probeRuns.run(
+      runId,
+      async (signal) => {
+        return runDurableNeedleTest(
+          {
+            ...request,
+            baseUrl,
+            modelId: modelId.trim(),
+            abortSignal: signal!,
+            onControls: (value) => {
+              controls = value
+              needleRunControls.set(runId, value)
+            },
+            onProgress: (result) => {
+              if (signal?.aborted) return
+              void sendWebAiApiCheckMessage(
+                WebAiApiCheckMessageTypes.NeedleProgress,
+                { runId, result },
+                sender?.tab?.id === undefined
+                  ? undefined
+                  : { tabId: sender.tab.id, frameId: sender.frameId },
+              ).catch(() => undefined)
+            },
+          },
+          request.recoverOnly === true,
+          request.historyTarget,
+        )
+      },
+      sender?.tab?.id,
+    )
+    return { success: true, result }
+  } catch (error) {
+    return {
+      success: false,
+      error: toSanitizedErrorSummary(error, [
+        apiKey,
+        ...Object.values(request.requestHeaders ?? {}),
+      ]),
+      errorName: error instanceof Error ? error.name : undefined,
+      checkpointLimitReached:
+        error instanceof Error &&
+        error.name === CONTEXT_CHECKPOINT_LIMIT_ERROR_NAME,
+    }
+  } finally {
+    if (controls && needleRunControls.get(runId) === controls)
+      needleRunControls.delete(runId)
+  }
+}
+
+/** Keep generated long prompts in background; return only compact measurements. */
+async function resolveWebAiApiCheckRunContextCapacityMessage(
+  request: ApiCheckRunContextCapacityRequest,
+  sender?: browser.runtime.MessageSender,
+): Promise<ApiCheckRunContextCapacityResponse> {
+  const {
+    runId,
+    apiType,
+    baseUrl,
+    apiKey,
+    modelId,
+    mode,
+    requestProfile,
+    requestProfileEnhanced,
+    maxInputTokens,
+    resumeFrom,
+  } = request
+  if (
+    !runId?.trim() ||
+    !Object.values(API_TYPES).includes(apiType) ||
+    !baseUrl?.trim() ||
+    !apiKey?.trim() ||
+    !modelId?.trim()
+  )
+    return {
+      success: false,
+      error: "Missing or invalid context probe configuration",
+    }
+  if (
+    maxInputTokens !== undefined &&
+    (!Number.isSafeInteger(maxInputTokens) ||
+      maxInputTokens < CONTEXT_CAPACITY_DEFAULTS.minimumInputTokens ||
+      maxInputTokens > CONTEXT_CAPACITY_DEFAULTS.maxTotalInputTokens)
+  )
+    return {
+      success: false,
+      error: "Invalid input limit",
+    }
+  if (
+    mode !== undefined &&
+    mode !== API_VERIFICATION_MODES.Streaming &&
+    mode !== API_VERIFICATION_MODES.NonStreaming
+  )
+    return { success: false, error: "Invalid verification mode" }
+  if (
+    requestProfile !== undefined &&
+    !isVerificationRequestProfile(requestProfile)
+  )
+    return { success: false, error: "Invalid request profile" }
+  const normalizedBaseUrl = normalizeProbeBaseUrl({ apiType, baseUrl })
+  if (!normalizedBaseUrl) return { success: false, error: "Invalid baseUrl" }
+  try {
+    const result = await probeRuns.run(
+      runId,
+      async (signal) => {
+        const result = await runDurableContextCapacity(
+          {
+            baseUrl: normalizedBaseUrl,
+            apiKey,
+            apiType,
+            modelId: modelId.trim(),
+            mode,
+            requestProfile,
+            requestProfileEnhanced,
+            maxInputTokens,
+            resumeFrom,
+            abortSignal: signal!,
+            onProgress: (result) => {
+              if (signal?.aborted || sender?.tab?.id === undefined) return
+              void sendWebAiApiCheckMessage(
+                WebAiApiCheckMessageTypes.ContextCapacityProgress,
+                { runId, result },
+                { tabId: sender.tab.id, frameId: sender.frameId },
+              ).catch(() => undefined)
+            },
+          },
+          request.recoverOnly === true,
+        )
+        signal?.throwIfAborted()
+        return result
+      },
+      sender?.tab?.id,
+    )
+    return { success: true, result }
+  } catch (error) {
+    return {
+      success: false,
+      error: toSanitizedErrorSummary(error, [apiKey]),
+      ...(error instanceof Error &&
+      error.name === CONTEXT_CHECKPOINT_LIMIT_ERROR_NAME
+        ? { checkpointLimitReached: true }
+        : {}),
+    }
   }
 }
 
@@ -516,14 +917,7 @@ export async function resolveWebAiApiCheckCancelRunProbeMessage(
       return { success: true, cancelled: false }
     }
 
-    const abortController = activeProbeAbortControllers.get(runId)
-    if (!abortController) {
-      return { success: true, cancelled: false }
-    }
-
-    abortController.abort()
-    activeProbeAbortControllers.delete(runId)
-    return { success: true, cancelled: true }
+    return { success: true, cancelled: probeRuns.cancel(runId) }
   } catch (error) {
     logger.error("ApiCheck cancel message handling failed", {
       message: toSanitizedErrorSummary(error, []),
@@ -562,12 +956,18 @@ export async function resolveWebAiApiCheckSaveProfileMessage(
     const profileName =
       providedName || buildDefaultProfileName({ normalizedBaseUrl, pageUrl })
 
+    const sourceUrl =
+      typeof request.sourceUrl === "string" && isHttpUrl(request.sourceUrl)
+        ? request.sourceUrl.trim()
+        : undefined
+
     try {
       const profile = await apiCredentialProfilesStorage.createProfile({
         name: profileName,
         apiType,
         baseUrl: normalizedBaseUrl,
         apiKey,
+        ...(sourceUrl !== undefined ? { sourceUrl } : {}),
         ...(request.tagIds !== undefined ? { tagIds: request.tagIds } : {}),
         ...(request.notes !== undefined ? { notes: request.notes } : {}),
         ...(request.expiresAt !== undefined
@@ -620,6 +1020,25 @@ export function setupWebAiApiCheckMessagingListeners() {
       async ({ data }) => resolveWebAiApiCheckShouldPromptMessage(data),
     ),
     onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.SetSiteAccess,
+      async ({ data }) => {
+        try {
+          if (!isHttpUrl(data.pageUrl) || typeof data.enabled !== "boolean")
+            return toGenericFailureResponse()
+          const result = await userPreferences.setWebAiApiCheckSiteEnabled(
+            data.pageUrl,
+            data.enabled,
+          )
+          if (!result.ok) return toGenericFailureResponse()
+          return resolveWebAiApiCheckShouldPromptMessage({
+            pageUrl: data.pageUrl,
+          })
+        } catch {
+          return toGenericFailureResponse()
+        }
+      },
+    ),
+    onWebAiApiCheckMessage(
       WebAiApiCheckMessageTypes.FetchModels,
       async ({ data }) => resolveWebAiApiCheckFetchModelsMessage(data),
     ),
@@ -650,7 +1069,94 @@ export function setupWebAiApiCheckMessagingListeners() {
     ),
     onWebAiApiCheckMessage(
       WebAiApiCheckMessageTypes.RunProbe,
-      async ({ data }) => resolveWebAiApiCheckRunProbeMessage(data),
+      async ({ data, sender }) =>
+        resolveWebAiApiCheckRunProbeMessage(data, sender?.tab?.id),
+    ),
+    onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.RunPelican,
+      async ({ data, sender }) =>
+        resolveWebAiApiCheckRunPelicanMessage(data, sender?.tab?.id),
+    ),
+    onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.RunQuestionAnswer,
+      async ({ data, sender }) =>
+        resolveWebAiApiCheckQuestionAnswerMessage(data, sender?.tab?.id),
+    ),
+    onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.ContextCounter,
+      async ({ data }) => {
+        if (typeof data.modelId !== "string" || !data.modelId.trim())
+          return { success: false as const }
+        try {
+          return {
+            success: true as const,
+            counter: await getModelContextInfo(data.modelId),
+          }
+        } catch {
+          return { success: false as const }
+        }
+      },
+    ),
+    onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.NeedleHistory,
+      async ({ data }) => {
+        try {
+          return {
+            success: true as const,
+            summary: await needleHistory.get(data, data.historyTarget),
+          }
+        } catch {
+          return { success: false as const }
+        }
+      },
+    ),
+    onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.RunNeedle,
+      async ({ data, sender }) => resolveNeedleRun(data, sender),
+    ),
+    onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.StopNeedleSelection,
+      async ({ data }) => ({
+        success: true as const,
+        cancelled: Boolean(
+          await needleRunControls
+            .get(data.runId)
+            ?.stopSelection(data.selection),
+        ),
+      }),
+    ),
+    onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.DiscardNeedleCheckpoints,
+      async () => {
+        try {
+          await discardInactiveNeedleCheckpoints()
+          return { success: true as const }
+        } catch {
+          return { success: false as const }
+        }
+      },
+    ),
+    onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.RunContextCapacity,
+      async ({ data, sender }) =>
+        resolveWebAiApiCheckRunContextCapacityMessage(data, sender),
+    ),
+    onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.ContextHistory,
+      async ({ data }) => resolveContextHistory(data),
+    ),
+    onWebAiApiCheckMessage(
+      WebAiApiCheckMessageTypes.DiscardContextCheckpoints,
+      async () => {
+        try {
+          return {
+            success: true as const,
+            discarded: await discardInactiveContextCheckpoints(),
+          }
+        } catch {
+          return { success: false as const }
+        }
+      },
     ),
     onWebAiApiCheckMessage(
       WebAiApiCheckMessageTypes.CancelRunProbe,
@@ -660,5 +1166,13 @@ export function setupWebAiApiCheckMessagingListeners() {
       WebAiApiCheckMessageTypes.SaveProfile,
       async ({ data }) => resolveWebAiApiCheckSaveProfileMessage(data),
     ),
+    // A removed tab or a navigation tears the content script down before it can
+    // cancel its own runs, so the background aborts them on its side.
+    onTabRemoved((tabId) => {
+      probeRuns.cancelForTab(tabId)
+    }),
+    onTabUpdated((tabId, changeInfo) => {
+      if (changeInfo.status === "loading") probeRuns.cancelForTab(tabId)
+    }),
   ]
 }

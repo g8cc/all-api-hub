@@ -2,12 +2,12 @@ import { cva, type VariantProps } from "class-variance-authority"
 import React from "react"
 
 import Tooltip, { TooltipContext } from "~/components/Tooltip"
-import { useProductAnalyticsActionTracking } from "~/hooks/useProductAnalyticsActionTracking"
+import { useProductAnalyticsActionTracking } from "~/hooks/analytics/useProductAnalyticsActionTracking"
 import { cn } from "~/lib/utils"
 import type { ProductAnalyticsScopedActionConfig } from "~/services/productAnalytics/actionConfig"
 
 const iconButtonVariants = cva(
-  "inline-flex items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background",
+  "inline-flex items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:not-aria-busy:opacity-50 disabled:pointer-events-none ring-offset-background",
   {
     variants: {
       variant: {
@@ -16,7 +16,9 @@ const iconButtonVariants = cva(
         destructive:
           "bg-(--button-destructive-bg) text-(--button-destructive-foreground) hover:bg-(--button-destructive-bg-hover) focus-visible:ring-(--button-destructive-ring)",
         destructiveGhost:
-          "bg-transparent text-destructive-text hover:bg-destructive/10 focus:ring-destructive/30 dark:hover:bg-destructive/20",
+          "bg-transparent text-destructive-text hover:bg-destructive-soft focus:ring-destructive/30",
+        warningGhost:
+          "bg-transparent text-warning-indicator hover:bg-warning-soft focus-visible:ring-(--button-warning-ring)",
         outline:
           "border border-border-strong dark:border-border bg-transparent hover:bg-surface-subtle dark:hover:bg-card text-secondary-foreground focus:ring-border-strong",
         secondary:

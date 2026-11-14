@@ -16,7 +16,9 @@ import {
   updateChannel,
 } from "~/services/apiService/doneHub"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum, SiteHealthStatus } from "~/types"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 import { createCheckInConfig } from "../../apiAdapters/checkInFixtures"
 
@@ -83,6 +85,7 @@ describe("apiService doneHub channel APIs", () => {
     async (protocol) => {
       mockFetchApiData.mockResolvedValue(["model-a"])
       const request = {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: `${protocol}://donehub.example`,
         auth: { authType: AuthTypeEnum.AccessToken, accessToken: "admin" },
       }
@@ -95,7 +98,7 @@ describe("apiService doneHub channel APIs", () => {
         models: "old-model",
         model_mapping: '{"old-model":"mapped"}',
       })
-      const options = mockFetchApiData.mock.calls[0][1]
+      const options = atIndex(mockFetchApiData.mock.calls, 0)[1]
       expect(JSON.parse(options.options.body)).toMatchObject({
         proxy: "socks5://proxy:1080",
         model_headers: '{"X-Project":"draft"}',
@@ -133,6 +136,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("listAllChannels should paginate with page/size and normalize DataResult payload", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -164,8 +168,10 @@ describe("apiService doneHub channel APIs", () => {
 
     expect(mockFetchApiData).toHaveBeenCalledTimes(2)
 
-    const firstEndpoint = mockFetchApiData.mock.calls[0][1].endpoint as string
-    const secondEndpoint = mockFetchApiData.mock.calls[1][1].endpoint as string
+    const firstEndpoint = atIndex(mockFetchApiData.mock.calls, 0)[1]
+      .endpoint as string
+    const secondEndpoint = atIndex(mockFetchApiData.mock.calls, 1)[1]
+      .endpoint as string
 
     expect(firstEndpoint).toContain("/api/channel/?")
     expect(firstEndpoint).toContain("page=1")
@@ -182,6 +188,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("searchChannel should call list endpoint with base_url filter", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -202,7 +209,8 @@ describe("apiService doneHub channel APIs", () => {
     const result = await searchChannel(request as any, "https://up.example.com")
 
     expect(mockFetchApiData).toHaveBeenCalledTimes(1)
-    const endpoint = mockFetchApiData.mock.calls[0][1].endpoint as string
+    const endpoint = atIndex(mockFetchApiData.mock.calls, 0)[1]
+      .endpoint as string
     expect(endpoint).toContain("/api/channel/?")
     expect(endpoint).toContain("base_url=")
     expect(endpoint).toContain("page=1")
@@ -215,6 +223,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("searchChannel should coerce missing channel type to 0", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -233,12 +242,13 @@ describe("apiService doneHub channel APIs", () => {
     const result = await searchChannel(request as any, "https://up.example.com")
 
     expect(result).not.toBeNull()
-    expect(result!.items[0].type).toBe(0)
+    expect(atIndex(result!.items, 0).type).toBe(0)
     expect(result!.type_counts).toEqual({ "0": 1 })
   })
 
   it("searchChannel should return null when the backend does not return a channel array", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -259,6 +269,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("searchChannel normalizes product fields and preserves native metadata", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -330,6 +341,7 @@ describe("apiService doneHub channel APIs", () => {
     })
 
     const result = await listAllChannels({
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "http://managed.internal",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -362,6 +374,7 @@ describe("apiService doneHub channel APIs", () => {
 
     await createChannel(
       {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "http://managed.internal",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -372,7 +385,9 @@ describe("apiService doneHub channel APIs", () => {
       payload as any,
     )
 
-    expect(JSON.parse(mockFetchApi.mock.calls[0][1].options.body)).toEqual({
+    expect(
+      JSON.parse(atIndex(mockFetchApi.mock.calls, 0)[1].options.body),
+    ).toEqual({
       ...payload,
       model_mapping: "{}",
     })
@@ -380,6 +395,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("createChannel should post flat payload with group string", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -403,7 +419,7 @@ describe("apiService doneHub channel APIs", () => {
     })
 
     expect(mockFetchApi).toHaveBeenCalledTimes(1)
-    const callOptions = mockFetchApi.mock.calls[0][1]
+    const callOptions = atIndex(mockFetchApi.mock.calls, 0)[1]
     expect(callOptions.endpoint).toBe("/api/channel/")
     expect(callOptions.options?.method).toBe("POST")
 
@@ -425,6 +441,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("createChannel should default empty groups and model_mapping for DoneHub", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -448,7 +465,7 @@ describe("apiService doneHub channel APIs", () => {
     })
 
     const body = JSON.parse(
-      mockFetchApi.mock.calls[0][1].options?.body as string,
+      atIndex(mockFetchApi.mock.calls, 0)[1].options?.body as string,
     )
     expect(body.group).toBe("")
     expect(body.model_mapping).toBe("{}")
@@ -456,6 +473,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("createChannel should prefer an explicit group over derived groups", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -480,7 +498,7 @@ describe("apiService doneHub channel APIs", () => {
     })
 
     const body = JSON.parse(
-      mockFetchApi.mock.calls[0][1].options?.body as string,
+      atIndex(mockFetchApi.mock.calls, 0)[1].options?.body as string,
     )
     expect(body.group).toBe("manual")
     expect(body.model_mapping).toBe('{"gpt-4":"OpenAI/gpt-4"}')
@@ -488,6 +506,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("createChannel should wrap request failures in a user-facing error", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -515,6 +534,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("updateChannel should put flat payload with group string", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -533,7 +553,7 @@ describe("apiService doneHub channel APIs", () => {
     })
 
     expect(mockFetchApi).toHaveBeenCalledTimes(1)
-    const callOptions = mockFetchApi.mock.calls[0][1]
+    const callOptions = atIndex(mockFetchApi.mock.calls, 0)[1]
     expect(callOptions.endpoint).toBe("/api/channel/")
     expect(callOptions.options?.method).toBe("PUT")
 
@@ -549,6 +569,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("updateChannel preserves an exact minimal patch without inventing group", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -561,13 +582,14 @@ describe("apiService doneHub channel APIs", () => {
     await updateChannel(request as any, { id: 1, name: "Updated Channel" })
 
     const body = JSON.parse(
-      mockFetchApi.mock.calls[0][1].options?.body as string,
+      atIndex(mockFetchApi.mock.calls, 0)[1].options?.body as string,
     )
     expect(body).toEqual({ id: 1, name: "Updated Channel" })
   })
 
   it("updateChannel preserves fields from a latest-detail full update", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -586,7 +608,7 @@ describe("apiService doneHub channel APIs", () => {
     })
 
     const body = JSON.parse(
-      mockFetchApi.mock.calls[0][1].options?.body as string,
+      atIndex(mockFetchApi.mock.calls, 0)[1].options?.body as string,
     )
     expect(body).toMatchObject({
       id: 1,
@@ -598,6 +620,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("updateChannel preserves the explicit native group", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -616,13 +639,14 @@ describe("apiService doneHub channel APIs", () => {
     })
 
     const body = JSON.parse(
-      mockFetchApi.mock.calls[0][1].options?.body as string,
+      atIndex(mockFetchApi.mock.calls, 0)[1].options?.body as string,
     )
     expect(body.group).toBe("manual")
   })
 
   it("updateChannel should wrap request failures in a user-facing error", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -645,6 +669,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("deleteChannel should issue a DELETE request and wrap failures", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -696,6 +721,7 @@ describe("apiService doneHub channel APIs", () => {
     "$operation mutation preserves ApiError details as cause without logging it",
     async ({ invoke }) => {
       const request = {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -749,6 +775,7 @@ describe("apiService doneHub channel APIs", () => {
     "$operation mutation uses fixed copy when the thrown message is blank",
     async ({ invoke, message }) => {
       const request = {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -766,6 +793,7 @@ describe("apiService doneHub channel APIs", () => {
     "probes DoneHub models with normalized type %s and native settings",
     async (type) => {
       const request = {
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: "https://example.com",
         auth: {
           authType: AuthTypeEnum.AccessToken,
@@ -790,17 +818,19 @@ describe("apiService doneHub channel APIs", () => {
 
       expect(mockFetchApiData).toHaveBeenCalledTimes(2)
 
-      const channelEndpoint = mockFetchApiData.mock.calls[0][1]
+      const channelEndpoint = atIndex(mockFetchApiData.mock.calls, 0)[1]
         .endpoint as string
       expect(channelEndpoint).toBe("/api/channel/123")
 
-      const providerEndpoint = mockFetchApiData.mock.calls[1][1]
+      const providerEndpoint = atIndex(mockFetchApiData.mock.calls, 1)[1]
         .endpoint as string
       expect(providerEndpoint).toBe("/api/channel/provider_models_list")
-      expect(mockFetchApiData.mock.calls[1][1].options?.method).toBe("POST")
+      expect(atIndex(mockFetchApiData.mock.calls, 1)[1].options?.method).toBe(
+        "POST",
+      )
 
       const body = JSON.parse(
-        mockFetchApiData.mock.calls[1][1].options?.body as string,
+        atIndex(mockFetchApiData.mock.calls, 1)[1].options?.body as string,
       )
       expect(body).toMatchObject({
         id: 123,
@@ -820,6 +850,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("fetchDraftChannelModels should probe an unsaved DoneHub channel without a detail read", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -838,12 +869,14 @@ describe("apiService doneHub channel APIs", () => {
     ).resolves.toEqual(["model-a", "model-b"])
 
     expect(mockFetchApiData).toHaveBeenCalledOnce()
-    expect(mockFetchApiData.mock.calls[0][1]).toMatchObject({
+    expect(atIndex(mockFetchApiData.mock.calls, 0)[1]).toMatchObject({
       endpoint: "/api/channel/provider_models_list",
       options: { method: "POST" },
     })
     expect(
-      JSON.parse(mockFetchApiData.mock.calls[0][1].options.body as string),
+      JSON.parse(
+        atIndex(mockFetchApiData.mock.calls, 0)[1].options.body as string,
+      ),
     ).toMatchObject({
       type: 39,
       base_url: "https://upstream.example.invalid",
@@ -856,6 +889,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("fetchChannelModels should trim and filter blank model names", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -883,6 +917,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("fetchChannelModels should throw when the provider payload is not an array", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -909,6 +944,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("fetchSiteUserGroups should read DoneHub's bare group array", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -938,6 +974,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("fetchSiteUserGroups should trim blank symbols and dedupe duplicates", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -961,6 +998,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("fetchSiteUserGroups should return an empty list for a non-array payload", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -976,6 +1014,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("fetchTodayUsage should delegate to the New API-family helper with DoneHub log query overrides", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -1020,6 +1059,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("fetchTodayIncome should delegate to the New API-family helper with DoneHub log query overrides", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -1054,6 +1094,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("refreshAccountData should use the DoneHub today-usage override", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,
@@ -1086,6 +1127,7 @@ describe("apiService doneHub channel APIs", () => {
 
   it("refreshAccountData should map refresh failures to health status", async () => {
     const request = {
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: "https://example.com",
       auth: {
         authType: AuthTypeEnum.AccessToken,

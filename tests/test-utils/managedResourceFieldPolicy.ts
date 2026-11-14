@@ -1,8 +1,8 @@
 import {
   adaptManagedCredentialPolicy,
   MANAGED_RESOURCE_SECTION_ORDER,
-} from "~/features/ManagedSiteChannels/presentation/managedResourceFieldPolicy"
-import { resolveResourceFieldPolicy } from "~/features/ResourceEditor/resourceFieldPolicy"
+} from "~/features/ManagedSiteChannels/editor/managedResourceFieldPolicy"
+import { resolveResourceFieldPolicy } from "~/features/ResourceEditor/model/resourceFieldPolicy"
 
 /** Validates provider descriptors against production credential adaptation and field policy. */
 export function resolveManagedResourceTestPolicy(

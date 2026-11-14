@@ -2,28 +2,33 @@ import { describe, expect, it } from "vitest"
 
 import * as accountSiteProfileApi from "~/services/accounts/accountSiteProfile"
 import {
+  getAccountSiteProductProfile,
+  isAccountAuthTypeAllowed,
+} from "~/services/accounts/accountSiteProfile"
+import { resolveAccountSiteAddresses } from "~/services/accounts/accountSiteProfile/addresses"
+import { resolveAccountSiteDefaultAuthType } from "~/services/accounts/accountSiteProfile/auth"
+import { shouldDecorateAccountApiRequestWithAuthSession } from "~/services/accounts/accountSiteProfile/authSession"
+import { resolveAccountSiteContentSessionHintForOrigin } from "~/services/accounts/accountSiteProfile/contentSessionHint"
+import {
   ACCOUNT_SITE_CREATED_TOKEN_SECRET_HANDLING,
   ACCOUNT_SITE_MODEL_LIST_DISPLAY_CAPABILITY_SOURCES,
   ACCOUNT_SITE_MODEL_LIST_GROUP_SEMANTICS,
   ACCOUNT_SITE_MODEL_LIST_STATUS_SCOPES,
   ACCOUNT_SITE_SUPPLEMENTAL_AUTH_KINDS,
   ACCOUNT_SITE_TOKEN_FORM_NETWORK_LIMIT_POLICIES,
+} from "~/services/accounts/accountSiteProfile/contracts"
+import { resolveAccountSiteUserIdentity } from "~/services/accounts/accountSiteProfile/identity"
+import { getAccountSiteModelListProfile } from "~/services/accounts/accountSiteProfile/modelList"
+import { normalizeAccountSiteSupplementalAuth } from "~/services/accounts/accountSiteProfile/supplementalAuth"
+import {
   findAccountSiteProfileForHostname,
-  getAccountSiteModelListProfile,
-  getAccountSiteProductProfile,
-  isAccountAuthTypeAllowed,
   isAccountSiteProfileUrl,
   normalizeAccountSiteProfileUrlForDuplicateCheck,
   normalizeAccountSiteProfileUrlForManagedChannel,
   normalizeAccountSiteProfileUrlForOriginKey,
   normalizeAccountSiteProfileUrlForStorage,
-  normalizeAccountSiteSupplementalAuth,
-  resolveAccountSiteContentSessionHintForOrigin,
-  resolveAccountSiteDefaultAuthType,
-  resolveAccountSiteUserIdentity,
-  shouldDecorateAccountApiRequestWithAuthSession,
-} from "~/services/accounts/accountSiteProfile"
-import { resolveAccountSitePricingUrl } from "~/services/accounts/accountSiteProfile/urls"
+  resolveAccountSitePricingUrl,
+} from "~/services/accounts/accountSiteProfile/urls"
 import {
   AIHUBMIX_API_ORIGIN,
   AIHUBMIX_WEB_ORIGIN,
@@ -37,6 +42,50 @@ import {
 } from "~/types/accountTodayStats"
 
 describe("accountSiteProfile", () => {
+  it("keeps Daya console traffic separate from exported inference addresses", () => {
+    const input = {
+      siteType: SITE_TYPES.DAYA,
+      siteUrl: "https://api.dayaai.com",
+    }
+    expect(resolveAccountSiteAddresses(input)).toEqual({
+      browserBaseUrl: "https://api.dayaai.com",
+      managementApiBaseUrl: "https://api.dayaai.com",
+      inferenceApi: {
+        openAiCompatible: {
+          root: "https://daya.to",
+          mount: "https://daya.to/v1",
+        },
+      },
+    })
+    expect(
+      normalizeAccountSiteProfileUrlForManagedChannel({
+        siteType: input.siteType,
+        url: input.siteUrl,
+      }),
+    ).toBe("https://daya.to/v1")
+  })
+  it("keeps each PM-API deployment on its own origin for console and inference", () => {
+    const input = {
+      siteType: SITE_TYPES.PMAPI,
+      siteUrl: "https://pmcat.top",
+    }
+    expect(resolveAccountSiteAddresses(input)).toEqual({
+      browserBaseUrl: "https://pmcat.top",
+      managementApiBaseUrl: "https://pmcat.top",
+      inferenceApi: {
+        openAiCompatible: {
+          root: "https://pmcat.top",
+          mount: "https://pmcat.top/v1",
+        },
+      },
+    })
+    expect(
+      normalizeAccountSiteProfileUrlForStorage({
+        siteType: input.siteType,
+        url: "https://pap.pmcat.top/#/console",
+      }),
+    ).toBe("https://pap.pmcat.top/#/console")
+  })
   it("opens provider-owned pricing pages without leaking base URL credentials or queries", () => {
     expect(
       resolveAccountSitePricingUrl({
@@ -295,6 +344,18 @@ describe("accountSiteProfile", () => {
     ).toBe(ACCOUNT_SITE_TOKEN_FORM_NETWORK_LIMIT_POLICIES.SubnetLimit)
   })
 
+  it.each([SITE_TYPES.KIMI, SITE_TYPES.KIMI_GLOBAL])(
+    "declares %s organization sessions in its product profile",
+    (siteType) => {
+      expect(getAccountSiteProductProfile(siteType).authSession.kind).toBe(
+        "kimi_refresh_token",
+      )
+      expect(shouldDecorateAccountApiRequestWithAuthSession(siteType)).toBe(
+        false,
+      )
+    },
+  )
+
   it("normalizes supplemental auth only when the product profile permits it", () => {
     expect(
       normalizeAccountSiteSupplementalAuth({
@@ -331,6 +392,46 @@ describe("accountSiteProfile", () => {
       }),
     ).toEqual({})
   })
+
+  it.each([undefined, "", "   ", 123])(
+    "omits an invalid AI/ML API supplemental secret: %s",
+    (apiKey) => {
+      expect(
+        normalizeAccountSiteSupplementalAuth({
+          siteType: SITE_TYPES.AIMLAPI,
+          aimlApiAuth: { apiKey },
+        } as never),
+      ).toEqual({})
+    },
+  )
+
+  it("trims the secondary AI/ML API key and excludes credentials for other sites", () => {
+    expect(
+      normalizeAccountSiteSupplementalAuth({
+        siteType: SITE_TYPES.AIMLAPI,
+        aimlApiAuth: { apiKey: " regular " },
+        sub2apiAuth: { refreshToken: "unrelated" },
+      }),
+    ).toEqual({ aimlApiAuth: { apiKey: "regular" } })
+    expect(
+      normalizeAccountSiteSupplementalAuth({
+        siteType: SITE_TYPES.NEW_API,
+        aimlApiAuth: { apiKey: "regular" },
+      }),
+    ).toEqual({})
+  })
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    "omits invalid persisted session expiry %s while retaining its refresh token",
+    (tokenExpiresAt) => {
+      expect(
+        normalizeAccountSiteSupplementalAuth({
+          siteType: SITE_TYPES.SUB2API,
+          sub2apiAuth: { refreshToken: " refresh-token ", tokenExpiresAt },
+        }),
+      ).toEqual({ sub2apiAuth: { refreshToken: "refresh-token" } })
+    },
+  )
 
   it("allows account API request auth-session decoration only when profile permits it", () => {
     expect(

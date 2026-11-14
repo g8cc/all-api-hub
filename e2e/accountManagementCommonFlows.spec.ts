@@ -11,10 +11,10 @@ import {
 import {
   createDefaultAccountStorageConfig,
   normalizeAccountStorageConfigForWrite,
-} from "~/services/accounts/accountDefaults"
-import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/compatibilityConfig"
+} from "~/services/accounts/editing/accountDefaults"
+import { createCompatibilityCheckInConfig } from "~/services/checkin/autoCheckin/configuration/compatibilityConfig"
 import { STORAGE_KEYS } from "~/services/core/storageKeys"
-import { DEFAULT_PREFERENCES } from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
 import { AutoCheckinMessageTypes } from "~/services/runtimeMessaging/messageTypes"
 import type { AccountStorageConfig, SiteAccount } from "~/types"
 import { expect, test } from "~~/e2e/fixtures/extensionTest"
@@ -33,6 +33,7 @@ import {
   setPlasmoStorageValue,
 } from "~~/e2e/utils/extensionState"
 import { waitForExtensionRoot } from "~~/e2e/utils/lazyLoading"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const ACCOUNT_QUICK_CHECKIN_E2E_STATE_KEY =
   "__aah_account_quick_checkin_e2e_state__"
@@ -230,7 +231,7 @@ test("keeps account management controls reachable across constrained widths", as
   page,
 }) => {
   const viewportSizes = [DESKTOP_VIEWPORT_SIZE, MOBILE_VIEWPORT_SIZE]
-  await page.setViewportSize(viewportSizes[0])
+  await page.setViewportSize(atIndex(viewportSizes, 0))
 
   const serviceWorker = await getServiceWorker(context)
   await seedStoredAccounts(serviceWorker, [
@@ -329,7 +330,7 @@ test("keeps account management controls reachable across constrained widths", as
     expect(
       await page.evaluate(
         () =>
-          document.documentElement.scrollWidth ===
+          document.documentElement.scrollWidth <=
           document.documentElement.clientWidth,
       ),
     ).toBe(true)
@@ -621,14 +622,23 @@ test("keeps the full account list stable when an account moves to the disabled g
     getAccountManagementListItemTestId(targetId),
   )
   await expect(movedRow).toBeVisible()
-  const movedRowBox = await movedRow.boundingBox()
   const viewport = page.viewportSize()
-  expect(movedRowBox).not.toBeNull()
   expect(viewport).not.toBeNull()
-  expect(movedRowBox?.y ?? -1).toBeGreaterThanOrEqual(0)
-  expect(
-    (movedRowBox?.y ?? 0) + (movedRowBox?.height ?? 0),
-  ).toBeLessThanOrEqual(viewport?.height ?? 0)
+  // Scrolling can remount virtualized rows between visibility and geometry
+  // reads. Check the complete viewport condition against one current box.
+  await expect
+    .poll(
+      async () => {
+        const box = await movedRow.boundingBox()
+        return (
+          box !== null &&
+          box.y >= 0 &&
+          box.y + box.height <= (viewport?.height ?? 0)
+        )
+      },
+      { message: "disabled account row is fully inside the viewport" },
+    )
+    .toBe(true)
 
   await openAccountActionsMenu(page, "AAA Move To Disabled Target")
   await page
@@ -1214,18 +1224,27 @@ test("excludes recovered internal tabs while preserving ordinary same-site brows
       json: { success: true, data: { id: 1, username: "browser-user" } },
     }),
   )
-  // Seed only the browser-session marker, as after a worker restart. The live
-  // background memory set deliberately has no ownership entry for this tab.
-  const temporaryId = await worker.evaluate(async (url) => {
-    const tab = await chrome.tabs.create({ url: "about:blank", active: false })
-    if (tab.id == null) throw new Error("Missing fixture tab ID")
-    await chrome.storage.session.set({
-      [`internalBrowsingTab:${tab.id}`]: true,
-    })
-    await chrome.tabs.update(tab.id, { url })
-    return tab.id
-  }, siteUrl)
+  // Finish options startup before seeding a persisted-only marker; the initial
+  // reclamation sweep must not encounter this fixture while it is being made.
   await openAccountManagement(page, extensionId)
+  // Seed only the durable ownership marker, as after a worker restart. The live
+  // background memory set deliberately has no ownership entry for this tab.
+  const [temporaryPage, temporaryId] = await Promise.all([
+    context.waitForEvent("page"),
+    worker.evaluate(async () => {
+      const tab = await chrome.tabs.create({
+        url: "about:blank",
+        active: false,
+      })
+      if (tab.id == null) throw new Error("Missing fixture tab ID")
+      await chrome.storage.local.set({
+        [`internalBrowsingTab:${tab.id}`]: true,
+      })
+      return tab.id
+    }),
+  ])
+  // Complete the fixture navigation before polling its content-script identity.
+  await temporaryPage.goto(siteUrl)
   const rows = page.getByTestId(/^account-management-account-list-item-/)
   const ownedRow = page.getByTestId(
     getAccountManagementListItemTestId("context-owned"),

@@ -1,8 +1,12 @@
 import type { AccountSiteType } from "~/constants/siteType"
 import type { ContentSessionTransientAuth } from "~/services/accountSiteOnboarding/contracts"
-import type { ApiServiceFetchContext } from "~/services/apiTransport/type"
+import type { AccountDetectionDiagnostics } from "~/services/accountSiteOnboarding/diagnostics"
+import type {
+  ApiServiceFetchContext,
+  ApiTransportBrowserFetchContext,
+} from "~/services/apiTransport/type"
 import type { ProtectionBypassExecution } from "~/services/protectionBypass/contracts"
-import type { Sub2ApiAuthConfig } from "~/types"
+import type { KimiOpenPlatformAuthConfig, Sub2ApiAuthConfig } from "~/types"
 import type { TempWindowRequestSource } from "~/types/tempWindowFetch"
 
 export const ACCOUNT_BROWSER_SESSION_SOURCES = {
@@ -25,6 +29,7 @@ export type AccountBrowserSession = {
   accessToken?: string
   transientAuth?: ContentSessionTransientAuth
   sub2apiAuth?: Sub2ApiAuthConfig
+  kimiOpenPlatformAuth?: KimiOpenPlatformAuthConfig
   fetchContext?: AccountBrowserSessionFetchContext
 }
 
@@ -42,6 +47,7 @@ export type AccountBrowserSessionErrorHandler = (
 ) => void
 
 export type ReadAccountBrowserSessionFromTabOptions = {
+  diagnostics?: AccountDetectionDiagnostics
   tabId: number
   baseUrl: string
   siteType: AccountSiteType
@@ -51,33 +57,47 @@ export type ReadAccountBrowserSessionFromTabOptions = {
     | typeof ACCOUNT_BROWSER_SESSION_SOURCES.EXISTING_TAB
   >
   fetchContext?: AccountBrowserSessionFetchContext
-  /** Enables the one-shot modern New API refresh probe for explicit current-tab detection. */
-  allowNewApiAuthProbe?: boolean
+  /** Enables registered unknown-site session probes for explicit current-tab onboarding. */
+  allowSessionProbe?: boolean
+  /** Bind a recovered tab read to the origin selected before script injection. */
+  expectedOrigin?: string
   /** Carries caller intent for downstream temp-context workflows; tab reads do not consume it. */
   protectionBypassExecution?: ProtectionBypassExecution
   onError?: AccountBrowserSessionErrorHandler
 }
 
 export type ReadAccountBrowserSessionFromExistingTabsOptions = {
+  diagnostics?: AccountDetectionDiagnostics
   baseUrl: string
   siteType: AccountSiteType
-  browserContext?: {
-    incognito?: boolean
-    cookieStoreId?: string
-  }
+  browserContext?: ApiTransportBrowserFetchContext
+  /** Reuse a tab query snapshot; origin and browser context are still checked. */
+  candidateTabs?: readonly browser.tabs.Tab[]
   isUsableSession?: AccountBrowserSessionPredicate
   protectionBypassExecution?: ProtectionBypassExecution
   onError?: AccountBrowserSessionErrorHandler
 }
 
-export type ResolveAccountBrowserSessionOptions = {
+/** Reads one authorized temp session; callers own fallback selection. */
+export type ReadAccountBrowserSessionFromTempWindowOptions = {
+  diagnostics?: AccountDetectionDiagnostics
   baseUrl: string
   siteType: AccountSiteType
-  currentTab?: {
-    tabId: number
-    incognito?: boolean
-    cookieStoreId?: string
-  }
+  browserContext?: ApiTransportBrowserFetchContext
+  fetchContext?: AccountBrowserSessionFetchContext
+  /** Enables registered unknown-site session probes for explicit onboarding. */
+  allowSessionProbe?: boolean
+  protectionBypassExecution?: ProtectionBypassExecution
+  suppressMinimize?: boolean
+  requestIdPrefix?: string
+  onError?: AccountBrowserSessionErrorHandler
+}
+
+export type ResolveAccountBrowserSessionOptions = {
+  diagnostics?: AccountDetectionDiagnostics
+  baseUrl: string
+  siteType: AccountSiteType
+  currentTab?: ApiTransportBrowserFetchContext & { tabId: number }
   useExistingTabs?: boolean
   useTempWindow?: boolean
   tempWindowRequestSource?: TempWindowRequestSource

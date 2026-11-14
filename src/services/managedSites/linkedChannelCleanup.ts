@@ -4,10 +4,12 @@ import type { ManagedSiteType } from "~/constants/siteType"
 import { accountQueries } from "~/services/accounts/accountStorage/accountQueries"
 import { createAccountApiRequestFromStoredAccount } from "~/services/accounts/utils/apiServiceRequest"
 import {
+  ACCOUNT_KEY_RESOURCE_FAILURE_CODES,
   AccountKeyResourceError,
   type AccountKeyResourceRef,
 } from "~/services/apiAdapters/contracts/accountKeyResource"
 import {
+  MANAGED_RESOURCE_FAILURE_CODES,
   ManagedResourceError,
   type ManagedResourceRef,
   type ManagedResourceWorkspace,
@@ -21,8 +23,9 @@ import {
 import { runAbortableTask } from "~/services/apiTransport/abortableTask"
 import { LINKED_CHANNEL_CLEANUP_STORAGE_KEY } from "~/services/core/storageKeys"
 import { withExtensionStorageWriteLock } from "~/services/core/storageWriteLock"
+import { getCurrentManagedSiteType } from "~/services/managedSites/configuration/runtimeConfig"
 import { getManagedResourceRefKey } from "~/services/managedSites/managedResourceIdentity"
-import { getCurrentManagedSiteType } from "~/services/managedSites/runtimeConfig"
+import { MANAGED_SITE_MUTATION_OUTCOMES } from "~/services/managedSites/mutations/contracts"
 import { hasUsableManagedSiteChannelKey } from "~/services/managedSites/utils/channelKeys"
 import {
   getManagedSiteChannelKeyComparisonMode,
@@ -35,6 +38,8 @@ const bounded = <T>(
 ) => runAbortableTask((signal) => action({ signal }), { timeoutMs: 30_000 })
 type Source = {
   accountId: string
+  /** Browser/account origin at deletion time; the gateway URL may differ. */
+  accountBaseUrl?: string
   ref?: AccountKeyResourceRef
   tokenId?: number
 }
@@ -156,7 +161,9 @@ async function matchingIndices(
   siteType: ManagedSiteType,
 ) {
   if (!keys.length || keys.some((key) => !hasUsableManagedSiteChannelKey(key)))
-    throw new ManagedResourceError({ code: "unavailable" })
+    throw new ManagedResourceError({
+      code: MANAGED_RESOURCE_FAILURE_CODES.Unavailable,
+    })
   const hashes = await Promise.all(
     keys.map((key) => hashLinkedChannelKey(key, siteType)),
   )
@@ -176,13 +183,17 @@ export async function prepareLinkedChannelCleanup(
   const config = await getManagedSiteCapabilities(siteType).config.get()
   if (!config) return null
   if (!hasUsableManagedSiteChannelKey(input.key))
-    throw new ManagedResourceError({ code: "unavailable" })
+    throw new ManagedResourceError({
+      code: MANAGED_RESOURCE_FAILURE_CODES.Unavailable,
+    })
   const registration = getManagedResourceRegistration(siteType, "channel")
   const workspace = registration
     ? await bounded((options) => registration.open(options))
     : null
   if (!workspace?.openKeyCleanup)
-    throw new ManagedResourceError({ code: "unavailable" })
+    throw new ManagedResourceError({
+      code: MANAGED_RESOURCE_FAILURE_CODES.Unavailable,
+    })
   const task: LinkedChannelCleanupTask = {
     id,
     source: input.source,
@@ -200,14 +211,7 @@ export async function prepareLinkedChannelCleanup(
     const page = await bounded((options) => workspace.list({ cursor }, options))
     received += page.items.length
     for (const item of page.items) {
-      const urls =
-        item.keyCleanupBaseUrls ??
-        item.fields.flatMap((field) =>
-          field.kind === "text" &&
-          (field.fieldId === "baseURL" || field.fieldId.endsWith(".baseUrl"))
-            ? [field.value]
-            : [],
-        )
+      const urls = item.keyCleanupBaseUrls ?? []
       if (urls.some((url) => url.trim()) && !matchesUrl(urls, input.baseUrl))
         continue
       const identity = getManagedResourceRefKey(item.ref)
@@ -224,10 +228,14 @@ export async function prepareLinkedChannelCleanup(
     }
     cursor = page.nextCursor
     if (cursor && cursors.has(cursor))
-      throw new ManagedResourceError({ code: "unavailable" })
+      throw new ManagedResourceError({
+        code: MANAGED_RESOURCE_FAILURE_CODES.Unavailable,
+      })
     if (cursor) cursors.add(cursor)
     if (!cursor && page.total !== undefined && received < page.total)
-      throw new ManagedResourceError({ code: "unavailable" })
+      throw new ManagedResourceError({
+        code: MANAGED_RESOURCE_FAILURE_CODES.Unavailable,
+      })
   } while (cursor)
   if (!task.targets.length) return null
   await saveTask(task)
@@ -241,7 +249,11 @@ async function sourceIsAbsent(
   const account = (await accountQueries.getAllAccounts()).find(
     (item) => item.id === task.source.accountId,
   )
-  if (!account || !matchesUrl([account.site_url], task.baseUrl)) return false
+  if (
+    !account ||
+    !matchesUrl([account.site_url], task.source.accountBaseUrl ?? task.baseUrl)
+  )
+    return false
   const { request } = createAccountApiRequestFromStoredAccount(account)
   const capability = getSiteTypeCapabilities(account.site_type).account
   if (task.source.ref) {
@@ -262,7 +274,7 @@ async function sourceIsAbsent(
     } catch (error) {
       if (
         error instanceof AccountKeyResourceError &&
-        error.failure.code === "not_found"
+        error.failure.code === ACCOUNT_KEY_RESOURCE_FAILURE_CODES.NotFound
       )
         return true
       throw error
@@ -293,7 +305,9 @@ async function cleanTarget(
       workspace.openKeyCleanup!(ref, options),
     )
     if (!matchesUrl(current.baseUrls, task.baseUrl))
-      throw new ManagedResourceError({ code: "resource_changed" })
+      throw new ManagedResourceError({
+        code: MANAGED_RESOURCE_FAILURE_CODES.ResourceChanged,
+      })
     const indices = await matchingIndices(
       current.keys,
       task.keyHash,
@@ -309,8 +323,10 @@ async function cleanTarget(
           ? workspace.delete(ref, options)
           : current.remove(indices, options),
       )
-      if (result.outcome === "succeeded") return
-      failure = new ManagedResourceError({ code: "mutation_state_uncertain" })
+      if (result.outcome === MANAGED_SITE_MUTATION_OUTCOMES.Succeeded) return
+      failure = new ManagedResourceError({
+        code: MANAGED_RESOURCE_FAILURE_CODES.MutationStateUncertain,
+      })
     } catch (error) {
       failure = error
     }
@@ -324,17 +340,21 @@ async function cleanTarget(
       )
         throw (
           failure ??
-          new ManagedResourceError({ code: "mutation_state_uncertain" })
+          new ManagedResourceError({
+            code: MANAGED_RESOURCE_FAILURE_CODES.MutationStateUncertain,
+          })
         )
       const retained = current.keys.filter(
         (_, index) => !indices.includes(index),
       )
       if (retained.some((key) => !after.keys.includes(key)))
-        throw new ManagedResourceError({ code: "resource_changed" })
+        throw new ManagedResourceError({
+          code: MANAGED_RESOURCE_FAILURE_CODES.ResourceChanged,
+        })
     } catch (error) {
       if (
         error instanceof ManagedResourceError &&
-        error.failure.code === "not_found"
+        error.failure.code === MANAGED_RESOURCE_FAILURE_CODES.NotFound
       )
         return
       throw error
@@ -342,7 +362,7 @@ async function cleanTarget(
   } catch (error) {
     if (
       error instanceof ManagedResourceError &&
-      error.failure.code === "not_found"
+      error.failure.code === MANAGED_RESOURCE_FAILURE_CODES.NotFound
     )
       return
     throw error

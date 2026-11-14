@@ -1,12 +1,19 @@
 import { http, HttpResponse } from "msw"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { ACCOUNT_LOGIN_METHODS } from "~/constants/accountLogin"
 import { QUOTA_PER_USD } from "~/constants/money"
 import { SITE_TYPES } from "~/constants/siteType"
+import { isSelectedCheckInStatusCurrent } from "~/features/AccountManagement/checkInStatus"
 import { ACCOUNT_BROWSER_SESSION_SOURCES } from "~/services/accountBrowserSession"
-import { AccountUpdateUserTimestampMode } from "~/services/accounts/accountDefaults"
-import { accountCheckInState } from "~/services/accounts/accountStorage/accountCheckInState"
-import { refreshAccountData as refreshVoApiV2AccountData } from "~/services/apiService/voapiV2"
+import { accountMutations } from "~/services/accounts/accountStorage/accountMutations"
+import { AccountUpdateUserTimestampMode } from "~/services/accounts/editing/accountDefaults"
+import { dayaCapabilities } from "~/services/apiAdapters/daya"
+import { pmApiCapabilities } from "~/services/apiAdapters/pmapi"
+import { refreshAccountData as refreshNewApiAccountData } from "~/services/apiService/newApiFamily/default/accountRefresh"
+import { getSub2ApiAuthSession } from "~/services/apiService/sub2api/auth/authSession"
+import { refreshAccountData as refreshVoApiV2AccountData } from "~/services/apiService/voapiV2/accountData"
+import * as postSaveDiscovery from "~/services/checkin/autoCheckin/discovery/postSaveDiscovery"
 import { AccountWriteRejectedError } from "~/services/core/accountWriteGuard"
 import {
   ACCOUNT_STORAGE_KEYS,
@@ -14,10 +21,8 @@ import {
   USER_PREFERENCES_STORAGE_KEYS,
 } from "~/services/core/storageKeys"
 import * as dailyBalanceCapture from "~/services/history/dailyBalanceHistory/capture"
-import {
-  DEFAULT_PREFERENCES,
-  userPreferences,
-} from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { userPreferences } from "~/services/preferences/userPreferences"
 import { PROTECTION_BYPASS_USER_COMMANDS } from "~/services/protectionBypass/contracts"
 import { API_TYPES } from "~/services/verification/aiApiVerification"
 import {
@@ -46,8 +51,10 @@ import {
   buildCompleteTodayStatsAvailability,
   buildTodayStatsAvailabilityReplacementCases,
 } from "~~/tests/test-utils/accountTodayStats"
+import { installCookieTransport } from "~~/tests/test-utils/cookieTransport"
 import { createDeferred } from "~~/tests/test-utils/deferred"
 import { requireHistoryTarget } from "~~/tests/test-utils/history"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const storageData = new Map<string, any>()
 
@@ -111,6 +118,14 @@ vi.mock("~/services/apiAdapters/registry", () => ({
   getSiteTypeCapabilities: mockgetSiteTypeCapabilities,
 }))
 
+// History coordination is covered at the refresh boundary; storage tests must
+// not leave detached log requests running against their account fixtures.
+vi.mock("~/services/history/usageHistory/scheduler", () => ({
+  usageHistoryScheduler: {
+    runAfterRefreshSync: vi.fn().mockResolvedValue(null),
+  },
+}))
+
 vi.mock("~/services/accountBrowserSession", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("~/services/accountBrowserSession")>()
@@ -168,7 +183,7 @@ const createAccount = (overrides: Partial<SiteAccount> = {}): SiteAccount => {
 
   return {
     id: overrides.id || "account-1",
-    configVersion: overrides.configVersion ?? 7,
+    configVersion: overrides.configVersion ?? 8,
     disabled: overrides.disabled === true,
     excludeFromTotalBalance: overrides.excludeFromTotalBalance === true,
     excludeFromTodayIncome: overrides.excludeFromTodayIncome === true,
@@ -192,6 +207,7 @@ const createAccount = (overrides: Partial<SiteAccount> = {}): SiteAccount => {
       todayStatsAvailability:
         overrides.account_info?.todayStatsAvailability ??
         buildCompleteTodayStatsAvailability(),
+      balanceUnavailable: overrides.account_info?.balanceUnavailable,
       usage: overrides.account_info?.usage,
       subscription: overrides.account_info?.subscription,
       recentUsageRecords: overrides.account_info?.recentUsageRecords,
@@ -202,8 +218,11 @@ const createAccount = (overrides: Partial<SiteAccount> = {}): SiteAccount => {
     created_at: overrides.created_at ?? Date.now(),
     notes: overrides.notes ?? "",
     manualBalanceUsd: overrides.manualBalanceUsd,
+    login: overrides.login,
     cookieAuth: overrides.cookieAuth,
     sub2apiAuth: overrides.sub2apiAuth,
+    aimlApiAuth: overrides.aimlApiAuth,
+    kimiOpenPlatformAuth: overrides.kimiOpenPlatformAuth,
     tagIds: overrides.tagIds ?? [],
     tags: overrides.tags,
     authType: overrides.authType ?? AuthTypeEnum.AccessToken,
@@ -229,6 +248,278 @@ const availabilityReplacementCases =
   buildTodayStatsAvailabilityReplacementCases()
 
 describe("accountStorage core behaviors", () => {
+  it("preserves newly configured credentials when saving an old check-in draft", async () => {
+    const login = {
+      methodId: ACCOUNT_LOGIN_METHODS.Password,
+      credentials: { username: "alice", password: "new-secret" },
+    }
+    const account = createAccount({ login })
+    seedStorage([account])
+    expect(
+      await accountMutations.updateAccountWithCheckInDraft(
+        account.id,
+        { notes: "edited note" },
+        { ...account.checkIn, loginCheckIn: { provider: "github" } },
+        { userTimestampMode: AccountUpdateUserTimestampMode.Touch },
+      ),
+    ).toBe(true)
+    const saved = await accountStorage.getAccountById(account.id)
+    expect(saved?.notes).toBe("edited note")
+    expect(saved?.login).toEqual(login)
+  })
+  it("preserves saved password login during unrelated check-in edits", async () => {
+    const login = {
+      methodId: ACCOUNT_LOGIN_METHODS.Password,
+      credentials: { username: "alice", password: "secret" },
+    }
+    const account = createAccount({ login })
+    seedStorage([account])
+    expect(
+      await accountMutations.updateAccountCheckInDraft(account.id, {
+        ...account.checkIn,
+        automaticExecutionEnabled: false,
+      }),
+    ).toBe(true)
+    expect((await accountStorage.getAccountById(account.id))?.login).toEqual(
+      login,
+    )
+  })
+
+  it("persists explicit account login edits independently of check-in", async () => {
+    const account = createAccount({ login: { methodId: "github" } })
+    seedStorage([account])
+    for (const login of [{ methodId: "linuxdo" }, undefined]) {
+      expect(
+        await accountMutations.updateAccountWithCheckInDraft(
+          account.id,
+          { login },
+          account.checkIn,
+          { userTimestampMode: AccountUpdateUserTimestampMode.Touch },
+        ),
+      ).toBe(true)
+      const changed = await accountStorage.getAccountById(account.id)
+      expect(changed?.login).toEqual(login)
+      expect(changed?.checkIn.loginCheckIn).toBeUndefined()
+    }
+  })
+
+  it.each(
+    [false, true].flatMap((replace) =>
+      ["access", "refresh", "organization"].map((change) => ({
+        replace,
+        change,
+      })),
+    ),
+  )(
+    "preserves a changed Kimi session while saving an unchanged draft ($change, replacement=$replace)",
+    async ({ replace, change }) => {
+      const account = createAccount({
+        site_type: SITE_TYPES.KIMI_GLOBAL,
+        site_url: "https://platform.kimi.ai",
+        account_info: {
+          ...createAccount().account_info,
+          id: "user",
+          access_token:
+            change === "access" ? "rotated-access" : "loaded-access",
+          username: "user",
+        },
+        kimiOpenPlatformAuth: {
+          refreshToken:
+            change === "refresh" ? "rotated-refresh" : "loaded-refresh",
+          organizationId: change === "organization" ? "new-org" : "org",
+        },
+      })
+      seedStorage([account])
+      const saved = await accountMutations.updateAccountWithCheckInDraft(
+        account.id,
+        {
+          notes: "edited note",
+          account_info: {
+            access_token: replace ? "replacement-access" : "loaded-access",
+          },
+          kimiOpenPlatformAuth: {
+            refreshToken: replace ? "replacement-refresh" : "loaded-refresh",
+            organizationId: "org",
+          },
+        },
+        account.checkIn,
+        {
+          loadedKimiAuth: {
+            accessToken: "loaded-access",
+            refreshToken: "loaded-refresh",
+            organizationId: "org",
+          },
+          userTimestampMode: AccountUpdateUserTimestampMode.Touch,
+        },
+      )
+      expect(saved).toBe(true)
+      const latest = await accountStorage.getAccountById(account.id)
+      expect(latest?.notes).toBe("edited note")
+      expect(latest?.account_info.access_token).toBe(
+        replace ? "replacement-access" : account.account_info.access_token,
+      )
+      expect(latest?.kimiOpenPlatformAuth?.refreshToken).toBe(
+        replace
+          ? "replacement-refresh"
+          : account.kimiOpenPlatformAuth?.refreshToken,
+      )
+      expect(latest?.kimiOpenPlatformAuth?.organizationId).toBe(
+        replace ? "org" : account.kimiOpenPlatformAuth?.organizationId,
+      )
+    },
+  )
+  it.each([false, true])(
+    "preserves recovered Sub2API credentials from an unchanged draft (renewable=%s)",
+    async (renewable) => {
+      const account = createAccount({
+        site_type: SITE_TYPES.SUB2API,
+        account_info: {
+          ...createAccount().account_info,
+          access_token: "recovered-access",
+        },
+        sub2apiAuth: {
+          refreshToken: "recovered-refresh",
+          tokenExpiresAt: 2000000000000,
+        },
+      })
+      seedStorage([account])
+      const loadedSub2ApiAuth = {
+        siteUrl: account.site_url,
+        userId: account.account_info.id,
+        accessToken: "loaded-access",
+        ...(renewable
+          ? { refreshToken: "loaded-refresh", tokenExpiresAt: 1000000000000 }
+          : {}),
+      }
+      expect(
+        await accountMutations.updateAccountWithCheckInDraft(
+          account.id,
+          {
+            notes: "edited note",
+            account_info: { access_token: "loaded-access" },
+            ...(renewable
+              ? {
+                  sub2apiAuth: {
+                    refreshToken: "loaded-refresh",
+                    tokenExpiresAt: 1000000000000,
+                  },
+                }
+              : {}),
+          },
+          account.checkIn,
+          {
+            loadedSub2ApiAuth,
+            userTimestampMode: AccountUpdateUserTimestampMode.Touch,
+          },
+        ),
+      ).toBe(true)
+      const latest = await accountStorage.getAccountById(account.id)
+      expect(latest?.notes).toBe("edited note")
+      expect(latest?.account_info.access_token).toBe("recovered-access")
+      expect(latest?.sub2apiAuth).toEqual(account.sub2apiAuth)
+    },
+  )
+
+  it.each([
+    "access",
+    "refresh",
+    "expiry",
+    "url",
+    "identity",
+    "siteType",
+    "authType",
+  ])("retains explicit Sub2API draft changes (%s)", async (field) => {
+    const account = createAccount({
+      site_type: SITE_TYPES.SUB2API,
+      account_info: {
+        ...createAccount().account_info,
+        access_token: "recovered-access",
+      },
+      sub2apiAuth: {
+        refreshToken: "recovered-refresh",
+        tokenExpiresAt: 2000000000000,
+      },
+    })
+    seedStorage([account])
+    const submittedAuth = {
+      refreshToken:
+        field === "refresh" ? "replacement-refresh" : "loaded-refresh",
+      tokenExpiresAt: field === "expiry" ? 3000000000000 : 1000000000000,
+    }
+    const accessToken =
+      field === "access" ? "replacement-access" : "loaded-access"
+    await accountMutations.updateAccountWithCheckInDraft(
+      account.id,
+      {
+        account_info: {
+          access_token: accessToken,
+          id: field === "identity" ? "other-user" : account.account_info.id,
+        },
+        site_url: field === "url" ? "https://other.example" : account.site_url,
+        site_type:
+          field === "siteType" ? SITE_TYPES.NEW_API : SITE_TYPES.SUB2API,
+        authType:
+          field === "authType" ? AuthTypeEnum.Cookie : AuthTypeEnum.AccessToken,
+        sub2apiAuth: submittedAuth,
+      },
+      account.checkIn,
+      {
+        userTimestampMode: AccountUpdateUserTimestampMode.Touch,
+        loadedSub2ApiAuth: {
+          siteUrl: account.site_url,
+          userId: account.account_info.id,
+          accessToken: "loaded-access",
+          refreshToken: "loaded-refresh",
+          tokenExpiresAt: 1000000000000,
+        },
+      },
+    )
+    const latest = await accountStorage.getAccountById(account.id)
+    expect(latest?.account_info.access_token).toBe(accessToken)
+    if (field !== "siteType") expect(latest?.sub2apiAuth).toEqual(submittedAuth)
+  })
+
+  it.each([0, -1])(
+    "preserves rotated credentials when save drops loaded expiry %s",
+    async (tokenExpiresAt) => {
+      const account = createAccount({
+        site_type: SITE_TYPES.SUB2API,
+        account_info: {
+          ...createAccount().account_info,
+          access_token: "rotated-access",
+        },
+        sub2apiAuth: {
+          refreshToken: "rotated-refresh",
+          tokenExpiresAt: 2000000000000,
+        },
+      })
+      seedStorage([account])
+      await accountMutations.updateAccountWithCheckInDraft(
+        account.id,
+        {
+          notes: "edited note",
+          account_info: { access_token: "loaded-access" },
+          sub2apiAuth: { refreshToken: "loaded-refresh" },
+        },
+        account.checkIn,
+        {
+          userTimestampMode: AccountUpdateUserTimestampMode.Touch,
+          loadedSub2ApiAuth: {
+            siteUrl: account.site_url,
+            userId: account.account_info.id,
+            accessToken: "loaded-access",
+            refreshToken: "loaded-refresh",
+            tokenExpiresAt,
+          },
+        },
+      )
+      const latest = await accountStorage.getAccountById(account.id)
+      expect(latest?.notes).toBe("edited note")
+      expect(latest?.account_info.access_token).toBe("rotated-access")
+      expect(latest?.sub2apiAuth).toEqual(account.sub2apiAuth)
+    },
+  )
+
   beforeEach(() => {
     storageData.clear()
     storageHooks.beforeGet = async () => {}
@@ -285,6 +576,42 @@ describe("accountStorage core behaviors", () => {
       expectedOrigin: "https://auth.example.invalid/dashboard",
       expectedUserId: "user-1",
     }
+
+    it.each(["access", "refresh"])(
+      "preserves a Sub2API session edited during rotation (%s)",
+      async (changed) => {
+        const account = createAccount({
+          id: "sub2-account",
+          site_type: SITE_TYPES.SUB2API,
+          site_url: "https://auth.example.invalid",
+          account_info: {
+            id: "user-1",
+            access_token: changed === "access" ? "newer-access" : "old-access",
+          } as SiteAccount["account_info"],
+          sub2apiAuth: {
+            refreshToken:
+              changed === "refresh" ? "newer-refresh" : "old-refresh",
+          },
+        })
+        seedStorage([account])
+        await expect(
+          accountStorage.updateSub2ApiAuth(account.id, {
+            ...authUpdate,
+            expectedAuth: {
+              accessToken: "old-access",
+              refreshToken: "old-refresh",
+            },
+          }),
+        ).resolves.toEqual({ status: "identity_mismatch" })
+        const saved = await accountStorage.getAccountById(account.id)
+        expect(saved?.account_info.access_token).toBe(
+          account.account_info.access_token,
+        )
+        expect(saved?.sub2apiAuth?.refreshToken).toBe(
+          account.sub2apiAuth?.refreshToken,
+        )
+      },
+    )
 
     it("persists a complete rotation only when the locked account identity still matches", async () => {
       seedStorage([
@@ -558,13 +885,13 @@ describe("accountStorage core behaviors", () => {
 
     const accounts = await accountStorage.getAllAccounts()
     expect(accounts).toHaveLength(1)
-    expect(accounts[0].tagIds).toHaveLength(1)
+    expect(atIndex(accounts, 0).tagIds).toHaveLength(1)
     expect((accounts[0] as any).tags).toBeUndefined()
 
     const persistedConfig = storageData.get(
       ACCOUNT_STORAGE_KEYS.ACCOUNTS,
     ) as AccountStorageConfig
-    expect(persistedConfig.accounts[0].tagIds).toHaveLength(1)
+    expect(atIndex(persistedConfig.accounts, 0).tagIds).toHaveLength(1)
     expect((persistedConfig.accounts[0] as any).tags).toBeUndefined()
 
     const persistedTagStore = storageData.get("global_tag_store") as any
@@ -611,7 +938,7 @@ describe("accountStorage core behaviors", () => {
       expect(
         persistedConfig.accounts.find((account) => account.id === "legacy")
           ?.configVersion,
-      ).toBe(7)
+      ).toBe(8)
     } finally {
       storageHooks.afterGet = async () => {}
     }
@@ -635,7 +962,7 @@ describe("accountStorage core behaviors", () => {
       ACCOUNT_STORAGE_KEYS.ACCOUNTS,
     ) as AccountStorageConfig
     const persistedAccount = persistedConfig.accounts[0] as any
-    expect(persistedAccount.configVersion).toBe(7)
+    expect(persistedAccount.configVersion).toBe(8)
     expect(persistedAccount.checkIn).toMatchObject({
       automaticExecutionEnabled: false,
       selection: { mode: "automatic" as const },
@@ -685,14 +1012,51 @@ describe("accountStorage core behaviors", () => {
     expect(display).not.toHaveProperty("supports_check_in")
   })
 
+  it("preserves AIMLAPI supplemental credentials through presentation and background refresh", async () => {
+    const account = createAccount({
+      id: "aimlapi-refresh",
+      site_type: SITE_TYPES.AIMLAPI,
+      site_url: "https://aimlapi.com",
+      aimlApiAuth: { apiKey: "regular" },
+    })
+    seedStorage([account])
+    expect(accountStorage.convertToDisplayData(account)).toMatchObject({
+      aimlApiKey: "regular",
+    })
+    await accountStorage.refreshAccount(account.id, true)
+    expect(mockRefreshAccountData).toHaveBeenCalledWith(
+      expect.objectContaining({ aimlApiKey: "regular" }),
+    )
+  })
+
+  it("excludes native credits from monetary totals while preserving their units", () => {
+    const account = createAccount({ excludeFromTotalBalance: false })
+    account.account_info.nativeBalance = {
+      unit: "credits",
+      total: 36000,
+      permanent: 34000,
+      daily: 2000,
+    }
+    const display = accountStorage.convertToDisplayData(account)
+    expect(display.nativeBalance).toEqual(account.account_info.nativeBalance)
+    expect(display.excludeFromTotalBalance).toBe(true)
+    expect(account.excludeFromTotalBalance).toBe(false)
+  })
+
   it("projects missing availability through generic and AIHubMix legacy policies", () => {
     const generic = createAccount({ site_type: SITE_TYPES.NEW_API })
     const aihubmix = createAccount({ site_type: SITE_TYPES.AIHUBMIX })
     delete generic.account_info.todayStatsAvailability
     delete aihubmix.account_info.todayStatsAvailability
 
-    const [genericDisplay, aihubmixDisplay] =
-      accountStorage.convertToDisplayData([generic, aihubmix])
+    const destructuredSource0 = accountStorage.convertToDisplayData([
+      generic,
+      aihubmix,
+    ])
+    const [genericDisplay, aihubmixDisplay] = [
+      atIndex(destructuredSource0, 0),
+      atIndex(destructuredSource0, 1),
+    ]
 
     expect(genericDisplay.todayStatsAvailability).toEqual({
       consumption: {
@@ -1216,7 +1580,7 @@ describe("accountStorage core behaviors", () => {
     seedStorage([createAccount({ id: "guarded", site_name: "Before" })])
     const observed: Array<{ id: string; siteName: string }> = []
 
-    const updated = await accountCheckInState.updateAccountWithCheckInDraft(
+    const updated = await accountMutations.updateAccountWithCheckInDraft(
       "guarded",
       { site_name: "After" },
       createCanonicalCheckIn(),
@@ -1242,7 +1606,7 @@ describe("accountStorage core behaviors", () => {
     seedStorage([createAccount({ id: "guarded", site_name: "Before" })])
 
     await expect(
-      accountCheckInState.updateAccountWithCheckInDraft(
+      accountMutations.updateAccountWithCheckInDraft(
         "guarded",
         { site_name: "After" },
         createCanonicalCheckIn(),
@@ -1260,7 +1624,7 @@ describe("accountStorage core behaviors", () => {
     const persisted = storageData.get(
       ACCOUNT_STORAGE_KEYS.ACCOUNTS,
     ) as AccountStorageConfig
-    expect(persisted.accounts[0].site_name).toBe("Before")
+    expect(atIndex(persisted.accounts, 0).site_name).toBe("Before")
   })
 
   it("addAccount preserves its rejection when the storage write fails", async () => {
@@ -1458,6 +1822,95 @@ describe("accountStorage core behaviors", () => {
     }
   })
 
+  it.each([undefined, "checked", "not_checked"] as const)(
+    "keeps a reused check-in completion on its original day across midnight (newer status %s)",
+    async (newerToday) => {
+      const { executeAccountCheckin } = await import(
+        "~/services/checkin/autoCheckin/execution/accountExecution"
+      )
+      const methods = await import("~/services/checkin/autoCheckin/methods")
+      const completedAt = new Date(2026, 0, 2, 23, 59, 59).getTime()
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2026, 0, 3, 0, 0, 1))
+      const account = createAccount({
+        id: "reused-midnight",
+        site_type: SITE_TYPES.ANYROUTER,
+        checkIn: {
+          automaticExecutionEnabled: true,
+          selection: { mode: "automatic", methodId: "anyrouter:daily-checkin" },
+          methodKnowledge: {
+            methods: {
+              "anyrouter:daily-checkin": {
+                detection: {
+                  outcome: "matched",
+                  evidence: { source: "probe", observedAt: completedAt - 1 },
+                },
+                ...(newerToday
+                  ? {
+                      status: {
+                        outcome: "known" as const,
+                        today: newerToday,
+                        evidence: {
+                          source: "probe" as const,
+                          observedAt: Date.now(),
+                        },
+                      },
+                    }
+                  : {}),
+              },
+            },
+          },
+        },
+      })
+      seedStorage([account])
+      const execution = vi
+        .spyOn(methods, "executeSelectedCheckIn")
+        .mockResolvedValue({
+          kind: "executed",
+          methodId: "anyrouter:daily-checkin",
+          result: { status: "success" },
+          retryable: false,
+          completedAt,
+          reused: true,
+        })
+      try {
+        const outcome = await executeAccountCheckin(
+          account,
+          account.site_name,
+          TEMP_WINDOW_REQUEST_SOURCES.Background,
+          userCommandExecution(PROTECTION_BYPASS_USER_COMMANDS.ManualCheckin),
+        )
+        expect(outcome).toMatchObject({
+          reused: true,
+          result: {
+            status: "success",
+            timestamp: completedAt,
+            accountStateDurability: "persisted",
+          },
+        })
+        const saved = await accountStorage.getAccountById(account.id)
+        expect(
+          saved?.checkIn.methodKnowledge.methods["anyrouter:daily-checkin"]
+            ?.status,
+        ).toMatchObject({
+          today: newerToday ?? "checked",
+          evidence: newerToday
+            ? { source: "probe", observedAt: Date.now() }
+            : { source: "execution", observedAt: completedAt },
+        })
+        expect(
+          isSelectedCheckInStatusCurrent({
+            checkIn: saved!.checkIn,
+            siteType: SITE_TYPES.ANYROUTER,
+          }),
+        ).toBe(newerToday !== undefined)
+      } finally {
+        execution.mockRestore()
+        vi.useRealTimers()
+      }
+    },
+  )
+
   it("persists preflight status without overwriting current user intent", async () => {
     const account = createAccount({
       id: "preflight-check-in",
@@ -1654,7 +2107,7 @@ describe("accountStorage core behaviors", () => {
           {},
           account.checkIn,
         ),
-      ).resolves.toBe(true)
+      ).resolves.toMatchObject({ id: account.id })
 
       const updated = await accountStorage.getAccountById(account.id)
       expect(updated?.checkIn.customCheckIn).toMatchObject({
@@ -2224,6 +2677,36 @@ describe("accountStorage core behaviors", () => {
     })
   })
 
+  it("retains unavailable balance facts through storage and excludes their placeholder from monetary totals", async () => {
+    const missing = createAccount({
+      id: "missing-cash",
+      account_info: {
+        ...createAccount().account_info,
+        quota: 9_000_000,
+        balanceUnavailable: true,
+      },
+    })
+    seedStorage([missing])
+    const account = await accountStorage.getAccountById("missing-cash")
+    expect(account?.account_info.balanceUnavailable).toBe(true)
+    expect((await accountStorage.getAccountStats()).total_quota).toBe(0)
+    expect(
+      accountStorage.convertToDisplayData(missing).balanceUnavailable,
+    ).toBe(true)
+    await accountStorage.updateAccount(
+      "missing-cash",
+      {
+        account_info: {
+          ...missing.account_info,
+          quota: 1_000_000,
+          balanceUnavailable: false,
+        },
+      },
+      { userTimestampMode: AccountUpdateUserTimestampMode.Touch },
+    )
+    expect((await accountStorage.getAccountStats()).total_quota).toBe(1_000_000)
+  })
+
   it("getAccountStats should exclude opted-out balances without excluding today metrics", async () => {
     const includedAccount = createAccount({
       id: "balance-included",
@@ -2705,6 +3188,43 @@ describe("accountStorage core behaviors", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it.each([false, true])(
+    "runs provider cleanup after committed account deletion (bulk: %s)",
+    async (bulk) => {
+      const account = createAccount({ id: "provider-cleanup" })
+      seedStorage([account])
+      let accountsDuringCleanup: unknown
+      const cleanupDeletedAccount = vi.fn(async () => {
+        accountsDuringCleanup = structuredClone(
+          storageData.get(ACCOUNT_STORAGE_KEYS.ACCOUNTS).accounts,
+        )
+      })
+      mockgetSiteTypeCapabilities.mockReturnValue({
+        account: { persistence: { cleanupDeletedAccount } },
+      })
+      if (bulk) await accountStorage.deleteAccounts([account.id])
+      else await accountStorage.deleteAccount(account.id)
+      expect(cleanupDeletedAccount).toHaveBeenCalledWith(account)
+      expect(accountsDuringCleanup).toEqual([])
+    },
+  )
+
+  it("preserves successful deletion when provider credential cleanup fails", async () => {
+    const account = createAccount({ id: "cleanup-failure" })
+    seedStorage([account])
+    mockgetSiteTypeCapabilities.mockReturnValue({
+      account: {
+        persistence: {
+          cleanupDeletedAccount: vi
+            .fn()
+            .mockRejectedValue(new Error("storage unavailable")),
+        },
+      },
+    })
+    await expect(accountStorage.deleteAccount(account.id)).resolves.toBe(true)
+    expect(storageData.get(ACCOUNT_STORAGE_KEYS.ACCOUNTS).accounts).toEqual([])
   })
 
   it("deleteAccount records deletion without user timestamp and ignores async status cleanup failure", async () => {
@@ -3742,6 +4262,112 @@ describe("accountStorage core behaviors", () => {
     expect(updated?.checkIn.customCheckIn).toBeUndefined()
   })
 
+  it.each(["clear", "manual"] as const)(
+    "preserves a route %s made after saved-account discovery started",
+    async (edit) => {
+      const methodId = "new-api:daily-checkin" as const
+      const account = createAccount({
+        site_type: SITE_TYPES.NEW_API,
+        checkIn: {
+          automaticExecutionEnabled: true,
+          selection: { mode: "automatic" },
+          methodKnowledge: { methods: {}, lastFullDiscoveryAt: 100 },
+          routeOverrides: {
+            [methodId]: {
+              path: "/api/user/old",
+              source: "discovery",
+              observedAt: 1,
+            },
+          },
+        },
+      })
+      seedStorage([account])
+      const routes =
+        edit === "clear"
+          ? undefined
+          : {
+              [methodId]: {
+                path: "/api/user/manual",
+                source: "manual" as const,
+                observedAt: 3,
+              },
+            }
+      await accountStorage.updateAccountCheckInDraft(account.id, {
+        ...account.checkIn,
+        routeOverrides: routes,
+      })
+      await accountStorage.completeUserCheckInDiscovery(account, {
+        ...account.checkIn,
+        methodKnowledge: { methods: {}, lastFullDiscoveryAt: 200 },
+        routeOverrides: {
+          [methodId]: {
+            path: "/api/user/new",
+            source: "discovery",
+            observedAt: 2,
+          },
+        },
+      })
+      expect(
+        (await accountStorage.getAccountById(account.id))?.checkIn
+          .routeOverrides,
+      ).toEqual(routes)
+    },
+  )
+
+  it("commits a verified route from foreground discovery and rejects obsolete route observations", async () => {
+    const account = createAccount({
+      site_type: SITE_TYPES.NEW_API,
+      configVersion: 7,
+      checkIn: {
+        automaticExecutionEnabled: true,
+        selection: { mode: "automatic" },
+        methodKnowledge: { methods: {}, lastFullDiscoveryAt: 100 },
+      },
+    })
+    seedStorage([account])
+    const discovered = {
+      ...account.checkIn,
+      methodKnowledge: { methods: {}, lastFullDiscoveryAt: 200 },
+      routeOverrides: {
+        "new-api:daily-checkin": {
+          path: "/api/learned",
+          source: "discovery" as const,
+          observedAt: 2,
+        },
+      },
+    }
+    const completed = await accountStorage.completeUserCheckInDiscovery(
+      account,
+      discovered,
+    )
+    expect(completed?.applied).toBe(true)
+    expect(
+      (await accountStorage.getAccountById(account.id))?.checkIn.routeOverrides,
+    ).toEqual(discovered.routeOverrides)
+    const snapshot = completed!.account
+    for (const edit of [
+      { path: "/api/learned", source: "manual" as const, observedAt: 2 },
+      { path: "/api/learned", source: "discovery" as const, observedAt: 3 },
+    ]) {
+      await accountStorage.updateAccountCheckInDraft(account.id, {
+        ...snapshot.checkIn,
+        routeOverrides: { "new-api:daily-checkin": edit },
+      })
+      expect(
+        (
+          await accountStorage.completeUserCheckInDiscovery(snapshot, {
+            ...discovered,
+            methodKnowledge: { methods: {}, lastFullDiscoveryAt: 300 },
+          })
+        )?.applied,
+      ).toBe(false)
+      expect(
+        (await accountStorage.getAccountById(account.id))?.checkIn
+          .routeOverrides?.["new-api:daily-checkin"],
+      ).toEqual(edit)
+    }
+  })
+
   it("keeps account fields and the check-in draft unchanged when their atomic save fails", async () => {
     const account = createAccount({
       id: "atomic-dialog-save",
@@ -3793,6 +4419,71 @@ describe("accountStorage core behaviors", () => {
     )
   })
 
+  it.each([
+    { account_info: { access_token: "replacement-token" } },
+    { account_info: { id: "another-user" } },
+    { site_url: "https://another.example" },
+    { site_type: SITE_TYPES.VELOERA },
+    {
+      authType: AuthTypeEnum.Cookie,
+      cookieAuth: { sessionCookie: "replacement-session" },
+    },
+  ])(
+    "invalidates discovery completion when saved check-in credentials change (%j)",
+    async (updates) => {
+      const account = createAccount({
+        site_type: SITE_TYPES.NEW_API,
+        checkIn: {
+          automaticExecutionEnabled: true,
+          selection: { mode: "manual", methodId: "new-api:daily-checkin" },
+          routeOverrides: {
+            "new-api:daily-checkin": {
+              path: "/api/manual",
+              source: "manual",
+              observedAt: 1,
+            },
+            "veloera:daily-checkin": {
+              path: "/api/learned",
+              source: "discovery",
+              observedAt: 1,
+            },
+          },
+          methodKnowledge: {
+            methods: {},
+            lastFullDiscoveryAt: 100,
+            lastAutomaticDiscoveryAttemptAt: 100,
+          },
+        },
+      })
+      seedStorage([account])
+      await accountMutations.updateAccountWithCheckInDraft(
+        account.id,
+        updates,
+        account.checkIn,
+        { userTimestampMode: AccountUpdateUserTimestampMode.Touch },
+      )
+      const updated = await accountStorage.getAccountById(account.id)
+      expect(
+        updated?.checkIn.methodKnowledge.lastFullDiscoveryAt,
+      ).toBeUndefined()
+      expect(
+        updated?.checkIn.methodKnowledge.lastAutomaticDiscoveryAttemptAt,
+      ).toBeUndefined()
+      expect(updated?.checkIn.selection).toEqual(account.checkIn.selection)
+      expect(updated?.checkIn.routeOverrides).toEqual(
+        "site_url" in updates
+          ? undefined
+          : {
+              "new-api:daily-checkin": {
+                path: "/api/manual",
+                source: "manual",
+                observedAt: 1,
+              },
+            },
+      )
+    },
+  )
+
   it("refreshAccount merges status into a newer dialog save inside the storage lock", async () => {
     const account = createAccount({
       id: "refresh-dialog-race",
@@ -3823,6 +4514,16 @@ describe("accountStorage core behaviors", () => {
     } as any)
     account.configVersion = 7
     seedStorage([account])
+
+    // A failed readback must retain the adapter's observation and newer edits.
+    server.use(
+      http.get(`${account.site_url}/api/user/checkin`, () =>
+        HttpResponse.json({}, { status: 503 }),
+      ),
+      http.get(`${account.site_url}/api/status`, () =>
+        HttpResponse.json({ success: true, data: { checkin_enabled: true } }),
+      ),
+    )
 
     const deferred = createDeferred<any>()
     mockRefreshAccountData.mockReturnValueOnce(deferred.promise)
@@ -3877,11 +4578,438 @@ describe("accountStorage core behaviors", () => {
     expect(
       updated?.checkIn.methodKnowledge.methods["new-api:daily-checkin"]?.status,
     ).toMatchObject({
-      outcome: "known",
-      today: "checked",
-      evidence: { observedAt: 300 },
+      outcome: "unknown",
+      lastKnown: {
+        outcome: "known",
+        today: "checked",
+        evidence: { observedAt: 300 },
+      },
     })
   })
+
+  it.each([
+    { automaticExecutionEnabled: false, adapterReadsStatus: false },
+    { automaticExecutionEnabled: true, adapterReadsStatus: false },
+    { automaticExecutionEnabled: false, adapterReadsStatus: true },
+  ])(
+    "refreshAccount persists today's selected status (automatic: $automaticExecutionEnabled, adapter readback: $adapterReadsStatus)",
+    async ({ automaticExecutionEnabled, adapterReadsStatus }) => {
+      const observedAt = Date.now() - 86_400_000
+      const account = createAccount({
+        id: "common-checkin-refresh",
+        site_type: SITE_TYPES.NEW_API,
+        checkIn: {
+          automaticExecutionEnabled,
+          selection: { mode: "automatic", methodId: "new-api:daily-checkin" },
+          methodKnowledge: {
+            methods: {
+              "new-api:daily-checkin": {
+                detection: {
+                  outcome: "matched",
+                  evidence: { source: "probe", observedAt },
+                },
+                status: {
+                  outcome: "known",
+                  availability: "enabled",
+                  today: "not_checked",
+                  evidence: { source: "probe", observedAt },
+                },
+              },
+            },
+          },
+        },
+      })
+      seedStorage([account])
+      if (adapterReadsStatus) {
+        mockgetSiteTypeCapabilities.mockReturnValue({
+          account: { refresh: { refreshAccount: refreshNewApiAccountData } },
+        })
+      }
+      const readStatus = vi.fn(() =>
+        HttpResponse.json({
+          success: true,
+          data: { enabled: true, stats: { checked_in_today: true } },
+        }),
+      )
+      const claim = vi.fn(() => HttpResponse.json({ success: true }))
+      server.use(
+        http.get(`${account.site_url}/api/user/self`, () =>
+          HttpResponse.json({ success: true, data: { quota: 123 } }),
+        ),
+        http.get(`${account.site_url}/api/user/checkin`, readStatus),
+        http.post(`${account.site_url}/api/user/checkin`, claim),
+      )
+      expect(
+        isSelectedCheckInStatusCurrent({
+          checkIn: account.checkIn,
+          siteType: account.site_type,
+        }),
+      ).toBe(false)
+      const result = await accountStorage.refreshAccount(account.id, true, {
+        includeTodayCashflow: false,
+      })
+      const updated = await accountStorage.getAccountById(account.id)
+      expect(result?.refreshed).toBe(true)
+      expect(
+        updated?.checkIn.methodKnowledge.methods["new-api:daily-checkin"]
+          ?.status,
+      ).toMatchObject({ outcome: "known", today: "checked" })
+      expect(
+        isSelectedCheckInStatusCurrent({
+          checkIn: updated!.checkIn,
+          siteType: account.site_type,
+        }),
+      ).toBe(true)
+      expect(updated?.checkIn.automaticExecutionEnabled).toBe(
+        automaticExecutionEnabled,
+      )
+      expect(readStatus).toHaveBeenCalledOnce()
+      expect(claim).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([false, true])(
+    "refreshAccount reads Daya status once without automatic execution (read failure: %s)",
+    async (readFails) => {
+      installCookieTransport("daya_sid", "api.dayaai.com")
+      try {
+        const observedAt = Date.now() - 86_400_000
+        const account = createAccount({
+          id: "daya-common-refresh",
+          site_url: "https://api.dayaai.com",
+          site_type: SITE_TYPES.DAYA,
+          authType: AuthTypeEnum.Cookie,
+          checkIn: {
+            automaticExecutionEnabled: false,
+            selection: { mode: "automatic", methodId: "daya:daily-checkin" },
+            methodKnowledge: {
+              methods: {
+                "daya:daily-checkin": {
+                  detection: {
+                    outcome: "matched",
+                    evidence: { source: "probe", observedAt },
+                  },
+                  status: {
+                    outcome: "known",
+                    availability: "enabled",
+                    today: "not_checked",
+                    evidence: { source: "probe", observedAt },
+                  },
+                },
+              },
+            },
+          },
+        })
+        seedStorage([account])
+        mockgetSiteTypeCapabilities.mockReturnValue(dayaCapabilities)
+        const overview = vi.fn(() =>
+          readFails
+            ? HttpResponse.json({}, { status: 503 })
+            : HttpResponse.json({
+                code: 0,
+                data: { daily_check_in: { claimable: false } },
+              }),
+        )
+        const claim = vi.fn(() => HttpResponse.json({ code: 0, data: {} }))
+        server.use(
+          http.get(`${account.site_url}/api/v1/auth/me`, () =>
+            HttpResponse.json({
+              code: 0,
+              data: {
+                id: 1,
+                username: "tester",
+                balance: 3.5,
+                status: "active",
+              },
+            }),
+          ),
+          http.get(`${account.site_url}/api/v1/rewards/overview`, overview),
+          http.post(`${account.site_url}/api/v1/rewards/check-in`, claim),
+        )
+        const refreshResult = await accountStorage.refreshAccount(
+          account.id,
+          true,
+          {
+            includeTodayCashflow: false,
+          },
+        )
+        expect(refreshResult?.checkInStatusRefreshOutcome).toBe(
+          readFails ? "unavailable" : "read",
+        )
+        const updated = await accountStorage.getAccountById(account.id)
+        expect(
+          updated?.checkIn.methodKnowledge.methods["daya:daily-checkin"]
+            ?.status,
+        ).toMatchObject(
+          readFails
+            ? { outcome: "unknown", reason: "source_unavailable" }
+            : { outcome: "known", today: "checked" },
+        )
+        expect(
+          isSelectedCheckInStatusCurrent(
+            accountStorage.convertToDisplayData(updated!),
+          ),
+        ).toBe(!readFails)
+        expect(updated?.account_info.quota).toBe(3.5 * QUOTA_PER_USD)
+        expect(overview).toHaveBeenCalledOnce()
+        expect(claim).not.toHaveBeenCalled()
+        expect(updated?.checkIn.automaticExecutionEnabled).toBe(false)
+      } finally {
+        vi.restoreAllMocks()
+        // The cookie fixture spies on a mock; restore its default permission state too.
+        vi.mocked(browser.permissions.contains).mockResolvedValue(false)
+      }
+    },
+  )
+
+  it.each([false, true])(
+    "refreshAccount reads PM-API status once without automatic execution (read failure: %s)",
+    async (readFails) => {
+      try {
+        const observedAt = Date.now() - 86_400_000
+        const account = createAccount({
+          id: "pmapi-common-refresh",
+          site_url: "https://pmcat.top",
+          site_type: SITE_TYPES.PMAPI,
+          authType: AuthTypeEnum.AccessToken,
+          account_info: {
+            ...createAccount().account_info,
+            id: "10171",
+            access_token: "pm-console-token",
+          },
+          checkIn: {
+            automaticExecutionEnabled: false,
+            selection: { mode: "automatic", methodId: "pmapi:daily-checkin" },
+            methodKnowledge: {
+              methods: {
+                "pmapi:daily-checkin": {
+                  detection: {
+                    outcome: "matched",
+                    evidence: { source: "probe", observedAt },
+                  },
+                  status: {
+                    outcome: "known",
+                    availability: "enabled",
+                    today: "not_checked",
+                    evidence: { source: "probe", observedAt },
+                  },
+                },
+              },
+            },
+          },
+        })
+        seedStorage([account])
+        mockgetSiteTypeCapabilities.mockReturnValue(pmApiCapabilities)
+        // The identity route serves both account data and the status readback;
+        // a read failure is injected only from the status probe onward.
+        let identityCalls = 0
+        const identity = vi.fn(() => {
+          identityCalls += 1
+          return readFails && identityCalls > 1
+            ? HttpResponse.json({}, { status: 503 })
+            : HttpResponse.json({
+                success: true,
+                message: "",
+                data: {
+                  id: 10171,
+                  username: "tester",
+                  quota: 1_250_000,
+                  used_quota: 0,
+                  checked_in_today: false,
+                },
+              })
+        })
+        const claim = vi.fn(() =>
+          HttpResponse.json({ success: true, data: { quota: 50_000 } }),
+        )
+        server.use(
+          // The status readback is a two-step probe: the deployment's status
+          // first, then the account's own identity.
+          http.get(`${account.site_url}/api/status`, () =>
+            HttpResponse.json({
+              success: true,
+              data: { checkin_enabled: true },
+            }),
+          ),
+          http.get(`${account.site_url}/api/me`, identity),
+          http.post(`${account.site_url}/api/me/checkin`, claim),
+        )
+        const refreshResult = await accountStorage.refreshAccount(
+          account.id,
+          true,
+          {
+            includeTodayCashflow: false,
+          },
+        )
+        expect(refreshResult?.checkInStatusRefreshOutcome).toBe(
+          readFails ? "unavailable" : "read",
+        )
+        const updated = await accountStorage.getAccountById(account.id)
+        expect(
+          updated?.checkIn.methodKnowledge.methods["pmapi:daily-checkin"]
+            ?.status,
+        ).toMatchObject(
+          readFails
+            ? { outcome: "unknown", reason: "source_unavailable" }
+            : { outcome: "known", today: "not_checked" },
+        )
+        expect(
+          isSelectedCheckInStatusCurrent(
+            accountStorage.convertToDisplayData(updated!),
+          ),
+        ).toBe(!readFails)
+        // PM-API keeps the console's own New API quota unit untouched.
+        expect(updated?.account_info.quota).toBe(1_250_000)
+        expect(claim).not.toHaveBeenCalled()
+        expect(updated?.checkIn.automaticExecutionEnabled).toBe(false)
+      } finally {
+        vi.restoreAllMocks()
+      }
+    },
+  )
+
+  it("refreshAccount reads a Sub2API method with the recovered credentials before persisting status", async () => {
+    const observedAt = Date.now() - 86_400_000
+    const account = createAccount({
+      id: "sub2api-status-recovery",
+      site_type: SITE_TYPES.SUB2API,
+      checkIn: {
+        automaticExecutionEnabled: false,
+        selection: {
+          mode: "manual",
+          methodId: "freeapi:daily-checkin",
+        },
+        methodKnowledge: {
+          methods: {
+            "freeapi:daily-checkin": {
+              detection: {
+                outcome: "matched",
+                evidence: { source: "probe", observedAt },
+              },
+              status: {
+                outcome: "known",
+                availability: "enabled",
+                today: "not_checked",
+                evidence: { source: "probe", observedAt },
+              },
+            },
+          },
+        },
+      },
+    })
+    seedStorage([account])
+    mockRefreshAccountData.mockImplementationOnce(async (request) => {
+      // Native recovery persists its pair through the supplied session before
+      // returning account data; status readback must observe that same pair.
+      await getSub2ApiAuthSession(request)?.persistAuthUpdate(account.id, {
+        accessToken: "recovered-token",
+        refreshToken: "recovered-refresh",
+        expectedOrigin: account.site_url,
+        expectedUserId: account.account_info.id,
+      })
+      return {
+        success: true,
+        data: { quota: 123, checkIn: request.checkIn },
+        authUpdate: {
+          accessToken: "recovered-token",
+          sub2apiAuth: { refreshToken: "recovered-refresh" },
+        },
+        healthStatus: { status: SiteHealthStatus.Healthy, message: "" },
+      }
+    })
+    let authorization: string | null = null
+    const readStatus = vi.fn(({ request }: { request: Request }) => {
+      authorization = request.headers.get("authorization")
+      return HttpResponse.json({
+        code: 0,
+        message: "success",
+        data: {
+          enabled: true,
+          checked_in_today: true,
+          min_amount: 0.01,
+          max_amount: 0.1,
+        },
+      })
+    })
+    const claim = vi.fn(() => HttpResponse.json({ code: 0, data: {} }))
+    server.use(
+      http.get(`${account.site_url}/api/v1/user/checkin`, readStatus),
+      http.post(`${account.site_url}/api/v1/user/checkin`, claim),
+    )
+    const refreshResult = await accountStorage.refreshAccount(account.id, true)
+    const updated = await accountStorage.getAccountById(account.id)
+    expect(updated?.health).toMatchObject({ status: SiteHealthStatus.Healthy })
+    expect(refreshResult?.refreshed).toBe(true)
+    expect(readStatus).toHaveBeenCalledOnce()
+    expect(authorization).toBe("Bearer recovered-token")
+    expect(
+      updated?.checkIn.methodKnowledge.methods["freeapi:daily-checkin"]?.status,
+    ).toMatchObject({ outcome: "known", today: "checked" })
+    expect(updated?.checkIn.selection).toEqual(account.checkIn.selection)
+    expect(updated?.checkIn.automaticExecutionEnabled).toBe(false)
+    expect(updated?.account_info.access_token).toBe("recovered-token")
+    expect(updated?.sub2apiAuth?.refreshToken).toBe("recovered-refresh")
+    expect(claim).not.toHaveBeenCalled()
+  })
+
+  it.each(["no-selection", "no-readback", "failed-account-refresh"])(
+    "refreshAccount does not issue a check-in request for %s",
+    async (scenario) => {
+      const observedAt = Date.now() - 86_400_000
+      const account = createAccount({
+        id: "unavailable-status-refresh",
+        site_type: SITE_TYPES.ANYROUTER,
+        checkIn: {
+          automaticExecutionEnabled: false,
+          selection: {
+            mode: "automatic",
+            ...(scenario === "no-selection"
+              ? {}
+              : { methodId: "anyrouter:daily-checkin" as const }),
+          },
+          methodKnowledge: {
+            methods:
+              scenario === "no-selection"
+                ? {}
+                : {
+                    "anyrouter:daily-checkin": {
+                      detection: {
+                        outcome: "matched",
+                        evidence: { source: "probe", observedAt },
+                      },
+                      status: {
+                        outcome: "known",
+                        availability: "enabled",
+                        today: "checked",
+                        evidence: { source: "probe", observedAt },
+                      },
+                    },
+                  },
+          },
+        },
+      })
+      seedStorage([account])
+      if (scenario === "failed-account-refresh") {
+        mockRefreshAccountData.mockResolvedValueOnce({
+          success: false,
+          healthStatus: { status: SiteHealthStatus.Error, message: "Failed" },
+        })
+      }
+      const unexpectedRequest = vi.fn(() =>
+        HttpResponse.json({}, { status: 500 }),
+      )
+      server.use(http.all("*", unexpectedRequest))
+      await accountStorage.refreshAccount(account.id, true)
+      const updated = await accountStorage.getAccountById(account.id)
+      expect(updated?.checkIn).toEqual(account.checkIn)
+      expect(
+        isSelectedCheckInStatusCurrent(
+          accountStorage.convertToDisplayData(updated!),
+        ),
+      ).toBe(false)
+      expect(unexpectedRequest).not.toHaveBeenCalled()
+    },
+  )
 
   it("refreshAccount should not invoke the legacy check-in support probe", async () => {
     const account = createAccount({
@@ -3917,10 +5045,82 @@ describe("accountStorage core behaviors", () => {
     expect(updatedAccount?.health?.status).toBe(SiteHealthStatus.Healthy)
   })
 
-  it("refreshAccount should route adapter refreshes with normalized base URLs", async () => {
+  it.each([SITE_TYPES.NEW_API, SITE_TYPES.SUB2API, SITE_TYPES.KIMI_GLOBAL])(
+    "refresh preserves newer credentials for %s",
+    async (siteType) => {
+      const account = createAccount({ site_type: siteType })
+      seedStorage([account])
+      const deferred = createDeferred<any>()
+      mockRefreshAccountData.mockReturnValueOnce(deferred.promise)
+      const pending = accountStorage.refreshAccount(account.id, true)
+      await vi.waitFor(() => expect(mockRefreshAccountData).toHaveBeenCalled())
+      expect(
+        await accountStorage.updateAccount(
+          account.id,
+          {
+            account_info: {
+              access_token: "newer-token",
+              username: "edited-name",
+            },
+          },
+          { userTimestampMode: AccountUpdateUserTimestampMode.Touch },
+        ),
+      ).toBe(true)
+      deferred.resolve({
+        success: true,
+        data: { quota: 123 },
+        healthStatus: { status: SiteHealthStatus.Healthy, message: "ok" },
+        authUpdate: {
+          accessToken: "obsolete-token",
+          username: "obsolete-name",
+        },
+      })
+      await pending
+      const updated = await accountStorage.getAccountById(account.id)
+      expect(updated?.account_info.access_token).toBe("newer-token")
+      expect(updated?.account_info.username).toBe("edited-name")
+      expect(updated?.account_info.quota).toBe(123)
+    },
+  )
+
+  it("refresh preserves a username edited without changing credentials", async () => {
+    const account = createAccount()
+    seedStorage([account])
+    const deferred = createDeferred<any>()
+    mockRefreshAccountData.mockReturnValueOnce(deferred.promise)
+    const pending = accountStorage.refreshAccount(account.id, true)
+    await vi.waitFor(() => expect(mockRefreshAccountData).toHaveBeenCalled())
+    await accountStorage.updateAccount(
+      account.id,
+      { account_info: { username: "edited-name" } },
+      { userTimestampMode: AccountUpdateUserTimestampMode.Touch },
+    )
+    deferred.resolve({
+      success: true,
+      data: { quota: 123 },
+      healthStatus: { status: SiteHealthStatus.Healthy, message: "ok" },
+      authUpdate: { accessToken: "rotated-token", username: "old-name" },
+    })
+    await pending
+    const updated = await accountStorage.getAccountById(account.id)
+    expect(updated?.account_info.username).toBe("edited-name")
+    expect(updated?.account_info.access_token).toBe("rotated-token")
+  })
+
+  it.each([
+    [
+      "https://pathful.example.com/dashboard?tab=usage",
+      "https://pathful.example.com",
+    ],
+    [
+      "https://pathful.example.com:8443/dashboard?tab=usage#details",
+      "https://pathful.example.com:8443",
+    ],
+    ["http://localhost:3000/dashboard/", "http://localhost:3000"],
+  ])("refreshAccount routes %s to origin %s", async (siteUrl, origin) => {
     const account = createAccount({
       id: "pathful-refresh-url",
-      site_url: "https://pathful.example.com/dashboard?tab=usage",
+      site_url: siteUrl,
       site_type: SITE_TYPES.NEW_API,
       checkIn: {
         automaticExecutionEnabled: true,
@@ -3935,7 +5135,7 @@ describe("accountStorage core behaviors", () => {
     expect(mockFetchSupportCheckIn).not.toHaveBeenCalled()
     expect(mockRefreshAccountData).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseUrl: "https://pathful.example.com",
+        baseUrl: origin,
         siteType: SITE_TYPES.NEW_API,
       }),
     )
@@ -3958,6 +5158,116 @@ describe("accountStorage core behaviors", () => {
       }),
     )
   })
+
+  it.each(["null", "throw"])(
+    "preserves a successful refresh when post-save discovery returns %s",
+    async (failure) => {
+      const account = createAccount({ site_type: SITE_TYPES.NEW_API })
+      seedStorage([account])
+      const discover = vi.spyOn(
+        postSaveDiscovery,
+        "discoverSavedAccountCheckIn",
+      )
+      if (failure === "null") discover.mockResolvedValueOnce(null)
+      else
+        discover.mockRejectedValueOnce(new Error("optional discovery failed"))
+      try {
+        const result = await accountStorage.refreshAccount(account.id, true, {
+          discoverCheckInAfterSave: true,
+        })
+        expect(result?.refreshed).toBe(true)
+        expect(result?.account?.id).toBe(account.id)
+        expect(result?.account?.health.status).toBe(SiteHealthStatus.Healthy)
+        expect(
+          (await accountStorage.getAccountById(account.id))?.health.status,
+        ).toBe(SiteHealthStatus.Healthy)
+      } finally {
+        discover.mockRestore()
+      }
+    },
+  )
+
+  it("allows a second Sub2API refresh while post-save discovery is still pending", async () => {
+    const account = createAccount({
+      site_type: SITE_TYPES.SUB2API,
+      sub2apiAuth: { refreshToken: "refresh-token", tokenExpiresAt: 123 },
+    })
+    seedStorage([account])
+    const entered = createDeferred<void>()
+    const discovery = createDeferred<SiteAccount | null>()
+    const discover = vi
+      .spyOn(postSaveDiscovery, "discoverSavedAccountCheckIn")
+      .mockImplementation(() => {
+        entered.resolve()
+        return discovery.promise
+      })
+    const first = accountStorage.refreshAccount(account.id, true, {
+      discoverCheckInAfterSave: true,
+    })
+    await entered.promise
+    const second = accountStorage.refreshAccount(account.id, true)
+    try {
+      await vi.waitFor(() =>
+        expect(mockRefreshAccountData).toHaveBeenCalledTimes(2),
+      )
+      expect((await second)?.refreshed).toBe(true)
+    } finally {
+      discovery.resolve(null)
+      await Promise.allSettled([first, second])
+      discover.mockRestore()
+    }
+  })
+
+  it.each([
+    { enabled: true, success: true, probes: true },
+    { enabled: false, success: true, probes: false },
+    { enabled: true, success: false, probes: false },
+  ])(
+    "runs post-save discovery only for an opted-in successful refresh ($enabled, $success)",
+    async ({ enabled, success, probes }) => {
+      const account = createAccount({ site_type: SITE_TYPES.NEW_API })
+      seedStorage([account])
+      const discover = vi
+        .spyOn(postSaveDiscovery, "discoverSavedAccountCheckIn")
+        .mockImplementation(async (snapshot) => snapshot)
+      const originalRefresh = mockRefreshAccountData.getMockImplementation()!
+      mockRefreshAccountData.mockImplementation(async (request) => ({
+        ...(await originalRefresh(request)),
+        success,
+        authUpdate: { accessToken: "final-refreshed-token" },
+      }))
+      const execution = userCommandExecution(
+        PROTECTION_BYPASS_USER_COMMANDS.AddAccount,
+        TEMP_WINDOW_REQUEST_SOURCES.Popup,
+      )
+      try {
+        const result = await accountStorage.refreshAccount(account.id, true, {
+          discoverCheckInAfterSave: enabled,
+          tempWindowRequestSource: TEMP_WINDOW_REQUEST_SOURCES.Popup,
+          protectionBypassExecution: execution,
+        })
+        expect(result?.refreshed).toBe(true)
+        if (probes) {
+          expect(discover).toHaveBeenCalledWith(
+            expect.objectContaining({
+              account_info: expect.objectContaining({
+                access_token: "final-refreshed-token",
+              }),
+              health: expect.objectContaining({
+                status: SiteHealthStatus.Healthy,
+              }),
+            }),
+            {
+              tempWindowRequestSource: TEMP_WINDOW_REQUEST_SOURCES.Popup,
+              protectionBypassExecution: execution,
+            },
+          )
+        } else expect(discover).not.toHaveBeenCalled()
+      } finally {
+        discover.mockRestore()
+      }
+    },
+  )
 
   it("refreshAccount preserves the temp window source for data refresh", async () => {
     const account = createAccount({
@@ -4127,6 +5437,43 @@ describe("accountStorage core behaviors", () => {
       ).toEqual(expected)
     },
   )
+
+  it("refreshAccount persists the complete rotated Kimi session", async () => {
+    const account = createAccount({
+      id: "kimi-refresh",
+      site_url: "https://platform.kimi.ai",
+      site_type: SITE_TYPES.KIMI_GLOBAL,
+      kimiOpenPlatformAuth: {
+        refreshToken: "old-refresh",
+        organizationId: "org",
+        tokenExpiresAt: 123,
+      },
+    })
+    seedStorage([account])
+    const auth = {
+      refreshToken: "new-refresh",
+      organizationId: "org",
+      tokenExpiresAt: 456,
+    }
+    mockRefreshAccountData.mockResolvedValueOnce({
+      success: true,
+      data: {
+        quota: 42,
+        today_prompt_tokens: 0,
+        today_completion_tokens: 0,
+        today_quota_consumption: 0,
+        today_requests_count: 0,
+        today_income: 0,
+        checkIn: createCanonicalCheckIn(),
+      },
+      healthStatus: { status: SiteHealthStatus.Healthy, message: "" },
+      authUpdate: { accessToken: "new-access", kimiOpenPlatformAuth: auth },
+    })
+    await accountStorage.refreshAccount("kimi-refresh", true)
+    const latest = await accountStorage.getAccountById("kimi-refresh")
+    expect(latest?.account_info.access_token).toBe("new-access")
+    expect(latest?.kimiOpenPlatformAuth).toEqual(auth)
+  })
 
   it("refreshAccount should persist Sub2API refresh-token auth updates", async () => {
     const account = createAccount({
@@ -4418,6 +5765,171 @@ describe("accountStorage core behaviors", () => {
     const clearedAccount = await accountStorage.getAccountById("temp-window")
     expect(clearedAccount?.health?.code).toBeUndefined()
   })
+
+  it.each([
+    { initial: undefined, latest: "0", providerQuota: 123, unavailable: true },
+    { initial: undefined, latest: "2", providerQuota: 123, unavailable: false },
+    { initial: "2", latest: "3", providerQuota: 123, unavailable: true },
+    { initial: "2", latest: "", providerQuota: 123, unavailable: false },
+    { initial: "0", latest: "", providerQuota: 0, unavailable: true },
+    { initial: undefined, latest: "0", providerQuota: 123, unavailable: false },
+    { initial: "2", latest: "3", providerQuota: 123, unavailable: false },
+    { initial: "0", latest: "", providerQuota: 123, unavailable: false },
+  ])(
+    "uses the manual balance saved during an in-flight refresh ($initial -> $latest, unavailable=$unavailable)",
+    async ({ initial, latest, providerQuota, unavailable }) => {
+      vi.useFakeTimers({ toFake: ["Date"] })
+      vi.setSystemTime(new Date("2026-09-04T12:00:00Z"))
+      try {
+        const account = createAccount({ manualBalanceUsd: initial })
+        account.account_info.quota =
+          initial === undefined ? 400 : Number(initial) * QUOTA_PER_USD
+        seedStorage([account])
+        storageData.set(USER_PREFERENCES_STORAGE_KEYS.USER_PREFERENCES, {
+          ...DEFAULT_PREFERENCES,
+          balanceHistory: {
+            ...DEFAULT_PREFERENCES.balanceHistory,
+            enabled: true,
+          },
+        })
+        const deferred = createDeferred<any>()
+        mockRefreshAccountData.mockReturnValueOnce(deferred.promise)
+        const pending = accountStorage.refreshAccount(account.id, true)
+        await vi.waitFor(() =>
+          expect(mockRefreshAccountData).toHaveBeenCalled(),
+        )
+        expect(
+          await accountStorage.updateAccount(
+            account.id,
+            {
+              manualBalanceUsd: latest,
+              ...(latest
+                ? {
+                    account_info: {
+                      quota: Number(latest) * QUOTA_PER_USD,
+                      balanceUnavailable: false,
+                    },
+                  }
+                : {}),
+            },
+            { userTimestampMode: AccountUpdateUserTimestampMode.Touch },
+          ),
+        ).toBe(true)
+        deferred.resolve({
+          success: true,
+          data: {
+            quota: providerQuota,
+            balanceUnavailable: unavailable,
+            today_requests_count: 7,
+          },
+          healthStatus: { status: SiteHealthStatus.Healthy, message: "ok" },
+        })
+        expect((await pending)?.refreshed).toBe(true)
+        const updated = await accountStorage.getAccountById(account.id)
+        expect(updated?.manualBalanceUsd).toBe(latest)
+        expect(updated?.account_info.quota).toBe(
+          latest ? Number(latest) * QUOTA_PER_USD : providerQuota,
+        )
+        expect(updated?.account_info.balanceUnavailable === true).toBe(
+          latest ? false : unavailable,
+        )
+        expect(updated?.account_info.today_requests_count).toBe(7)
+        const dayKey = getDayKeyFromUnixSeconds(Math.floor(Date.now() / 1000))
+        const history = storageData.get(
+          STORAGE_KEYS.DAILY_BALANCE_HISTORY_STORE,
+        )
+        const snapshot = history?.snapshotsByAccountId?.[account.id]?.[dayKey]
+        if (updated?.account_info.balanceUnavailable === true)
+          expect(snapshot).toBeUndefined()
+        else expect(snapshot?.quota).toBe(updated?.account_info.quota)
+      } finally {
+        vi.useRealTimers()
+      }
+    },
+  )
+
+  it("captures the canonical monetary balance when a legacy native projection is removed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-09-04T12:00:00Z"))
+    try {
+      const account = createAccount({ site_type: SITE_TYPES.REQUESTY })
+      seedStorage([account])
+      storageData.set(USER_PREFERENCES_STORAGE_KEYS.USER_PREFERENCES, {
+        ...DEFAULT_PREFERENCES,
+        balanceHistory: {
+          ...DEFAULT_PREFERENCES.balanceHistory,
+          enabled: true,
+        },
+      })
+      mockRefreshAccountData.mockResolvedValueOnce({
+        success: true,
+        data: {
+          quota: 123,
+          nativeBalance: {
+            unit: "USD",
+            total: 2,
+            permanent: 2,
+            daily: 0,
+            components: [],
+          },
+        },
+        healthStatus: { status: SiteHealthStatus.Healthy, message: "ok" },
+      })
+      await accountStorage.refreshAccount(account.id, true)
+      const saved = await accountStorage.getAccountById(account.id)
+      expect(saved?.account_info.quota).toBe(123)
+      expect(saved?.account_info.nativeBalance).toBeUndefined()
+      const dayKey = getDayKeyFromUnixSeconds(Math.floor(Date.now() / 1000))
+      const history = storageData.get(STORAGE_KEYS.DAILY_BALANCE_HISTORY_STORE)
+      expect(history?.snapshotsByAccountId?.[account.id]?.[dayKey]?.quota).toBe(
+        123,
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(["storage failure", "changed identity"])(
+    "does not capture a balance snapshot for an uncommitted refresh (%s)",
+    async (reason) => {
+      const account = createAccount()
+      seedStorage([account])
+      storageData.set(USER_PREFERENCES_STORAGE_KEYS.USER_PREFERENCES, {
+        ...DEFAULT_PREFERENCES,
+        balanceHistory: {
+          ...DEFAULT_PREFERENCES.balanceHistory,
+          enabled: true,
+        },
+      })
+      const deferred = createDeferred<any>()
+      mockRefreshAccountData.mockReturnValueOnce(deferred.promise)
+      const pending = accountStorage.refreshAccount(account.id, true)
+      await vi.waitFor(() => expect(mockRefreshAccountData).toHaveBeenCalled())
+      if (reason === "changed identity") {
+        await accountStorage.updateAccount(
+          account.id,
+          {
+            site_url: "https://replacement.example",
+          },
+          { userTimestampMode: AccountUpdateUserTimestampMode.Touch },
+        )
+      } else {
+        storageHooks.beforeSet = async (key) => {
+          if (key === ACCOUNT_STORAGE_KEYS.ACCOUNTS)
+            throw new Error("write failed")
+        }
+      }
+      deferred.resolve({
+        success: true,
+        data: { quota: 123 },
+        healthStatus: { status: SiteHealthStatus.Healthy, message: "ok" },
+      })
+      await pending
+      expect(
+        storageData.get(STORAGE_KEYS.DAILY_BALANCE_HISTORY_STORE),
+      ).toBeUndefined()
+    },
+  )
 
   it("refreshAccount should preserve manual balance quota when set", async () => {
     const manualBalanceUsd = "1.23"
@@ -4806,9 +6318,12 @@ describe("accountStorage bookmarks", () => {
     } satisfies AccountStorageConfig)
 
     const generateBookmarkIdSpy = vi
-      .spyOn(accountStorage as never, "generateBookmarkId" as never)
-      .mockReturnValueOnce("bookmark-existing" as never)
-      .mockReturnValueOnce("bookmark-new" as never)
+      .spyOn(
+        accountStorage as unknown as { generateBookmarkId: () => string },
+        "generateBookmarkId",
+      )
+      .mockReturnValueOnce("bookmark-existing")
+      .mockReturnValueOnce("bookmark-new")
 
     try {
       const id = await accountStorage.addBookmark({
@@ -5257,8 +6772,8 @@ describe("accountStorage bookmarks", () => {
       const persisted = storageData.get(
         ACCOUNT_STORAGE_KEYS.ACCOUNTS,
       ) as AccountStorageConfig
-      expect(persisted.accounts[0].disabled).toBe(false)
-      expect(persisted.accounts[0].excludeFromTotalBalance).toBe(false)
+      expect(atIndex(persisted.accounts, 0).disabled).toBe(false)
+      expect(atIndex(persisted.accounts, 0).excludeFromTotalBalance).toBe(false)
     })
 
     it("getAccountById migrates legacy accounts without changing user update time", async () => {
@@ -5289,8 +6804,8 @@ describe("accountStorage bookmarks", () => {
         const persisted = storageData.get(
           ACCOUNT_STORAGE_KEYS.ACCOUNTS,
         ) as AccountStorageConfig
-        expect(persisted.accounts[0].updated_at).toBe(100)
-        expect(persisted.accounts[0].user_updated_at).toBe(100)
+        expect(atIndex(persisted.accounts, 0).updated_at).toBe(100)
+        expect(atIndex(persisted.accounts, 0).user_updated_at).toBe(100)
       } finally {
         vi.useRealTimers()
       }
@@ -5339,8 +6854,8 @@ describe("accountStorage bookmarks", () => {
         const persisted = storageData.get(
           ACCOUNT_STORAGE_KEYS.ACCOUNTS,
         ) as AccountStorageConfig
-        expect(persisted.accounts[0].updated_at).toBe(200)
-        expect(persisted.accounts[0].user_updated_at).toBe(200)
+        expect(atIndex(persisted.accounts, 0).updated_at).toBe(200)
+        expect(atIndex(persisted.accounts, 0).user_updated_at).toBe(200)
       } finally {
         vi.useRealTimers()
       }
@@ -5391,7 +6906,7 @@ describe("accountStorage bookmarks", () => {
       ) as AccountStorageConfig
       expect(persisted.accounts[0]).toMatchObject({
         id: legacyAccount.id,
-        configVersion: 7,
+        configVersion: 8,
         checkIn: expect.objectContaining({
           automaticExecutionEnabled: true,
           selection: expect.objectContaining({ mode: "automatic" }),
@@ -5474,7 +6989,7 @@ describe("accountStorage bookmarks", () => {
         ACCOUNT_STORAGE_KEYS.ACCOUNTS,
       ) as AccountStorageConfig
       expect(restored.accounts).toHaveLength(1)
-      expect(restored.accounts[0].id).toBe("backup-1")
+      expect(atIndex(restored.accounts, 0).id).toBe("backup-1")
       expect(restored.bookmarks).toEqual([backupBookmark])
       expect(restored.pinnedAccountIds).toEqual(["backup-1", "bookmark-1"])
       expect(restored.orderedAccountIds).toEqual(["bookmark-1", "backup-1"])

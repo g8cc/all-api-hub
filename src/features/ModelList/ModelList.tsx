@@ -1,9 +1,7 @@
 import { Cpu, KeyRound, RefreshCw, TrendingDown } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { VerifyApiDialog } from "~/components/dialogs/VerifyApiDialog"
-import { VerifyCliSupportDialog } from "~/components/dialogs/VerifyCliSupportDialog"
 import { PageHeader } from "~/components/PageHeader"
 import Tooltip from "~/components/Tooltip"
 import {
@@ -16,78 +14,45 @@ import {
 } from "~/components/ui"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
 import { ProductAnalyticsScope } from "~/contexts/ProductAnalyticsScopeContext"
-import { VerifyApiCredentialProfileDialog } from "~/features/ApiCredentialProfiles/components/VerifyApiCredentialProfileDialog"
+import { VerifyApiCredentialProfileDialog } from "~/features/ApiCredentialProfiles/verification/VerifyApiCredentialProfileDialog"
+import { AccountSelector } from "~/features/ModelList/catalog/AccountSelector"
+import { AccountSummaryBar } from "~/features/ModelList/catalog/AccountSummaryBar"
 import {
-  createBatchVerifyModelItems,
-  type BatchVerifyModelItem,
-} from "~/features/ModelList/batchVerification"
-import { PersonalizedCatalogFallbackNotice } from "~/features/ModelList/components/PersonalizedCatalogFallbackNotice"
-import {
-  ALL_ACCOUNTS_SOURCE_VALUE,
   MODEL_MANAGEMENT_SOURCE_KINDS,
-  resolveModelManagementSource,
-  type ModelManagementItemSource,
-} from "~/features/ModelList/modelManagementSources"
+  supportsModelCurrencyPricing,
+} from "~/features/ModelList/catalog/modelManagementSources"
+import { PersonalizedCatalogFallbackNotice } from "~/features/ModelList/catalog/PersonalizedCatalogFallbackNotice"
+import { ProviderTabs } from "~/features/ModelList/catalog/ProviderTabs"
+import { useModelListData } from "~/features/ModelList/catalog/useModelListData"
+import { ControlPanel } from "~/features/ModelList/filtering/ControlPanel"
 import {
-  canEnableModelPriceComparison,
-  enableModelPriceComparison,
-} from "~/features/ModelList/priceComparisonActivation"
-import { PricingScenarioNavigation } from "~/features/ModelList/pricingScenarioNavigation"
-import {
-  canCreateAccountKeyResources,
-  canListAccountRuntimeKeys,
-} from "~/services/accounts/keyProductCapabilities"
+  isModelListPriceSortMode,
+  MODEL_LIST_SORT_MODES,
+} from "~/features/ModelList/filtering/sortModes"
+import ModelKeyDialog from "~/features/ModelList/keySelection"
+import { Footer } from "~/features/ModelList/presentation/Footer"
+import { ModelDisplay } from "~/features/ModelList/presentation/ModelDisplay"
+import { StatusIndicator } from "~/features/ModelList/presentation/StatusIndicator"
+import { useModelListSourcePresentation } from "~/features/ModelList/presentation/useModelListSourcePresentation"
+import { PricingDiagnostics } from "~/features/ModelList/pricing/PricingDiagnosticsPanel"
+import { PricingScenarioNavigation } from "~/features/ModelList/pricing/pricingScenarioNavigation"
+import { BatchVerifyModelsDialog } from "~/features/ModelList/verification/BatchVerifyModelsDialog"
+import { useModelListVerificationResults } from "~/features/ModelList/verification/useModelListVerificationResults"
+import { useModelListVerificationWorkflow } from "~/features/ModelList/verification/useModelListVerificationWorkflow"
+import { VerifyApiDialog } from "~/features/Verification/api"
+import { VerifyCliSupportDialog } from "~/features/Verification/cli"
 import { MODEL_VENDOR_FILTER_VALUES } from "~/services/models/modelVendor"
-import { trackProductAnalyticsActionStarted } from "~/services/productAnalytics/actions"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
   PRODUCT_ANALYTICS_FEATURE_IDS,
   PRODUCT_ANALYTICS_SURFACE_IDS,
 } from "~/services/productAnalytics/contracts"
-import {
-  createAccountModelVerificationHistoryTarget,
-  createProfileModelVerificationHistoryTarget,
-  useVerificationResultHistorySummaries,
-  type ApiVerificationHistoryTarget,
-} from "~/services/verification/verificationResultHistory"
-import type { DisplaySiteData } from "~/types"
-import type { ApiCredentialProfile } from "~/types/apiCredentialProfiles"
-import {
-  openKeysPage,
-  pushWithinOptionsPage,
-  replaceWithinOptionsPage,
-} from "~/utils/navigation"
+import { revealNavigationTarget } from "~/utils/dom/navigationTarget"
+import { openKeysPage } from "~/utils/navigation"
+import { pushWithinOptionsPage } from "~/utils/navigation/optionsPage"
 
-import { sortModelListAccounts } from "./accountOrdering"
-import { isProviderCatalogFallback } from "./catalogFallback"
-import { AccountSelector } from "./components/AccountSelector"
-import { AccountSummaryBar } from "./components/AccountSummaryBar"
-import { BatchVerifyModelsDialog } from "./components/BatchVerifyModelsDialog"
-import { ControlPanel } from "./components/ControlPanel"
-import { Footer } from "./components/Footer"
-import { ModelDisplay } from "./components/ModelDisplay"
-import ModelKeyDialog from "./components/ModelKeyDialog"
-import { PricingDiagnostics } from "./components/PricingDiagnostics"
-import { ProviderTabs } from "./components/ProviderTabs"
-import { StatusIndicator } from "./components/StatusIndicator"
-import { MODEL_LIST_GROUP_SELECTION_SCOPES } from "./groupSelectionScopes"
-import { useModelListData } from "./hooks/useModelListData"
-import { isModelListPriceSortMode, MODEL_LIST_SORT_MODES } from "./sortModes"
 import { MODEL_LIST_TEST_IDS } from "./testIds"
-import {
-  applyVerificationResultView,
-  type ModelListVerificationResultFilter,
-} from "./verificationResultFilters"
-
-type ModelListDisplayedResultCountBaseFilters = NonNullable<
-  Parameters<ReturnType<typeof useModelListData>["getFilteredResultCount"]>[0]
->
-
-interface ModelListDisplayedResultCountFilters
-  extends ModelListDisplayedResultCountBaseFilters {
-  selectedVerificationResults?: ModelListVerificationResultFilter[]
-}
 
 /**
  * Model list page showing pricing details with filtering by account, provider, and group.
@@ -107,15 +72,15 @@ export default function ModelList(props: {
   ])
   const [isSourceSelectorOpen, setIsSourceSelectorOpen] = useState(false)
   const sourceSelectorTriggerRef = useRef<HTMLButtonElement>(null)
+  const modelListData = useModelListData(routeParams)
   const {
-    accounts,
     profiles,
+    isSourceLoading,
     selectedSource,
     currentAccount,
     sourceCapabilities,
 
     selectedSourceValue,
-    setSelectedSourceValue,
     searchTerm,
     setSearchTerm,
     setSelectedProvider,
@@ -136,6 +101,11 @@ export default function ModelList(props: {
     allAccountsExcludedGroupsByAccountId,
     setAllAccountsExcludedGroupsByAccountId,
 
+    modelGroupOverrides,
+    setModelGroupOverrides,
+    expandGroups,
+    setExpandGroups,
+
     // Display options
     showUnavailableModels,
     setShowUnavailableModels,
@@ -147,19 +117,15 @@ export default function ModelList(props: {
     setSelectedVerificationResults,
 
     // Data state
-    pricingData,
-    pricingContexts,
     isLoading,
     dataFormatError,
     unsupportedSource,
     loadErrorMessage,
     accountFallback,
     personalizedCatalogFallback,
-    isFallbackCatalogActive,
     isProviderCatalogFallbackActive,
 
     filteredModels,
-    accountSummaryCountsByAccountId,
     vendorCatalog,
     unclassifiedVendorCount,
     effectiveSelectedVendor,
@@ -169,6 +135,7 @@ export default function ModelList(props: {
     getFilteredResultCount,
     availableGroups,
     singleSourceGroupRatios,
+    singleSourceGroupDisplayNames,
     availableAccountGroupsByAccountId,
     availableAccountGroupOptionsByAccountId,
     supportsModelCapabilityFilter,
@@ -176,335 +143,71 @@ export default function ModelList(props: {
 
     // Operations
     loadPricingData,
-    accountQueryStates,
     allAccountsFilterAccountIds,
-    setAllAccountsFilterAccountIds,
-  } = useModelListData(routeParams)
-
-  const hasAnySources = accounts.length > 0 || profiles.length > 0
+  } = modelListData
 
   useEffect(() => {
     if (!shouldRepairSelectedVendor) return
     setSelectedProvider(MODEL_VENDOR_FILTER_VALUES.All)
   }, [setSelectedProvider, shouldRepairSelectedVendor])
 
-  const sortedAccounts = useMemo(
-    () =>
-      sortModelListAccounts({
-        accounts,
-        accountQueryStates,
-        accountSummaryCountsByAccountId,
-      }),
-    [accountQueryStates, accountSummaryCountsByAccountId, accounts],
-  )
-
-  const handleSelectedSourceValueChange = useCallback(
-    (sourceValue: string) => {
-      setSelectedSourceValue(sourceValue)
-
-      const source = resolveModelManagementSource({
-        value: sourceValue,
-        accounts,
-        profiles,
-      })
-      const searchParams =
-        source?.kind === MODEL_MANAGEMENT_SOURCE_KINDS.ACCOUNT
-          ? { accountId: source.account.id }
-          : source?.kind === MODEL_MANAGEMENT_SOURCE_KINDS.PROFILE
-            ? { profileId: source.profile.id }
-            : source?.kind === MODEL_MANAGEMENT_SOURCE_KINDS.ALL_ACCOUNTS
-              ? { accountId: ALL_ACCOUNTS_SOURCE_VALUE }
-              : undefined
-
-      replaceWithinOptionsPage(`#${MENU_ITEM_IDS.MODELS}`, searchParams)
-    },
-    [accounts, profiles, setSelectedSourceValue],
-  )
-
-  const handleGroupClick = (group: string) => {
-    setSelectedGroups([group])
-  }
-
-  const isAllAccountsScope =
-    selectedSource?.kind === MODEL_MANAGEMENT_SOURCE_KINDS.ALL_ACCOUNTS
-  const canStartUnselectedPriceComparison =
-    !selectedSource && accounts.length > 0
-  const shouldShowPriceComparisonAction =
-    canStartUnselectedPriceComparison ||
-    canEnableModelPriceComparison({
-      selectedSource,
-      sourceCapabilities,
-      isAllAccountsSource: isAllAccountsScope,
-      sortMode,
-      selectedBillingMode,
-      selectedGroups,
-      showRealPrice,
-    })
-  const handleEnablePriceComparison = useCallback(() => {
-    enableModelPriceComparison({
-      isAllAccountsSource: isAllAccountsScope,
-      setSelectedSourceValue: handleSelectedSourceValueChange,
-      setSortMode,
-      setSelectedBillingMode,
-      setSelectedGroups,
-      setShowRealPrice,
-      searchTerm,
-      surfaceId: PRODUCT_ANALYTICS_SURFACE_IDS.OptionsModelListPage,
-    })
-  }, [
+  const {
+    sortedAccounts,
     handleSelectedSourceValueChange,
+    handleGroupClick,
     isAllAccountsScope,
-    searchTerm,
-    setSelectedBillingMode,
-    setSelectedGroups,
-    setShowRealPrice,
-    setSortMode,
-  ])
-  const modelDisplayGroupSelectionScope = isAllAccountsScope
-    ? MODEL_LIST_GROUP_SELECTION_SCOPES.ALL_ACCOUNTS
-    : MODEL_LIST_GROUP_SELECTION_SCOPES.SINGLE_SOURCE
-  const isModelGroupSelectionInteractive = !isAllAccountsScope
+    shouldShowPriceComparisonAction,
+    handleEnablePriceComparison,
+    modelDisplayGroupSelectionScope,
+    isModelGroupSelectionInteractive,
+    handleAccountSummaryClick,
+    hasModelData,
+    shouldShowRefreshAction,
+    shouldShowHeaderActions,
+    isRuntimeKeyOnlyFallbackCatalog,
+    hasInferenceRouteFallback,
+    showCatalogOnlyNotice,
+    shouldShowSourceSetupEmptyState,
+    shouldShowSourceSelectionEmptyState,
+    providerCatalogFallbackAccounts,
+    accountSummaryItems,
+    totalModels,
+  } = useModelListSourcePresentation(modelListData)
 
-  const handleAccountSummaryClick = (accountId: string) => {
-    setAllAccountsFilterAccountIds((currentAccountIds) =>
-      currentAccountIds.includes(accountId)
-        ? currentAccountIds.filter((id) => id !== accountId)
-        : [...currentAccountIds, accountId],
-    )
-    void trackProductAnalyticsActionStarted({
-      featureId: PRODUCT_ANALYTICS_FEATURE_IDS.ModelList,
-      actionId: PRODUCT_ANALYTICS_ACTION_IDS.SelectModelListFilterScope,
-      surfaceId: PRODUCT_ANALYTICS_SURFACE_IDS.OptionsModelListPage,
-      entrypoint: PRODUCT_ANALYTICS_ENTRYPOINTS.Options,
-    })
-  }
+  const {
+    displayedModels,
+    getDisplayedResultCount,
+    verificationSummariesByKey,
+  } = useModelListVerificationResults({
+    filteredModels,
+    selectedVerificationResults,
+    sortMode,
+    getFilteredModels,
+    getFilteredResultCount,
+  })
 
-  const hasModelData =
-    selectedSource?.kind === MODEL_MANAGEMENT_SOURCE_KINDS.ALL_ACCOUNTS
-      ? pricingContexts && pricingContexts.length > 0
-      : !!pricingData
-  const shouldShowRefreshAction = Boolean(selectedSource && hasModelData)
-  const shouldShowHeaderActions =
-    shouldShowRefreshAction || shouldShowPriceComparisonAction
-  const isRuntimeKeyOnlyFallbackCatalog =
-    isFallbackCatalogActive &&
-    !!currentAccount &&
-    canListAccountRuntimeKeys(currentAccount) &&
-    !canCreateAccountKeyResources(currentAccount)
-  const shouldShowSourceSetupEmptyState = !hasAnySources
-  const shouldShowSourceSelectionEmptyState =
-    !shouldShowSourceSetupEmptyState && !selectedSource
-
-  const providerCatalogFallbackAccounts = useMemo(
-    () =>
-      Array.from(
-        new Map(
-          pricingContexts
-            .filter(({ pricing }) => isProviderCatalogFallback(pricing))
-            .map(({ account }) => [account.id, account]),
-        ).values(),
-      ),
-    [pricingContexts],
-  )
-
-  const accountSummaryItems = useMemo(() => {
-    const stateByAccountId = new Map(
-      (accountQueryStates ?? []).map((state) => [state.account.id, state]),
-    )
-
-    return accounts.flatMap((account) => {
-      const state = stateByAccountId.get(account.id)
-      if (!state) {
-        return []
-      }
-      const count = accountSummaryCountsByAccountId.get(state.account.id)
-      if (
-        count === undefined &&
-        !state.isLoading &&
-        !state.errorType &&
-        !allAccountsFilterAccountIds.includes(account.id)
-      ) {
-        return []
-      }
-
-      return [
-        {
-          accountId: state.account.id,
-          name: state.account.name,
-          count: count ?? 0,
-          hasData: state.hasData,
-          isLoading: state.isLoading,
-          errorType: state.errorType,
-          errorMessage: state.errorMessage,
-        },
-      ]
-    })
-  }, [
-    accountQueryStates,
-    accountSummaryCountsByAccountId,
-    accounts,
-    allAccountsFilterAccountIds,
-  ])
-
-  const modelVerificationTargets = useMemo(() => {
-    return filteredModels.reduce<ApiVerificationHistoryTarget[]>(
-      (acc, item) => {
-        const source = item.source
-        const modelId = item.model.model_name?.trim()
-        if (!modelId) return acc
-
-        const historyTarget =
-          source.kind === MODEL_MANAGEMENT_SOURCE_KINDS.PROFILE
-            ? createProfileModelVerificationHistoryTarget(
-                source.profile.id,
-                modelId,
-              )
-            : createAccountModelVerificationHistoryTarget(
-                source.account.id,
-                modelId,
-              )
-        if (historyTarget) {
-          acc.push(historyTarget)
-        }
-
-        return acc
-      },
-      [],
-    )
-  }, [filteredModels])
-  const { summariesByKey: verificationSummariesByKey } =
-    useVerificationResultHistorySummaries(modelVerificationTargets)
-  const displayedModels = useMemo(
-    () =>
-      applyVerificationResultView(filteredModels, {
-        selectedResults: selectedVerificationResults,
-        shouldSortByLatency:
-          sortMode === MODEL_LIST_SORT_MODES.VERIFICATION_LATENCY_ASC,
-        verificationSummariesByKey,
-      }),
-    [
-      filteredModels,
-      selectedVerificationResults,
-      sortMode,
-      verificationSummariesByKey,
-    ],
-  )
-  const getDisplayedResultCount = useCallback(
-    (filters: ModelListDisplayedResultCountFilters = {}) => {
-      if (
-        !filters.selectedVerificationResults &&
-        filters.sortMode !== MODEL_LIST_SORT_MODES.VERIFICATION_LATENCY_ASC
-      ) {
-        return getFilteredResultCount(filters)
-      }
-
-      const selectedResults =
-        filters.selectedVerificationResults ?? selectedVerificationResults
-      const {
-        selectedVerificationResults: _selectedVerificationResults,
-        ...baseFilters
-      } = filters
-
-      return applyVerificationResultView(getFilteredModels(baseFilters), {
-        selectedResults,
-        shouldSortByLatency:
-          filters.sortMode === MODEL_LIST_SORT_MODES.VERIFICATION_LATENCY_ASC,
-        verificationSummariesByKey,
-      }).length
-    },
-    [
-      getFilteredModels,
-      getFilteredResultCount,
-      selectedVerificationResults,
-      verificationSummariesByKey,
-    ],
-  )
-
-  const [verifyContext, setVerifyContext] = useState<{
-    account: DisplaySiteData
-    modelId: string
-    modelEnableGroups?: string[]
-  } | null>(null)
-
-  const [verifyCliContext, setVerifyCliContext] = useState<{
-    source: ModelManagementItemSource
-    modelId: string
-  } | null>(null)
-
-  const [verifyProfileContext, setVerifyProfileContext] = useState<{
-    profile: ApiCredentialProfile
-    modelId: string
-  } | null>(null)
-
-  const [modelKeyContext, setModelKeyContext] = useState<{
-    account: DisplaySiteData
-    modelId: string
-    modelEnableGroups?: string[]
-    returnToVerify?: boolean
-  } | null>(null)
-
-  const [batchVerifyContext, setBatchVerifyContext] = useState<{
-    items: BatchVerifyModelItem[]
-  } | null>(null)
-
-  const handleVerifyModel = (
-    source: ModelManagementItemSource,
-    modelId: string,
-    modelEnableGroups?: string[],
-  ) => {
-    if (source.kind === MODEL_MANAGEMENT_SOURCE_KINDS.PROFILE) {
-      setVerifyProfileContext({
-        profile: source.profile,
-        modelId,
-      })
-      return
-    }
-
-    setVerifyContext({ account: source.account, modelId, modelEnableGroups })
-  }
-
-  const handleVerifyCliSupport = (
-    source: ModelManagementItemSource,
-    modelId: string,
-  ) => {
-    setVerifyCliContext({ source, modelId })
-  }
-
-  const handleOpenModelKeyDialog = (
-    account: DisplaySiteData,
-    modelId: string,
-    modelEnableGroups?: string[],
-  ) => setModelKeyContext({ account, modelId, modelEnableGroups })
-
-  const handleManageVerifyModelKey = () => {
-    if (!verifyContext) return
-    setModelKeyContext({ ...verifyContext, returnToVerify: true })
-    setVerifyContext(null)
-  }
-
-  const handleCloseModelKeyDialog = () => {
-    if (modelKeyContext?.returnToVerify) {
-      const { returnToVerify: _returnToVerify, ...nextVerifyContext } =
-        modelKeyContext
-      setVerifyContext(nextVerifyContext)
-    }
-    setModelKeyContext(null)
-  }
-
-  const batchVerifyItems = useMemo(
-    () => createBatchVerifyModelItems(displayedModels),
-    [displayedModels],
-  )
-
-  const handleOpenBatchVerify = () => {
-    if (batchVerifyItems.length === 0) return
-    setBatchVerifyContext({ items: batchVerifyItems })
-  }
-
-  const canBatchVerifyModels =
-    !!selectedSource &&
-    sourceCapabilities.supportsBatchCredentialVerification &&
-    batchVerifyItems.length > 0
+  const {
+    verifyContext,
+    verifyCliContext,
+    verifyProfileContext,
+    modelKeyContext,
+    batchVerifyContext,
+    handleVerifyModel,
+    handleVerifyCliSupport,
+    handleOpenModelKeyDialog,
+    handleManageVerifyModelKey,
+    handleCloseModelKeyDialog,
+    handleOpenBatchVerify,
+    canBatchVerifyModels,
+    handleCloseModelVerification,
+    handleCloseCliVerification,
+    handleCloseProfileVerification,
+    handleCloseBatchVerification,
+  } = useModelListVerificationWorkflow({
+    displayedModels,
+    selectedSource,
+    sourceCapabilities,
+  })
 
   const handleOpenAccountManagement = useCallback(() => {
     pushWithinOptionsPage(`#${MENU_ITEM_IDS.ACCOUNT}`)
@@ -521,30 +224,37 @@ export default function ModelList(props: {
   const handleRequestSourceSelection = useCallback(() => {
     const selectorTrigger = sourceSelectorTriggerRef.current
 
-    if (selectorTrigger) {
-      if (typeof selectorTrigger.scrollIntoView === "function") {
-        selectorTrigger.scrollIntoView({
-          block: "nearest",
-        })
-      }
-    }
+    if (selectorTrigger)
+      revealNavigationTarget(selectorTrigger, { block: "nearest" })
 
     setIsSourceSelectorOpen(true)
   }, [])
 
-  const totalModels = useMemo(() => {
-    if (selectedSource?.kind === MODEL_MANAGEMENT_SOURCE_KINDS.ALL_ACCOUNTS) {
-      return pricingContexts.reduce((count, context) => {
-        const models = context.pricing?.data
-        return count + (Array.isArray(models) ? models.length : 0)
-      }, 0)
-    }
+  const handleConfigurePricing = useCallback(() => {
+    if (!isModelListPriceSortMode(sortMode))
+      setSortMode(MODEL_LIST_SORT_MODES.MODEL_CHEAPEST_FIRST)
+  }, [sortMode, setSortMode])
 
-    return Array.isArray(pricingData?.data) ? pricingData.data.length : 0
-  }, [pricingContexts, pricingData, selectedSource?.kind])
+  const handleModelGroupChange = useCallback(
+    (itemKey: string, group: string | undefined) => {
+      setModelGroupOverrides((previous) => {
+        const next = { ...previous }
+        if (group === undefined) delete next[itemKey]
+        else next[itemKey] = group
+        return next
+      })
+    },
+    [setModelGroupOverrides],
+  )
 
   const renderModelDisplay = () => (
     <ModelDisplay
+      modelGroupOverrides={modelGroupOverrides}
+      onModelGroupChange={
+        isAllAccountsScope && !expandGroups ? handleModelGroupChange : undefined
+      }
+      excludedGroupsByAccountId={allAccountsExcludedGroupsByAccountId}
+      onCatalogChanged={loadPricingData}
       models={displayedModels}
       verificationSummariesByKey={verificationSummariesByKey}
       onVerifyModel={handleVerifyModel}
@@ -570,8 +280,14 @@ export default function ModelList(props: {
 
   const page = (
     <div
-      className="py-density-4 sm:py-density-6 px-4 sm:px-6"
+      className="px-4 py-density-4 sm:px-6 sm:py-density-6"
       data-testid={MODEL_LIST_TEST_IDS.page}
+      data-model-source={selectedSourceValue}
+      data-options-page-pending={
+        isSourceLoading || (selectedSource && isLoading && !hasModelData)
+          ? ""
+          : undefined
+      }
     >
       <PageHeader
         icon={Cpu}
@@ -738,21 +454,31 @@ export default function ModelList(props: {
             />
           )}
 
-          {isFallbackCatalogActive && (
+          {(showCatalogOnlyNotice || hasInferenceRouteFallback) && (
             <Alert
-              variant="default"
+              variant={hasInferenceRouteFallback ? "warning" : "default"}
               className="mb-density-6"
               title={
-                isRuntimeKeyOnlyFallbackCatalog
-                  ? t("runtimeKeyFallbackSourceNotice.title")
-                  : t("fallbackSourceNotice.title")
+                hasInferenceRouteFallback
+                  ? t("inferenceRouteFallbackNotice.title")
+                  : isRuntimeKeyOnlyFallbackCatalog
+                    ? t("runtimeKeyFallbackSourceNotice.title")
+                    : t("fallbackSourceNotice.title")
               }
               description={
-                isRuntimeKeyOnlyFallbackCatalog
-                  ? t("runtimeKeyFallbackSourceNotice.description")
-                  : t("fallbackSourceNotice.description")
+                !showCatalogOnlyNotice
+                  ? t("inferenceRouteFallbackNotice.description")
+                  : isRuntimeKeyOnlyFallbackCatalog
+                    ? t("runtimeKeyFallbackSourceNotice.description")
+                    : t("fallbackSourceNotice.description")
               }
-            />
+            >
+              {showCatalogOnlyNotice && hasInferenceRouteFallback && (
+                <p className="text-sm">
+                  {t("inferenceRouteFallbackNotice.description")}
+                </p>
+              )}
+            </Alert>
           )}
 
           {isProviderCatalogFallbackActive && (
@@ -788,9 +514,12 @@ export default function ModelList(props: {
           {verifyContext && (
             <VerifyApiDialog
               isOpen={true}
-              onClose={() => setVerifyContext(null)}
+              onClose={handleCloseModelVerification}
               account={verifyContext.account}
               initialModelId={verifyContext.modelId}
+              initialSupportedEndpointTypes={
+                verifyContext.supportedEndpointTypes
+              }
               modelEnableGroups={verifyContext.modelEnableGroups}
               onManageModelKey={handleManageVerifyModelKey}
             />
@@ -802,14 +531,15 @@ export default function ModelList(props: {
               MODEL_MANAGEMENT_SOURCE_KINDS.ACCOUNT ? (
                 <VerifyCliSupportDialog
                   isOpen={true}
-                  onClose={() => setVerifyCliContext(null)}
+                  onClose={handleCloseCliVerification}
                   account={verifyCliContext.source.account}
                   initialModelId={verifyCliContext.modelId}
+                  modelEnableGroups={verifyCliContext.modelEnableGroups}
                 />
               ) : (
                 <VerifyCliSupportDialog
                   isOpen={true}
-                  onClose={() => setVerifyCliContext(null)}
+                  onClose={handleCloseCliVerification}
                   profile={verifyCliContext.source.profile}
                   initialModelId={verifyCliContext.modelId}
                 />
@@ -820,9 +550,12 @@ export default function ModelList(props: {
           {verifyProfileContext && (
             <VerifyApiCredentialProfileDialog
               isOpen={true}
-              onClose={() => setVerifyProfileContext(null)}
+              onClose={handleCloseProfileVerification}
               profile={verifyProfileContext.profile}
               initialModelId={verifyProfileContext.modelId}
+              initialSupportedEndpointTypes={
+                verifyProfileContext.supportedEndpointTypes
+              }
             />
           )}
 
@@ -833,13 +566,14 @@ export default function ModelList(props: {
               account={modelKeyContext.account}
               modelId={modelKeyContext.modelId}
               modelEnableGroups={modelKeyContext.modelEnableGroups}
+              groupDisplayNames={modelKeyContext.groupDisplayNames}
             />
           )}
 
           {batchVerifyContext && (
             <BatchVerifyModelsDialog
               isOpen={true}
-              onClose={() => setBatchVerifyContext(null)}
+              onClose={handleCloseBatchVerification}
               items={batchVerifyContext.items}
             />
           )}
@@ -871,8 +605,11 @@ export default function ModelList(props: {
             setSelectedGroups={setSelectedGroups}
             availableGroups={availableGroups}
             singleSourceGroupRatios={singleSourceGroupRatios}
+            singleSourceGroupDisplayNames={singleSourceGroupDisplayNames}
             showRealPrice={showRealPrice}
             setShowRealPrice={setShowRealPrice}
+            expandGroups={expandGroups}
+            setExpandGroups={setExpandGroups}
             showEndpointTypes={showEndpointTypes}
             setShowEndpointTypes={setShowEndpointTypes}
             totalModels={totalModels}
@@ -912,18 +649,15 @@ export default function ModelList(props: {
             )}
           </ProviderTabs>
 
-          <Footer showPricingNote={sourceCapabilities.supportsPricing} />
+          <Footer
+            showPricingNote={supportsModelCurrencyPricing(sourceCapabilities)}
+          />
         </>
       )}
     </div>
   )
   return (
-    <PricingScenarioNavigation
-      onConfigure={() => {
-        if (!isModelListPriceSortMode(sortMode))
-          setSortMode(MODEL_LIST_SORT_MODES.MODEL_CHEAPEST_FIRST)
-      }}
-    >
+    <PricingScenarioNavigation onConfigure={handleConfigurePricing}>
       {page}
     </PricingScenarioNavigation>
   )

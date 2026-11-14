@@ -35,13 +35,21 @@
     "keyForModel": "Key for this model",
     "openSelectedAccountKeys": "Manage account keys",
     "openSite": "Open site",
-    "verifyApi": "Verify API",
-    "verifyCliSupport": "Verify CLI Support"
+    "verifyApi": "Test API",
+    "verifyCliSupport": "CLI compatibility test"
   },
+  "allAccountGroups": "All groups",
   "allAccounts": "All accounts",
   "allBillingModes": "All Billing Modes",
   "allGroups": "All Groups",
   "allProviders": "All Providers",
+  "availability": {
+    "details": "View access details",
+    "restrictedHint": "The site currently marks this model as unavailable.",
+    "unavailable": "Currently unavailable",
+    "unknown": "Availability unconfirmed",
+    "unknownHint": "The site has not confirmed whether this model is available."
+  },
   "batchVerify": {
     "actions": {
       "open": "Batch test",
@@ -114,12 +122,15 @@
     "actions": "Actions",
     "filters": "Filters"
   },
+  "convertedPrice": "Converted",
+  "convertedPriceTitle": "Displayed using the current exchange rate; the original currency price is unchanged.",
   "copyAllNames": "Copy All Model Names",
   "currentUsableGroups": "Current usable groups",
   "description": "Browse models from accounts and API credentials, including pricing, capabilities and availability.",
   "detailedPricing": "Detailed Pricing",
   "diagnostics": {
     "all": "All offers",
+    "attention": "Review {{value}}",
     "byGroup": "By billing group",
     "byOrigin": "By site origin",
     "clearSearch": "Clear search",
@@ -128,26 +139,42 @@
     "copy": "Copy full diagnostic report",
     "copyFailed": "Copy failed. Try again.",
     "copyFiltered": "Copy filtered results",
+    "copyRecord": "Copy record",
     "empty": "No diagnostic entries match. Switch to all offers to inspect pricing rules.",
     "filter": "Filter diagnostic issues",
     "flat": "No grouping",
     "groupBy": "Group display",
     "inspect": "Inspect diagnostics",
+    "issueLabels": {
+      "requestCondition": "Request pricing conditions unsupported",
+      "sourceConflict": "Conflicting official pricing records",
+      "thresholdBasisUnverified": "Threshold selection basis unverified"
+    },
     "issuesOnly": "Offers needing review",
     "locate": "Locate model",
-    "matched": "{{records}} matching quotes · {{models}} distinct models",
-    "more": "Show more",
+    "matched": "{{records}} records · {{models}} models",
     "noGroup": "No billing group",
     "noOrigin": "Unknown source origin",
-    "scope": "Inspects currently loaded, filtered quotes without extra site requests. Counts refer to quote records; a model can appear at multiple sites. Codes can also indicate missing conditions. Exports omit credentials and full API responses.",
+    "overview": "{{total}} records · {{published}} published · {{quoted}} quoted · {{attention}} need review",
+    "results": "Diagnostic results",
+    "scope": "Inspects loaded prices and quotes without extra site requests. Exports omit credentials.",
     "search": "Search model, source or group",
     "searchHint": "Model / domain or full URL / group / error code; combine with spaces",
-    "shown": "Showing {{shown}} / {{total}} offers",
-    "summary": "Total {{total}} · Complete {{complete}} · Partial {{partial}} · Unavailable {{unavailable}} · Not quoted {{notQuoted}} · Review {{attention}}",
-    "title": "[DEV] Pricing diagnostics",
-    "units": "Billing unit coverage"
+    "status": {
+      "complete": "Complete quote",
+      "notQuoted": "Not quoted",
+      "partial": "Partial quote",
+      "published": "Published price",
+      "reference": "Reference price",
+      "unavailable": "Quote unavailable"
+    },
+    "title": "[DEV] Pricing diagnostics"
   },
   "displayFacts": {
+    "accessReason": "Access condition",
+    "auditCharge": "Rejected-risk audit charge",
+    "auditConsent": "Audit consent required",
+    "baseContextTier": "Base tier shown; rates vary by context length",
     "benchmarkTable": {
       "arena": "Arena",
       "category": "Category",
@@ -159,9 +186,21 @@
       "no": "No",
       "yes": "Yes"
     },
+    "callExamples": "Call examples",
+    "catalogOwner": "Catalog owner",
+    "catalogScope": "Catalog scope",
+    "compactionCharge": "Remote compaction",
+    "consoleSettings": "Official settings",
     "contextLimit": "Context limit",
+    "defaultDimensions": "Default dimensions",
     "inputModalities": "Input modalities",
     "maximumOutputTokens": "Maximum output tokens",
+    "modelKind": "Model type",
+    "modelKinds": {
+      "decision": "Decision",
+      "embedding": "Embedding",
+      "reranker": "Reranker"
+    },
     "openRouter": {
       "architecture": {
         "instructType": "Instruction format",
@@ -241,6 +280,7 @@
       }
     },
     "outputModalities": "Output modalities",
+    "planRestricted": "Your current plan does not support this model",
     "priceConditions": {
       "minimumPromptTokens": "More than {{formattedCount}} prompt tokens",
       "minimumPromptTokens_one": "More than {{formattedCount}} prompt token",
@@ -263,17 +303,33 @@
       "request": "request",
       "webSearch": "web search"
     },
+    "pricingConditions": "Pricing conditions",
+    "promptAudit": "Prompt audit enabled",
+    "providerAvailable": "Available on site",
+    "providerReferenceCatalog": "Full site catalogue",
+    "releaseDate": "Release date",
     "sections": {
       "specifications": "Specifications"
     },
+    "subscriptionMultiplier": "Subscription multiplier",
+    "subscriptionPlan": "Subscription",
+    "supportedDimensions": "Supported dimensions",
+    "supportsImages": "Image support",
     "tokenCount_one": "{{formattedCount}} token",
-    "tokenCount_other": "{{formattedCount}} tokens"
+    "tokenCount_other": "{{formattedCount}} tokens",
+    "trainingChannels": "Training channels available",
+    "trainingConsent": "Training consent required",
+    "vercelVerificationRequired": "Complete customer verification in the Vercel AI Gateway console before sending requests",
+    "viewOnSite": "View on site"
   },
   "displayOptions": "Display",
   "endpointType": "Endpoint Type",
   "endpointTypes": "Endpoint Types",
+  "endpointTypesHint": "Show the API endpoint types supported by each model.",
   "estimatedPrice": "Estimated",
-  "estimatedPriceTitle": "Estimated from the official price table and this key's Sub2API group rate.",
+  "estimatedPriceTitle": "Calculated from reference rates or pricing assumptions; actual charges may vary.",
+  "expandAccountGroups": "Expand account groups",
+  "expandAccountGroupsHint": "List each eligible group separately. An account can have multiple offers for the same model. Account group filters determine eligible groups. A card’s group choice applies to that model’s quote.",
   "expandDetails": "Expand details",
   "fallbackSourceNotice": {
     "description": "This catalog is currently loaded through an account-key fallback, so it only supports model discovery and verification. Refresh Data will retry the direct account route.",
@@ -282,6 +338,10 @@
   "groupRatioTooltip": "Group {{group}} ratio: {{ratio}}x",
   "groupRatioUnavailable": "Group multiplier unavailable",
   "groupSelectionHint": "Leave this empty to compare across all groups; price sorting uses the best price within the selected group set",
+  "inferenceRouteFallbackNotice": {
+    "description": "Current route information is unavailable. The model list was fetched using built-in addresses, which may be outdated. Models still come from live API responses.",
+    "title": "Using built-in routes"
+  },
   "input": "Input:",
   "input1MTokens": "Input (1M tokens)",
   "keyDialog": {
@@ -366,6 +426,7 @@
     },
     "selectionHint": "When multiple capabilities are selected, models must match all selected capabilities."
   },
+  "modelGroupQuickSelect": "Model group",
   "noMatchingModels": "No matching models found",
   "noSourcesDescription": "Add a site account or API credential before viewing the model list.",
   "noSourcesTitle": "No model sources yet",
@@ -432,9 +493,28 @@
   },
   "pricingDescription": "Prices come from the site. Different billing units, such as million tokens, images, seconds and requests, are compared separately. Check the unit beside each quote; the site determines actual charges.",
   "pricingNote": "Model Pricing Note",
+  "pricingNotes": {
+    "allChannels": "All channels",
+    "ambiguousCharges": "Multiple charges share one usage meter, but their quantities or phases cannot be distinguished. Other known rates are retained.",
+    "ambiguousVariantCharges": "The source declares both unit charges and a variant schedule without establishing whether these charges are additive or alternative.",
+    "dedicatedPrices": "Dedicated prices, multipliers included",
+    "defaultRoute": "Default route",
+    "endpointSourceConflict": "Official endpoint records for this model declare inconsistent charge contracts; the applicable price cannot be determined.",
+    "excludedCharges": "Known charges can be estimated; these independent charges are excluded: {{charges}}.",
+    "multiplier": "Multiplier {{value}}",
+    "namedChannel": "All channels ({{name}})",
+    "providerReportedEstimate": "Provider-reported billing: listed token rates are an estimate of the final charge.",
+    "routingContext": "{{route}} · {{channel}} · {{price}}. Native default pricing view; charges depend on the request route and channel.",
+    "runtimeDependent": "The source declares runtime-dependent billing without a complete upfront formula; published numeric rates are references only.",
+    "thresholdBasisUnverified": "Published threshold rates are retained as references; the adapter has not verified the full quantity basis, cache treatment and boundary semantics needed to select a tier.",
+    "thresholdSourceConflict": "The declared base and zero-threshold rates conflict or are incomplete; a reference rate cannot be established.",
+    "timeWindow": "{{label}} {{start}}–{{end}}: input ${{input}} · output ${{output}} · cache read ${{cacheRead}} / 1M",
+    "timeWindowTimezoneUnavailable": "No timezone is published; regular rates are shown and time-window discounts are not automatically applied.",
+    "wholeRequestTier": "The matched context tier applies to the entire request."
+  },
   "profileSourceNotice": {
     "description": "Saved API credentials only provide model discovery and verification. Pricing, group filters, account summaries, and key compatibility are unavailable for this source.",
-    "title": "Profile-backed model catalog"
+    "title": "Credential-backed model catalog"
   },
   "providerCatalogFallbackNotice": {
     "allAccountsDescription": "Model access has not been confirmed for the accounts below. Their full site catalogs are shown; some models may not be callable with these accounts. Check account permissions and verification results.",
@@ -442,13 +522,32 @@
     "description": "This account's actual available model scope could not be confirmed, so the provider’s full model catalog is shown. Some models may not be callable with this account; use the site's account permissions and real verification results as the final source of truth.",
     "title": "Fell back to the provider’s full model catalog"
   },
+  "providerGroup": {
+    "action": "Change official routing group",
+    "apply": "Save to official site",
+    "description": "Saving changes this model’s routing preference on the official site and may affect subsequent requests and prices.",
+    "label": "Official routing group",
+    "locked": "An active session locks this routing preference. Manage the session on the official site first.",
+    "refreshRequired": "{{error}}. The change may have been applied. Refresh the catalog before trying again.",
+    "saving": "Saving…"
+  },
   "providerTabs": {
     "scrollLeft": "Scroll vendor tabs left",
     "scrollRight": "Scroll vendor tabs right",
     "unclassified": "Unclassified",
     "unclassifiedDescription": "The vendor could not be identified; this does not mean the model is unavailable."
   },
+  "quotaBilling": {
+    "adjustments": "Additional billing factors: {{names}}.",
+    "comparison": "{{amount}} / million modeled tokens.",
+    "invalid": "Quota pricing is unavailable.",
+    "reference": "Base usage only; additional multipliers are not included.",
+    "sortAsc": "Quota usage: low to high",
+    "sortDesc": "Quota usage: high to low",
+    "source": "Billing rules"
+  },
   "realAmount": "Real Recharge Amount",
+  "realAmountHint": "Convert prices using each account’s configured conversion rate.",
   "refreshData": "Refresh Data",
   "runtimeKeyFallbackSourceNotice": {
     "description": "This catalog is loaded through an existing key for this account, so it only supports model discovery and verification. This account cannot create new API keys here; Refresh Data will retry the direct account route.",
@@ -456,6 +555,7 @@
   },
   "scenario": {
     "additionalChargesExcluded": "Other unverified billing items are excluded from this estimate.",
+    "annotatedDocument": "Annotated output",
     "appliedConversion": "Cost conversion: 1 USD = {{value}} CNY",
     "appliedMultiplier": "Group multiplier ×{{value}}",
     "audio": "Audio seconds",
@@ -476,6 +576,7 @@
     "catalogExplanation": "Estimated from the site’s public prices and your current scenario; this is not your account’s actual charge.",
     "character": "character",
     "characters": "Characters per task",
+    "codeExecution": "Code execution calls",
     "collected": "Price collected: {{time}}",
     "compareEffect": "Choose a use case close to yours to compare unit prices. Adjust the shares or expand the relevant billing conditions when needed.",
     "conditional": "Conditional pricing",
@@ -487,10 +588,12 @@
     "currentBaseTier": "Using the base price tier",
     "currentTier": "Using the price tier",
     "day": "Day",
+    "documentAnnotation": "Document annotations",
     "effectiveRate": "Effective unit price",
     "excludedCosts": "Not included: {{meters}}. These costs may increase the actual amount.",
     "fixedPriceUnavailable": "The source returned a price placeholder instead of a comparable fixed rate. This is not a missing setting or a free price. Check the pricing source for the cost of the models or services actually used.",
     "freeQuantity": "First {{value}} units free per task",
+    "generationMode": "Generation operation",
     "groups": {
       "image": "Image settings",
       "other": "Other billing conditions",
@@ -499,6 +602,7 @@
     },
     "hour": "Hour",
     "image": "Images",
+    "imageCache": "Cached image tokens",
     "imageInput": "Image input tokens",
     "imageMegapixels": "Image area (megapixels)",
     "imageOutput": "Image output tokens",
@@ -516,7 +620,8 @@
       "cacheRead": "Cache read",
       "cacheWrite": "Cache write",
       "input": "Input",
-      "output": "Output"
+      "output": "Output",
+      "request": "Per-call price"
     },
     "minute": "Minute",
     "missingConversion": "CNY conversion is unavailable. Turn off real-price display to view USD list prices.",
@@ -547,6 +652,7 @@
     "perMillionVideoTokens": "million video output tokens",
     "perRequest": "per request",
     "perUnit": "per unit",
+    "plainDocument": "Plain output",
     "pricingSourceUnavailable": "The full pricing rules could not be loaded, so comparison is temporarily unavailable. Refresh prices to retry or check the pricing source. No input setting is missing.",
     "pricingTime": "Compare prices at",
     "pricingTimeEffect": "Compare prices at different times using your device’s local time. This only affects models with time-based pricing; it is not when price data was updated.",
@@ -554,8 +660,14 @@
     "publishedPrices": "Item prices:",
     "rateChange": "{{meter}}: {{from}} → {{to}} / million tokens",
     "referenceImages": "Reference images per task",
+    "referenceRate": "Reference",
+    "requestUnit": "call",
     "responseFormat": "Billing response format",
     "search": "Searches",
+    "searchContext": "Search context",
+    "searchContextHigh": "High",
+    "searchContextLow": "Low",
+    "searchContextMedium": "Medium",
     "searchUnit": "search unit",
     "searchUnits": "Search units per task",
     "second": "second",
@@ -579,14 +691,20 @@
     "unspecified": "Unspecified",
     "unsupportedRule": "Some billing rules cannot currently be calculated. Check the site’s pricing details.",
     "unverifiedCacheBasis": "The site does not specify whether tier input length includes cached tokens. Set both cache read and write weights to 0 to compare without cache; this changes the compared workload. You can also inspect the price table in the calculation details or open the pricing source.",
+    "videoAudio": "Video audio",
     "videoComparisonHint": "Compare video output token rates under the selected reference conditions. Actual charges depend on the generated result.",
+    "videoDynamicRange": "Video dynamic range",
     "videoInput": "Video reference",
+    "videoInputTokens": "Video input tokens",
+    "videoMode": "Video generation mode",
     "videoOutput": "Video output",
     "videoPrice": "Estimated video output price",
     "videoQuality": "Video quality",
     "videoSeconds": "Video duration per task (seconds)",
     "websiteRulesUnavailable": "Complete billing rules are not available for calculation. Check the site’s pricing details.",
     "weekday": "Weekday (0 = Sunday)",
+    "withAudio": "Generate audio",
+    "withoutAudio": "No audio",
     "withoutVideo": "Without video reference",
     "withVideo": "With video reference"
   },
@@ -596,6 +714,8 @@
   "selectSourceToContinue": "Select a source above before viewing the model list.",
   "showing_one": "Showing {{count}} model",
   "showing_other": "Showing {{count}} models",
+  "showingGroupQuotes_one": "Showing {{count}} offer",
+  "showingGroupQuotes_other": "Showing {{count}} offers",
   "showUnavailableModels": "Also show models without account access",
   "siteDescription": "Site description:",
   "siteSupportedGroups": "Site-supported groups",
@@ -609,7 +729,7 @@
   },
   "sourceLabels": {
     "personalizedCatalogBadge": "{{account}} · Personalized Model Catalog",
-    "profileBadge": "Profile: {{name}} · {{host}}",
+    "profileBadge": "Credential: {{name}} · {{host}}",
     "profileOption": "API Credential: {{name}} · {{host}}",
     "providerCatalogBadge": "{{provider}} · Provider Model Catalog"
   },
@@ -656,15 +776,15 @@
   "title": "Model List",
   "totalModels_one": "Total {{count}} model",
   "totalModels_other": "Total {{count}} models",
-  "unavailable": "Unavailable",
   "unavailableModelsHint": "Include already loaded models with no usable groups for this account. These models bypass group selection but still follow other filters. This does not fetch additional site-wide models. Applies to this page session only.",
   "unavailablePriceReasons": {
     "groupRatioUnavailable": "Prices are unavailable because this usable group has no multiplier.",
     "keyGroupUnknown": "Prices are unavailable because this key's Sub2API group could not be resolved.",
     "modelListOnly": "Models are available for this key. Prices are unavailable.",
     "officialPriceInvalid": "This model's official price data is invalid.",
-    "officialPriceMissing": "This model is not in the price table.",
-    "pricingSourceUnavailable": "Price data is unavailable for this source."
+    "officialPriceMissing": "No price found for this model.",
+    "pricingRulesUnavailable": "Billing rules are incomplete; the published reference rate is shown.",
+    "pricingSourceUnavailable": "Pricing data has not been retrieved yet."
   },
   "userGroup": "User Group",
   "verificationResults": {

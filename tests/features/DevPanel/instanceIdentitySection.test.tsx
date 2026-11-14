@@ -8,7 +8,8 @@ import {
   DEV_IDENTITY_FIXTURE_COLOR,
   DEV_IDENTITY_FIXTURE_PATH,
 } from "~~/tests/test-utils/devIdentityFixtures"
-import { render } from "~~/tests/test-utils/render"
+import { renderDevPanelSection } from "~~/tests/test-utils/devPanelSection"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const {
   getDevIdentityMock,
@@ -32,9 +33,9 @@ vi.mock("~/utils/browser/extensionIdentity", () => ({
   getDevIdentity: (...args: unknown[]) => getDevIdentityMock(...args),
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtime", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+    await importOriginal<typeof import("~/utils/browser/runtime")>()
 
   return {
     ...actual,
@@ -52,47 +53,8 @@ vi.mock("~/lib/notify", () => ({
 
 const BUILD_IDENTITY = buildDevIdentity()
 
-function SectionHarness() {
-  const section = useInstanceIdentityDevSection()
-
-  return (
-    <div>
-      <p data-testid="section-meta">
-        {[
-          section.collapsible,
-          section.defaultCollapsed,
-          section.summary ?? "no-summary",
-          section.order ?? "default-order",
-        ].join("|")}
-      </p>
-      {section.rows?.map((row) => (
-        <p key={row.id} data-testid={`row-${row.id}`}>
-          {`${row.label}|${row.value ?? "unavailable"}|${row.tone ?? "none"}`}
-        </p>
-      ))}
-      {section.actions.map((action) => (
-        <button
-          key={action.id}
-          type="button"
-          onClick={() => void action.run()}
-          disabled={action.disabled}
-          aria-busy={action.loading || undefined}
-        >
-          {action.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-const RENDER_OPTIONS = {
-  withReleaseUpdateStatusProvider: false,
-  withUserPreferencesProvider: false,
-  withThemeProvider: false,
-} as const
-
 async function renderHarness() {
-  render(<SectionHarness />, RENDER_OPTIONS)
+  renderDevPanelSection(useInstanceIdentityDevSection)
   await waitFor(() => expect(getManagementSelfMock).toHaveBeenCalled())
 }
 
@@ -196,7 +158,7 @@ describe("instance identity dev section", () => {
     )
 
     await waitFor(() => expect(writeText).toHaveBeenCalled())
-    const payload = JSON.parse(writeText.mock.calls[0][0] as string)
+    const payload = JSON.parse(atIndex(writeText.mock.calls, 0)[0] as string)
     expect(payload).toMatchObject({
       path: BUILD_IDENTITY.path,
       outputPath: BUILD_IDENTITY.outputPath,

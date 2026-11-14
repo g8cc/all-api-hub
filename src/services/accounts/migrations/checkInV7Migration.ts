@@ -6,11 +6,11 @@ import {
   CHECK_IN_METHOD_TODAY_STATUSES,
   CHECK_IN_SELECTION_MODES,
 } from "~/constants/checkIn"
-import { normalizeCheckInConfigV7 } from "~/services/checkin/autoCheckin/configCodec"
+import { normalizeCheckInConfigV7 } from "~/services/checkin/autoCheckin/configuration/configCodec"
 import type { SiteAccount } from "~/types"
 import type { CheckInConfig, CheckInMethodId } from "~/types/checkIn"
 
-export const ACCOUNT_CONFIG_V7_VERSION = 7 as const
+const ACCOUNT_CONFIG_V7_VERSION = 7 as const
 
 type SiteAccountV7 = Omit<SiteAccount, "checkIn" | "configVersion"> & {
   checkIn: CheckInConfig
@@ -87,8 +87,9 @@ export function migrateSiteAccountCheckInToV7(
 
   if (legacyCheckIn.enableDetection === true) {
     const legacyMethodIds = registry.getLegacyMethodIds(account.site_type)
-    if (legacyMethodIds.length === 1) {
-      selectedMethodId = legacyMethodIds[0]
+    const [legacyMethodId] = legacyMethodIds
+    if (legacyMethodId && legacyMethodIds.length === 1) {
+      selectedMethodId = legacyMethodId
       const status = migrateLegacyStatus(legacyCheckIn.siteStatus)
       methods[selectedMethodId] = {
         detection: {

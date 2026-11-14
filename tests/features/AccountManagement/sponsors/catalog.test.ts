@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { normalizeSponsorCatalog } from "~/features/AccountManagement/sponsors/catalog"
+import {
+  normalizeSponsorCatalog,
+  selectSponsorRecommendations,
+} from "~/features/AccountManagement/sponsors/catalog"
+import { SPONSOR_RECOMMENDATION_SURFACES } from "~/features/AccountManagement/sponsors/constants"
 import {
   SPONSOR_CATALOG_SOURCES,
   SPONSOR_SUPPORT_STATUS,
+  type SponsorRecommendation,
 } from "~/features/AccountManagement/sponsors/types"
 import { AuthTypeEnum } from "~/types"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const now = Date.parse("2026-06-11T00:00:00.000Z")
 
@@ -213,7 +219,7 @@ describe("sponsor catalog v5 normalization", () => {
         },
       },
     })
-    expect(result.items[0].actions).not.toHaveProperty(
+    expect(atIndex(result.items, 0).actions).not.toHaveProperty(
       "apiCredentialProfileFallback",
     )
   })
@@ -348,7 +354,7 @@ describe("sponsor catalog v5 normalization", () => {
 
     expect(result.errors).toEqual([])
     expect(result.ok).toBe(true)
-    expect(result.items[0].actions).toEqual({
+    expect(atIndex(result.items, 0).actions).toEqual({
       addAccount: {
         siteType: SITE_TYPES.NEW_API,
         siteUrl: "https://api.example.invalid",
@@ -402,7 +408,7 @@ describe("sponsor catalog v5 normalization", () => {
 
     expect(result.errors).toEqual([])
     expect(result.ok).toBe(true)
-    expect(result.items[0].actions).toMatchObject({
+    expect(atIndex(result.items, 0).actions).toMatchObject({
       apiCredentialProfileFallback: {
         baseUrl: "https://api-base.example.invalid",
         apiKeyCreateUrl: "https://console.example.invalid/api-keys",
@@ -433,13 +439,14 @@ describe("sponsor catalog v5 normalization", () => {
                 rank: 20,
                 supportStatus: SPONSOR_SUPPORT_STATUS.Unsupported,
                 name: "Malformed Campaign",
-                tagline: "Unselected campaign has unknown action key.",
+                tagline: "Unselected campaign has invalid action.",
                 links: {
                   primary: "https://zh.example.invalid/signup",
                 },
                 actions: {
-                  unknownAction: {
-                    url: "https://unknown.example.invalid",
+                  addAccount: {
+                    siteType: "invalid-site-type",
+                    siteUrl: "https://zh.example.invalid",
                   },
                 },
               },
@@ -457,7 +464,7 @@ describe("sponsor catalog v5 normalization", () => {
     expect(result.ok).toBe(false)
     expect(result.items).toEqual([])
     expect(result.errors.join("\n")).toContain(
-      "locale zh-CN has unsupported action fields: unknownAction",
+      "locale zh-CN has invalid actions",
     )
   })
 
@@ -603,22 +610,24 @@ describe("sponsor catalog v5 normalization", () => {
     expect(result.errors.join("\n")).toContain("locale zh-CN has invalid rank")
   })
 
-  it("rejects top-level campaign fields", () => {
+  it("tolerates unknown top-level and locale fields for forward compatibility", () => {
     const result = normalizeSponsorCatalog(
       {
         schemaVersion: 5,
         items: [
           {
-            id: "strict-campaign",
-            rank: 10,
+            id: "forward-compatible-campaign",
+            rank: 10, // unknown top-level field
+            futureItemMeta: "ignored", // future top-level field
             locales: {
               en: {
                 enabled: true,
                 rank: 10,
                 supportStatus: SPONSOR_SUPPORT_STATUS.Unsupported,
-                name: "Strict Campaign",
-                tagline: "Synthetic strict campaign.",
-                website: "https://website.example.invalid",
+                name: "Forward Compatible Campaign",
+                tagline: "Synthetic forward compatible campaign.",
+                website: "https://website.example.invalid", // unknown locale field
+                futureLocaleBadge: "HOT", // future locale field
                 links: {
                   primary: "https://campaign.example.invalid/signup",
                 },
@@ -634,45 +643,15 @@ describe("sponsor catalog v5 normalization", () => {
       },
     )
 
-    expect(result.ok).toBe(false)
-    expect(result.items).toEqual([])
-    expect(result.errors.join("\n")).toContain("top-level")
-  })
-
-  it("rejects unknown locale fields", () => {
-    const result = normalizeSponsorCatalog(
-      {
-        schemaVersion: 5,
-        items: [
-          {
-            id: "unknown-locale-field-campaign",
-            locales: {
-              en: {
-                enabled: true,
-                rank: 10,
-                supportStatus: SPONSOR_SUPPORT_STATUS.Unsupported,
-                name: "Unknown Locale Field Campaign",
-                tagline: "Synthetic unknown locale field campaign.",
-                website: "https://website.example.invalid",
-                links: {
-                  primary: "https://campaign.example.invalid/signup",
-                },
-              },
-            },
-          },
-        ],
-      },
-      {
-        locale: "en",
-        now,
-        source: SPONSOR_CATALOG_SOURCES.Remote,
-      },
+    expect(result.ok).toBe(true)
+    expect(result.errors).toEqual([])
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]?.name).toBe("Forward Compatible Campaign")
+    expect(result.items[0]?.tagline).toBe(
+      "Synthetic forward compatible campaign.",
     )
-
-    expect(result.ok).toBe(false)
-    expect(result.items).toEqual([])
-    expect(result.errors.join("\n")).toContain(
-      "locale en has unsupported locale fields: website",
+    expect(result.items[0]?.links.primary).toBe(
+      "https://campaign.example.invalid/signup",
     )
   })
 
@@ -893,36 +872,36 @@ describe("sponsor catalog v5 normalization", () => {
     )
   })
 
-  it("rejects unknown nested link and action fields", () => {
+  it("tolerates unknown nested link and action fields while extracting known payloads", () => {
     const result = normalizeSponsorCatalog(
       {
         schemaVersion: 5,
         items: [
           {
-            id: "unknown-link-field-campaign",
+            id: "lenient-link-field-campaign",
             locales: {
               en: {
                 enabled: true,
                 rank: 10,
                 supportStatus: SPONSOR_SUPPORT_STATUS.Unsupported,
-                name: "Unknown Link Field Campaign",
-                tagline: "Synthetic unknown link field campaign.",
+                name: "Lenient Link Field Campaign",
+                tagline: "Synthetic lenient link field campaign.",
                 links: {
                   primary: "https://campaign.example.invalid/signup",
-                  extra: "https://extra.example.invalid",
+                  extra: "https://extra.example.invalid", // unknown link property
                 },
               },
             },
           },
           {
-            id: "unknown-action-field-campaign",
+            id: "lenient-action-field-campaign",
             locales: {
               en: {
                 enabled: true,
                 rank: 20,
                 supportStatus: SPONSOR_SUPPORT_STATUS.Unsupported,
-                name: "Unknown Action Field Campaign",
-                tagline: "Synthetic unknown action field campaign.",
+                name: "Lenient Action Field Campaign",
+                tagline: "Synthetic lenient action field campaign.",
                 links: {
                   primary: "https://action.example.invalid/signup",
                 },
@@ -931,7 +910,10 @@ describe("sponsor catalog v5 normalization", () => {
                     siteType: SITE_TYPES.NEW_API,
                     siteUrl: "https://api.example.invalid",
                     authType: AuthTypeEnum.AccessToken,
-                    extra: "ignored",
+                    extra: "ignored", // unknown action sub-property
+                  },
+                  futureActionType: {
+                    url: "https://future.example.invalid", // unknown action key
                   },
                 },
               },
@@ -946,13 +928,323 @@ describe("sponsor catalog v5 normalization", () => {
       },
     )
 
+    expect(result.ok).toBe(true)
+    expect(result.errors).toEqual([])
+    expect(result.items).toHaveLength(2)
+    expect(result.items[0]?.links.primary).toBe(
+      "https://campaign.example.invalid/signup",
+    )
+    expect(result.items[1]?.actions.addAccount?.siteUrl).toBe(
+      "https://api.example.invalid",
+    )
+  })
+
+  it("normalizes explicit iconUrl in locale campaign and item level", () => {
+    const result = normalizeSponsorCatalog(
+      {
+        schemaVersion: 5,
+        items: [
+          {
+            id: "campaign-icon-sponsor",
+            locales: {
+              en: {
+                enabled: true,
+                rank: 1,
+                supportStatus: SPONSOR_SUPPORT_STATUS.Supported,
+                name: "Campaign Icon Sponsor",
+                tagline: "Has iconUrl in campaign",
+                iconUrl: "https://cdn.example.com/campaign-logo.png",
+                links: { primary: "https://example.com" },
+              },
+            },
+          },
+          {
+            id: "item-icon-sponsor",
+            iconUrl: "https://cdn.example.com/item-logo.png",
+            locales: {
+              en: {
+                enabled: true,
+                rank: 2,
+                supportStatus: SPONSOR_SUPPORT_STATUS.Supported,
+                name: "Item Icon Sponsor",
+                tagline: "Has iconUrl on item level",
+                links: { primary: "https://example.com" },
+              },
+            },
+          },
+          {
+            id: "override-icon-sponsor",
+            iconUrl: "https://cdn.example.com/item-fallback.png",
+            locales: {
+              en: {
+                enabled: true,
+                rank: 3,
+                supportStatus: SPONSOR_SUPPORT_STATUS.Supported,
+                name: "Override Icon Sponsor",
+                tagline: "Campaign iconUrl overrides item iconUrl",
+                iconUrl: "https://cdn.example.com/campaign-override.png",
+                links: { primary: "https://example.com" },
+              },
+            },
+          },
+        ],
+      },
+      {
+        locale: "en",
+        now,
+        source: SPONSOR_CATALOG_SOURCES.Remote,
+      },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(result.errors).toEqual([])
+    expect(result.items[0]?.iconUrl).toBe(
+      "https://cdn.example.com/campaign-logo.png",
+    )
+    expect(result.items[1]?.iconUrl).toBe(
+      "https://cdn.example.com/item-logo.png",
+    )
+    expect(result.items[2]?.iconUrl).toBe(
+      "https://cdn.example.com/campaign-override.png",
+    )
+  })
+
+  it("rejects invalid iconUrl with semantic error", () => {
+    const result = normalizeSponsorCatalog(
+      {
+        schemaVersion: 5,
+        items: [
+          {
+            id: "invalid-icon-sponsor",
+            locales: {
+              en: {
+                enabled: true,
+                rank: 1,
+                supportStatus: SPONSOR_SUPPORT_STATUS.Supported,
+                name: "Invalid Icon Sponsor",
+                tagline: "Has malformed iconUrl",
+                iconUrl: "javascript:alert(1)",
+                links: { primary: "https://example.com" },
+              },
+            },
+          },
+        ],
+      },
+      {
+        locale: "en",
+        now,
+        source: SPONSOR_CATALOG_SOURCES.Remote,
+      },
+    )
+
     expect(result.ok).toBe(false)
-    expect(result.items).toEqual([])
-    expect(result.errors.join("\n")).toContain(
-      "locale en has unsupported link fields: extra",
+    expect(result.items).toHaveLength(0)
+    expect(result.errors.join("\n")).toContain("has invalid iconUrl")
+  })
+
+  it("rejects invalid top-level item iconUrl with semantic error", () => {
+    const result = normalizeSponsorCatalog(
+      {
+        schemaVersion: 5,
+        items: [
+          {
+            id: "invalid-item-icon-sponsor",
+            iconUrl: "not-a-url",
+            locales: {
+              en: {
+                enabled: true,
+                rank: 1,
+                supportStatus: SPONSOR_SUPPORT_STATUS.Supported,
+                name: "Invalid Item Icon Sponsor",
+                tagline: "Has malformed item iconUrl",
+                links: { primary: "https://example.com" },
+              },
+            },
+          },
+        ],
+      },
+      {
+        locale: "en",
+        now,
+        source: SPONSOR_CATALOG_SOURCES.Remote,
+      },
     )
+
+    expect(result.ok).toBe(false)
+    expect(result.items).toHaveLength(0)
     expect(result.errors.join("\n")).toContain(
-      "locale en has unsupported addAccount action fields: extra",
+      "item invalid-item-icon-sponsor has invalid iconUrl",
     )
+  })
+
+  it("rejects campaigns with non-record links", () => {
+    const result = normalizeSponsorCatalog(
+      {
+        schemaVersion: 5,
+        items: [
+          {
+            id: "invalid-links-sponsor",
+            locales: {
+              en: {
+                enabled: true,
+                rank: 1,
+                supportStatus: SPONSOR_SUPPORT_STATUS.Supported,
+                name: "Invalid Links Sponsor",
+                tagline: "Has non-record links",
+                links: "invalid" as unknown as { primary: string },
+              },
+            },
+          },
+        ],
+      },
+      {
+        locale: "en",
+        now,
+        source: SPONSOR_CATALOG_SOURCES.Remote,
+      },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.items).toHaveLength(0)
+    expect(result.errors.join("\n")).toContain(
+      "item invalid-links-sponsor locale en has invalid links",
+    )
+  })
+
+  it("rejects campaigns with non-record addAccount action", () => {
+    const result = normalizeSponsorCatalog(
+      {
+        schemaVersion: 5,
+        items: [
+          {
+            id: "invalid-add-account-action-sponsor",
+            locales: {
+              en: {
+                enabled: true,
+                rank: 1,
+                supportStatus: SPONSOR_SUPPORT_STATUS.Supported,
+                name: "Invalid Action Sponsor",
+                tagline: "Has non-record addAccount",
+                links: { primary: "https://example.com" },
+                actions: {
+                  addAccount: "invalid" as unknown as Record<string, unknown>,
+                },
+              },
+            },
+          },
+        ],
+      },
+      {
+        locale: "en",
+        now,
+        source: SPONSOR_CATALOG_SOURCES.Remote,
+      },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.items).toHaveLength(0)
+    expect(result.errors.join("\n")).toContain(
+      "item invalid-add-account-action-sponsor locale en has invalid addAccount action",
+    )
+  })
+
+  it("rejects campaigns with non-record apiCredentialProfileFallback action", () => {
+    const result = normalizeSponsorCatalog(
+      {
+        schemaVersion: 5,
+        items: [
+          {
+            id: "invalid-api-cred-action-sponsor",
+            locales: {
+              en: {
+                enabled: true,
+                rank: 1,
+                supportStatus: SPONSOR_SUPPORT_STATUS.Supported,
+                name: "Invalid Action Sponsor",
+                tagline: "Has non-record apiCredentialProfileFallback",
+                links: { primary: "https://example.com" },
+                actions: {
+                  apiCredentialProfileFallback: "invalid" as unknown as Record<
+                    string,
+                    unknown
+                  >,
+                },
+              },
+            },
+          },
+        ],
+      },
+      {
+        locale: "en",
+        now,
+        source: SPONSOR_CATALOG_SOURCES.Remote,
+      },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.items).toHaveLength(0)
+    expect(result.errors.join("\n")).toContain(
+      "item invalid-api-cred-action-sponsor locale en has invalid apiCredentialProfileFallback action",
+    )
+  })
+})
+
+describe("selectSponsorRecommendations", () => {
+  const dummyItems: SponsorRecommendation[] = [
+    {
+      id: "account-only",
+      rank: 1,
+      name: "Account Only",
+      tagline: "Account only provider",
+      selectedLocale: "en",
+      schemaVersion: 5,
+      supportStatus: SPONSOR_SUPPORT_STATUS.Supported,
+      links: { primary: "https://example.invalid/1" },
+      actions: {
+        addAccount: {
+          siteType: SITE_TYPES.NEW_API,
+          siteUrl: "https://api.example.invalid/1",
+        },
+      },
+      source: SPONSOR_CATALOG_SOURCES.Bundled,
+    },
+    {
+      id: "api-profile-enabled",
+      rank: 2,
+      name: "API Profile Enabled",
+      tagline: "API profile provider",
+      selectedLocale: "en",
+      schemaVersion: 5,
+      supportStatus: SPONSOR_SUPPORT_STATUS.Unsupported,
+      links: { primary: "https://example.invalid/2" },
+      actions: {
+        apiCredentialProfileFallback: {
+          baseUrl: "https://api.example.invalid/v1",
+        },
+      },
+      source: SPONSOR_CATALOG_SOURCES.Bundled,
+    },
+  ]
+
+  it("filters recommendations for PopupApiCredentialProfiles to only those with apiCredentialProfileFallback", () => {
+    const selected = selectSponsorRecommendations(
+      dummyItems,
+      SPONSOR_RECOMMENDATION_SURFACES.PopupApiCredentialProfiles,
+    )
+    expect(selected.map((item) => item.id)).toEqual(["api-profile-enabled"])
+  })
+
+  it("returns all recommendations for Newcomer and PopupBookmarks surfaces", () => {
+    const newcomer = selectSponsorRecommendations(
+      dummyItems,
+      SPONSOR_RECOMMENDATION_SURFACES.Newcomer,
+    )
+    expect(newcomer).toHaveLength(2)
+
+    const bookmarks = selectSponsorRecommendations(
+      dummyItems,
+      SPONSOR_RECOMMENDATION_SURFACES.PopupBookmarks,
+    )
+    expect(bookmarks).toHaveLength(2)
   })
 })

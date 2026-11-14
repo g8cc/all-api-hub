@@ -1,17 +1,23 @@
-import { getAccountSiteApiRouter, SITE_TYPES } from "~/constants/siteType"
 import {
-  SITE_ANNOUNCEMENT_PROVIDER_IDS,
-  type SiteAnnouncementRecord,
-} from "~/types/siteAnnouncements"
+  getStaticAccountSiteRouteUrl,
+  SITE_ROUTE_KINDS,
+} from "~/services/accounts/utils/siteRouteResolver"
+import { normalizeSearchText } from "~/services/search/accountSearch"
+import {
+  buildAnnouncementDisplayText,
+  getAnnouncementPlainText,
+} from "~/services/siteAnnouncements/text"
+import type { SiteAnnouncementRecord } from "~/types/siteAnnouncements"
 import { formatRelativeTime } from "~/utils/core/formatters"
-import { joinUrl } from "~/utils/core/url"
+import { normalizeUrlForOriginKey } from "~/utils/core/urlParsing"
 
-import type { AnnouncementMetric, UnreadFilter } from "./types"
+import type { UnreadFilter } from "./types"
 
 export interface SiteAnnouncementSiteOption {
   value: string
   label: string
   announcementCount: number
+  sourceKeys?: string[]
 }
 
 /**
@@ -32,50 +38,26 @@ export function formatDateTime(value?: number) {
  * Formats the primary timestamp shown for a cached announcement.
  */
 export function formatAnnouncementTimestamp(record: SiteAnnouncementRecord) {
-  return formatDateTime(record.createdAt ?? record.firstSeenAt)
-}
-
-/**
- * Formats Sub2API announcements with relative time when possible.
- */
-export function formatSub2ApiRelativeTimestamp(record: SiteAnnouncementRecord) {
-  return (
-    formatRelativeTime(new Date(record.createdAt ?? record.firstSeenAt)) ||
-    formatAnnouncementTimestamp(record)
-  )
-}
-
-/**
- * Checks whether a cached announcement came from the Sub2API provider.
- */
-export function isSub2ApiAnnouncement(record: SiteAnnouncementRecord) {
-  return (
-    record.siteType === SITE_TYPES.SUB2API ||
-    record.providerId === SITE_ANNOUNCEMENT_PROVIDER_IDS.Sub2Api
-  )
+  if (
+    typeof record.createdAt === "number" &&
+    Number.isFinite(record.createdAt)
+  ) {
+    return (
+      formatRelativeTime(new Date(record.createdAt)) ||
+      formatDateTime(record.createdAt)
+    )
+  }
+  return formatDateTime(record.firstSeenAt)
 }
 
 /**
  * Returns the normal site UI surface where the cached announcement can be inspected.
  */
 export function getAnnouncementSourceUrl(record: SiteAnnouncementRecord) {
-  const path = getAccountSiteApiRouter(record.siteType).siteAnnouncementsPath
-  return path === null ? null : joinUrl(record.baseUrl, path)
-}
-
-/**
- * Returns the Tailwind classes for a summary metric tone.
- */
-export function getMetricToneClasses(tone: AnnouncementMetric["tone"]) {
-  switch (tone) {
-    case "info":
-      return "bg-info-soft text-info-soft-foreground ring-info-border"
-    case "neutral":
-      return "bg-muted text-secondary-foreground ring-border"
-    case "accent":
-    default:
-      return "bg-primary-soft text-primary-soft-foreground ring-primary-soft-border"
-  }
+  return getStaticAccountSiteRouteUrl(
+    record,
+    SITE_ROUTE_KINDS.SiteAnnouncements,
+  )
 }
 
 /**
@@ -87,25 +69,31 @@ export function buildSiteOptions(
     siteKey: string
     siteName?: string
     baseUrl: string
+    siteType?: SiteAnnouncementRecord["siteType"]
   }>,
 ) {
   const map = new Map<string, SiteAnnouncementSiteOption>()
-
-  for (const item of status) {
-    map.set(item.siteKey, {
-      value: item.siteKey,
-      label: item.siteName || item.baseUrl,
-      announcementCount: 0,
-    })
-  }
-
-  for (const item of records) {
-    const existing = map.get(item.siteKey)
-    map.set(item.siteKey, {
-      value: item.siteKey,
-      label: item.siteName || existing?.label || item.baseUrl,
-      announcementCount: (existing?.announcementCount ?? 0) + 1,
-    })
+  const recordTypes = new Map(
+    records.map((record) => [record.siteKey, record.siteType]),
+  )
+  for (const item of [...status, ...records]) {
+    const siteType = item.siteType ?? recordTypes.get(item.siteKey) ?? ""
+    const key = `${siteType}:${normalizeUrlForOriginKey(item.baseUrl)}`
+    const existing = map.get(key)
+    const isRecord = "fingerprint" in item
+    if (existing) {
+      const keys = existing.sourceKeys ?? [existing.value]
+      if (!keys.includes(item.siteKey))
+        existing.sourceKeys = [...keys, item.siteKey]
+      if (isRecord) existing.announcementCount += 1
+      if (isRecord && item.siteName) existing.label = item.siteName
+    } else {
+      map.set(key, {
+        value: item.siteKey,
+        label: item.siteName || item.baseUrl,
+        announcementCount: isRecord ? 1 : 0,
+      })
+    }
   }
 
   return [...map.values()].sort((a, b) => {
@@ -118,10 +106,13 @@ export function buildSiteOptions(
 }
 
 /**
- * Collects distinct site types for the filter dropdown.
+ * Checks whether an announcement is visible under the active read-state scope.
  */
-export function buildSiteTypeOptions(records: SiteAnnouncementRecord[]) {
-  return [...new Set(records.map((record) => record.siteType))].sort()
+export function matchesUnreadFilter(
+  record: SiteAnnouncementRecord,
+  unreadFilter: UnreadFilter,
+) {
+  return unreadFilter === "all" || !record.read
 }
 
 /**
@@ -131,28 +122,64 @@ export function filterSiteAnnouncements(
   records: SiteAnnouncementRecord[],
   {
     siteKey,
-    siteType,
+    siteKeys,
     unreadFilter,
   }: {
     siteKey: string
-    siteType: string
+    siteKeys?: string[]
     unreadFilter: UnreadFilter
   },
 ) {
   return records.filter((record) => {
-    if (siteKey !== "all" && record.siteKey !== siteKey) {
-      return false
-    }
-    if (siteType !== "all" && record.siteType !== siteType) {
-      return false
-    }
-    if (unreadFilter === "unread" && record.read) {
-      return false
-    }
-    if (unreadFilter === "read" && !record.read) {
+    if (
+      siteKey !== "all" &&
+      !(siteKeys ?? [siteKey]).includes(record.siteKey)
+    ) {
       return false
     }
 
-    return true
+    return matchesUnreadFilter(record, unreadFilter)
   })
+}
+
+/** Orders the displayed list newest first without mutating cached records. */
+export function sortSiteAnnouncements<T extends SiteAnnouncementRecord>(
+  records: T[],
+): T[] {
+  const publicationTime = (record: SiteAnnouncementRecord) =>
+    typeof record.createdAt === "number" && Number.isFinite(record.createdAt)
+      ? record.createdAt
+      : record.firstSeenAt
+
+  return [...records].sort(
+    (left, right) =>
+      publicationTime(right) - publicationTime(left) ||
+      right.firstSeenAt - left.firstSeenAt,
+  )
+}
+
+/**
+ * Matches one announcement against the free-text search box.
+ *
+ * Matching runs on the rendered title and the full formatted body so search
+ * terms line up with what the card shows, and Markdown or HTML markers in the
+ * raw upstream content never become searchable. The body is not truncated: a
+ * summary-length preview would hide everything past its first line.
+ */
+export function matchSiteAnnouncementQuery(
+  record: SiteAnnouncementRecord,
+  query: string,
+) {
+  const normalizedQuery = normalizeSearchText(query)
+  if (!normalizedQuery) {
+    return true
+  }
+
+  const display = buildAnnouncementDisplayText(record)
+  const haystack = [
+    normalizeSearchText(display.title),
+    normalizeSearchText(getAnnouncementPlainText(display.body)),
+  ].join("\n")
+
+  return haystack.includes(normalizedQuery)
 }

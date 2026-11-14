@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import ModelList from "~/entrypoints/options/pages/ModelList"
 import { KEY_MANAGEMENT_TEST_IDS } from "~/features/KeyManagement/testIds"
-import { MODEL_LIST_BILLING_MODES } from "~/features/ModelList/billingModes"
-import { createAccountSource } from "~/features/ModelList/modelManagementSources"
+import { createAccountSource } from "~/features/ModelList/catalog/modelManagementSources"
+import { MODEL_LIST_BILLING_MODES } from "~/features/ModelList/pricing/billingModes"
 import { AuthTypeEnum } from "~/types"
 import { buildCheckInConfig } from "~~/tests/test-utils/checkIn"
 import { render, screen, waitFor } from "~~/tests/test-utils/render"
@@ -29,6 +29,7 @@ vi.mock("~/lib/notify", () => ({
   default: {
     success: toastSuccessMock,
     error: toastErrorMock,
+    warning: vi.fn(),
   },
 }))
 
@@ -94,7 +95,7 @@ const TOKEN = {
 
 const ACCOUNT_SOURCE = createAccountSource(ACCOUNT)
 
-vi.mock("~/features/ModelList/hooks/useModelListData", () => ({
+vi.mock("~/features/ModelList/catalog/useModelListData", () => ({
   useModelListData: vi.fn(() => ({
     accounts: [ACCOUNT],
     profiles: [],
@@ -142,7 +143,7 @@ vi.mock("~/features/ModelList/hooks/useModelListData", () => ({
   })),
 }))
 
-vi.mock("~/features/ModelList/components/ModelDisplay", () => ({
+vi.mock("~/features/ModelList/presentation/ModelDisplay", () => ({
   ModelDisplay: ({ onOpenModelKeyDialog }: any) => (
     <button
       type="button"
@@ -153,23 +154,23 @@ vi.mock("~/features/ModelList/components/ModelDisplay", () => ({
   ),
 }))
 
-vi.mock("~/features/ModelList/components/AccountSelector", () => ({
+vi.mock("~/features/ModelList/catalog/AccountSelector", () => ({
   AccountSelector: () => null,
 }))
-vi.mock("~/features/ModelList/components/AccountSummaryBar", () => ({
+vi.mock("~/features/ModelList/catalog/AccountSummaryBar", () => ({
   AccountSummaryBar: () => null,
 }))
-vi.mock("~/features/ModelList/components/ControlPanel", () => ({
+vi.mock("~/features/ModelList/filtering/ControlPanel", () => ({
   ControlPanel: () => null,
 }))
-vi.mock("~/features/ModelList/components/Footer", () => ({
+vi.mock("~/features/ModelList/presentation/Footer", () => ({
   Footer: () => null,
 }))
-vi.mock("~/features/ModelList/components/StatusIndicator", () => ({
+vi.mock("~/features/ModelList/presentation/StatusIndicator", () => ({
   StatusIndicator: () => null,
 }))
 
-vi.mock("~/features/ModelList/components/ProviderTabs", async () => {
+vi.mock("~/features/ModelList/catalog/ProviderTabs", async () => {
   const { Tabs } = await import("~/components/ui")
   return {
     ProviderTabs: ({ children }: any) => (
@@ -194,8 +195,8 @@ describe("Model List → ModelKeyDialog", () => {
     fetchUserGroupsMock.mockResolvedValue({
       vip: { desc: "vip", ratio: 1 },
     })
-    createApiTokenMock.mockImplementationOnce(async () => {
-      fetchAccountTokensMock.mockResolvedValue([{ ...TOKEN, group: "vip" }])
+    createApiTokenMock.mockImplementationOnce(async (_request, values) => {
+      fetchAccountTokensMock.mockResolvedValue([{ ...TOKEN, ...values }])
       return true
     })
 
@@ -233,5 +234,7 @@ describe("Model List → ModelKeyDialog", () => {
       model_limits: "",
       group: "vip",
     })
+    await waitFor(() => expect(submit).not.toBeInTheDocument())
+    expect(toastErrorMock).not.toHaveBeenCalled()
   })
 })

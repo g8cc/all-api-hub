@@ -7,6 +7,8 @@ const config: KnipConfig = {
     "wxt.config.ts",
     "i18next.config.ts",
     "vitest.config.ts",
+    // Tailwind 4 loads its imports/plugins from the CSS linked by WXT HTML.
+    "src/styles/style.css",
     "scripts/diagnostics/collect-extension-memory.mjs",
     "scripts/diagnostics/compare-extension-memory.mjs",
     "scripts/diagnostics/compare-lazy-loading.mjs",
@@ -19,6 +21,7 @@ const config: KnipConfig = {
     "src/entrypoints/content/index.ts!",
     // Injected by URL as a web-accessible resource, not a static import.
     "src/entrypoints/openrouter-clerk-session.ts!",
+    "src/entrypoints/requesty-management-key.ts!",
     "src/entrypoints/options/main.tsx!",
     "src/entrypoints/popup/main.tsx!",
     "src/entrypoints/sidepanel/main.tsx!",
@@ -31,6 +34,18 @@ const config: KnipConfig = {
     // Playwright runs this through the build dependency project in
     // playwright.config.ts, which Knip does not discover as a static import.
     "e2e/setup/build.setup.ts",
+    // Vite serves the browser primitive fixture and resolves its analytics alias.
+    "e2e/fixtures/uiPrimitives/fixture.tsx",
+    "e2e/fixtures/uiPrimitives/analytics.ts",
+    "e2e/fixtures/uiPrimitives/channelFilters.ts",
+    // Invoked by the native Safari runner; Vite loads this config by CLI path.
+    "e2e/safariNativeCookie/probe.config.ts",
+    "e2e/safariNativeCookie/probe.ts",
+    // Manual signing tool for a packaged ZIP into a CRX; package-distribution
+    // signs in-process, so no static import reaches this entry.
+    "scripts/sign-crx.mjs",
+    // Invoked by the documentation updater as a subprocess.
+    "scripts/generate-doc-screenshots.mjs",
   ],
   project: [
     "src/**/*.{ts,tsx}!",
@@ -50,17 +65,12 @@ const config: KnipConfig = {
     "@types/chrome",
     "@types/firefox-webext-browser",
     "@types/webextension-polyfill",
-    // Loaded by Vitest's configured V8 coverage provider.
-    "@vitest/coverage-v8",
     // Loaded by string from wxt.config.ts modules.
     "@wxt-dev/auto-icons",
-    "@wxt-dev/module-react",
     // Spawned by plugins/react-devtools-auto.ts during development.
     "react-devtools",
     // On-demand UI generator configured by components.json.
     "shadcn",
-    // Imported as CSS from src/styles/style.css, outside the TS graph.
-    "tw-animate-css",
   ],
   // Exported props and signature types may be used only within their owning
   // module. Keep checking types that have no internal or external consumers.

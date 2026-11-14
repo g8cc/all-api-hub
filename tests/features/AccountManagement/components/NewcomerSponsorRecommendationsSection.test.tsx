@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
 import { NewcomerSponsorRecommendationsSection } from "~/features/AccountManagement/components/NewcomerSponsorRecommendationsSection"
+import {
+  DialogActionsContext,
+  DialogStateContext,
+} from "~/features/AccountManagement/dialogs/useDialogStateContext"
 import { SPONSOR_CATALOG_SCHEMA_VERSION } from "~/features/AccountManagement/sponsors/constants"
 import {
   SPONSOR_CATALOG_SOURCES,
@@ -32,12 +36,6 @@ const {
   })),
 }))
 
-vi.mock("~/features/AccountManagement/hooks/DialogStateContext", () => ({
-  useDialogStateContext: () => ({
-    openAddAccount: mockOpenAddAccount,
-  }),
-}))
-
 vi.mock(
   "~/features/AccountManagement/sponsors/useSponsorRecommendations",
   () => ({
@@ -52,6 +50,14 @@ vi.mock("~/utils/navigation", async (importOriginal) => {
     ...actual,
     openApiCredentialProfilesPage: mockOpenApiCredentialProfilesPage,
     openFullBookmarkManagerPage: mockOpenFullBookmarkManagerPage,
+  }
+})
+vi.mock("~/utils/navigation/feedbackPages", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/utils/navigation/feedbackPages")>()
+
+  return {
+    ...actual,
     openSiteSupportRequestPage: mockOpenSiteSupportRequestPage,
   }
 })
@@ -113,11 +119,37 @@ function createUnsupportedSponsor(): SponsorRecommendation {
 }
 
 function renderNewcomerSponsorRecommendationsSection() {
-  return render(<NewcomerSponsorRecommendationsSection />, {
-    withReleaseUpdateStatusProvider: false,
-    withThemeProvider: false,
-    withUserPreferencesProvider: false,
-  })
+  return render(
+    <DialogActionsContext.Provider
+      value={{
+        openAccountDialog: vi.fn(),
+        openAddAccount: mockOpenAddAccount,
+        closeAddAccount: vi.fn(),
+        openEditAccount: vi.fn(),
+        closeEditAccount: vi.fn(),
+      }}
+    >
+      <DialogStateContext.Provider
+        value={{
+          openAccountDialog: vi.fn(),
+          isAddAccountOpen: false,
+          isEditAccountOpen: false,
+          editingAccount: null,
+          openAddAccount: mockOpenAddAccount,
+          closeAddAccount: vi.fn(),
+          openEditAccount: vi.fn(),
+          closeEditAccount: vi.fn(),
+        }}
+      >
+        <NewcomerSponsorRecommendationsSection />
+      </DialogStateContext.Provider>
+    </DialogActionsContext.Provider>,
+    {
+      withReleaseUpdateStatusProvider: false,
+      withThemeProvider: false,
+      withUserPreferencesProvider: false,
+    },
+  )
 }
 
 describe("NewcomerSponsorRecommendationsSection", () => {

@@ -1,5 +1,4 @@
 import {
-  CheckIcon,
   ChevronsUpDownIcon,
   ListChecksIcon,
   ListXIcon,
@@ -35,18 +34,19 @@ import {
   CommandList,
 } from "./command"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
+import { Spinner } from "./spinner"
+import {
+  useCompactMultiSelectModel,
+  type ChipsItem,
+  type CompactMultiSelectOption,
+} from "./useCompactMultiSelectModel"
 
 const logger = createLogger("CompactMultiSelect")
 
-export interface CompactMultiSelectOption {
-  value: string
-  label: string
-  count?: number
-  disabled?: boolean
-}
-
-export interface CompactMultiSelectProps
-  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> {
+export interface CompactMultiSelectProps extends Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  "onChange"
+> {
   options: CompactMultiSelectOption[]
   selected: string[]
   onChange: (values: string[]) => void
@@ -66,6 +66,8 @@ export interface CompactMultiSelectProps
    */
   placeholder?: string
   disabled?: boolean
+  /** Indicates pending options while preserving selection and input behavior. */
+  loading?: boolean
   clearable?: boolean
   /**
    * When enabled, pressing Enter with a non-empty search term can add values that are not present
@@ -80,6 +82,8 @@ export interface CompactMultiSelectProps
    * Max number of selected labels shown in the trigger before collapsing to a "+N" suffix.
    */
   maxDisplayValues?: number
+  /** Optional summary-mode text for an exact selection of all selectable options. */
+  allSelectedLabel?: string
   searchPlaceholder?: string
   emptyMessage?: string
   /**
@@ -87,7 +91,7 @@ export interface CompactMultiSelectProps
    */
   size?: React.ComponentProps<typeof Button>["size"]
   /**
-   * Minimum selectable option count required before rendering chips-mode bulk action buttons.
+   * Minimum selectable option count required before rendering bulk action buttons in either display mode.
    * Defaults to `0` to preserve the current always-visible behavior.
    */
   bulkActionsMinOptions?: number
@@ -100,16 +104,14 @@ export interface CompactMultiSelectProps
 }
 
 const getOptionAccessibleLabel = (option: CompactMultiSelectOption) =>
-  typeof option.count === "number"
-    ? `${option.label} ${option.count}`
-    : option.label
-
-const optionMatchesSearch = (
-  option: CompactMultiSelectOption,
-  normalizedSearchTerm: string,
-) =>
-  option.label.toLowerCase().includes(normalizedSearchTerm) ||
-  option.value.toLowerCase().includes(normalizedSearchTerm)
+  [
+    option.label,
+    option.secondaryLabel,
+    option.badgeLabel,
+    typeof option.count === "number" ? option.count : undefined,
+  ]
+    .filter((value) => value !== undefined && value !== "")
+    .join(" ")
 
 const OptionCountBadge = ({ count }: { count?: number }) =>
   typeof count === "number" ? (
@@ -138,10 +140,12 @@ export function CompactMultiSelect({
   displayMode = "chips",
   placeholder,
   disabled = false,
+  loading = false,
   clearable = true,
   allowCustom = false,
   parseCommaStrings = true,
   maxDisplayValues = 2,
+  allSelectedLabel,
   searchPlaceholder,
   emptyMessage,
   size = "default",
@@ -154,7 +158,6 @@ export function CompactMultiSelect({
   const { t } = useTranslation("ui")
   const localizedPlaceholder = placeholder ?? t("ui:multiSelect.placeholder")
   const [open, setOpen] = React.useState(false)
-  const [searchTerm, setSearchTerm] = React.useState("")
   const chipsAnchor = useComboboxAnchor()
   const chipsInputRef = React.useRef<HTMLInputElement | null>(null)
   const actionsRef = React.useRef<HTMLDivElement | null>(null)
@@ -164,139 +167,55 @@ export function CompactMultiSelect({
   const reactId = React.useId()
   const labelId = label ? `${reactId}-label` : undefined
 
-  const optionsByValue = React.useMemo(() => {
-    return new Map(options.map((option) => [option.value, option]))
-  }, [options])
-
-  const selectableOptionValues = React.useMemo(() => {
-    return options
-      .filter((option) => !option.disabled)
-      .map((option) => option.value)
-  }, [options])
-
-  const normalizedSearchTerm = searchTerm.trim().toLowerCase()
-  const filteredSelectableOptionValues = React.useMemo(() => {
-    if (!normalizedSearchTerm) return []
-
-    return options
-      .filter(
-        (option) =>
-          !option.disabled && optionMatchesSearch(option, normalizedSearchTerm),
-      )
-      .map((option) => option.value)
-  }, [normalizedSearchTerm, options])
-
-  const allSelectableOptionsSelected = React.useMemo(() => {
-    if (selectableOptionValues.length === 0) return false
-    const selectedSet = new Set(selected)
-    return selectableOptionValues.every((value) => selectedSet.has(value))
-  }, [selectableOptionValues, selected])
-
-  const filteredSelectedCount = React.useMemo(() => {
-    const selectedSet = new Set(selected)
-    return filteredSelectableOptionValues.filter((value) =>
-      selectedSet.has(value),
-    ).length
-  }, [filteredSelectableOptionValues, selected])
-
-  const allFilteredOptionsSelected =
-    filteredSelectableOptionValues.length > 0 &&
-    filteredSelectedCount === filteredSelectableOptionValues.length
-  const hasFilteredSelection = filteredSelectedCount > 0
-  const showFilteredBulkActions =
-    enableFilteredBulkActions && filteredSelectableOptionValues.length >= 2
-
   const restoreChipsInputFocus = React.useCallback(() => {
     chipsInputRef.current?.focus()
   }, [])
 
-  const selectAllSelectableOptions = React.useCallback(() => {
-    if (disabled) return
-    if (selectableOptionValues.length === 0) return
-
-    const selectedSet = new Set(selected)
-    const next = [...selected]
-
-    for (const value of selectableOptionValues) {
-      if (!selectedSet.has(value)) next.push(value)
-    }
-
-    onChange(next)
-    setSearchTerm("")
-  }, [disabled, onChange, selectableOptionValues, selected])
-
-  const selectAllFilteredOptions = React.useCallback(() => {
-    if (disabled || filteredSelectableOptionValues.length === 0) return
-
-    const selectedSet = new Set(selected)
-    onChange([
-      ...selected,
-      ...filteredSelectableOptionValues.filter(
-        (value) => !selectedSet.has(value),
-      ),
-    ])
-    restoreChipsInputFocus()
-  }, [
-    disabled,
-    filteredSelectableOptionValues,
-    onChange,
-    restoreChipsInputFocus,
+  const {
+    searchTerm,
+    setSearchTerm,
+    selection: {
+      hasSelection,
+      triggerText,
+      selectableOptionValues,
+      showBulkActions,
+      allSelectableOptionsSelected,
+      selectAllSelectableOptions,
+      toggleValue,
+      clearSelection,
+    },
+    filtered: {
+      filteredMatchCount,
+      showFilteredBulkActions,
+      filteredSelectedCount,
+      allFilteredOptionsSelected,
+      hasFilteredSelection,
+      selectAllFilteredOptions,
+      invertFilteredOptions,
+      deselectAllFilteredOptions,
+    },
+    chips: {
+      chipsItems,
+      chipsSelectedItems,
+      chipsFilter,
+      chipsIsItemEqualToValue,
+    },
+    custom: { commitCustomValues, handleCustomKeyDown, handleCustomPaste },
+  } = useCompactMultiSelectModel({
+    options,
     selected,
-  ])
-
-  const invertFilteredOptions = React.useCallback(() => {
-    if (disabled || filteredSelectableOptionValues.length === 0) return
-
-    const filteredSet = new Set(filteredSelectableOptionValues)
-    const selectedSet = new Set(selected)
-    onChange([
-      ...selected.filter((value) => !filteredSet.has(value)),
-      ...filteredSelectableOptionValues.filter(
-        (value) => !selectedSet.has(value),
-      ),
-    ])
-    restoreChipsInputFocus()
-  }, [
-    disabled,
-    filteredSelectableOptionValues,
     onChange,
-    restoreChipsInputFocus,
-    selected,
-  ])
-
-  const deselectAllFilteredOptions = React.useCallback(() => {
-    if (disabled || filteredSelectableOptionValues.length === 0) return
-
-    const filteredSet = new Set(filteredSelectableOptionValues)
-    onChange(selected.filter((value) => !filteredSet.has(value)))
-    restoreChipsInputFocus()
-  }, [
     disabled,
-    filteredSelectableOptionValues,
-    onChange,
+    allowCustom,
+    parseCommaStrings,
+    maxDisplayValues,
+    bulkActionsMinOptions,
+    enableFilteredBulkActions,
+    localizedPlaceholder,
     restoreChipsInputFocus,
-    selected,
-  ])
+  })
 
-  const selectedLabels = React.useMemo(() => {
-    return selected.map((value) => optionsByValue.get(value)?.label ?? value)
-  }, [optionsByValue, selected])
-
-  const hasSelection = selected.length > 0
   const selectAllButtonLabel = t("ui:multiSelect.selectAll")
-  const showBulkActions = selectableOptionValues.length >= bulkActionsMinOptions
-
-  const triggerText = React.useMemo(() => {
-    if (!hasSelection) return localizedPlaceholder
-
-    const safeMaxDisplayValues = Math.max(1, maxDisplayValues)
-    const preview = selectedLabels.slice(0, safeMaxDisplayValues)
-    const remaining = selectedLabels.length - preview.length
-
-    const base = preview.join(", ")
-    if (remaining > 0) return `${base} +${remaining}`
-    return base
-  }, [hasSelection, localizedPlaceholder, maxDisplayValues, selectedLabels])
 
   const resolvedSearchPlaceholder =
     searchPlaceholder ?? t("ui:searchableSelect.searchPlaceholder")
@@ -310,7 +229,7 @@ export function CompactMultiSelect({
 
   React.useEffect(() => {
     if (!open) setSearchTerm("")
-  }, [open])
+  }, [open, setSearchTerm])
 
   React.useEffect(() => {
     if (displayMode !== "chips") return
@@ -353,97 +272,8 @@ export function CompactMultiSelect({
     return () => observer.disconnect()
   }, [chipsAnchor, displayMode])
 
-  const normalizeCustomValues = React.useCallback(
-    (raw: string) => {
-      const trimmed = (raw ?? "").trim()
-      if (!trimmed) return []
-
-      // When parsing custom values, accept both comma-separated and newline-separated
-      // input (e.g. pasted lists). This keeps `allowCustom` + `parseCommaStrings`
-      // behavior consistent across typing and paste.
-      const shouldSplit =
-        allowCustom && parseCommaStrings && /[,\r\n]+/.test(trimmed)
-      const parts = shouldSplit ? trimmed.split(/[,\r\n]+/) : [trimmed]
-
-      return parts
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0)
-    },
-    [allowCustom, parseCommaStrings],
-  )
-
-  const commitCustomValues = React.useCallback(
-    (raw: string) => {
-      if (!allowCustom || disabled) return
-
-      const nextValues = normalizeCustomValues(raw).filter(
-        (value) => !selected.includes(value),
-      )
-
-      if (nextValues.length > 0) {
-        onChange([...selected, ...nextValues])
-      }
-
-      setSearchTerm("")
-    },
-    [allowCustom, disabled, normalizeCustomValues, onChange, selected],
-  )
-
-  const toggleValue = React.useCallback(
-    (value: string) => {
-      const next = selected.includes(value)
-        ? selected.filter((item) => item !== value)
-        : [...selected, value]
-
-      onChange(next)
-      setSearchTerm("")
-    },
-    [onChange, selected],
-  )
-
-  const clearSelection = React.useCallback(() => {
-    onChange([])
-    setSearchTerm("")
-  }, [onChange])
-
   const clearButtonSize: React.ComponentProps<typeof Button>["size"] =
     size === "sm" ? "icon-sm" : size === "lg" ? "icon-lg" : "icon"
-
-  type ChipsItem = CompactMultiSelectOption & { __selectedOnly?: true }
-
-  const chipsSelectedItems = React.useMemo<ChipsItem[]>(() => {
-    return selected.map(
-      (value) =>
-        (optionsByValue.get(value) as ChipsItem | undefined) ?? {
-          value,
-          label: value,
-          __selectedOnly: true,
-        },
-    )
-  }, [optionsByValue, selected])
-
-  const chipsItems = React.useMemo<ChipsItem[]>(() => {
-    if (chipsSelectedItems.length === 0) return options as ChipsItem[]
-
-    const unknownSelectedItems = chipsSelectedItems.filter(
-      (item) => !optionsByValue.has(item.value),
-    )
-
-    if (unknownSelectedItems.length === 0) return options as ChipsItem[]
-    return [...(options as ChipsItem[]), ...unknownSelectedItems]
-  }, [chipsSelectedItems, options, optionsByValue])
-
-  const chipsFilter = React.useCallback((item: ChipsItem, query: string) => {
-    if (item.__selectedOnly) return false
-    const normalizedQuery = query.trim().toLowerCase()
-    if (!normalizedQuery) return true
-    return optionMatchesSearch(item, normalizedQuery)
-  }, [])
-
-  const chipsIsItemEqualToValue = React.useCallback(
-    (item: ChipsItem, value: ChipsItem) => item.value === value.value,
-    [],
-  )
 
   const chipsInputPlaceholder = hasSelection
     ? resolvedSearchPlaceholder
@@ -466,59 +296,6 @@ export function CompactMultiSelect({
 
   const chipsInputAriaInvalid = buttonProps["aria-invalid"]
   const chipsInputAriaRequired = buttonProps["aria-required"]
-
-  const hasMatchingOption = React.useMemo(() => {
-    const q = searchTerm.trim().toLowerCase()
-    if (!q) return false
-    return options.some((option) => {
-      return (
-        option.label.toLowerCase().includes(q) ||
-        option.value.toLowerCase().includes(q)
-      )
-    })
-  }, [options, searchTerm])
-
-  const handleCustomKeyDown = React.useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (!allowCustom || disabled) return
-      if (event.key !== "Enter") return
-
-      const raw = searchTerm.trim()
-      if (!raw) return
-
-      const shouldCommit =
-        (parseCommaStrings && raw.includes(",")) || !hasMatchingOption
-
-      if (!shouldCommit) return
-
-      event.preventDefault()
-      commitCustomValues(raw)
-    },
-    [
-      allowCustom,
-      commitCustomValues,
-      disabled,
-      hasMatchingOption,
-      parseCommaStrings,
-      searchTerm,
-    ],
-  )
-
-  const handleCustomPaste = React.useCallback(
-    (event: React.ClipboardEvent<HTMLInputElement>) => {
-      if (!allowCustom || disabled || !parseCommaStrings) return
-
-      const pasted = event.clipboardData.getData("text")
-      if (!pasted) return
-
-      const shouldCommit = pasted.includes(",") || pasted.includes("\n")
-      if (!shouldCommit) return
-
-      event.preventDefault()
-      commitCustomValues(pasted)
-    },
-    [allowCustom, commitCustomValues, disabled, parseCommaStrings],
-  )
 
   const copyChipText = React.useCallback(
     async (text: string) => {
@@ -566,9 +343,28 @@ export function CompactMultiSelect({
     [copyChipText],
   )
 
+  const selectAllButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size={clearButtonSize}
+      onClick={selectAllSelectableOptions}
+      aria-label={selectAllButtonLabel}
+      title={selectAllButtonLabel}
+      disabled={
+        disabled ||
+        selectableOptionValues.length === 0 ||
+        allSelectableOptionsSelected
+      }
+      className="shrink-0 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-card/80"
+    >
+      <ListChecksIcon className="size-4" />
+    </Button>
+  )
+
   if (displayMode === "chips") {
     const chipsControl = (
-      <div className="gap-density-2 flex w-full items-center">
+      <div className="flex w-full items-center gap-density-2">
         <Combobox
           multiple
           autoHighlight
@@ -589,52 +385,74 @@ export function CompactMultiSelect({
           <ComboboxChips
             ref={chipsAnchor}
             className={cn(
-              "max-h-24 min-w-0 flex-1 overflow-x-hidden overflow-y-auto",
+              "max-h-24 min-w-0 flex-1 flex-nowrap items-stretch",
               className,
             )}
           >
-            <ComboboxValue>
-              {(values) => (
-                <React.Fragment>
-                  {Array.isArray(values)
-                    ? values.map((item: ChipsItem) => (
-                        <ComboboxChip key={item.value} showRemove={!disabled}>
-                          <span
-                            className="max-w-48 cursor-copy truncate select-text"
-                            title={item.label}
-                            role="button"
-                            tabIndex={0}
-                            aria-label={t("ui:multiSelect.copyChipValue", {
-                              value: item.label,
-                            })}
-                            onClick={(event) =>
-                              handleChipTextClick(event, item.label)
-                            }
-                            onKeyDown={(event) =>
-                              handleChipTextKeyDown(event, item.label)
-                            }
-                          >
-                            {item.label}
-                          </span>
-                        </ComboboxChip>
-                      ))
-                    : null}
-                  <ComboboxChipsInput
-                    ref={chipsInputRef}
-                    data-testid={inputTestId}
-                    aria-label={chipsInputAriaLabel}
-                    aria-labelledby={chipsInputAriaLabelledBy}
-                    aria-describedby={chipsInputAriaDescribedBy}
-                    aria-invalid={chipsInputAriaInvalid}
-                    aria-required={chipsInputAriaRequired}
-                    placeholder={chipsInputPlaceholder}
-                    disabled={disabled}
-                    onKeyDown={handleCustomKeyDown}
-                    onPaste={handleCustomPaste}
-                  />
-                </React.Fragment>
-              )}
-            </ComboboxValue>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-density-1-5 overflow-x-hidden overflow-y-auto">
+              <ComboboxValue>
+                {(values) => (
+                  <React.Fragment>
+                    {Array.isArray(values)
+                      ? values.map((item: ChipsItem) => (
+                          <ComboboxChip key={item.value} showRemove={!disabled}>
+                            <span
+                              className="max-w-48 cursor-copy truncate select-text"
+                              title={item.label}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={t("ui:multiSelect.copyChipValue", {
+                                value: item.label,
+                              })}
+                              onClick={(event) =>
+                                handleChipTextClick(event, item.label)
+                              }
+                              onKeyDown={(event) =>
+                                handleChipTextKeyDown(event, item.label)
+                              }
+                            >
+                              {item.label}
+                            </span>
+                          </ComboboxChip>
+                        ))
+                      : null}
+                    <ComboboxChipsInput
+                      ref={chipsInputRef}
+                      data-testid={inputTestId}
+                      aria-label={chipsInputAriaLabel}
+                      aria-labelledby={chipsInputAriaLabelledBy}
+                      aria-describedby={chipsInputAriaDescribedBy}
+                      aria-description={buttonProps["aria-description"]}
+                      aria-invalid={chipsInputAriaInvalid}
+                      aria-required={chipsInputAriaRequired}
+                      aria-busy={loading || buttonProps["aria-busy"]}
+                      placeholder={chipsInputPlaceholder}
+                      disabled={disabled}
+                      onKeyDown={(event) => {
+                        if (
+                          event.nativeEvent.isComposing ||
+                          event.nativeEvent.keyCode === 229
+                        ) {
+                          event.preventBaseUIHandler()
+                          return
+                        }
+                        handleCustomKeyDown(event)
+                        if (event.defaultPrevented) event.preventBaseUIHandler()
+                      }}
+                      onPaste={handleCustomPaste}
+                    />
+                  </React.Fragment>
+                )}
+              </ComboboxValue>
+            </div>
+            {loading && (
+              <Spinner
+                size="sm"
+                variant="current"
+                aria-hidden="true"
+                className="pointer-events-none shrink-0 self-center"
+              />
+            )}
           </ComboboxChips>
 
           <ComboboxContent anchor={chipsAnchor}>
@@ -642,14 +460,14 @@ export function CompactMultiSelect({
               <div
                 role="group"
                 aria-label={t("multiSelect.filteredResultsScope")}
-                className="border-border bg-muted/40 gap-x-density-2 gap-y-density-1 py-density-1-5 pointer-coarse:gap-y-density-2 pointer-coarse:py-density-2 flex flex-wrap items-center justify-between border-b px-2 pointer-coarse:px-3"
+                className="flex flex-wrap items-center justify-between gap-x-density-2 gap-y-density-1 border-b border-border bg-muted/40 px-2 py-density-1-5 pointer-coarse:gap-y-density-2 pointer-coarse:px-3 pointer-coarse:py-density-2"
               >
                 <p
-                  className="text-muted-foreground mr-auto text-xs tabular-nums"
+                  className="mr-auto text-xs text-muted-foreground tabular-nums"
                   aria-live="polite"
                 >
                   {t("multiSelect.filteredMatchCount", {
-                    count: filteredSelectableOptionValues.length,
+                    count: filteredMatchCount,
                   })}
                   {" · "}
                   {t("multiSelect.filteredSelectedCount", {
@@ -665,7 +483,7 @@ export function CompactMultiSelect({
                     aria-label={t("multiSelect.selectAllMatches")}
                     disabled={
                       disabled ||
-                      filteredSelectableOptionValues.length === 0 ||
+                      filteredMatchCount === 0 ||
                       allFilteredOptionsSelected
                     }
                     className="min-h-(--density-control-tight) px-2 text-xs pointer-coarse:h-11 pointer-coarse:px-3 pointer-coarse:text-sm"
@@ -678,9 +496,7 @@ export function CompactMultiSelect({
                     size="sm"
                     onClick={invertFilteredOptions}
                     aria-label={t("multiSelect.invertMatches")}
-                    disabled={
-                      disabled || filteredSelectableOptionValues.length === 0
-                    }
+                    disabled={disabled || filteredMatchCount === 0}
                     className="min-h-(--density-control-tight) px-2 text-xs pointer-coarse:h-11 pointer-coarse:px-3 pointer-coarse:text-sm"
                   >
                     {t("multiSelect.invert")}
@@ -699,7 +515,9 @@ export function CompactMultiSelect({
                 </div>
               </div>
             ) : null}
-            <ComboboxEmpty>{resolvedEmptyMessage}</ComboboxEmpty>
+            <ComboboxEmpty>
+              {loading ? <Spinner size="sm" /> : resolvedEmptyMessage}
+            </ComboboxEmpty>
             <ComboboxList>
               {(item) => (
                 <ComboboxItem
@@ -708,7 +526,26 @@ export function CompactMultiSelect({
                   disabled={disabled || Boolean(item.disabled)}
                   aria-label={getOptionAccessibleLabel(item)}
                 >
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{item.label}</span>
+                    {item.secondaryLabel && (
+                      <span
+                        className="block truncate text-xs text-muted-foreground"
+                        title={item.secondaryLabel}
+                      >
+                        {item.secondaryLabel}
+                      </span>
+                    )}
+                  </span>
+                  {item.badgeLabel && (
+                    <Badge
+                      variant="outline"
+                      className="max-w-28 shrink-0 truncate text-xs"
+                      title={item.badgeLabel}
+                    >
+                      {item.badgeLabel}
+                    </Badge>
+                  )}
                   <OptionCountBadge count={item.count} />
                 </ComboboxItem>
               )}
@@ -724,26 +561,11 @@ export function CompactMultiSelect({
             className={cn(
               "shrink-0",
               actionsOrientation === "vertical"
-                ? "gap-density-2 flex flex-col items-start self-stretch"
-                : "gap-density-2 flex flex-row items-center",
+                ? "flex flex-col items-start gap-density-2 self-stretch"
+                : "flex flex-row items-center gap-density-2",
             )}
           >
-            <Button
-              type="button"
-              variant="outline"
-              size={clearButtonSize}
-              onClick={selectAllSelectableOptions}
-              aria-label={selectAllButtonLabel}
-              title={selectAllButtonLabel}
-              disabled={
-                disabled ||
-                selectableOptionValues.length === 0 ||
-                allSelectableOptionsSelected
-              }
-              className="dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-card/80"
-            >
-              <ListChecksIcon className="size-4" />
-            </Button>
+            {selectAllButton}
             <Button
               type="button"
               variant="outline"
@@ -766,7 +588,7 @@ export function CompactMultiSelect({
         {label && (
           <label
             id={labelId}
-            className="dark:text-foreground text-secondary-foreground mb-density-1 block text-sm font-medium"
+            className="mb-density-1 block text-sm font-medium text-secondary-foreground dark:text-foreground"
           >
             {label}
           </label>
@@ -781,17 +603,25 @@ export function CompactMultiSelect({
       ? buttonProps["aria-labelledby"]
       : labelId
 
+  const summaryText =
+    allSelectedLabel &&
+    !loading &&
+    allSelectableOptionsSelected &&
+    selected.every((value) => selectableOptionValues.includes(value))
+      ? allSelectedLabel
+      : triggerText
+
   return (
     <div className="w-full">
       {label && (
         <label
           id={labelId}
-          className="dark:text-foreground text-secondary-foreground mb-density-1 block text-sm font-medium"
+          className="mb-density-1 block text-sm font-medium text-secondary-foreground dark:text-foreground"
         >
           {label}
         </label>
       )}
-      <div className="gap-density-2 flex w-full items-center">
+      <div className="flex w-full items-center gap-density-2">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -802,22 +632,27 @@ export function CompactMultiSelect({
               aria-expanded={open}
               aria-labelledby={triggerAriaLabelledBy}
               className={cn(
-                "dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-card/80 gap-density-2 flex min-w-0 flex-1 items-center justify-between overflow-hidden text-left",
+                "flex min-w-0 flex-1 items-center justify-between gap-density-2 overflow-hidden text-left dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-card/80",
                 "whitespace-nowrap",
                 !hasSelection && "text-muted-foreground",
                 className,
               )}
               disabled={disabled}
               {...buttonProps}
+              aria-busy={loading || buttonProps["aria-busy"]}
             >
-              <span className="min-w-0 flex-1 truncate">{triggerText}</span>
-              <span className="gap-density-2 flex shrink-0 items-center">
+              <span className="min-w-0 flex-1 truncate">{summaryText}</span>
+              <span className="flex shrink-0 items-center gap-density-2">
                 {hasSelection && (
                   <Badge variant="secondary" size="sm">
                     {selected.length}
                   </Badge>
                 )}
-                <ChevronsUpDownIcon className="size-4 shrink-0 opacity-50" />
+                {loading ? (
+                  <Spinner size="sm" variant="current" aria-hidden="true" />
+                ) : (
+                  <ChevronsUpDownIcon className="size-4 shrink-0 opacity-50" />
+                )}
               </span>
             </Button>
           </PopoverTrigger>
@@ -831,16 +666,22 @@ export function CompactMultiSelect({
                 clearButtonLabel={t("multiSelect.clearInput")}
               />
               <CommandList>
-                <CommandEmpty>{resolvedEmptyMessage}</CommandEmpty>
+                <CommandEmpty>
+                  {loading ? (
+                    <Spinner size="sm" className="mx-auto" />
+                  ) : (
+                    resolvedEmptyMessage
+                  )}
+                </CommandEmpty>
                 <CommandGroup>
                   {allowCustom && searchTerm.trim().length > 0 && (
                     <CommandItem
+                      checked={false}
                       key={`__custom__${searchTerm}`}
                       value={searchTerm}
                       disabled={disabled}
                       onSelect={() => commitCustomValues(searchTerm)}
                     >
-                      <CheckIcon className="size-4 opacity-0" />
                       <span className="truncate">{searchTerm}</span>
                     </CommandItem>
                   )}
@@ -851,6 +692,7 @@ export function CompactMultiSelect({
 
                     return (
                       <CommandItem
+                        checked={isSelected}
                         key={option.value}
                         value={option.value}
                         keywords={[option.label]}
@@ -858,12 +700,6 @@ export function CompactMultiSelect({
                         aria-label={getOptionAccessibleLabel(option)}
                         onSelect={() => toggleValue(option.value)}
                       >
-                        <CheckIcon
-                          className={cn(
-                            "size-4",
-                            isSelected ? "opacity-100" : "opacity-0",
-                          )}
-                        />
                         <span className="min-w-0 flex-1 truncate">
                           {option.label}
                         </span>
@@ -877,6 +713,8 @@ export function CompactMultiSelect({
           </PopoverContent>
         </Popover>
 
+        {showBulkActions ? selectAllButton : null}
+
         {/* Keep selection clearing out of the options list to avoid it being mistaken as a real option. */}
         {clearable && !disabled && hasSelection && (
           <Button
@@ -886,7 +724,7 @@ export function CompactMultiSelect({
             onClick={clearSelection}
             aria-label={t("multiSelect.clearSelected")}
             title={t("multiSelect.clearSelected")}
-            className="dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-card/80 shrink-0"
+            className="shrink-0 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-card/80"
           >
             <XIcon className="size-4" />
           </Button>

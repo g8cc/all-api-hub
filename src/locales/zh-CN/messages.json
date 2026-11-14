@@ -17,14 +17,30 @@
     "oneTimeKeyPromptCancelled": "账号已保存。你之后可以在密钥管理中手动创建 AIHubMix API 密钥。",
     "oneTimeKeyUnavailableAfterCreate": "账号已保存，但未能获取完整 AIHubMix API 密钥。AIHubMix 密钥只在创建时显示一次，请在密钥管理中重新创建并立即保存完整密钥。"
   },
+  "aimlapi": {
+    "credentialInvalid": "AI/ML API 密钥无效或已过期。",
+    "credentialScopeDenied": "该 AI/ML API 凭据无法执行此操作。密钥管理需要管理密钥，余额与账单需要普通 API Key。",
+    "malformedResponse": "AI/ML API 返回了无法识别的响应。",
+    "managementKeyRequired": "AI/ML API 需要管理密钥。请在「Management keys」中创建后粘贴到此处。",
+    "networkFallback": "无法连接 AI/ML API，请检查网络后重试。"
+  },
+  "aiToolbox": {
+    "attemptingRedirect": "正在尝试跳转到 AI Toolbox",
+    "invalidApp": "不支持的 AI Toolbox 目标应用",
+    "invalidBaseUrl": "接口地址无效或未填写",
+    "invalidHomepage": "主页地址无效或未填写",
+    "missingCredentials": "缺少必要的账户或密钥信息",
+    "unableToOpen": "无法打开 AI Toolbox，请确认已安装"
+  },
   "autodetect": {
-    "currentTabNeedsReload": "当前页面可能是在安装或更新扩展前打开的，插件暂时无法读取该标签页的信息。请刷新当前页面后再重试自动识别。",
+    "currentTabNeedsReload": "扩展暂时无法连接当前页面的识别脚本。请刷新页面后重试自动识别；若仍失败，请检查扩展是否获准访问此站点。",
     "failed": "自动识别失败：{{error}}",
     "forbidden": "访问被拒绝。请确认是否为网站防火墙拦截了相关请求。",
     "loginThisSite": "登录此站点",
     "networkError": "网络连接失败，请检查网络连接后重试。",
     "notFound": "未能自动识别该站点。请检查地址是否正确，或登录目标站点后重试。",
     "notLoggedIn": "您尚未登录当前站点，或登录信息已过期，无法自动添加。请先登录，或查看帮助文档。",
+    "rateLimited": "请求过于频繁，请稍后重试。",
     "serverError": "服务器错误，请稍后重试。",
     "timeout": "自动识别超时，请尝试手动添加。",
     "unexpectedData": "自动识别失败，站点返回的数据不符合预期。请手动输入信息，或确保已登录目标站点。"
@@ -67,7 +83,6 @@
     "updateSuccess": "已成功更新 Claude Code Router 提供商 {{name}}"
   },
   "cliProxyApi": {
-    "managementApiConnectionSuccess": "连接成功",
     "managementApiForbidden": "CLIProxyAPI 拒绝了当前请求。请检查管理密钥是否多次填写错误，或当前访问是否被服务端限制。",
     "managementApiHttpError": "CLIProxyAPI Management API 返回了异常状态码（HTTP {{status}}）",
     "managementApiInvalidKey": "CLIProxyAPI Management Key 无效，请检查设置中的管理密钥是否正确。",
@@ -78,6 +93,12 @@
     "userInfoNotFound": "未找到用户信息，请确保已登录",
     "waitUserInfoTimeout": "等待用户信息超时，请确保已登录"
   },
+  "cookieTransport": {
+    "permissionRequired": "当前浏览器无法使用此账号的 Cookie 发起请求。请检查扩展权限或更新浏览器后重试。",
+    "requestUnavailable": "请求准备失败，请重试；若仍失败，请重新加载扩展。",
+    "scopeUnavailable": "此请求无法使用所选 Cookie 范围。请导入目标账号的 Cookie，或使用该账号的普通浏览器会话。",
+    "sessionUnavailable": "登录态不可用。请重新登录同一账号；若使用已导入的 Cookie，请重新导入。"
+  },
   "donehub": {
     "configMissing": "请先在设置中配置 Done Hub 地址、管理员令牌和用户 ID",
     "noChannelsToSync": "没有可同步的渠道"
@@ -85,14 +106,20 @@
   "errors": {
     "api": {
       "invalidResponseFormat": "响应数据格式错误",
+      "missingRecoveryPolicy": "扩展无法准备此请求，请更新扩展或反馈此问题。",
+      "nonJsonContent": "返回了 {{contentType}} 而不是 JSON（HTTP {{status}}）",
       "onlyJsonSupported": "仅支持 JSON 响应数据",
-      "requestFailed": "请求失败：{{status}}"
+      "requestFailed": "请求失败：{{status}}",
+      "verificationRequired": "站点返回了人机验证页面，请到站点完成验证后重试。"
     },
+    "dayaRedemptionUnconfirmed": "请到官方控制台核对兑换结果，确认权益发放状态或完成优惠码应用后再重试。",
     "operation": {
       "accountDataFetchTimeout": "获取账号数据超时（{{seconds}} 秒）",
       "failed": "操作失败：{{error}}",
       "saveFailed": "保存失败：{{error}}"
     },
+    "relayForRedemptionUnconfirmed": "官网未返回可确认的兑换结果，请先到官网核实，避免重复兑换。",
+    "relayForVerificationRequired": "此操作需要动态验证码。请前往官网控制台完成操作，然后返回刷新。",
     "unknown": "未知错误",
     "validation": {
       "bookmarkNameRequired": "书签名称不能为空",
@@ -104,6 +131,14 @@
       "userIdNumeric": "用户 ID 必须是数字"
     }
   },
+  "gptLoad": {
+    "configMissing": "请先在设置中配置 gpt-load 部署地址与管理密钥",
+    "noChannelsToSync": "没有可同步的渠道"
+  },
+  "grsai": {
+    "openApiTokenRejected": "这是 Grsai 用户信息页展示的 Token，它是给平台开放接口用的，控制台并不接受它。请用「自动识别」读取已登录的控制台会话，或改为粘贴控制台会话 token。",
+    "sessionExpired": "保存的 Grsai 控制台会话已过期（一次会话约 30 天）。请先在 Grsai 控制台重新登录，再用「自动识别」重新添加账号。"
+  },
   "kelivo": {
     "copied": "已复制 Kelivo 移动端导入码，请在 Kelivo 移动端的提供商导入中粘贴。",
     "copyFailed": "无法复制 Kelivo 导入码，请检查剪贴板权限后重试。",
@@ -112,6 +147,10 @@
     "missingCredentials": "需要提供商名称和完整 API 密钥。",
     "unsupportedApiType": "此 API 协议暂时无法导出到 Kelivo。"
   },
+  "magpie": {
+    "configMissing": "请先在设置中配置 Magpie Web 地址和 Web 管理密钥。",
+    "noChannelsToSync": "没有可同步的渠道"
+  },
   "managedSite": {
     "unsupportedModelSync": "当前版本不支持 {{siteName}} 管理站点模型同步"
   },
@@ -119,9 +158,22 @@
     "configMissing": "请先在设置中配置 New API 地址、管理员令牌和用户 ID",
     "noChannelsToSync": "没有可同步的渠道"
   },
+  "novita": {
+    "apiKeyRequired": "请填写完整的 Novita API Key，或登录同一账号后获取控制台凭据。两种凭据可以同时保存。",
+    "consoleAcquisitionFailed": "未能获取控制台令牌。请先在 Novita 网页登录此账号，刷新网页后重试；也可直接粘贴控制台令牌。已填写的 API Key 会保留。",
+    "consoleCredentialRequired": "此操作需要控制台授权。请编辑账号并获取同一 Novita 账号的控制台凭据。",
+    "credentialInvalid": "此 Novita 凭据无效或已过期。控制台会话请重新登录后识别；API Key 请替换后重试。",
+    "keyChanged": "此密钥已在 Novita 上发生变化，请重新打开编辑器后保存。",
+    "malformedResponse": "Novita 返回了意外响应，请稍后重试。",
+    "networkFallback": "无法连接 Novita。请检查网络连接后重试。"
+  },
   "octopus": {
     "configMissing": "请先在设置中配置 Octopus 地址、用户名和密码",
     "corsError": "这可能是 CORS 配置问题。请在 Octopus 设置中检查 CORS 白名单配置。",
+    "noChannelsToSync": "没有可同步的渠道"
+  },
+  "omniroute": {
+    "configMissing": "请先在设置中配置 OmniRoute 部署地址和访问令牌",
     "noChannelsToSync": "没有可同步的渠道"
   },
   "openrouter": {
@@ -144,12 +196,13 @@
   },
   "operations": {
     "detection": {
+      "cookieSessionRejected": "站点拒绝了 Cookie 会话，请重新登录站点后重试。",
       "failed": "自动检测失败，请手动输入信息或确保已在目标站点登录",
       "getAccessTokenFailedDetailed": "已识别到账号，但未能获取访问令牌。请确认账号有创建或查看 API 令牌的权限，或改用手动输入。",
       "getInfoFailed": "未能获取到用户名或访问令牌",
       "getSiteStatusFailedDetailed": "已识别到账号，但读取站点状态失败。请稍后重试；如果仍失败，可先手动保存账号。",
       "getUserIdFailed": "无法获取用户 ID",
-      "getUserIdFailedDetailed": "已连接到站点，但未能读取用户 ID。请确认已在目标站点登录后重试。",
+      "getUserIdFailedDetailed": "未能确认当前登录的账号。请在当前浏览器打开目标站点，确认已登录后重试；仍失败时，可手动补全账号信息。",
       "getUsernameFailedDetailed": "已识别到账号，但站点未返回用户名。请确认已登录，或改用手动输入。"
     }
   },
@@ -218,6 +271,9 @@
     "configMissing": "请先在设置中配置 Veloera 地址、管理员令牌和用户 ID",
     "noChannelsToSync": "没有可同步的渠道"
   },
+  "vercelAiGateway": {
+    "accessTokenRequired": "Vercel AI Gateway 需要拥有该网关的团队的 Vercel 访问令牌。"
+  },
   "warnings": {
     "accountSavedWithoutDataRefresh": "账号已保存，但未能获取余额、额度和今日用量，当前显示可能为占位值。请稍后在账号列表中刷新。",
     "accountUpdatedWithoutDataRefresh": "账号配置已保存，但未能刷新最新余额、额度和今日用量，当前显示可能仍是旧数据。请稍后在账号列表中刷新。"
@@ -232,10 +288,10 @@
     "encryptFailedNoPassword": "已开启加密，但未设置密码",
     "fileNotFound": "远程备份文件不存在",
     "invalidBackupJson": "云端备份文件不完整，无法用于同步。为避免合并损坏的数据，本次同步已停止。如果当前设备的数据是完整的，请使用“上传到 WebDAV”重新创建云端备份；如果当前设备数据不完整，请先在另一台数据完整的设备上上传，或导入一份完整备份文件。",
-    "safeCommitFailed": "云盘未能完成安全保存，原有云端备份已保留。请稍后重试，或改用支持移动/重命名文件的 WebDAV 服务。",
+    "safeCommitFailed": "无法确认云端备份已保存。请检查连接和读写权限后重试。",
     "syncDataSelectionRequired": "请至少选择一个要同步的数据类型",
     "uploadFailed": "上传失败，状态码: {{status}}",
-    "uploadStillProcessing": "云盘仍在处理刚上传的备份，暂时无法完成校验。原有云端备份未被替换，请稍后重试。",
-    "uploadVerificationFailed": "备份上传后校验未通过，云盘可能未完整保存文件。原有云端备份已保留。"
+    "uploadStillProcessing": "云盘仍在处理刚上传的备份，暂时无法完成校验。请稍后重试。",
+    "uploadVerificationFailed": "备份上传后校验未通过，云端文件可能不完整。请重试同步，必要时使用本地备份恢复。"
   }
 }

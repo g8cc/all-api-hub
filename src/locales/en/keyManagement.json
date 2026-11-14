@@ -18,6 +18,7 @@
     "detailsFor": "View details for {{name}}",
     "editKey": "Edit Key",
     "expandAll": "Expand all",
+    "exportToAiToolbox": "Export to AI Toolbox",
     "exportToCCSwitch": "Export to CC Switch",
     "exportToCursorPlus": "Export Cursor++ provider configuration",
     "exportToKiloCode": "Export Kilo Code configuration",
@@ -30,8 +31,8 @@
     "saveToApiProfiles": "Save and associate with API credential library",
     "showKey": "Show Key",
     "useInCherry": "Use in Cherry Studio",
-    "verifyApi": "Verify API",
-    "verifyCliSupport": "Verify CLI Support"
+    "verifyApi": "Test API",
+    "verifyCliSupport": "CLI compatibility test"
   },
   "actionToolbar": {
     "apiCredential": "API credential",
@@ -96,9 +97,33 @@
       "models": "Models"
     },
     "gatewayDescription": "This imports account keys as self-hosted AI gateway channels. After import, multiple keys can be used by clients through one AI API.",
+    "importMode": {
+      "appendTo": "Add to existing channel: {{name}}",
+      "chooseTarget": "Choose a channel for these keys",
+      "createNew": "Create a new channel",
+      "grouped": "Combine same-site keys into one new channel",
+      "independent": "Create one new channel per key",
+      "keyCount_one": "{{count}} key",
+      "keyCount_other": "{{count}} keys",
+      "label": "Key import method",
+      "modelDifferences": "These keys have different model lists. The combined resource uses their union; routing is handled by the gateway.",
+      "models": "Models: {{models}}",
+      "preserveSettings": "Keep the existing channel configuration and model settings. Only add keys that have not been imported.",
+      "resourceName": "New channel name",
+      "resultSummary": "Keys: {{created}} imported, {{failed}} failed, {{uncertain}} uncertain, {{skipped}} skipped.",
+      "reuse": "Prefer adding to an existing channel",
+      "reuseHelp": "Add keys to a channel at the same address. Choose a target if several match; create a combined channel if none match.",
+      "reuseSummary": "{{keyCount}} keys selected: create {{createCount}} channels and add to {{appendCount}} existing channels.",
+      "saveFailed": "The selection applies to this import, but the preference could not be saved.",
+      "scheduling": "The target gateway decides how multiple keys are rotated. Choose according to your needs.",
+      "summary": "{{keyCount}} keys selected; {{resourceCount}} new channels will be created.",
+      "target": "Channel to add keys to",
+      "unsupported": "This resource type does not support combined keys and will be created separately."
+    },
     "loadingDescription": "Preparing preview for {{selectedCount}} selected keys.",
     "messages": {
-      "completed": "Batch import completed: {{created}} created, {{failed}} failed, {{skipped}} already present.",
+      "batchDuplicate": "Duplicates {{item}} in this batch and has been skipped.",
+      "completed": "Keys: {{created}} imported, {{failed}} failed, {{uncertain}} uncertain, {{skipped}} skipped.",
       "duplicate": "An exact channel already exists: {{channel}}. It will not be created again.",
       "executionFailed": "Failed to run batch import: {{error}}",
       "targetChanged": "The managed-site target changed. Refresh the preview or choose the intended target before importing.",
@@ -109,22 +134,22 @@
       "loading": "Preparing channel preview...",
       "selected_one": "{{count}} key selected",
       "selected_other": "{{count}} keys selected",
-      "summary": "Preview: {{ready}} ready, {{warning}} warnings, {{skipped}} already present, {{blocked}} blocked, {{total}} total."
+      "summary": "Preview: {{ready}} ready, {{warning}} warnings, {{skipped}} skipped, {{blocked}} blocked, {{total}} total."
     },
     "repairTrusted": {
       "description": "These keys were just created. The simplified review omits duplicate and exact-key checks; use complete checks if you want to verify them before importing.",
       "useCompleteChecks": "Use complete checks"
     },
     "results": {
-      "channelCreationFailed": "Channel creation failed.",
+      "channelCreationFailed": "Key import failed.",
       "status": {
         "failed": "Failed",
         "notSelected": "Not selected",
-        "skipped": "Already present",
-        "success": "Created",
+        "skipped": "Skipped",
+        "success": "Imported",
         "uncertain": "Needs review"
       },
-      "summary": "Result: {{created}} created, {{failed}} failed, {{skipped}} already present, {{total}} total."
+      "summary": "Keys: {{created}} imported, {{failed}} failed, {{uncertain}} uncertain, {{skipped}} skipped."
     },
     "selection": {
       "accountGroup": "Select visible keys for account {{name}}",
@@ -134,7 +159,7 @@
     "status": {
       "blocked": "Blocked",
       "ready": "Ready",
-      "skipped": "Already present",
+      "skipped": "Skipped",
       "warning": "Warning"
     },
     "target": {
@@ -152,9 +177,13 @@
   },
   "batchSelection": {
     "accountUnavailableReason": "This account has no keys that support batch actions.",
-    "eligibilityNotice_one": "{{count}} key currently supports batch actions; other keys will not be included.",
-    "eligibilityNotice_other": "{{count}} keys currently support batch actions; other keys will not be included.",
+    "eligibilityHint": "Batch actions select only exportable inference keys. Management keys and keys whose full value is unavailable are excluded.",
+    "helpLabel": "About batch selection",
     "unavailableReason": "This key does not support batch actions."
+  },
+  "createdKey": {
+    "subtitle": "{{name}} has been created. You can copy it now or reveal it again later.",
+    "title": "Key created"
   },
   "createFirstKey": "Create first key",
   "credentialAssociation": {
@@ -193,6 +222,7 @@
     "ipLimits": "IP Limits",
     "ipPlaceholder": "Leave empty for no limit, separate multiple IPs with commas",
     "modelLimits": "Model Limits",
+    "novitaConsoleRequired": "Creating keys requires console authorization. Edit this account to acquire a console credential for the same Novita account, or create the key in the Novita console.",
     "quotaPlaceholder": "Please enter quota amount (USD)",
     "quotaSettings": "Quota Settings",
     "selectModels": "Select models",
@@ -213,8 +243,10 @@
     }
   },
   "keyDetails": {
+    "channels": "Channels",
     "createResponseOnlySecret": "This site shows the full key only when it is created. If you did not save it, open Key Management and create a replacement key.",
     "createTime": "Create Time:",
+    "defaultChannels": "Default channels",
     "expireTime": "Expire Time:",
     "followsAccountGroup": "Follows account group",
     "group": "Group:",
@@ -225,8 +257,11 @@
     "neverExpires": "Never Expires",
     "note": "Note:",
     "remainingQuota": "Remaining Quota:",
+    "tools": "Allowed tools",
+    "totalQuota": "Total Quota:",
     "ungrouped": "Ungrouped",
-    "usedQuota": "Used Quota:"
+    "usedQuota": "Used Quota:",
+    "websiteVerificationSecret": "The management API does not provide full keys. Visit the NanoGPT API page and complete the required sign-in verification to view or copy an existing key again."
   },
   "knownTotalKeys_one": "{{count}} key read",
   "knownTotalKeys_other": "{{count}} keys read",
@@ -319,6 +354,11 @@
     "batchSaveToApiProfilesPartialFailed": "Saved {{savedCount}} of {{totalCount}} selected keys. {{failedCount}} could not be saved.",
     "copyFailed": "Copy failed",
     "keyCopied": "Key {{name}} copied to clipboard",
+    "keyDeleted": "Key {{name}} deleted",
+    "keyDeletedSimple": "Key deleted",
+    "keySiteTypeMismatch": "This site matches {{suggestedType}}, but the account is set to {{storedType}}. Set the Site Type to {{suggestedType}} in 'Edit Account' and try again.",
+    "keyUpdated": "Key {{name}} updated",
+    "keyUpdatedSimple": "Key updated",
     "loadFailed": "Failed to load key list",
     "revealFailed": "Failed to reveal key",
     "savedToApiProfiles": "Saved {{name}} to API credential library",
@@ -327,15 +367,32 @@
     "serviceCredentialCopied": "Service key copied to clipboard",
     "serviceCredentialRotated": "Service key reset",
     "serviceCredentialRotateFailed": "Failed to reset service key",
-    "verifyApiFailed": "Failed to open API verification",
-    "verifyCliSupportFailed": "Failed to open CLI compatibility verification"
+    "verifyApiFailed": "Failed to open API testing",
+    "verifyCliSupportFailed": "Failed to open CLI compatibility testing"
   },
   "native": {
     "actions": {
       "delete": "Delete key",
-      "edit": "Edit key"
+      "disable": "Disable API key",
+      "edit": "Edit key",
+      "enable": "Enable API key",
+      "revoke": "Revoke key",
+      "rotate": "Rotate API key"
+    },
+    "badges": {
+      "accountCredential": "Used by this account",
+      "accountCredentialCandidate": "Possibly used for account authentication",
+      "accountManagePermission": "Current account management key",
+      "managePermission": "Manage key"
+    },
+    "credentialRole": {
+      "badgeTitle": "All API Hub uses this key to connect to this account, read its balance and manage keys. If you replace it, update the key in account settings.",
+      "candidateTitle": "Matched by masked key only; not confirmed."
     },
     "delete": {
+      "accountCredentialAcknowledge": "I understand this may affect account features using this key",
+      "accountCredentialWarningDescription": "Deleting this key may interrupt account features that use it. Update the account credential first; this key cannot be restored here.",
+      "accountCredentialWarningTitle": "Delete the account's own credential",
       "confirm": "Delete key",
       "description": "Permanently delete the API key {{name}}? This cannot be undone.",
       "feedback": {
@@ -345,6 +402,7 @@
         "unavailable": "The service is temporarily unavailable. Refresh before trying again.",
         "uncertain": "The key state may have changed. Refresh keys before deciding whether to retry."
       },
+      "manageKeyWarning": "This key has management permission. Workflows that rely on it lose management access after deletion.",
       "refresh": "Refresh keys",
       "title": "Delete API key?"
     },
@@ -354,15 +412,130 @@
         "cancel": "Cancel",
         "save": "Save key"
       },
+      "aimlapi": {
+        "allowedModels": "Allowed models",
+        "allowedModelsHelp": "Search models by name or ID; leave empty to allow all models.",
+        "allowedModelsPlaceholder": "Search models",
+        "allowedTools": "Allowed tools",
+        "allowedToolsHelp": "Search tools; leave empty to allow all tools.",
+        "endpoint": {
+          "audio": "Audio",
+          "chat": "Chat",
+          "embeddings": "Embeddings",
+          "image": "Images",
+          "ocr": "Text recognition (OCR)",
+          "responses": "Responses",
+          "speech": "Speech",
+          "video": "Video"
+        },
+        "expiryImmutable": "Expiration can only be set when creating the key. It cannot be changed afterward.",
+        "limit": {
+          "limited": "Set a limit",
+          "unlimited": "No limit"
+        },
+        "maximum": "Maximum: {{maximum}}",
+        "reset": {
+          "day": "Daily",
+          "month": "Monthly",
+          "never": "Never",
+          "week": "Weekly"
+        },
+        "scopes": "Endpoint permissions",
+        "scopesPlaceholder": "All endpoints",
+        "spendLimit": "USD limit",
+        "spendLimitAmount": "Limit amount",
+        "spendLimitReset": "Reset period"
+      },
+      "allowlistHelp": "Separate entries with commas or new lines. Leave empty for no restriction.",
+      "allowWallet": "Allow using balance",
+      "allowWalletHelp": "Keeps this key working from the account balance after its plan quota runs out.",
+      "budget5h": "5-hour budget (USD)",
+      "budgetDay": "Daily budget (USD)",
+      "budgetMonth": "Monthly budget (USD)",
+      "budgetNextReset": "Resets {{time}} (UTC+8)",
+      "budgetResetHelp": "0 means unlimited. The 5-hour budget rolls forward; daily, weekly and monthly budgets reset in Beijing time, with weeks starting Monday.",
+      "budgetRolling": "Rolling window",
+      "budgetsAndLimits": "Budgets and access limits",
+      "budgetUsage": "Used ${{used}} / ${{limit}} · remaining ${{remaining}} · reserved ${{reserved}}",
+      "budgetWeek": "Weekly budget (USD)",
+      "channel": "Channel",
+      "dahl": {
+        "allocate": "Allocate tokens",
+        "amountHelp": "Enter whole tokens, or use K/M. Available: {{max}} tokens.",
+        "amountInvalid": "Enter a valid amount within the available token balance.",
+        "amountPlaceholder": "e.g. 2.5M or 500K",
+        "create": "Create key",
+        "createdHelp": "{{name}} has been created with no tokens. Copy the key or allocate tokens to start using it. You can reveal it again later.",
+        "createHelp": "Creates a new key with 0 tokens. Give it an optional name, then copy the key or allocate tokens after creation.",
+        "createTitle": "Create API key",
+        "invalidAmount": "Amount must be a positive whole-token value and must not exceed {{max}} tokens.",
+        "keyAfter": "Key after transfer",
+        "keyBalance": "On this key (tokens)",
+        "manageTitle": "Manage key",
+        "max": "Max",
+        "name": "Key name",
+        "nameCached": "Showing the locally cached name. Website names will be checked when a matching account page is open.",
+        "nameHelp": "Optional. Names sync with the website in this browser when a matching account page is open. Refresh the website to see changes.",
+        "nameInvalid": "Use a name of up to 128 characters.",
+        "namePending": "Saved locally; waiting to sync. Open the website with this account, then refresh the key list.",
+        "namePlaceholder": "Optional name",
+        "nameSynced": "Name synchronized with the website. Refresh the website to see changes.",
+        "noKeyTokens": "This key has no tokens to return.",
+        "noPoolTokens": "No tokens in the account pool. Top up on the website or return tokens from another key.",
+        "poolAfter": "Pool after transfer",
+        "poolBalance": "Account pool (tokens)",
+        "rename": "Rename",
+        "return": "Return tokens",
+        "revoke": "Revoke key",
+        "revokeDescription": "Revoke {{name}}? The key will stop working, its remaining tokens will be returned to the account pool, and the site will retain a revoked record. This cannot be undone.",
+        "revokeTitle": "Revoke API key",
+        "saveName": "Save name",
+        "transferAmount": "Tokens to transfer"
+      },
+      "daya": {
+        "allowFast": "Allow Fast mode",
+        "allowFastHelp": "Allows OpenAI requests to ask for Fast mode; the service decides whether Fast applies. When disabled, all OpenAI requests, including Flex, use standard mode and standard pricing.",
+        "budget7d": "7-day budget (USD)",
+        "budgetHelp": "Spending caps in USD for each window. 0 means unlimited.",
+        "customKey": "Custom key (optional)",
+        "customKeyHelp": "Leave unchanged to generate a key. Custom keys need at least 16 letters, digits, underscores or hyphens.",
+        "groupOrderHelp": "Routes are tried in this order. Drag to reorder, or use the arrow buttons.",
+        "ipBlacklist": "IP blocklist",
+        "ipWhitelist": "IP allowlist"
+      },
+      "description": "Description (optional)",
+      "emrank": {
+        "expiration": "Expiry",
+        "expirationOptions": {
+          "custom": "Custom time",
+          "day": "One day",
+          "hour": "One hour",
+          "keep": "Keep current expiry",
+          "month": "One month (30 days)",
+          "never": "Never expires"
+        },
+        "quotaHelp": "1 M = 1,000,000 Token, at most 6 decimals. Leave unlimited quota on for no cap.",
+        "quotaMToken": "Quota (M Token)"
+      },
+      "excludeIps": "Excluded IPs",
+      "excludeIpsPlaceholder": "One per line (CIDR supported)",
       "expiryDays": "Expires in (days)",
       "feedback": {
+        "adminOnlyKeySettings": "This site restricts advanced key options such as IP whitelists to administrators; clear those fields and retry.",
         "authenticationFailed": "Sign in again or update this account's credentials, then retry.",
         "error": "Follow the error details below, then retry.",
         "permissionDenied": "Use credentials that can view and manage keys, then retry.",
         "title": "Could not save key",
         "unavailable": "The service is temporarily unavailable. Try again shortly.",
-        "uncertain": "The service may have applied this change. Refresh keys to confirm the current state before deciding whether to retry."
+        "uncertain": "The service may have applied this change. Refresh keys to confirm the current state before deciding whether to retry.",
+        "unexpected": "The extension could not execute this action. Update the extension or report this issue."
       },
+      "followAccountQuotaHelp": "Use -1 to follow the account quota.",
+      "followsAccount": "Follows account",
+      "groupOnly": "Only use the selected group",
+      "groupOnlyHelp": "Keeps this key on the selected group instead of failing over to others.",
+      "independentQuotaUsd": "Independent quota (USD)",
+      "ipCidrAllowlist": "IP/CIDR allowlist",
       "issues": {
         "inconsistentValue": "Review this value and try again.",
         "invalidValue": "Enter a valid value.",
@@ -370,26 +543,165 @@
         "required": "This field is required.",
         "unsupportedOption": "Choose an available option."
       },
+      "keyConcurrency": "Key concurrency",
+      "keyRateHelp": "0 follows the account limit.",
+      "keyRpm": "Key RPM",
+      "keyUnlimitedQuota": "Key unlimited quota",
+      "keyUnlimitedQuotaHelp": "Still limited by the account balance or subscription quota.",
+      "krill": {
+        "allowAnyIp": "Allow any IP",
+        "allowAnyIpHelp": "Disables the saved IP whitelist. Requests from any IP will be allowed.",
+        "channels": "Channels",
+        "channelsHelp": "Which billing routes this key may use."
+      },
+      "laozhang": {
+        "activateOnFirstUse": "Activate on first use",
+        "activationHelp": "0 means no validity period after activation. The site rules still determine the absolute expiry.",
+        "billingHybrid": "Hybrid billing",
+        "billingRequest": "Pay per request",
+        "billingRequestPriority": "Pay per request priority",
+        "billingType": "Billing model",
+        "billingUsage": "Pay-as-you-go",
+        "billingUsagePriority": "Pay-as-you-go priority",
+        "discordProxy": "Discord proxy URL",
+        "fallbackGroups": "Fallback groups (in order)",
+        "fallbackHelp": "Fallback groups are tried in selection order. Automatic grouping uses no fallback groups. The site sets the maximum count.",
+        "mjApiKey": "MJ translation API key",
+        "mjBaseUrl": "MJ translation base URL",
+        "mjModel": "MJ translation model",
+        "mjTranslation": "Enable MJ translation",
+        "rateLimitDuration": "Rate limit period (seconds)",
+        "rateLimitEnabled": "Enable rate limiter",
+        "rateLimitMessage": "Rate limit exceeded message",
+        "rateLimitNum": "Requests per period",
+        "remark": "Key remark",
+        "retryAuto": "Auto (follow global setting)",
+        "retryBilling": "Keep billing model on retry",
+        "retryOff": "Off",
+        "retryOn": "On",
+        "validDuration": "Validity after activation (days)"
+      },
+      "modelAllowlist": "Model allowlist",
+      "nanogpt": {
+        "anonymized": "Anonymized routing",
+        "dailyRequests": "Daily request limit",
+        "dailySpend": "Daily spend limit (USD)",
+        "dailySubscriptionTokens": "Daily subscription input-token allowance",
+        "dailyTokens": "Daily input-token limit",
+        "legacyPolicy": "Legacy routing policy",
+        "limitHelp": "Leave blank for unlimited. Zero blocks this allowance; subscription token units may be weighted.",
+        "monthlyRequests": "Monthly request limit",
+        "monthlySpend": "Monthly spend limit (USD)",
+        "monthlySubscriptionTokens": "Monthly subscription input-token allowance",
+        "monthlyTokens": "Monthly input-token limit",
+        "weeklyRequests": "Weekly request limit",
+        "weeklySpend": "Weekly spend limit (USD)",
+        "weeklySubscriptionTokens": "Weekly subscription input-token allowance",
+        "weeklyTokens": "Weekly input-token limit",
+        "zdr": "Zero Data Retention",
+        "zdrPolicy": "Privacy routing"
+      },
+      "novita": {
+        "allEnabled": "All enabled models",
+        "allowedIps": "Allowed IPs",
+        "allowedIpsHelp": "One IPv4 address or CIDR per line, up to 100. 0.0.0.0/0 is not allowed.",
+        "allowedModels": "Allowed models",
+        "days30": "30 days",
+        "days90": "90 days",
+        "excludedModels": "Excluded models",
+        "hours24": "24 hours",
+        "lifecycleHelp": "Expiration cannot be changed after creation.",
+        "modelAccess": "Model access",
+        "modelChoicesHelp": "Select a suggestion or type a full model ID and press Enter. Public-catalog suggestions are for reference; saving confirms whether the policy accepts them.",
+        "permanent": "Permanent",
+        "restrictIps": "Restrict source IPs",
+        "selected": "Selected models only"
+      },
       "opening": {
         "failed": "Could not open key editor",
         "loading": "Opening key editor...",
         "retry": "Try again"
       },
+      "pmapi": {
+        "rpm": "Requests per minute",
+        "rpmHelp": "Maximum requests per minute for this token; 0 means unlimited."
+      },
+      "quotaCredits": "Remaining credits",
+      "quotaCreditsHelp": "The key stops working once these credits run out.",
       "quotaUsd": "Quota (USD)",
+      "remainingCount": "Remaining calls",
+      "remainingCountPlaceholder": "How many calls this key can still make",
+      "requestyManagePermission": "Management permission",
+      "requestyManagePermissionHelp": "This key can call management endpoints and manage other keys.",
+      "requestyMonthlyLimit": "Monthly limit (USD)",
+      "requestyMonthlyLimitPlaceholder": "0 or empty means unlimited",
+      "storageLocation": "Storage location",
+      "storageLocationGlobal": "Global node",
+      "storageLocationHelp": "Where the media this key generates is stored.",
+      "storageLocationNone": "Do not store (use original links)",
+      "storageLocationUnconfigured": "Deployment default",
       "title": {
         "create": "Create API Key",
         "edit": "Edit API Key"
       },
       "totalQuotaUsd": "Total quota (USD)",
+      "unlimitedCount": "Unlimited calls",
+      "unlimitedCountHelp": "When off, the key stops once the remaining calls run out; calls and amount are metered separately.",
       "unsaved": {
         "description": "Closing will discard your changes.",
         "discard": "Discard changes",
         "keepEditing": "Keep editing",
         "title": "Discard changes?"
+      },
+      "vercelAiGateway": {
+        "attribution": {
+          "team": "Team",
+          "user": "Team member"
+        },
+        "budgetAlerts": "Email the key creator at these thresholds",
+        "budgetEnabled": "Spend budget",
+        "budgetHelp": "Set a custom cap in USD. Turning this off uses the team default, if one exists. BYOK spend is excluded from new budgets.",
+        "budgetInactive": "Budget inactive",
+        "budgetLimit": "Spending limit (USD, minimum $1)",
+        "budgetPeriod": "Budget refresh",
+        "budgetUnavailable": "Budget could not be read. Retry before editing.",
+        "consoleFailed": "Could not open the team console. Check your access token and try again.",
+        "inheritedBudget": "Team default budget",
+        "noBudget": "No key-specific budget",
+        "openConsole": "Open Vercel console",
+        "period": {
+          "daily": "Daily",
+          "monthly": "Monthly",
+          "none": "Never",
+          "weekly": "Weekly"
+        },
+        "spendAttribution": "Spend attribution",
+        "spendAttributionHelp": "Choose whose budget this key counts against. Only team Owners and AI Gateway Budget Managers can change attribution."
       }
     },
     "heading": "API keys",
+    "lifecycle": {
+      "disableDescription": "Disable this key temporarily. You can enable it again later.",
+      "enableDescription": "Re-enable this key with its existing settings.",
+      "rotateDescription": "The old key will stop working immediately. Copy the new key after rotation and update your clients. Other settings are preserved."
+    },
     "missing": "Not available",
+    "permission": {
+      "accountManageBadgeTitle": "All API Hub uses this key to read this account’s balance and manage keys. It can also create and delete other keys in the organization. After replacing or deleting it, update the key in account settings.",
+      "manage": "Management permission",
+      "manageBadgeTitle": "This key can call management endpoints and manage other keys in the organization.",
+      "manageGranted": "Can manage other keys",
+      "manageNotGranted": "Inference only"
+    },
+    "revoke": {
+      "description": "Revoke “{{name}}”? This permanently disables the key. Its record remains until you delete it.",
+      "feedback": {
+        "error": "Could not revoke this key. Refresh and try again."
+      },
+      "success": "Key revoked",
+      "title": "Revoke key",
+      "working": "Revoking..."
+    },
     "scope": {
       "empty": "No scopes available",
       "error": "Could not load scopes",
@@ -398,6 +710,7 @@
       "heading": "Scope",
       "label": "Select a scope",
       "loading": "Loading scopes…",
+      "nanoGptManagementOptional": "The management token is optional. You can still copy, export and verify your saved inference API key. To list or manage remote keys, add a management token in Edit account.",
       "partial": "Some scopes could not be loaded. Available scopes can still be used.",
       "placeholder": "Choose a scope",
       "retry": "Retry loading scopes"
@@ -429,8 +742,8 @@
     "copy": "Copy full key",
     "copyFailed": "Failed to copy full key",
     "keyLabel": "Full key",
-    "subtitle": "The full value for key {{name}} is shown only after this creation.",
-    "subtitleUnnamed": "The full key is shown only after this creation.",
+    "subtitle": "The full value for key {{name}} is shown only after this operation.",
+    "subtitleUnnamed": "The full key is shown only after this operation.",
     "title": "Save the full key now",
     "warningDescription": "After closing this dialog, the extension cannot display the full key again.",
     "warningTitle": "This key can only be viewed once"
@@ -571,9 +884,35 @@
   },
   "pleaseAddAccount": "Please add an account first",
   "pleaseSelectAccount": "Please select account",
+  "provisioning": {
+    "actions": {
+      "allGroups": "Fill all missing groups",
+      "default": "Ensure a default key",
+      "hint": "Create only missing keys and keep existing keys.",
+      "title": "Complete missing keys"
+    },
+    "cancelled": "Stopped. Keys already created are retained.",
+    "completed": "Account keys ready: {{created}} created, {{covered}} already covered.",
+    "continue": "Continue with user input",
+    "creating": "Completing account keys: {{created}} / {{total}} created…",
+    "input": "{{label}} · {{current}} / {{total}}. Complete all inputs before any keys are created.",
+    "preparing": "Checking account keys…",
+    "progress": "Created {{created}} / {{total}}; already covered: {{covered}}.",
+    "result": {
+      "cancelled": "Key completion stopped",
+      "covered": "Already covered",
+      "created": "Created",
+      "failed": "Some keys could not be created",
+      "next": "Next step",
+      "remaining": "Not confirmed",
+      "resume": "Run completion again later. Existing keys will be skipped.",
+      "retained": "Created and existing keys are retained.",
+      "uncertain": "Some keys need verification"
+    }
+  },
   "refreshTokenList": "Refresh Key List",
   "repairMissingKeys": {
-    "action": "Key check",
+    "action": "Check and repair",
     "actions": {
       "cancel": "Cancel check",
       "rerun": "Check again",
@@ -587,7 +926,7 @@
       "title_one": "Delete {{count}} invalid key?",
       "title_other": "Delete {{count}} invalid keys?"
     },
-    "description": "Check all available groups of saved accounts and create missing usable keys where automatic creation is supported. Other issues are listed below.",
+    "description": "Check all available groups of selected accounts and create missing usable keys where automatic creation is supported. Other issues are listed below.",
     "failureGuidance": {
       "aborted": "The operation was cancelled before it completed. Run the check again when ready.",
       "authenticationFailed": "Sign in again or update this account's credentials, then retry.",
@@ -602,7 +941,7 @@
       "validationFailed": "Review the required key settings, correct them, and retry."
     },
     "historyNote": "This shows the previous check result. No job is currently running, and you can rerun the check.",
-    "initialNotice": "Check saved accounts group by group and create missing keys where supported. Groups that already have usable keys are skipped.",
+    "initialNotice": "Check selected accounts group by group and create missing keys where supported. Groups that already have usable keys are skipped.",
     "invalidKeys": {
       "badge": "Invalid",
       "deleteFailed": "Failed to delete invalid keys",
@@ -700,6 +1039,10 @@
     },
     "resultsTitle": "Results",
     "runningNote": "This job runs in the background. You can close this dialog and check later, or cancel it from the progress card.",
+    "scope": {
+      "allSelected": "All accounts selected",
+      "label": "Accounts to check"
+    },
     "searchLabel": "Search",
     "searchPlaceholder": "Search account, key name, group, domain, or site type...",
     "skipReasons": {
@@ -739,6 +1082,9 @@
   "showingCount_one": "Showing {{count}}",
   "showingCount_other": "Showing {{count}}",
   "title": "Key Management",
+  "tools": {
+    "title": "Key tools"
+  },
   "totalKeys_one": "Total {{count}} key",
   "totalKeys_other": "Total {{count}} keys",
   "unifiedApiGuidance": {

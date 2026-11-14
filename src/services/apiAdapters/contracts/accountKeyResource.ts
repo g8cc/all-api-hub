@@ -1,7 +1,10 @@
 import type { AccountSiteType } from "~/constants/siteType"
-import type { CreatedRuntimeSecret } from "~/services/accounts/createdRuntimeSecret"
-import type { AccountRuntimeKeyModelAccess } from "~/services/accounts/runtimeKeyModelAccess"
+import type { AccountCredentialIdentity } from "~/services/accounts/keys/accountCredentialIdentity"
+import type { CreatedRuntimeSecret } from "~/services/accounts/keys/createdRuntimeSecret"
+import type { AccountRuntimeKeyModelAccess } from "~/services/accounts/keys/runtimeKeyModelAccess"
+import type { KeyMaskEvidence } from "~/services/accountTokens/keyMaskEvidence"
 import type { ApiServiceRequest } from "~/services/apiTransport/type"
+import type { QuotaAsset } from "~/services/quotaAssets/quotaAsset"
 
 import type { InventorySecretAvailability } from "./inventorySecret"
 import type {
@@ -62,10 +65,13 @@ export type AccountKeyCreationIntent = {
   }
 }
 
+export const ACCOUNT_KEY_DEFAULT_CREATION_POLICIES = {
+  EditorDefaults: "editor-defaults",
+  SelectRequirement: "select-requirement",
+  RequiresInput: "requires-input",
+} as const
 export type AccountKeyDefaultCreationPolicy =
-  | "editor-defaults"
-  | "select-requirement"
-  | "requires-input"
+  (typeof ACCOUNT_KEY_DEFAULT_CREATION_POLICIES)[keyof typeof ACCOUNT_KEY_DEFAULT_CREATION_POLICIES]
 
 export const ACCOUNT_KEY_PROVISIONING_PLACEMENT_KINDS = {
   Requirement: "requirement",
@@ -146,6 +152,8 @@ export type AccountKeyProvisioningSnapshot = {
   readonly requirements: readonly AccountKeyProvisioningRequirement[]
   readonly items: readonly AccountKeyProvisioningInventoryItem[]
   readonly partialFailure?: ResourceFailure
+  /** Only a complete empty inventory may enter the adapter's default creation workflow. */
+  readonly emptyRequirementsAction?: "default-creation"
 }
 
 export type AccountKeyProvisionedResource = {
@@ -191,25 +199,176 @@ export interface AccountKeyRuntimeKeySession {
   ): Promise<AccountRuntimeKeyResolution>
 }
 
+export const ACCOUNT_KEY_GROUP_EMPTY_VALUES = {
+  AccountGroup: "account-group",
+  Ungrouped: "ungrouped",
+} as const
+
+export type AccountKeyGroupEmptyValue =
+  (typeof ACCOUNT_KEY_GROUP_EMPTY_VALUES)[keyof typeof ACCOUNT_KEY_GROUP_EMPTY_VALUES]
+
+/** Adapter-owned display semantics. Monetary amounts are USD; timestamps are milliseconds. */
+export type AccountKeyDisplayFact =
+  | {
+      readonly fieldId: string
+      readonly kind: "spend-budget"
+      readonly source: "custom" | "inherited" | "none" | "unavailable"
+      readonly limitUsd?: number
+      readonly usedUsd?: number
+      readonly active?: boolean
+      readonly period?: "none" | "daily" | "weekly" | "monthly"
+    }
+  | {
+      readonly fieldId: string
+      readonly kind: "money"
+      readonly role: "remaining" | "used" | "total"
+      readonly amountUsd: number
+      readonly unlimited?: boolean
+      readonly followsAccount?: boolean
+    }
+  | {
+      readonly fieldId: string
+      readonly kind: "budget"
+      readonly window: "5h" | "day" | "week" | "month"
+      readonly limitUsd: number
+      readonly usedUsd: number
+      readonly remainingUsd: number
+      readonly reservedUsd: number
+      readonly nextResetAt?: string
+    }
+  | {
+      readonly fieldId: string
+      readonly kind: "rate-limit"
+      readonly rpm: number
+      readonly concurrency: number
+    }
+  | {
+      readonly fieldId: string
+      readonly kind: "quota"
+      readonly role: "remaining" | "used" | "total"
+      readonly value: number
+      readonly asset: QuotaAsset
+      readonly unlimited?: boolean
+    }
+  | {
+      readonly fieldId: string
+      readonly kind: "credits"
+      readonly value: number
+      readonly unlimited?: boolean
+    }
+  | {
+      readonly fieldId: string
+      readonly kind: "expiry"
+      readonly timestampMs: number | "never" | null
+    }
+  | {
+      readonly fieldId: string
+      readonly kind: "last-used"
+      readonly timestampMs: number
+    }
+  | {
+      readonly fieldId: string
+      readonly kind: "restriction"
+      readonly role: "models" | "tools" | "ip" | "subnet"
+      readonly value: string | readonly string[]
+    }
+  | {
+      readonly fieldId: string
+      /** Key capability, not a restriction on models, networks or groups. */
+      readonly kind: "permission"
+      readonly role: "manage"
+      readonly granted: boolean
+    }
+  | {
+      readonly fieldId: string
+      /** Billing-route permissions, independent of account/model access groups. */
+      readonly kind: "channels"
+      readonly value: readonly string[]
+      readonly usesDefault: boolean
+    }
+  | {
+      readonly fieldId: string
+      readonly kind: "group"
+      readonly value: string | readonly string[]
+      /** The provider decides whether an empty group inherits the account group. */
+      readonly emptyValue: AccountKeyGroupEmptyValue
+    }
+  | {
+      readonly fieldId: string
+      /** Billing attribution target; independent of account/model access groups. */
+      readonly kind: "attribution"
+      /** Provider-declared attribution key, resolved through the provider's copy. */
+      readonly value: string
+    }
+
+export const ACCOUNT_KEY_RESOURCE_STATUSES = {
+  Enabled: "enabled",
+  Disabled: "disabled",
+  Expired: "expired",
+  Unknown: "unknown",
+} as const
+
+export type AccountKeyResourceStatus =
+  (typeof ACCOUNT_KEY_RESOURCE_STATUSES)[keyof typeof ACCOUNT_KEY_RESOURCE_STATUSES]
+
+export const ACCOUNT_KEY_DETAIL_AVAILABILITIES = {
+  Complete: "complete",
+} as const
+
 export type AccountKeyResourceFacts = {
+  /** Complete inventory facts can be disclosed locally; omitted means detail may need a read. */
+  readonly detailAvailability?: (typeof ACCOUNT_KEY_DETAIL_AVAILABILITIES)[keyof typeof ACCOUNT_KEY_DETAIL_AVAILABILITIES]
+
   readonly ref: AccountKeyResourceRef
   readonly displayName: string
   readonly maskedLabel: string
-  readonly status: "enabled" | "disabled" | "expired" | "unknown"
+  readonly status: AccountKeyResourceStatus
+  /** Provider evidence; local linked plaintext is reconciled only for presentation. */
+  readonly accountCredentialIdentity?: AccountCredentialIdentity
+  /** Verified inventory plaintext for the current snapshot only; never persist as display metadata. */
+  readonly runtimeSecret?: string
+  /** Provider-confirmed inventory evidence; never derive this from maskedLabel. */
+  readonly keyMask?: KeyMaskEvidence
   /** Safe machine policy projected by the provider, never parsed from display fields. */
   readonly runtimeKey?: {
     readonly modelAccess: AccountRuntimeKeyModelAccess
+    /**
+     * Whether the provider treats this key as an inference credential.
+     *
+     * Omitted when the provider has no such distinction; false excludes the
+     * key from default selection and export even though it may still answer
+     * completions requests.
+     */
+    readonly inference?: boolean
+    /** Canonical Unix epoch milliseconds. */
     readonly createdAt?: number
     readonly notes?: string
+    /**
+     * Client-facing address this key is used with, when the provider routes by
+     * credential rather than by the account origin.
+     */
+    readonly baseUrl?: string
     /** Compatibility for existing associations and exported provider identities. */
     readonly legacyTokenId?: number
   }
   readonly fields: readonly ResourceDisplayFact[]
+  /** Provider-owned presentation semantics; raw fields are never evidence of these meanings. */
+  readonly displayFacts?: readonly AccountKeyDisplayFact[]
   readonly searchValues?: readonly string[]
-  readonly actions: Readonly<{ canUpdate: boolean; canDelete: boolean }>
+  readonly actions: Readonly<{
+    canUpdate: boolean
+    canDelete: boolean
+    /** Permanently invalidates the credential while retaining its record. */
+    canRevoke?: boolean
+    canRotate?: boolean
+    canEnable?: boolean
+    canDisable?: boolean
+  }>
 }
 
 export type AccountKeyEditorSubmitResult = {
+  /** Metadata facts are complete; background name sync must not block resource actions. */
+  readonly refreshPolicy?: typeof ACCOUNT_KEY_RESOURCE_LOCAL_METADATA
   /** Null only for confirmed creation with a response-only secret and no attributable ID. */
   readonly facts: AccountKeyResourceFacts | null
   readonly createdSecret?: CreatedRuntimeSecret
@@ -221,14 +380,27 @@ export type AccountKeyResourcePage = {
   nextCursor?: string
 }
 
+export const ACCOUNT_KEY_MUTATION_CERTAINTIES = {
+  NotApplied: "not-applied",
+  PossiblyApplied: "possibly-applied",
+} as const
+
+export type AccountKeyMutationCertainty =
+  (typeof ACCOUNT_KEY_MUTATION_CERTAINTIES)[keyof typeof ACCOUNT_KEY_MUTATION_CERTAINTIES]
+
 export class AccountKeyResourceError extends Error {
-  constructor(readonly failure: ResourceFailure) {
+  constructor(
+    readonly failure: ResourceFailure,
+    /** Only explicit mutation evidence may authorize a retry after submit. */
+    readonly mutationCertainty?: AccountKeyMutationCertainty,
+  ) {
     super(failure.message?.trim() || failure.code)
     this.name = "AccountKeyResourceError"
   }
 }
 
 export interface AccountKeyResourceEditor {
+  readonly action?: AccountKeyResourceEditAction
   readonly fields: readonly ResourceFieldDescriptor[]
   readonly initialValues: EditableResourceProjection
   validate(values: EditableResourceProjection): ResourceValidationResult
@@ -245,7 +417,32 @@ export interface AccountKeyResourceEditor {
   ): Promise<AccountKeyEditorSubmitResult>
 }
 
+export const ACCOUNT_KEY_RESOURCE_EDIT_ACTIONS = {
+  Rotate: "rotate",
+  Enable: "enable",
+  Disable: "disable",
+  Rename: "rename",
+  Allocate: "allocate",
+  Return: "return",
+} as const
+export type AccountKeyResourceEditAction =
+  (typeof ACCOUNT_KEY_RESOURCE_EDIT_ACTIONS)[keyof typeof ACCOUNT_KEY_RESOURCE_EDIT_ACTIONS]
+
+/** Local metadata commits preserve the accepted inventory without a server refresh. */
+export const ACCOUNT_KEY_RESOURCE_LOCAL_METADATA = "local-metadata"
+export type AccountKeyResourceEditIntent = {
+  /** Providers with separate edit actions can select one explicitly. */
+  action?: AccountKeyResourceEditAction
+  /** Accepted inventory facts can supply metadata; writable server fields are read fresh. */
+  snapshot?: AccountKeyResourceFacts
+}
+
 export interface AccountKeyResourceCollection {
+  /** Irreversibly disables a credential while retaining its inventory record. */
+  revoke?(
+    ref: AccountKeyResourceRef,
+    options?: ResourceOperationOptions,
+  ): Promise<AccountKeyResourceFacts>
   readonly scope: AccountKeyScope
   list(
     query?: ResourceListQuery,
@@ -258,6 +455,7 @@ export interface AccountKeyResourceCollection {
   openEditEditor(
     ref: AccountKeyResourceRef,
     options?: ResourceOperationOptions,
+    intent?: AccountKeyResourceEditIntent,
   ): Promise<AccountKeyResourceEditor>
   delete(
     ref: AccountKeyResourceRef,
@@ -290,6 +488,8 @@ export interface AccountKeyResourceSession {
     scopeKey: string,
     options?: ResourceOperationOptions,
     intent?: AccountKeyCreationIntent,
+    /** Provider-owned placement identity for a missing provisioning requirement. */
+    provisioningRequirementKey?: string,
   ): Promise<AccountKeyResourceEditor>
 }
 
@@ -303,6 +503,12 @@ export type AccountKeyResourceOpenInput = {
 }
 
 export interface AccountKeyResourceCapability {
+  /** Credential-scoped native operations; omitted providers support all three. */
+  readonly operations?: (auth: ApiServiceRequest["auth"]) => {
+    create: boolean
+    update: boolean
+    delete: boolean
+  }
   /** Declares whether an inventory item can yield a complete runtime secret. */
   readonly inventorySecretAvailability?: InventorySecretAvailability
   /** The adapter decides whether its defaults are safe to submit without a form. */

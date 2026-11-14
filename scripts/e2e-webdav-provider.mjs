@@ -2,6 +2,11 @@ import { spawnSync } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { loadLocalEnv } from "./utils/local-env.mjs"
+import { resolvePnpmInvocation } from "./utils/run-pnpm.mjs"
+
+loadLocalEnv()
+
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const webdavSpec = "e2e/realSite/webdavProviderFlow.spec.ts"
 
@@ -114,6 +119,11 @@ function normalizeProviderPrefix(providerArg) {
     : `${providerPrefix}_WEBDAV`
 }
 
+/**
+ * Normalize a whitespace-separated label to Title Case.
+ * @param value Raw label.
+ * @returns The label in Title Case.
+ */
 function toTitleCase(value) {
   return value
     .toLowerCase()
@@ -123,19 +133,17 @@ function toTitleCase(value) {
     .join(" ")
 }
 
+/**
+ * Run pnpm with fixed, repository-owned arguments, propagating failures.
+ * @param args pnpm arguments, never user input or Git paths.
+ */
 function runPnpm(args) {
-  const result =
-    typeof process.env.npm_execpath === "string" && process.env.npm_execpath
-      ? spawnSync(process.execPath, [process.env.npm_execpath, ...args], {
-          cwd: rootDir,
-          env,
-          stdio: "inherit",
-        })
-      : spawnSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", args, {
-          cwd: rootDir,
-          env,
-          stdio: "inherit",
-        })
+  const invocation = resolvePnpmInvocation(args)
+  const result = spawnSync(invocation.command, invocation.args, {
+    cwd: rootDir,
+    env,
+    stdio: "inherit",
+  })
 
   if (result.status !== 0) {
     if (result.error) {

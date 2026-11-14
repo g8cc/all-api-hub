@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next"
 
 import { FormField, Spinner, Switch, Textarea } from "~/components/ui"
 import { Modal } from "~/components/ui/Dialog/Modal"
-import ResultStatusBadge from "~/features/AutoCheckin/components/ResultStatusBadge"
+import ResultStatusBadge from "~/features/AutoCheckin/results/ResultStatusBadge"
+import { formatTimestamp } from "~/features/AutoCheckin/table/tableUtils"
 import { getAutoCheckinResultMessage } from "~/features/AutoCheckin/utils/autoCheckin"
-import { formatTimestamp } from "~/features/AutoCheckin/utils/tableUtils"
 import type { AuthConfig } from "~/services/apiTransport/type"
 import {
   buildCheckInFeedbackDetails,
@@ -15,6 +15,7 @@ import {
   getFeedbackOrigin,
   type CheckInFeedbackSnapshot,
 } from "~/services/checkin/feedback/report"
+import { AUTO_CHECKIN_SKIP_REASON } from "~/types/autoCheckin"
 import { sanitizeSensitiveErrorText } from "~/utils/core/sanitizeSensitiveErrorText"
 import pkg from "~~/package.json"
 
@@ -27,29 +28,47 @@ import { useFeedbackSubmission } from "./useFeedbackSubmission"
 export function FeedbackForm({
   snapshot,
   auth,
+  isOpen = true,
   onClose,
+  onCloseComplete,
 }: {
   snapshot: CheckInFeedbackSnapshot
   auth?: AuthConfig
+  isOpen?: boolean
   onClose: () => void
+  onCloseComplete?: () => void
 }) {
   const { t } = useTranslation(["accountDialog", "autoCheckin"])
   const id = useId()
   const executionMessage = (() => {
     if (!snapshot.execution) return ""
-    let text = getAutoCheckinResultMessage(t, snapshot.execution)
+    if (
+      snapshot.execution.reasonCode &&
+      snapshot.execution.reasonCode !==
+        AUTO_CHECKIN_SKIP_REASON.UPSTREAM_REJECTED &&
+      snapshot.execution.reasonCode !==
+        AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR &&
+      !snapshot.execution.messageKey
+    ) {
+      return ""
+    }
+    const text = getAutoCheckinResultMessage(t, snapshot.execution)
+    return sanitizeReportMessage(text)
+  })()
+  /** Redacts known credentials and URL details before public report generation. */
+  function sanitizeReportMessage(text: string) {
     for (const secret of [
       auth?.accessToken,
       auth?.cookie,
       auth?.refreshToken,
-    ]) {
+    ].sort((a, b) => (b?.length ?? 0) - (a?.length ?? 0))) {
       if (secret) text = text.replaceAll(secret, "[REDACTED]")
     }
     // Public reports do not carry URLs embedded in error messages.
     return sanitizeSensitiveErrorText(text)
       .replace(/https?:\/\/[^\s"'<>]+/gi, "[URL]")
       .slice(0, 2000)
-  })()
+  }
   const [notes, setNotes] = useState("")
   const [includeAddress, setIncludeAddress] = useState(true)
   const [details, setDetails] = useState(() =>
@@ -58,6 +77,9 @@ export function FeedbackForm({
       {
         version: pkg.version,
         executionMessage,
+        refreshMessage: sanitizeReportMessage(
+          snapshot.refresh?.health.reason ?? "",
+        ),
         platform: import.meta.env.FIREFOX ? "firefox" : "chromium",
       },
     ),
@@ -80,13 +102,15 @@ export function FeedbackForm({
   const issue = buildCheckInFeedbackIssue(
     report,
     t("checkInFeedback.issueTitle"),
+    { origin: includeAddress ? origin : null, version: pkg.version, notes },
   )
   const submission = useFeedbackSubmission(report, issue)
   const { opening, previewOpen, setPreviewOpen, rawOpen, setRawOpen } =
     submission
   return (
     <Modal
-      isOpen
+      isOpen={isOpen}
+      onCloseComplete={onCloseComplete}
       onClose={onClose}
       title={t("checkInFeedback.title")}
       header={

@@ -6,7 +6,12 @@ import type {
 } from "~/services/accounts/utils/autoDetectUtils"
 import type { ApiServiceFetchContext } from "~/services/apiTransport/type"
 
-import type { AuthTypeEnum, CheckInConfig, Sub2ApiAuthConfig } from "./index"
+import type {
+  AuthTypeEnum,
+  CheckInConfig,
+  KimiOpenPlatformAuthConfig,
+  Sub2ApiAuthConfig,
+} from "./index"
 
 /**
  * Unified service response structure
@@ -25,13 +30,16 @@ export interface AccountValidationResponse
   extends ServiceResponse<{
     username: string
     accessToken: string
+    aimlApiAuth?: import("~/types").AimlApiAuthConfig
     userId: string
     exchangeRate: number | null
+    login?: import("~/types/accountLogin").AccountLoginConfiguration
     checkIn: CheckInConfig
     siteName: string
     siteType?: string
     authType?: AuthTypeEnum
     sub2apiAuth?: Sub2ApiAuthConfig
+    kimiOpenPlatformAuth?: KimiOpenPlatformAuthConfig
     fetchContext?: ApiServiceFetchContext
     autoDetectContext?: AutoDetectAnalyticsContext
   }> {

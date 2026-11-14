@@ -4,12 +4,13 @@ import { useState } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { MODEL_LIST_BILLING_MODES } from "~/features/ModelList/billingModes"
-import ModelItem from "~/features/ModelList/components/ModelItem"
-import { useFilteredModels } from "~/features/ModelList/hooks/useFilteredModels"
-import { createAccountSource } from "~/features/ModelList/modelManagementSources"
-import { MODEL_LIST_SORT_MODES } from "~/features/ModelList/sortModes"
+import { createAccountSource } from "~/features/ModelList/catalog/modelManagementSources"
+import { MODEL_LIST_SORT_MODES } from "~/features/ModelList/filtering/sortModes"
+import { useFilteredModels } from "~/features/ModelList/filtering/useFilteredModels"
+import ModelItem from "~/features/ModelList/presentation/ModelItem"
+import { MODEL_LIST_BILLING_MODES } from "~/features/ModelList/pricing/billingModes"
 import { getSiteTypeCapabilities } from "~/services/apiAdapters/registry"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ModelCatalogSnapshot } from "~/services/modelCatalog/snapshot"
 import { PRICING_PURPOSES } from "~/services/modelPricing/pricingConstants"
 import type { PricingScenario } from "~/services/modelPricing/pricingPlan"
@@ -18,6 +19,7 @@ import { AuthTypeEnum } from "~/types"
 import { apiyiPricingSample } from "~~/tests/fixtures/apiyi/pricing.sample"
 import { server } from "~~/tests/msw/server"
 import { buildDisplaySiteData } from "~~/tests/test-utils/factories"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { render, screen, within } from "~~/tests/test-utils/render"
 
 vi.mock("~/utils/browser/tempWindowFetch", async (importOriginal) => ({
@@ -76,21 +78,24 @@ function ApiYiModelRow({
 }
 
 describe("APIyi model groups and prices", () => {
-  beforeEach(() => {
+  let pricing: ModelCatalogSnapshot
+
+  beforeEach(async () => {
     server.use(
       http.get(`${account.baseUrl}/api/pricing`, () =>
         HttpResponse.json(apiyiPricingSample),
       ),
     )
-  })
-
-  it("keeps all four gpt-6-astra groups when pricing conditions are unverified or its group changes", async () => {
-    const pricing = await getSiteTypeCapabilities(
+    pricing = await getSiteTypeCapabilities(
       SITE_TYPES.APIYI,
     ).account!.modelPricing!.fetchPricing({
+      directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
       baseUrl: account.baseUrl,
       auth: { authType: AuthTypeEnum.Cookie, userId: account.userId },
     })
+  })
+
+  it("keeps all four gpt-6-astra groups when pricing conditions are unverified or its group changes", async () => {
     const user = userEvent.setup()
     render(<ApiYiModelRow pricing={pricing} />)
 
@@ -124,12 +129,6 @@ describe("APIyi model groups and prices", () => {
   })
 
   it("shows both context price tiers and applies the selected group to each tier", async () => {
-    const pricing = await getSiteTypeCapabilities(
-      SITE_TYPES.APIYI,
-    ).account!.modelPricing!.fetchPricing({
-      baseUrl: account.baseUrl,
-      auth: { authType: AuthTypeEnum.Cookie, userId: account.userId },
-    })
     const user = userEvent.setup()
     render(
       <ApiYiModelRow
@@ -155,22 +154,32 @@ describe("APIyi model groups and prices", () => {
       name: "modelList:scenario.input · modelList:contextTokenRange",
     })
     expect(tiers).toHaveLength(2)
-    expect(within(tiers[0]).getByText("USD: $5.0000")).toBeVisible()
-    expect(within(tiers[0]).getByText("USD: $25.0000")).toBeVisible()
-    expect(within(tiers[0]).getByText("USD: $0.5000")).toBeVisible()
-    expect(within(tiers[1]).getByText("USD: $10.0000")).toBeVisible()
-    expect(within(tiers[1]).getByText("USD: $37.5000")).toBeVisible()
-    expect(within(tiers[1]).getByText("USD: $1.0000")).toBeVisible()
+    expect(within(atIndex(tiers, 0)).getByText("USD: $5.0000")).toBeVisible()
+    expect(within(atIndex(tiers, 0)).getByText("USD: $25.0000")).toBeVisible()
+    expect(within(atIndex(tiers, 0)).getByText("USD: $0.5000")).toBeVisible()
+    expect(within(atIndex(tiers, 1)).getByText("USD: $10.0000")).toBeVisible()
+    expect(within(atIndex(tiers, 1)).getByText("USD: $37.5000")).toBeVisible()
+    expect(within(atIndex(tiers, 1)).getByText("USD: $1.0000")).toBeVisible()
 
     await user.click(screen.getByText("svip (1x)"))
 
     const fullPriceTiers = screen.getAllByRole("group", {
       name: "modelList:scenario.input · modelList:contextTokenRange",
     })
-    expect(within(fullPriceTiers[0]).getByText("USD: $10.0000")).toBeVisible()
-    expect(within(fullPriceTiers[0]).getByText("USD: $50.0000")).toBeVisible()
-    expect(within(fullPriceTiers[1]).getByText("USD: $20.0000")).toBeVisible()
-    expect(within(fullPriceTiers[1]).getByText("USD: $75.0000")).toBeVisible()
-    expect(within(fullPriceTiers[1]).getByText("USD: $2.0000")).toBeVisible()
+    expect(
+      within(atIndex(fullPriceTiers, 0)).getByText("USD: $10.0000"),
+    ).toBeVisible()
+    expect(
+      within(atIndex(fullPriceTiers, 0)).getByText("USD: $50.0000"),
+    ).toBeVisible()
+    expect(
+      within(atIndex(fullPriceTiers, 1)).getByText("USD: $20.0000"),
+    ).toBeVisible()
+    expect(
+      within(atIndex(fullPriceTiers, 1)).getByText("USD: $75.0000"),
+    ).toBeVisible()
+    expect(
+      within(atIndex(fullPriceTiers, 1)).getByText("USD: $2.0000"),
+    ).toBeVisible()
   })
 })

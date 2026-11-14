@@ -6,6 +6,7 @@ import {
   refreshAccountData,
 } from "~/services/apiService/newApiFamily/default/accountRefresh"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import {
   AuthTypeEnum,
   SiteHealthStatus,
@@ -38,6 +39,7 @@ vi.mock("~/services/apiService/newApiFamily/default/accountBootstrap", () => ({
 
 describe("newApiFamily accountRefresh", () => {
   const supportRequest = {
+    directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
     baseUrl: "https://refresh.example.invalid",
     auth: {
       authType: AuthTypeEnum.AccessToken,
@@ -123,6 +125,9 @@ describe("newApiFamily accountRefresh", () => {
     ).resolves.toEqual(refreshResult)
 
     expect(newApiFamilyFetchSupportCheckIn).toHaveBeenCalledWith(supportRequest)
-    expect(newApiFamilyFetchAccountData).toHaveBeenCalledWith(refreshRequest)
+    expect(newApiFamilyFetchAccountData).toHaveBeenCalledWith(
+      refreshRequest,
+      undefined,
+    )
   })
 })

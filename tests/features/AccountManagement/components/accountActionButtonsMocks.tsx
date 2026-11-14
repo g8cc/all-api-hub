@@ -1,6 +1,6 @@
 import { vi } from "vitest"
 
-import type { UserPreferences } from "~/services/preferences/userPreferences"
+import type { UserPreferences } from "~/services/preferences/preferencesSchema"
 
 /**
  * Shared mock declarations for the AccountActionButtons tests. Every split
@@ -122,20 +122,20 @@ vi.mock("~/services/apiAdapters/registry", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/services/apiAdapters/registry")>()),
   getManagedSiteCapabilities: getManagedSiteCapabilitiesMock,
 }))
-vi.mock("~/services/managedSites/runtimeConfig", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("~/services/managedSites/runtimeConfig")
-  >()),
-  hasValidManagedSiteConfig: hasValidManagedSiteConfigMock,
-}))
+vi.mock(
+  "~/services/managedSites/configuration/runtimeConfig",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/services/managedSites/configuration/runtimeConfig")
+    >()),
+    hasValidManagedSiteConfig: hasValidManagedSiteConfigMock,
+  }),
+)
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
+vi.mock("~/utils/browser/runtimeMessages", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
-  return {
-    ...actual,
-    sendRuntimeMessage: sendRuntimeMessageMock,
-  }
+    await importOriginal<typeof import("~/utils/browser/runtimeMessages")>()
+  return { ...actual, sendRuntimeMessage: sendRuntimeMessageMock }
 })
 
 vi.mock("~/services/checkin/autoCheckin/messaging", async (importOriginal) => {
@@ -160,7 +160,7 @@ vi.mock("~/services/protectionBypass/client", async (importOriginal) => {
   }
 })
 
-vi.mock("~/features/AccountManagement/hooks/AccountActionsContext", () => ({
+vi.mock("~/features/AccountManagement/actions/AccountActionsContext", () => ({
   useAccountActionsContext: () => ({
     refreshingAccountId: accountActionsContextValue.refreshingAccountId,
     handleRefreshAccount: mockHandleRefreshAccount,
@@ -168,12 +168,15 @@ vi.mock("~/features/AccountManagement/hooks/AccountActionsContext", () => ({
   }),
 }))
 
-vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
+vi.mock("~/features/AccountManagement/data/AccountDataContext", () => ({
   useAccountDataContext: () => accountDataContextValue,
 }))
 
-vi.mock("~/features/AccountManagement/hooks/DialogStateContext", () => ({
+vi.mock("~/features/AccountManagement/dialogs/useDialogStateContext", () => ({
   useDialogStateContext: () => ({
+    openEditAccount: vi.fn(),
+  }),
+  useAccountDialogActions: () => ({
     openEditAccount: vi.fn(),
   }),
 }))
@@ -187,6 +190,8 @@ vi.mock("~/utils/navigation", () => ({
   openKeysPage: openKeysPageMock,
   openManagedSiteChannelsPage: openManagedSiteChannelsPageMock,
   openModelsPage: openModelsPageMock,
+}))
+vi.mock("~/utils/navigation/sitePages", () => ({
   openRedeemPage: vi.fn(),
   openUsagePage: vi.fn(),
 }))

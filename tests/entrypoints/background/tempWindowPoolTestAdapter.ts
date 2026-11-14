@@ -1,14 +1,13 @@
 import {
   cleanupTempContextsOnSuspend,
-  executeAuthorizedTempContextTask as executeAuthorizedProductionTask,
   handleCloseTempWindow,
+  presentTempContextForTurnstileAssist,
   setupTempWindowListeners,
-} from "~/entrypoints/background/tempWindowPool"
-import {
-  DEFAULT_PREFERENCES,
-  userPreferences,
-  type TempWindowFallbackPreferences,
-} from "~/services/preferences/userPreferences"
+} from "~/services/browsingContext/tempPage/runtime"
+import { executeAuthorizedTempContextTask as executeAuthorizedProductionTask } from "~/services/browsingContext/tempPage/taskDispatch"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { type TempWindowFallbackPreferences } from "~/services/preferences/tempWindowFallbackPreferences"
+import { userPreferences } from "~/services/preferences/userPreferences"
 import {
   getTempContextTaskMetadata,
   PROTECTION_BYPASS_AUTOMATIC_TRIGGERS,
@@ -22,8 +21,6 @@ import {
 } from "~/services/protectionBypass/contracts"
 import type { ProtectionBypassPolicyDecision } from "~/services/protectionBypass/policy"
 import type {
-  TempWindowBrowserCheckIn,
-  TempWindowBrowserCheckInParams,
   TempWindowCheckinPageAction,
   TempWindowCheckinPageActionParams,
   TempWindowFetchParams,
@@ -35,6 +32,7 @@ import type {
 export {
   cleanupTempContextsOnSuspend,
   handleCloseTempWindow,
+  presentTempContextForTurnstileAssist,
   setupTempWindowListeners,
 }
 
@@ -172,7 +170,6 @@ const TEST_DECISION_FEATURE_BY_TASK_KIND: Partial<
   [TEMP_CONTEXT_TASK_KINDS.TurnstileFetch]: PROTECTION_BYPASS_FEATURES.Checkin,
   [TEMP_CONTEXT_TASK_KINDS.NativePageAction]:
     PROTECTION_BYPASS_FEATURES.Checkin,
-  [TEMP_CONTEXT_TASK_KINDS.BrowserCheckIn]: PROTECTION_BYPASS_FEATURES.Checkin,
   [TEMP_CONTEXT_TASK_KINDS.SessionRead]:
     PROTECTION_BYPASS_FEATURES.AccountRefresh,
   [TEMP_CONTEXT_TASK_KINDS.NewApiSessionRead]:
@@ -267,16 +264,6 @@ export async function handleTempWindowCheckinPageAction(
 ) {
   await executeTestTask(
     { kind: "native_page_action", params: withTestExecution(request) },
-    sendResponse,
-  )
-}
-
-export async function handleTempWindowBrowserCheckIn(
-  request: TestProtectedRequest<TempWindowBrowserCheckInParams>,
-  sendResponse: (response?: TempWindowBrowserCheckIn) => void,
-) {
-  await executeTestTask(
-    { kind: "browser_check_in", params: withTestExecution(request) },
     sendResponse,
   )
 }

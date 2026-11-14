@@ -1,12 +1,12 @@
 import {
   containsPermissions,
-  getManifest,
   onPermissionsAdded,
   onPermissionsRemoved,
   removePermissionsDetailed,
   requestPermissionsDetailed,
   type PermissionOperationResult,
-} from "~/utils/browser/browserApi"
+} from "~/utils/browser/permissions"
+import { getManifest } from "~/utils/browser/runtime"
 
 export const OPTIONAL_PERMISSION_IDS = {
   Cookies: "cookies",
@@ -48,6 +48,15 @@ function readOptionalPermissions(): ManifestOptionalPermissions[] {
 export const OPTIONAL_PERMISSIONS: ManifestOptionalPermissions[] =
   readOptionalPermissions()
 
+/** API namespaces can be hidden until an optional permission is granted. */
+export function isPermissionDeclared(id: ManifestOptionalPermissions): boolean {
+  const manifest = getManifest()
+  return [
+    ...(manifest.permissions ?? []),
+    ...(manifest.optional_permissions ?? []),
+  ].some((permission) => permission === id)
+}
+
 /**
  * Optional permissions required for cookie interception flows.
  */
@@ -70,6 +79,7 @@ export async function hasCookieInterceptorPermissions(): Promise<boolean> {
 export async function hasPermission(
   id: ManifestOptionalPermissions,
 ): Promise<boolean> {
+  if (!isPermissionDeclared(id)) return false
   return await containsPermissions({
     permissions: [id as unknown as browser._manifest.OptionalPermission],
   })
@@ -93,6 +103,7 @@ export async function hasPermissions(
 export async function requestPermissionDetailed(
   id: ManifestOptionalPermissions,
 ): Promise<PermissionOperationResult> {
+  if (!isPermissionDeclared(id)) return { success: false }
   return await requestPermissionsDetailed({
     permissions: [id as unknown as browser._manifest.OptionalPermission],
   })
@@ -115,11 +126,24 @@ export async function removePermissionDetailed(
 export async function ensurePermissionsDetailed(
   ids: ManifestOptionalPermissions[],
 ): Promise<EnsurePermissionsResult> {
+  if (ids.length === 0) {
+    return { success: true, results: [], requestedResults: [] }
+  }
+
+  // Start the before-state reads first, but do not await them before requesting.
+  // Firefox requires permissions.request in the original user-action stack.
+  // Already granted permissions are safe to include and do not prompt again.
+  const grantedBeforePromise = Promise.all(ids.map((id) => hasPermission(id)))
+  const requestPromise = requestPermissionsDetailed({
+    permissions: ids as unknown as browser._manifest.OptionalPermission[],
+  })
+  const grantedBefore = await grantedBeforePromise
+  const requestResult = await requestPromise
   const missing: ManifestOptionalPermissions[] = []
   const grantedBeforeById = new Map<ManifestOptionalPermissions, boolean>()
 
-  for (const id of ids) {
-    const wasGrantedBefore = await hasPermission(id)
+  for (const [index, id] of ids.entries()) {
+    const wasGrantedBefore = grantedBefore[index] === true
     grantedBeforeById.set(id, wasGrantedBefore)
     if (!wasGrantedBefore) {
       missing.push(id)
@@ -142,9 +166,6 @@ export async function ensurePermissionsDetailed(
     }
   }
 
-  const requestResult = await requestPermissionsDetailed({
-    permissions: missing as unknown as browser._manifest.OptionalPermission[],
-  })
   const wasGrantedAfterById = new Map<ManifestOptionalPermissions, boolean>()
 
   for (const id of missing) {

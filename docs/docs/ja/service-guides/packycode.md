@@ -36,7 +36,7 @@ PackyCode がモデル API を提供し、All API Hub がアカウント、キ�
 - **QQ / 360 / Brave / Vivaldi / Opera など**：Brave、Vivaldi、Opera は通常まず Chrome ウェブストアを試せます。QQ、360、チーターブラウザなどは利用可能なストア経路がない場合、Chromium の手動読み込みを使えます。詳しくは [その他のブラウザへのインストールガイド](../other-browser-install.md) を参照してください。
 - **Mac の Safari**：[Safari インストールガイド](../safari-install.md) を参照してください。
 - **モバイルブラウザ**：[モバイルブラウザ FAQ](../faq.md#mobile-browser-support) を参照してください。
-- **代替手段**：ブラウザがストア版または Chrome ウェブストア互換版を利用できず、上記ガイドでも解決しない場合は、[GitHub Releases](https://github.com/qixing-jk/all-api-hub/releases/latest) から Stable パッケージをダウンロードできます。手動インストール版は自動更新されません。
+- **代替手段**：ブラウザがストア版または Chrome ウェブストア互換版を利用できず、上記ガイドでも解決しない場合は、[GitHub Releases](https://github.com/qixing-jk/all-api-hub/releases/latest) からダウンロードできます。Chromium ユーザーには自己更新 `.crx` を推奨します。一度インストールすればストア版と同じように自動更新され、stock Chrome / Edge はインストール前に拡張機能の許可リストポリシーを設定する必要があります（Linux は不要）。詳しくは [Chromium 自己更新インストール](https://all-api-hub.qixing1217.top/ja/chromium-crx-self-update.html) を参照してください。
 
 ---
 
@@ -46,7 +46,7 @@ All API Hub は PackyCode アカウントの自動認識に対応しています
 
 ### 3.1 自動認識で追加する
 
-1. ブラウザで [PackyCode](https://www.packyapi.com/register?aff=all-api-hub) にログインします。
+1. ブラウザで [PackyCode](https://www.packyapi.ai/register?aff=all-api-hub) にログインします。
 2. ブラウザ右上の All API Hub 拡張機能アイコンをクリックします。
 3. **アカウントを追加** をクリックし、現在のサイトアドレスを使うか PackyCode のアドレスを手動入力します。
 
@@ -147,6 +147,6 @@ A: 両者は併用するものです。アカウント、チャージ、公式�
 
 ## リンク
 
-- [PackyCode](https://www.packyapi.com/register?aff=all-api-hub)
+- [PackyCode](https://www.packyapi.ai/register?aff=all-api-hub)
 - [All API Hub GitHub リポジトリ](https://github.com/qixing-jk/all-api-hub)
 - [All API Hub ドキュメント](https://all-api-hub.qixing1217.top/ja/)

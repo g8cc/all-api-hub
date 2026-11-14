@@ -1,15 +1,19 @@
+import type { AccountSiteType } from "~/constants/siteType"
 import type { RequestScheduling } from "~/services/apiTransport/requestScheduling"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type {
   ApiServiceRequest,
   ApiTransportRequestObserver,
 } from "~/services/apiTransport/type"
 import {
-  runManagedSiteMutationStep,
   type ManagedSiteMutationConfirmedEffect,
   type ManagedSiteMutationDiagnostic,
+} from "~/services/managedSites/mutations/contracts"
+import {
+  runManagedSiteMutationStep,
   type ManagedSiteMutationSequence,
   type ManagedSiteMutationStepRunResult,
-} from "~/services/managedSites/mutations"
+} from "~/services/managedSites/mutations/execution"
 import { AuthTypeEnum } from "~/types"
 
 type ManagedSiteApiServiceConfig = {
@@ -19,6 +23,7 @@ type ManagedSiteApiServiceConfig = {
 }
 
 type ManagedSiteApiServiceRequestOptions = {
+  siteType?: AccountSiteType
   requestScheduling?: RequestScheduling
   signal?: AbortSignal | null
   bypassSiteRequestLimit?: boolean
@@ -33,6 +38,8 @@ export function toManagedSiteApiServiceRequest(
   options?: ManagedSiteApiServiceRequestOptions,
 ) {
   return {
+    directRequestReason: API_DIRECT_REQUEST_REASONS.CredentialIsolation,
+    siteType: options?.siteType,
     baseUrl: config.baseUrl,
     auth: {
       authType: AuthTypeEnum.AccessToken,
@@ -50,6 +57,14 @@ export function toManagedSiteApiServiceRequest(
   }
 }
 
+/** Binds provider identity while retaining shared cancellation and scheduling options. */
+export function createManagedSiteApiServiceRequest(siteType: AccountSiteType) {
+  return (
+    config: ManagedSiteApiServiceConfig,
+    options?: ManagedSiteApiServiceRequestOptions,
+  ) => toManagedSiteApiServiceRequest(config, { ...options, siteType })
+}
+
 type ManagedSiteApiServiceMutationAttempt<TResponse> =
   | { kind: "response"; response: TResponse }
   | { kind: "response-error"; error: unknown }
@@ -64,6 +79,7 @@ export async function runManagedSiteApiServiceMutationStep<
   TData,
 >(input: {
   config: ManagedSiteApiServiceConfig
+  siteType?: AccountSiteType
   options?: Omit<ManagedSiteApiServiceRequestOptions, "observer">
   sequence: ManagedSiteMutationSequence<TEffect>
   effect: NoInfer<TEffect>
@@ -97,6 +113,7 @@ export async function runManagedSiteApiServiceMutationStep<
           response: await input.execute(
             toManagedSiteApiServiceRequest(input.config, {
               ...input.options,
+              siteType: input.siteType ?? input.options?.siteType,
               observer: requestObserver,
             }),
           ),

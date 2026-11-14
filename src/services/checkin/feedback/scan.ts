@@ -1,5 +1,6 @@
 import PQueue from "p-queue"
 
+import { resolveDeploymentApiOrigin } from "~/constants/deploymentApiOrigins"
 import { buildCompatUserIdHeaders } from "~/services/apiTransport/compatHeaders"
 import { getCheckInFeedbackStatusRoutes } from "~/services/checkin/autoCheckin/providers/feedbackRoutes"
 import { AuthTypeEnum } from "~/types"
@@ -15,7 +16,6 @@ import {
   normalizeAssetUrls,
 } from "./scanParsing"
 import { createScanReader } from "./scanReader"
-import type { ScanFetch } from "./scanReader"
 import type {
   CheckInFeedbackClues,
   CheckInFeedbackScanInput,
@@ -28,7 +28,7 @@ export async function collectCheckInFeedbackClues(
   input: CheckInFeedbackScanInput,
   signal: AbortSignal,
   options: {
-    fetch?: ScanFetch
+    fetch?: typeof fetch
     timeoutMs?: number
     pageUrl?: string
     loadedAssets?: string[]
@@ -57,17 +57,26 @@ export async function collectCheckInFeedbackClues(
     ),
   )
   let partial = false
-  const { read, exhausted, issues } = createScanReader(
+  // Only the maintained deployment map may redirect account status reads.
+  // Page/resources remain restricted to the browser origin and share budgets.
+  const statusOrigin =
+    getFeedbackOrigin(resolveDeploymentApiOrigin(origin)) ?? origin
+  const { read, readStatus, exhausted, issues } = createScanReader(
     origin,
     task.signal,
     options.fetch,
+    statusOrigin,
   )
   const scanIssues = new Set<
     NonNullable<CheckInFeedbackClues["issues"]>[number]
   >()
 
   try {
-    const paths = getCheckInFeedbackStatusRoutes(input.siteType, input.baseUrl)
+    const paths = getCheckInFeedbackStatusRoutes(
+      input.siteType,
+      input.baseUrl,
+      input.routePaths,
+    )
     // Never substitute a browser's ambient session for a selected account's cookie.
     // Cookie isolation/temp-window recovery and token refresh can mutate session state;
     // this optional scan instead discloses the unavailable query and scans public assets.
@@ -96,7 +105,7 @@ export async function collectCheckInFeedbackClues(
           break
         }
         try {
-          const response = await read(route.path, headers)
+          const response = await readStatus(route.path, headers)
           const keys = getResponseKeys(response.text)
           result.statusQueries.push({ path, status: response.status, keys })
           if (response.status >= 400 || !keys.length) partial = true

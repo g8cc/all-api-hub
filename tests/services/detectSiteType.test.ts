@@ -7,6 +7,7 @@ import {
   getAccountSiteType,
 } from "~/services/siteDetection/detectSiteType"
 import { server } from "~~/tests/msw/server"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 vi.mock("~/utils/browser/tempWindowFetch", async (importOriginal) => {
   const actual =
@@ -26,6 +27,9 @@ describe("detectSiteType", () => {
         return HttpResponse.json({ message: "not found" }, { status: 404 })
       }),
       http.get(/\/api\/v1\/auth\/me$/, () => {
+        return HttpResponse.json({ message: "not found" }, { status: 404 })
+      }),
+      http.get(/\/api\/status$/, () => {
         return HttpResponse.json({ message: "not found" }, { status: 404 })
       }),
     )
@@ -263,6 +267,162 @@ describe("detectSiteType", () => {
         expect(titleFetched).toBe(false)
       })
 
+      it("detects RightCode from the console hostname without title fetch", async () => {
+        let titleFetched = false
+        server.use(
+          http.get("https://www.right.codes", () => {
+            titleFetched = true
+            return new HttpResponse("<html><title>new-api</title></html>", {
+              headers: { "Content-Type": "text/html" },
+            })
+          }),
+        )
+
+        await expect(
+          getAccountSiteType("https://www.right.codes/dashboard"),
+        ).resolves.toBe(SITE_TYPES.RIGHT_CODE)
+        expect(titleFetched).toBe(false)
+      })
+
+      it("detects RightCode on every equivalent delivery domain", async () => {
+        await expect(getAccountSiteType("https://right.codes/")).resolves.toBe(
+          SITE_TYPES.RIGHT_CODE,
+        )
+        await expect(
+          getAccountSiteType("https://rightapi.ai/api-keys"),
+        ).resolves.toBe(SITE_TYPES.RIGHT_CODE)
+      })
+
+      it("does not generalize RightCode detection to sibling hostnames", async () => {
+        server.use(
+          http.get("https://api.right.codes", () => {
+            return new HttpResponse(
+              "<html><title>White Label Dashboard</title></html>",
+              {
+                headers: { "Content-Type": "text/html" },
+              },
+            )
+          }),
+          http.get("https://api.right.codes/api/user/self", () => {
+            return HttpResponse.json(
+              {
+                success: false,
+                message: "error: completely unmatched identifier",
+              },
+              { status: 400 },
+            )
+          }),
+          http.get("https://api.right.codes/api/v1/auth/me", () => {
+            return HttpResponse.json({ message: "not found" }, { status: 404 })
+          }),
+        )
+
+        await expect(
+          getAccountSiteType("https://api.right.codes"),
+        ).resolves.toBe(SITE_TYPES.UNKNOWN)
+      })
+
+      it("detects RelayFor from the console hostname without title fetch", async () => {
+        let titleFetched = false
+        server.use(
+          http.get("https://relayfor.xyz", () => {
+            titleFetched = true
+            return new HttpResponse("<html><title>new-api</title></html>", {
+              headers: { "Content-Type": "text/html" },
+            })
+          }),
+        )
+
+        await expect(
+          getAccountSiteType("https://relayfor.xyz/console/"),
+        ).resolves.toBe(SITE_TYPES.RELAYFOR)
+        expect(titleFetched).toBe(false)
+      })
+
+      it("detects RelayFor from HTML title on self-hosted or other domains", async () => {
+        server.use(
+          http.get("https://custom-relayfor.example.com", () => {
+            return new HttpResponse(
+              "<html><title>RelayFor 公益站</title></html>",
+              {
+                headers: { "Content-Type": "text/html" },
+              },
+            )
+          }),
+        )
+
+        await expect(
+          getAccountSiteType("https://custom-relayfor.example.com"),
+        ).resolves.toBe(SITE_TYPES.RELAYFOR)
+      })
+
+      it("detects Grsai from the console hostname without title fetch", async () => {
+        let titleFetched = false
+        server.use(
+          http.get("https://grsai.com", () => {
+            titleFetched = true
+            return new HttpResponse("<html><title>new-api</title></html>", {
+              headers: { "Content-Type": "text/html" },
+            })
+          }),
+        )
+
+        await expect(
+          getAccountSiteType("https://grsai.com/dashboard/api-keys"),
+        ).resolves.toBe(SITE_TYPES.GRSAI)
+        expect(titleFetched).toBe(false)
+      })
+
+      it("detects EMRank from its hostname without any probe request", async () => {
+        let requested = false
+        server.use(
+          http.get("https://emrank.tech/**", () => {
+            requested = true
+            return HttpResponse.json({ unexpected: true }, { status: 500 })
+          }),
+        )
+
+        await expect(
+          getAccountSiteType("https://emrank.tech/account"),
+        ).resolves.toBe(SITE_TYPES.EMRANK)
+        expect(requested).toBe(false)
+      })
+
+      it("detects Grsai on its second console domain", async () => {
+        await expect(
+          getAccountSiteType("https://grsai.ai/dashboard"),
+        ).resolves.toBe(SITE_TYPES.GRSAI)
+      })
+
+      it("does not generalize Grsai detection to sibling hostnames", async () => {
+        server.use(
+          http.get("https://api.grsai.com", () => {
+            return new HttpResponse(
+              "<html><title>White Label Dashboard</title></html>",
+              {
+                headers: { "Content-Type": "text/html" },
+              },
+            )
+          }),
+          http.get("https://api.grsai.com/api/user/self", () => {
+            return HttpResponse.json(
+              {
+                success: false,
+                message: "error: completely unmatched identifier",
+              },
+              { status: 400 },
+            )
+          }),
+          http.get("https://api.grsai.com/api/v1/auth/me", () => {
+            return HttpResponse.json({ message: "not found" }, { status: 404 })
+          }),
+        )
+
+        await expect(getAccountSiteType("https://api.grsai.com")).resolves.toBe(
+          SITE_TYPES.UNKNOWN,
+        )
+      })
+
       it("does not generalize SharedChat detection to sibling hostnames", async () => {
         server.use(
           http.get("https://api.sharedchat.cc", () => {
@@ -291,12 +451,79 @@ describe("detectSiteType", () => {
           getAccountSiteType("https://api.sharedchat.cc"),
         ).resolves.toBe(SITE_TYPES.UNKNOWN)
       })
+      it("detects AI-ROUTER from the browser origin without probe or title fetch", async () => {
+        let probed = false
+        server.use(
+          http.get("https://ai-router.dev", () => {
+            probed = true
+            return new HttpResponse(
+              "<html><title>AI-ROUTER - AI API Gateway</title></html>",
+              { headers: { "Content-Type": "text/html" } },
+            )
+          }),
+          http.get("https://ai-router.dev/api/user/self", () => {
+            probed = true
+            return new HttpResponse("not found", { status: 404 })
+          }),
+          http.get("https://api.ai-router.dev/api/v1/auth/me", () => {
+            probed = true
+            return HttpResponse.json(
+              {
+                code: "UNAUTHORIZED",
+                message: "Authorization header is required",
+              },
+              { status: 401 },
+            )
+          }),
+        )
+
+        await expect(
+          getAccountSiteType("https://ai-router.dev/dashboard"),
+        ).resolves.toBe(SITE_TYPES.SUB2API)
+        expect(probed).toBe(false)
+      })
+
+      it("detects AI-ROUTER hostnames case-insensitively, including www", async () => {
+        await expect(
+          getAccountSiteType("https://www.ai-router.dev/keys"),
+        ).resolves.toBe(SITE_TYPES.SUB2API)
+        await expect(
+          getAccountSiteType("https://AI-ROUTER.DEV/"),
+        ).resolves.toBe(SITE_TYPES.SUB2API)
+      })
+
+      it("does not generalize AI-ROUTER detection to unregistered sibling hostnames", async () => {
+        server.use(
+          http.get("https://vip.ai-router.dev", () => {
+            return new HttpResponse(
+              "<html><title>White Label Dashboard</title></html>",
+              { headers: { "Content-Type": "text/html" } },
+            )
+          }),
+          http.get("https://vip.ai-router.dev/api/user/self", () => {
+            return HttpResponse.json(
+              {
+                success: false,
+                message: "error: completely unmatched identifier",
+              },
+              { status: 400 },
+            )
+          }),
+          http.get("https://vip.ai-router.dev/api/v1/auth/me", () => {
+            return HttpResponse.json({ message: "not found" }, { status: 404 })
+          }),
+        )
+
+        await expect(
+          getAccountSiteType("https://vip.ai-router.dev"),
+        ).resolves.toBe(SITE_TYPES.UNKNOWN)
+      })
     })
 
     describe("Title-based detection", () => {
       it("should detect site type from title when match found", async () => {
         // Find a real rule from ACCOUNT_SITE_TITLE_RULES
-        const firstRule = ACCOUNT_SITE_TITLE_RULES[0]
+        const firstRule = atIndex(ACCOUNT_SITE_TITLE_RULES, 0)
         const matchingTitle = firstRule.name // This should match the regex
 
         const mockHTML = `<html><title>${matchingTitle}</title></html>`
@@ -396,8 +623,112 @@ describe("detectSiteType", () => {
       })
     })
 
+    describe("Public site status name detection", () => {
+      const serveShellTitle = (origin: string, title: string) =>
+        http.get(origin, () => {
+          return new HttpResponse(`<html><title>${title}</title></html>`, {
+            headers: { "Content-Type": "text/html" },
+          })
+        })
+
+      const serveStatusData = (data: Record<string, unknown>) =>
+        http.get("https://example.com/api/status", () => {
+          return HttpResponse.json({ success: true, message: "", data })
+        })
+
+      it("detects the branded site type from the public status name behind a stock shell title", async () => {
+        server.use(
+          // The title probe joins the base URL with "/", so a pasted path keeps
+          // that path instead of collapsing to the origin.
+          http.get("https://example.com/console/", () => {
+            return new HttpResponse("<html><title>New API</title></html>", {
+              headers: { "Content-Type": "text/html" },
+            })
+          }),
+          serveStatusData({ system_name: "Veloera", checkin_enabled: true }),
+        )
+
+        await expect(
+          getAccountSiteType("https://example.com/console"),
+        ).resolves.toBe(SITE_TYPES.VELOERA)
+      })
+
+      it("prefers the public status name over a conflicting HTML title", async () => {
+        server.use(
+          serveShellTitle("https://example.com", "One API"),
+          serveStatusData({ system_name: "Veloera" }),
+        )
+
+        await expect(getAccountSiteType("https://example.com")).resolves.toBe(
+          SITE_TYPES.VELOERA,
+        )
+      })
+
+      it("keeps title detection when the public status endpoint is unavailable", async () => {
+        server.use(
+          serveShellTitle("https://example.com", "One API"),
+          http.get("https://example.com/api/status", () => {
+            return HttpResponse.text("not found", {
+              status: 404,
+              headers: { "Content-Type": "text/plain" },
+            })
+          }),
+        )
+
+        await expect(getAccountSiteType("https://example.com")).resolves.toBe(
+          SITE_TYPES.ONE_API,
+        )
+      })
+
+      it("ignores a public status response that is not the status envelope", async () => {
+        server.use(
+          serveShellTitle("https://example.com", "New API"),
+          http.get("https://example.com/api/status", () => {
+            return new HttpResponse("<html><title>Veloera</title></html>", {
+              headers: { "Content-Type": "text/html" },
+            })
+          }),
+        )
+
+        await expect(getAccountSiteType("https://example.com")).resolves.toBe(
+          SITE_TYPES.NEW_API,
+        )
+      })
+
+      it("ignores a blank public status name", async () => {
+        server.use(
+          serveShellTitle("https://example.com", "New API"),
+          serveStatusData({ system_name: "   " }),
+        )
+
+        await expect(getAccountSiteType("https://example.com")).resolves.toBe(
+          SITE_TYPES.NEW_API,
+        )
+      })
+
+      it("does not widen the ruleset to managed-only site names", async () => {
+        server.use(
+          serveShellTitle("https://example.com", "White Label Dashboard"),
+          serveStatusData({ system_name: "Octopus" }),
+          http.get("https://example.com/api/user/self", () => {
+            return HttpResponse.json(
+              {
+                success: false,
+                message: "error: completely unmatched identifier",
+              },
+              { status: 400 },
+            )
+          }),
+        )
+
+        await expect(getAccountSiteType("https://example.com")).resolves.toBe(
+          SITE_TYPES.UNKNOWN,
+        )
+      })
+    })
+
     describe("Fallback to API detection", () => {
-      it("detects VoAPI v2 from a protected endpoint signature on custom origins", async () => {
+      it("does not classify a generic protected endpoint auth error as VoAPI v2", async () => {
         let titleFetched = false
         server.use(
           http.get("https://example.com", () => {
@@ -406,16 +737,28 @@ describe("detectSiteType", () => {
           }),
           http.get("https://example.com/api/user/info", () =>
             HttpResponse.json(
-              { code: 2, data: null, msg: "Unauthorized", rid: "request-id" },
-              { status: 403 },
+              { code: 401, data: null, msg: "Unauthorized", rid: "request-id" },
+              { status: 401 },
+            ),
+          ),
+          http.get("https://example.com/api/v1/auth/me", () =>
+            HttpResponse.json(
+              { code: 404, message: "not found" },
+              { status: 404 },
+            ),
+          ),
+          http.get("https://example.com/api/user/self", () =>
+            HttpResponse.json(
+              { success: false, message: "unmatched response" },
+              { status: 400 },
             ),
           ),
         )
 
         await expect(getAccountSiteType("https://example.com")).resolves.toBe(
-          SITE_TYPES.VO_API_V2,
+          SITE_TYPES.UNKNOWN,
         )
-        expect(titleFetched).toBe(false)
+        expect(titleFetched).toBe(true)
       })
 
       it("detects VoAPI v2 from a successful account-info envelope", async () => {
@@ -496,7 +839,7 @@ describe("detectSiteType", () => {
         )
       })
 
-      it("detects Sub2API from its unauthenticated auth endpoint JSON code", async () => {
+      it("detects Sub2API from its exact unauthenticated JWT middleware response", async () => {
         server.use(
           http.get("https://example.com", () => {
             return new HttpResponse(
@@ -528,6 +871,64 @@ describe("detectSiteType", () => {
 
         await expect(getAccountSiteType("https://example.com")).resolves.toBe(
           SITE_TYPES.SUB2API,
+        )
+      })
+
+      it("does not treat a generic string UNAUTHORIZED error as Sub2API", async () => {
+        server.use(
+          http.get("https://example.com", () => {
+            return new HttpResponse(
+              "<html><title>White Label Dashboard</title></html>",
+              { headers: { "Content-Type": "text/html" } },
+            )
+          }),
+          http.get("https://example.com/api/v1/auth/me", () =>
+            HttpResponse.json(
+              { code: "UNAUTHORIZED", message: "Authorization required" },
+              { status: 401 },
+            ),
+          ),
+          http.get("https://example.com/api/user/self", () =>
+            HttpResponse.json(
+              { success: false, message: "unmatched response" },
+              { status: 400 },
+            ),
+          ),
+        )
+
+        await expect(getAccountSiteType("https://example.com")).resolves.toBe(
+          SITE_TYPES.UNKNOWN,
+        )
+      })
+
+      it("does not treat an arbitrary numeric 401 envelope as Sub2API", async () => {
+        server.use(
+          http.get(
+            "https://example.com",
+            () =>
+              new HttpResponse(
+                "<html><title>White Label Dashboard</title></html>",
+                {
+                  headers: { "Content-Type": "text/html" },
+                },
+              ),
+          ),
+          http.get("https://example.com/api/v1/auth/me", () =>
+            HttpResponse.json(
+              { code: 401, message: "Unauthorized", data: null },
+              { status: 401 },
+            ),
+          ),
+          http.get("https://example.com/api/user/self", () =>
+            HttpResponse.json(
+              { success: false, message: "unmatched response" },
+              { status: 400 },
+            ),
+          ),
+        )
+
+        await expect(getAccountSiteType("https://example.com")).resolves.toBe(
+          SITE_TYPES.UNKNOWN,
         )
       })
 

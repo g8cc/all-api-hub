@@ -1,4 +1,5 @@
-import type { PopupViewType } from "./components/PopupViewSwitchTabs"
+import { POPUP_VIEW_TYPES } from "./viewTypes"
+import type { PopupViewType } from "./viewTypes"
 
 export const POPUP_TEST_IDS = {
   apiCredentialProfilesPrimaryAction:
@@ -8,6 +9,7 @@ export const POPUP_TEST_IDS = {
   apiCredentialProfilesTab: "popup-api-credential-profiles-tab",
   bookmarksTab: "popup-bookmarks-tab",
   scrollContainer: "popup-scroll-container",
+  detectedSiteFilterButton: "popup-detected-site-filter-button",
   openAccountManagementButton: "popup-open-account-management-button",
   openApiCredentialProfilesButton: "popup-open-api-credential-profiles-button",
   openBookmarkManagementButton: "popup-open-bookmark-management-button",
@@ -25,11 +27,11 @@ export function getPopupViewTestId(view: PopupViewType) {
  */
 export function getPopupOpenFullPageButtonTestId(view: PopupViewType) {
   switch (view) {
-    case "bookmarks":
+    case POPUP_VIEW_TYPES.Bookmarks:
       return POPUP_TEST_IDS.openBookmarkManagementButton
-    case "apiCredentialProfiles":
+    case POPUP_VIEW_TYPES.ApiCredentialProfiles:
       return POPUP_TEST_IDS.openApiCredentialProfilesButton
-    case "accounts":
+    case POPUP_VIEW_TYPES.Accounts:
     default:
       return POPUP_TEST_IDS.openAccountManagementButton
   }

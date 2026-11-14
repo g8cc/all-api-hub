@@ -1,4 +1,9 @@
 import type { OpenRouterBootstrapAttemptOutcome } from "~/constants/openRouterBootstrap"
+import {
+  resolveProductAnalyticsCategoryFromFailureReason,
+  resolveProductAnalyticsFailureReasonFromLocalMessage,
+} from "~/services/productAnalytics/diagnostics/errorPatternDiagnostics"
+import { trackProductAnalyticsEvent } from "~/services/productAnalytics/runtime/dispatch"
 import { createLogger } from "~/utils/core/logger"
 
 import { API_ERROR_CODES } from "../apiTransport/errors"
@@ -34,11 +39,6 @@ import {
   type ProductAnalyticsTargetState,
   type ProductAnalyticsTelemetrySource,
 } from "./contracts"
-import { trackProductAnalyticsEvent } from "./dispatch"
-import {
-  resolveProductAnalyticsCategoryFromFailureReason,
-  resolveProductAnalyticsFailureReasonFromLocalMessage,
-} from "./errorPatternDiagnostics"
 
 export {
   resolveProductAnalyticsActionContext,
@@ -72,6 +72,13 @@ export type ProductAnalyticsActionInsights = {
   failureReason?: ProductAnalyticsFailureReason
   accountAutoDetectFailureReason?: ProductAnalyticsAccountAutoDetectFailureReason
   accountAutoDetectAttemptOutcome?: OpenRouterBootstrapAttemptOutcome
+  /**
+   * Whether the auto-detect flow resolved the account identity (userId) before
+   * a later failure. False on failure and undefined on success keep the metric
+   * focused on the funnel breakpoint: identity detected but the access token
+   * could not be provisioned automatically.
+   */
+  accountAutoDetectIdentityDetected?: boolean
   autoDetectStrategy?: ProductAnalyticsAccountAutoDetectStrategy
   requestedAuthMode?: ProductAnalyticsRequestedAuthMode
   siteType?: ProductAnalyticsSiteType
@@ -352,6 +359,12 @@ function mapProductAnalyticsActionInsights(
       ? {
           account_auto_detect_attempt_outcome:
             insights.accountAutoDetectAttemptOutcome,
+        }
+      : {}),
+    ...(typeof insights.accountAutoDetectIdentityDetected === "boolean"
+      ? {
+          account_auto_detect_identity_detected:
+            insights.accountAutoDetectIdentityDetected,
         }
       : {}),
     ...(insights.autoDetectStrategy

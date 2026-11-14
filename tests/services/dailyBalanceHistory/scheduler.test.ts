@@ -41,6 +41,7 @@ const {
   mockHasAlarmsAPI,
   mockOnAlarm,
   mockNotifyTaskResult,
+  mockRunAfterRefreshSync,
 } = vi.hoisted(() => ({
   mockGetPreferences: vi.fn(),
   mockSavePreferences: vi.fn(),
@@ -56,6 +57,7 @@ const {
   mockHasAlarmsAPI: vi.fn(),
   mockOnAlarm: vi.fn(),
   mockNotifyTaskResult: vi.fn(),
+  mockRunAfterRefreshSync: vi.fn(),
 }))
 
 const balanceHistoryMessageHandlers = vi.hoisted(
@@ -98,7 +100,7 @@ vi.mock("~/services/accounts/accountStorage/accountRefresh", () => ({
     refreshAllAccounts: mockRefreshAllAccounts,
   },
 }))
-vi.mock("~/services/accounts/accountTodayStatsResolver", () => ({
+vi.mock("~/services/accounts/metrics/accountTodayStatsResolver", () => ({
   resolveAccountTodayStatsAvailability: (...args: unknown[]) =>
     mockResolveAccountTodayStatsAvailability(...args),
 }))
@@ -110,9 +112,14 @@ vi.mock("~/services/history/dailyBalanceHistory/storage", () => ({
   },
 }))
 
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/utils/browser/browserApi")>()
+vi.mock("~/services/history/usageHistory/scheduler", () => ({
+  usageHistoryScheduler: {
+    runAfterRefreshSync: mockRunAfterRefreshSync,
+  },
+}))
+
+vi.mock("~/utils/browser/alarms", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/utils/browser/alarms")>()
   return {
     ...actual,
     createAlarm: mockCreateAlarm,
@@ -403,6 +410,7 @@ describe("dailyBalanceHistoryScheduler", () => {
         when: getExpectedEndOfDayCaptureTime(),
       },
     )
+    expect(mockRunAfterRefreshSync).not.toHaveBeenCalled()
   })
 
   it("returns null on capture failure and resets the running guard", async () => {
@@ -578,6 +586,15 @@ describe("dailyBalanceHistoryScheduler", () => {
   it("seeds development snapshots for enabled accounts that can be estimated", async () => {
     mockGetEnabledAccounts.mockResolvedValue([
       {
+        id: "native-allowances",
+        account_info: {
+          quota: 1000000,
+          today_income: 0,
+          today_quota_consumption: 250000,
+          nativeBalance: { unit: "USD", total: 8, permanent: 2, daily: 3 },
+        },
+      },
+      {
         id: "included",
         account_info: {
           quota: 12_000_000,
@@ -638,7 +655,7 @@ describe("dailyBalanceHistoryScheduler", () => {
     })
     expect(result).toEqual({
       seeded: 1,
-      skipped: 2,
+      skipped: 3,
       todayKey: "2026-03-28",
       yesterdayKey: "2026-03-27",
     })

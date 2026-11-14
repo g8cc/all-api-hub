@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react"
 
+import { isDevMenuItemId } from "~/constants/devOptionsMenuIds"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
+import { isDevUnlocked } from "~/utils/core/devMode"
 import {
   pushWithinOptionsPage,
   replaceWithinOptionsPage,
-} from "~/utils/navigation"
+} from "~/utils/navigation/optionsPage"
 
 import { menuItems } from "../constants"
 
@@ -61,9 +63,11 @@ function updateHash(page: string, params?: Record<string, string | undefined>) {
  * Resolves unknown route ids to the default Overview page.
  */
 function getCanonicalPage(page: string) {
-  return menuItems.find((item) => item.id === page)
-    ? page
-    : MENU_ITEM_IDS.OVERVIEW
+  const isDev = isDevUnlocked()
+  const found = menuItems.find((item) => item.id === page)
+  if (!found) return MENU_ITEM_IDS.OVERVIEW
+  if (!isDev && isDevMenuItemId(found.id)) return MENU_ITEM_IDS.OVERVIEW
+  return page
 }
 
 /**
@@ -71,10 +75,12 @@ function getCanonicalPage(page: string) {
  * Exposes current page, params, a handler to change pages, and refreshKey bumps.
  */
 export function useHashNavigation() {
-  const [activeMenuItem, setActiveMenuItem] = useState<string>(
-    MENU_ITEM_IDS.OVERVIEW,
+  const [activeMenuItem, setActiveMenuItem] = useState<string>(() =>
+    getCanonicalPage(parseHash().page),
   )
-  const [routeParams, setRouteParams] = useState<Record<string, string>>({})
+  const [routeParams, setRouteParams] = useState<Record<string, string>>(
+    () => parseHash().params,
+  )
   const [refreshKey, setRefreshKey] = useState(0)
 
   // 初始化路由

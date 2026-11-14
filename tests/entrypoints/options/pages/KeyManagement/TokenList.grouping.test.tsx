@@ -3,19 +3,19 @@ import { describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
 import {
+  KEY_CREDENTIAL_ASSOCIATION_STATES,
+  type KeyCredentialAssociationStatus,
+} from "~/features/KeyManagement/associations/credentialAssociations"
+import {
   KEY_MANAGEMENT_ALL_ACCOUNTS_VALUE,
   KEY_MANAGEMENT_ASSOCIATION_TARGET_STATES,
 } from "~/features/KeyManagement/constants"
-import {
-  KEY_CREDENTIAL_ASSOCIATION_STATES,
-  type KeyCredentialAssociationStatus,
-} from "~/features/KeyManagement/credentialAssociations"
 import {
   getKeyManagementAssociationTargetId,
   KEY_MANAGEMENT_TEST_IDS,
 } from "~/features/KeyManagement/testIds"
 import { KEY_MANAGEMENT_LOAD_STATUSES } from "~/features/KeyManagement/types"
-import { ACCOUNT_RUNTIME_KEY_SOURCES } from "~/services/accounts/accountRuntimeKeys"
+import { ACCOUNT_RUNTIME_KEY_SOURCES } from "~/services/accounts/keys/accountRuntimeKeys"
 import {
   API_CREDENTIAL_PROFILE_LINK_SOURCES,
   API_CREDENTIAL_PROFILE_LINK_STATES,
@@ -43,7 +43,7 @@ vi.mock("~/utils/navigation", async (importOriginal) => ({
 }))
 
 vi.mock(
-  "~/features/KeyManagement/components/AccountKeyResource/AccountKeyResourceListItem",
+  "~/features/KeyManagement/resources/AccountKeyResourceListItem",
   () => ({
     AccountKeyResourceListItem: ({
       row,
@@ -209,7 +209,9 @@ describe("TokenList grouped all-accounts UX", () => {
     )
 
     expect(
-      await screen.findByText(/batchSelection\.eligibilityNotice/),
+      await screen.findByRole("button", {
+        name: "keyManagement:batchSelection.helpLabel",
+      }),
     ).toBeVisible()
     await user.click(
       await screen.findByRole("button", {
@@ -263,7 +265,9 @@ describe("TokenList grouped all-accounts UX", () => {
 
     expect(await screen.findByText("Native key")).toBeVisible()
     expect(
-      screen.queryByText(/batchSelection\.eligibilityNotice/),
+      screen.queryByRole("button", {
+        name: "keyManagement:batchSelection.helpLabel",
+      }),
     ).not.toBeInTheDocument()
     expect(screen.getAllByRole("checkbox")).toSatisfy(
       (checkboxes: HTMLElement[]) =>

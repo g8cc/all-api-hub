@@ -1,6 +1,13 @@
+import { Bookmark, type LucideIcon } from "lucide-react"
+import type { ComponentType } from "react"
+
+import {
+  AccountManagementIcon,
+  ApiCredentialLibraryIcon,
+} from "~/components/icons/productIcons"
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { ANIMATIONS, COLORS, CORNERS } from "~/constants/designTokens"
-import { useProductAnalyticsActionTracking } from "~/hooks/useProductAnalyticsActionTracking"
+import { useProductAnalyticsActionTracking } from "~/hooks/analytics/useProductAnalyticsActionTracking"
 import { cn } from "~/lib/utils"
 import type { ProductAnalyticsScopedActionConfig } from "~/services/productAnalytics/actionConfig"
 import {
@@ -10,8 +17,9 @@ import {
 } from "~/services/productAnalytics/contracts"
 
 import { POPUP_TEST_IDS } from "../testIds"
+import { POPUP_VIEW_TYPES, type PopupViewType } from "../viewTypes"
 
-export type PopupViewType = "accounts" | "bookmarks" | "apiCredentialProfiles"
+export type { PopupViewType } from "../viewTypes"
 
 interface PopupViewSwitchTabsProps {
   value: PopupViewType
@@ -19,6 +27,7 @@ interface PopupViewSwitchTabsProps {
   accountsLabel: string
   bookmarksLabel: string
   apiCredentialProfilesLabel: string
+  fullWidth?: boolean
   getAnalyticsAction?: (value: PopupViewType) => {
     featureId: ProductAnalyticsFeatureId
     actionId: ProductAnalyticsActionId
@@ -28,6 +37,12 @@ interface PopupViewSwitchTabsProps {
 interface PopupViewSwitchTabProps {
   analyticsAction: ProductAnalyticsScopedActionConfig
   baseClassName: string
+  icon?:
+    | LucideIcon
+    | ComponentType<{
+        className?: string
+        "aria-hidden"?: boolean | "true" | "false"
+      }>
   label: string
   testId: string
   value: PopupViewType
@@ -39,6 +54,7 @@ interface PopupViewSwitchTabProps {
 function PopupViewSwitchTab({
   analyticsAction,
   baseClassName,
+  icon: Icon,
   label,
   testId,
   value,
@@ -55,12 +71,12 @@ function PopupViewSwitchTab({
       onClick={trackingProps.onClick}
       className={cn(
         baseClassName,
-        "flex min-w-0 items-center justify-center truncate",
-        "data-[state=active]:dark:bg-card data-[state=active]:dark:text-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm",
-        "dark:text-secondary-foreground dark:hover:text-foreground text-muted-foreground hover:text-secondary-foreground",
+        "min-h-0 gap-x-1.5 gap-y-density-1 truncate",
+        "text-muted-foreground hover:text-secondary-foreground dark:text-secondary-foreground dark:hover:text-foreground",
       )}
     >
-      {label}
+      {Icon ? <Icon aria-hidden="true" className="size-3.5 shrink-0" /> : null}
+      <span className="truncate">{label}</span>
     </TabsTrigger>
   )
 }
@@ -75,6 +91,7 @@ export default function PopupViewSwitchTabs({
   accountsLabel,
   bookmarksLabel,
   apiCredentialProfilesLabel,
+  fullWidth = false,
   getAnalyticsAction,
 }: PopupViewSwitchTabsProps) {
   const baseClassName = cn(
@@ -83,21 +100,24 @@ export default function PopupViewSwitchTabs({
   )
   const tabs = [
     {
-      value: "accounts",
+      value: POPUP_VIEW_TYPES.Accounts,
       label: accountsLabel,
+      icon: AccountManagementIcon,
       testId: POPUP_TEST_IDS.accountsTab,
       fallbackActionId: PRODUCT_ANALYTICS_ACTION_IDS.SelectAccountsView,
     },
     {
-      value: "apiCredentialProfiles",
+      value: POPUP_VIEW_TYPES.ApiCredentialProfiles,
       label: apiCredentialProfilesLabel,
+      icon: ApiCredentialLibraryIcon,
       testId: POPUP_TEST_IDS.apiCredentialProfilesTab,
       fallbackActionId:
         PRODUCT_ANALYTICS_ACTION_IDS.SelectApiCredentialProfilesView,
     },
     {
-      value: "bookmarks",
+      value: POPUP_VIEW_TYPES.Bookmarks,
       label: bookmarksLabel,
+      icon: Bookmark,
       testId: POPUP_TEST_IDS.bookmarksTab,
       fallbackActionId: PRODUCT_ANALYTICS_ACTION_IDS.SelectBookmarksView,
     },
@@ -105,13 +125,15 @@ export default function PopupViewSwitchTabs({
 
   return (
     <Tabs
-      className="min-w-0"
+      className={cn("min-w-0", fullWidth && "w-full")}
       value={value}
       onValueChange={(nextValue) => onChange(nextValue as PopupViewType)}
     >
       <TabsList
+        variant="default"
         className={cn(
-          "corners-concentric gap-y-density-1 py-density-1 inline-flex min-w-0 gap-x-1 rounded-md px-1 [--corner-inset:4px]",
+          "rounded-md",
+          fullWidth ? "grid w-full grid-cols-3" : "inline-flex max-w-full",
           COLORS.background.tertiary,
         )}
       >
@@ -123,7 +145,8 @@ export default function PopupViewSwitchTabs({
             <PopupViewSwitchTab
               key={tab.value}
               analyticsAction={analyticsAction}
-              baseClassName={baseClassName}
+              baseClassName={cn(baseClassName, fullWidth && "w-full")}
+              icon={tab.icon}
               label={tab.label}
               testId={tab.testId}
               value={tab.value}

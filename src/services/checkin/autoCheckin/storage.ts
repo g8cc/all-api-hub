@@ -1,7 +1,17 @@
 import { Storage } from "@plasmohq/storage"
 
-import { STORAGE_LOCKS } from "~/services/core/storageKeys"
+import { isRetryableCheckinResult } from "~/services/checkin/autoCheckin/execution/resultPolicy"
+import {
+  AUTO_CHECKIN_STORAGE_KEYS as STORAGE_KEYS,
+  STORAGE_LOCKS,
+} from "~/services/core/storageKeys"
 import { withExtensionStorageWriteLock } from "~/services/core/storageWriteLock"
+import {
+  PRODUCT_ANALYTICS_STORAGE_AREAS,
+  PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES,
+  PRODUCT_ANALYTICS_STORAGE_OPERATIONS,
+} from "~/services/productAnalytics/contracts"
+import { trackStorageWriteFailure } from "~/services/productAnalytics/facts/storageWriteFailure"
 import {
   AUTO_CHECKIN_SKIP_REASON,
   CHECKIN_RESULT_STATUS,
@@ -15,16 +25,20 @@ import {
 import { createLogger } from "~/utils/core/logger"
 import { isPlainObject } from "~/utils/core/object"
 
-import { isRetryableCheckinResult } from "./resultPolicy"
-
 const logger = createLogger("AutoCheckinStorage")
 
-/**
- * Storage keys for Auto Check-in
- */
-const STORAGE_KEYS = {
-  AUTO_CHECKIN_STATUS: "autoCheckin_status",
-} as const
+/** Reports a failed status storage operation as throttled telemetry. */
+function trackStatusStorageFailure(
+  failureStage: (typeof PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES)[keyof typeof PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES],
+  error: unknown,
+) {
+  trackStorageWriteFailure({
+    storageArea: PRODUCT_ANALYTICS_STORAGE_AREAS.Local,
+    operation: PRODUCT_ANALYTICS_STORAGE_OPERATIONS.AutoCheckinStatus,
+    failureStage,
+    error,
+  })
+}
 
 /**
  * Recalculate the aggregated auto check-in run summary from per-account results.
@@ -173,6 +187,10 @@ class AutoCheckinStorage {
       return stored || null
     } catch (error) {
       logger.error("Failed to get status", error)
+      trackStatusStorageFailure(
+        PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES.Read,
+        error,
+      )
       return null
     }
   }
@@ -202,6 +220,10 @@ class AutoCheckinStorage {
           // Without a trustworthy read there is no base to patch, and writing
           // anyway would drop whatever is stored.
           logger.error("Failed to read status for update", error)
+          trackStatusStorageFailure(
+            PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES.Read,
+            error,
+          )
           return { ok: false, result: null }
         }
 
@@ -210,6 +232,10 @@ class AutoCheckinStorage {
           applied = update(current)
         } catch (error) {
           logger.error("Failed to apply status update", error)
+          trackStatusStorageFailure(
+            PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES.Apply,
+            error,
+          )
           return { ok: false, result: null }
         }
 
@@ -227,6 +253,10 @@ class AutoCheckinStorage {
           return { ok: true, result: applied.result ?? null }
         } catch (error) {
           logger.error("Failed to update status", error)
+          trackStatusStorageFailure(
+            PRODUCT_ANALYTICS_STORAGE_FAILURE_STAGES.Write,
+            error,
+          )
           return { ok: false, result: null }
         }
       },
@@ -341,8 +371,12 @@ class AutoCheckinStorage {
             )
           : {}
 
+        // The day's counts outlive its work list: an account that spent the
+        // budget stays spent even when nothing is left to retry.
         retryState =
-          typeof retryState.day === "string" && pendingAccountIds.length > 0
+          typeof retryState.day === "string" &&
+          (pendingAccountIds.length > 0 ||
+            Object.keys(attemptsByAccount).length > 0)
             ? {
                 day: retryState.day,
                 pendingAccountIds,
@@ -495,7 +529,9 @@ class AutoCheckinStorage {
         const day = typeof dayValue === "string" ? dayValue : ""
 
         const nextRetryState =
-          day && pendingAccountIdsFiltered.length > 0
+          day &&
+          (pendingAccountIdsFiltered.length > 0 ||
+            attemptsByAccountEntries.length > 0)
             ? {
                 day,
                 pendingAccountIds: pendingAccountIdsFiltered,
@@ -526,8 +562,11 @@ class AutoCheckinStorage {
 
         if (pendingChanged || attemptsChanged || retryStateHadInvalidShapes) {
           next.retryState = nextRetryState
-          if (!nextRetryState) {
-            next.pendingRetry = false
+          // The day's ledger can survive with an empty work list, so the alarm
+          // fields follow the work list rather than the ledger's existence.
+          next.pendingRetry =
+            (nextRetryState?.pendingAccountIds.length ?? 0) > 0
+          if (!next.pendingRetry) {
             next.nextRetryScheduledAt = undefined
             next.retryAlarmTargetDay = undefined
           }

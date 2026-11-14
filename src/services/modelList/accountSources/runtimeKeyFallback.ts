@@ -1,7 +1,7 @@
 import {
   collectAccountRuntimeKeySecrets,
   type AccountRuntimeKey,
-} from "~/services/accounts/accountRuntimeKeys"
+} from "~/services/accounts/keys/accountRuntimeKeys"
 import { resolveDisplayAccountRuntimeKeySecret } from "~/services/accounts/utils/apiServiceRequest"
 import type { ModelCatalogRequest } from "~/services/apiAdapters/contracts/modelCatalog"
 import { MODEL_PRICING_RUNTIME_KEY_FALLBACKS } from "~/services/apiAdapters/contracts/modelPricing"
@@ -9,6 +9,7 @@ import {
   buildApiCredentialProfilePricingResponse,
   fetchApiCredentialModelIds,
 } from "~/services/apiCredentialProfiles/modelCatalog"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { createAccountModelPricingRequest } from "~/services/modelCatalog/accountRequest"
 import type { ModelCatalogSnapshot } from "~/services/modelCatalog/snapshot"
 import {
@@ -55,6 +56,7 @@ const createRuntimeCatalogRequest = (
   apiKey: string,
   abortSignal?: AbortSignal,
 ): ModelCatalogRequest => ({
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: runtimeKey.baseUrl || account.baseUrl,
   accountId: account.id,
   abortSignal,
@@ -140,30 +142,38 @@ export async function loadAccountRuntimeKeyFallbackPricingResponse(
       readiness.route ===
       MODEL_LIST_ACCOUNT_SOURCE_ROUTES.TokenScopedRuntimeCatalog
     ) {
-      const runtimeModels = await readiness.modelCatalog.fetchModels(
+      const accountRequest = createAccountModelPricingRequest(
+        params.account,
+        params.abortSignal,
+      )
+      const catalogResult = await readiness.modelCatalog.fetchModels(
         createRuntimeCatalogRequest(
           params.account,
           resolvedRuntimeKey,
           resolvedRuntimeKey.secret,
           params.abortSignal,
         ),
+        { accountRequest },
       )
 
-      if (readiness.modelCatalog.enrichPricing) {
-        return await readiness.modelCatalog.enrichPricing({
-          accountRequest: createAccountModelPricingRequest(
-            params.account,
-            params.abortSignal,
-          ),
-          runtimeKey: resolvedRuntimeKey,
-          models: runtimeModels,
-        })
+      const runtimeModels = Array.isArray(catalogResult)
+        ? catalogResult
+        : catalogResult.models
+
+      const snapshot = readiness.modelCatalog.enrichPricing
+        ? await readiness.modelCatalog.enrichPricing({
+            accountRequest,
+            runtimeKey: resolvedRuntimeKey,
+            models: runtimeModels,
+          })
+        : buildRuntimeModelCatalogPricingResponse(params.account, runtimeModels)
+      if (!Array.isArray(catalogResult)) {
+        snapshot.model_list_source = {
+          ...snapshot.model_list_source!,
+          inferenceRouteFallback: catalogResult.inferenceRouteFallback,
+        }
       }
-
-      return buildRuntimeModelCatalogPricingResponse(
-        params.account,
-        runtimeModels,
-      )
+      return snapshot
     }
 
     let upstreamModelIds: string[] = []

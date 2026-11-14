@@ -1,6 +1,7 @@
 import type { BrowserContext, Route } from "@playwright/test"
 
 import { OPTIONS_PAGE_PATH } from "~/constants/extensionPages"
+import { QUOTA_PER_USD } from "~/constants/money"
 import {
   OPENROUTER_MANAGEMENT_KEY_TRANSPORT_MARGIN_MS,
   OPENROUTER_MANAGEMENT_KEY_TRANSPORT_TIMEOUT_MS,
@@ -26,6 +27,7 @@ import type { SiteAccount } from "~/types"
 import { expect, test } from "~~/e2e/fixtures/extensionTest"
 import { runAccountAutoDetectScenario } from "~~/e2e/scenarios/accountAutoDetect"
 import { saveExistingAccountTokenToApiProfileScenario } from "~~/e2e/scenarios/accountKeyToApiProfile"
+import { refreshAccountRowsAndReadStorage } from "~~/e2e/scenarios/accountManualAdd"
 import {
   openApiCredentialProfilesPopupScenario,
   verifyApiCredentialProfileModelsProbeScenario,
@@ -48,7 +50,10 @@ import {
 } from "~~/e2e/utils/extensionState"
 import { waitForExtensionRoot } from "~~/e2e/utils/lazyLoading"
 import { parallelizeShardableSpec } from "~~/e2e/utils/parallelizeShardableSpec"
-import { expectAccountListItemVisibleBySite } from "~~/e2e/utils/realSite/accountAdd"
+import {
+  expectAccountListItemVisibleBySite,
+  waitForSavedAccount,
+} from "~~/e2e/utils/realSite/accountAdd"
 
 parallelizeShardableSpec()
 
@@ -60,6 +65,22 @@ const MANAGED_SITE_USER_ID = "1"
 const OPENROUTER_API_PATH = new URL(OPENROUTER_API_BASE_URL).pathname
 const OPENROUTER_MANAGEMENT_KEY = "sk-or-e2e-management-key"
 const OPENROUTER_CREATOR_USER_ID = "openrouter-user-placeholder"
+const RIGHTCODE_SITE_URL = "https://www.right.codes"
+const RIGHTCODE_ACCOUNT_ID = 4242
+const RIGHTCODE_ACCOUNT_USERNAME = "rightcode-user"
+const RIGHTCODE_ACCOUNT_TOKEN = "rightcode-e2e-account-token"
+const GRSAI_SITE_URL = "https://grsai.com"
+/** The console serves its data API from a second host, as it does in production. */
+const GRSAI_CONSOLE_API_ORIGIN = "https://eb.grsaiapi.com"
+const GRSAI_ACCOUNT_ID = "6aba891720c8e541cff9d0e3"
+const GRSAI_ACCOUNT_EMAIL = "grsai-e2e@example.invalid"
+const GRSAI_SESSION_TOKEN = "grsai-e2e-session-token"
+/** Balances and consumption are credits; the console sells 66,600 per dollar. */
+const GRSAI_CREDITS_PER_USD = 66_600
+const GRSAI_CREDITS = 5000
+const GRSAI_TODAY_CREDITS = 1332
+/** Balance the console reports after the account was saved. */
+const GRSAI_REFRESHED_CREDITS = 12_000
 
 type OpenRouterManagementKeyFixtureMode = "authenticated" | "logged_out"
 
@@ -266,6 +287,14 @@ async function stubAIHubMixRoutes(context: BrowserContext) {
     const request = route.request()
     const url = new URL(request.url())
 
+    // The history follow-up uses the saved console URL.
+    if (request.method() === "GET" && url.pathname === "/api/log/self") {
+      await route.fulfill({
+        json: { success: true, data: { items: [], total: 0 } },
+      })
+      return
+    }
+
     if (request.method() === "GET" && url.pathname === "/") {
       await route.fulfill({
         status: 200,
@@ -462,6 +491,255 @@ async function stubAIHubMixRoutes(context: BrowserContext) {
   })
 }
 
+/**
+ * Serves the RightCode console and the account endpoints detection reads.
+ *
+ * The console keeps its bearer token as plain page state, so the stub seeds
+ * `localStorage` the way the real console does; detection reads it through the
+ * content-session extractor rather than through a title or a login form.
+ */
+async function stubRightCodeRoutes(context: BrowserContext) {
+  await context.route(`${RIGHTCODE_SITE_URL}/**`, async (route: Route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const method = request.method()
+
+    if (method === "GET" && url.pathname === "/") {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: `<!doctype html>
+          <html>
+            <head><title>Right Code - 企业级 AI Agent 中转平台</title></head>
+            <body>
+              <script>
+                window.localStorage.setItem(${JSON.stringify(
+                  "userToken",
+                )}, ${JSON.stringify(RIGHTCODE_ACCOUNT_TOKEN)})
+                window.localStorage.setItem(${JSON.stringify(
+                  "auth-storage",
+                )}, JSON.stringify({
+                  state: {
+                    user: {
+                      id: ${RIGHTCODE_ACCOUNT_ID},
+                      username: ${JSON.stringify(RIGHTCODE_ACCOUNT_USERNAME)},
+                      email: ${JSON.stringify(
+                        `${RIGHTCODE_ACCOUNT_USERNAME}@example.invalid`,
+                      )},
+                    },
+                    token: ${JSON.stringify(RIGHTCODE_ACCOUNT_TOKEN)},
+                    isAuthenticated: true,
+                  },
+                  version: 0,
+                }))
+              </script>
+              Right Code
+            </body>
+          </html>`,
+      })
+      return
+    }
+
+    if (method === "GET" && url.pathname === "/favicon.ico") {
+      await route.fulfill({ status: 204, body: "" })
+      return
+    }
+
+    const json = (body: unknown) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      })
+
+    // Saving refreshes the account and starts the default usage-history follow-up.
+    if (method === "GET" && url.pathname === "/api/log/self") {
+      await json({ success: true, data: { items: [], total: 0 } })
+      return
+    }
+
+    if (method === "GET" && url.pathname === "/auth/me") {
+      await json({
+        id: RIGHTCODE_ACCOUNT_ID,
+        username: RIGHTCODE_ACCOUNT_USERNAME,
+        email: `${RIGHTCODE_ACCOUNT_USERNAME}@example.invalid`,
+        balance: 12.5,
+        user_token: RIGHTCODE_ACCOUNT_TOKEN,
+        invite_code: "rightcode-invite",
+      })
+      return
+    }
+
+    // The deployment's own CNY price for one site dollar.
+    if (method === "GET" && url.pathname === "/configs") {
+      await json({ "public.balance.price": "1.0" })
+      return
+    }
+
+    if (method === "GET" && url.pathname === "/use-log/stats") {
+      await json({
+        total_requests: 4,
+        total_tokens: 50,
+        total_cost: 0.4,
+      })
+      return
+    }
+
+    if (method === "GET" && url.pathname === "/use-log/stats/overall") {
+      await json({
+        total_requests: 40,
+        total_tokens: 500,
+        total_cost: 3,
+        note: "统计范围为全部历史",
+      })
+      return
+    }
+
+    if (method === "GET" && url.pathname === "/subscriptions/list") {
+      await json({ subscriptions: [], total: 0 })
+      return
+    }
+
+    if (method === "GET" && url.pathname === "/subscriptions/summary/total") {
+      await json({
+        total_quota: 0,
+        used_quota: 0,
+        remaining_quota: 0,
+        active_subscription_count: 0,
+      })
+      return
+    }
+
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({
+        message: `Unhandled RightCode route: ${method} ${url.pathname}`,
+      }),
+    })
+  })
+}
+
+/**
+ * Serves the Grsai console and the console API.
+ *
+ * The console keeps its session token as plain page state and serves its data
+ * API from `eb.grsaiapi.com`, so detection reads `localStorage.Token` through
+ * the content-session extractor and then calls the console API, which needs
+ * cross-origin headers because that call comes from the console's own page.
+ * The reported balance is read per request so a test can change it and prove a
+ * later read really reached the API with no console tab open.
+ */
+async function stubGrsaiRoutes(
+  context: BrowserContext,
+  options: { getCredits?: () => number } = {},
+) {
+  const getCredits = options.getCredits ?? (() => GRSAI_CREDITS)
+  const corsHeaders = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "authorization,xtx,content-type",
+    "access-control-allow-methods": "POST,OPTIONS",
+  }
+
+  await context.route(
+    `${GRSAI_CONSOLE_API_ORIGIN}/**`,
+    async (route: Route) => {
+      const method = route.request().method()
+      if (method === "OPTIONS") {
+        await route.fulfill({ status: 204, headers: corsHeaders, body: "" })
+        return
+      }
+
+      const json = (body: unknown) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: corsHeaders,
+          body: JSON.stringify(body),
+        })
+
+      const endpoint = new URL(route.request().url()).pathname
+
+      if (endpoint === "/client/common/getConfig") {
+        // Material the console hands out per call; these reads never sign, so
+        // placeholder values are enough to satisfy the session contract.
+        await json({
+          code: 0,
+          msg: "success",
+          data: {
+            token: GRSAI_SESSION_TOKEN,
+            kis: "kis-blob",
+            ra1: "ra1",
+            ra2: "ra2",
+            random: "1234567890",
+            isAuth: true,
+          },
+        })
+        return
+      }
+
+      if (endpoint === "/client/grsai/getUserInfo") {
+        await json({
+          code: 0,
+          msg: "success",
+          data: {
+            id: GRSAI_ACCOUNT_ID,
+            mail: GRSAI_ACCOUNT_EMAIL,
+            credits: getCredits(),
+          },
+        })
+        return
+      }
+
+      if (endpoint === "/client/grsai/getDashboardData") {
+        await json({
+          code: 0,
+          msg: "success",
+          data: {
+            credits: getCredits(),
+            todayConsumed: GRSAI_TODAY_CREDITS,
+            totalConsumed: 400_000,
+          },
+        })
+        return
+      }
+
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        headers: corsHeaders,
+        body: JSON.stringify({ message: `Unhandled Grsai route: ${endpoint}` }),
+      })
+    },
+  )
+
+  await context.route(`${GRSAI_SITE_URL}/**`, async (route: Route) => {
+    const url = new URL(route.request().url())
+
+    if (url.pathname === "/favicon.ico") {
+      await route.fulfill({ status: 204, body: "" })
+      return
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: `<!doctype html>
+        <html>
+          <head><title>Grsai API</title></head>
+          <body>
+            <script>
+              window.localStorage.setItem(${JSON.stringify(
+                "Token",
+              )}, ${JSON.stringify(GRSAI_SESSION_TOKEN)})
+            </script>
+            Grsai
+          </body>
+        </html>`,
+    })
+  })
+}
+
 async function stubManagedSiteAdminRoutes(context: BrowserContext) {
   const origin = new URL(MANAGED_SITE_BASE_URL).origin
 
@@ -592,7 +870,7 @@ test("adds an account through the real add-account auto-detect flow", async ({
   const persistedAccounts = await serviceWorker.evaluate(async () => {
     const chromeApi = (globalThis as any).chrome
 
-    return await new Promise<string>((resolve, reject) => {
+    return await new Promise<string | undefined>((resolve, reject) => {
       chromeApi.storage.local.get(
         "site_accounts",
         (stored: Record<string, string>) => {
@@ -601,7 +879,10 @@ test("adds an account through the real add-account auto-detect flow", async ({
             reject(new Error(error.message))
             return
           }
-          resolve(stored.site_accounts)
+          const entry = Object.entries(stored).find(
+            ([storedKey]) => storedKey === "site_accounts",
+          )
+          resolve(entry ? entry[1] : undefined)
         },
       )
     })
@@ -626,6 +907,8 @@ test("adds an rc22 account from AuthBundle and persists only its PAT", async ({
 
   const serviceWorker = await getServiceWorker(context)
   await seedUserPreferences(serviceWorker, {
+    // This scenario enters its URL manually; avoid racing current-tab autofill.
+    autoFillCurrentSiteUrlOnAccountAdd: false,
     tempWindowFallback: {
       enabled: false,
     },
@@ -843,6 +1126,8 @@ test("enables all-group key provisioning, adds an account, saves a created key a
     }
   })
   await seedUserPreferences(serviceWorker, {
+    // This scenario fills the URL manually; avoid a competing current-tab autofill.
+    autoFillCurrentSiteUrlOnAccountAdd: false,
     tempWindowFallback: {
       enabled: false,
     },
@@ -869,35 +1154,42 @@ test("enables all-group key provisioning, adds an account, saves a created key a
   await waitForExtensionRoot(page)
   await expect(allGroups).toHaveAttribute("aria-pressed", "true")
 
-  const accountFixture = await runAccountAutoDetectScenario({
-    extensionId,
-    extensionPage: page,
-    baseUrl: "https://example.com",
-    siteType: SITE_TYPES.NEW_API,
-    getServiceWorker: async () => serviceWorker,
-    openSitePage: async () => {
-      const sitePage = await context.newPage()
-      await forceExtensionLanguage(sitePage, "en")
-      await sitePage.addInitScript(() => {
-        window.localStorage.setItem(
-          "user",
-          JSON.stringify({
-            id: 1,
-            username: "e2e-user",
-            quota: 1000,
-          }),
-        )
-      })
-      await sitePage.goto("https://example.com")
-      await sitePage.bringToFront()
-      return sitePage
-    },
-    prepareDetectableSite: async () => undefined,
-  })
+  // Observe the short-lived toast while the scenario settles storage and closes its site tab.
+  const [accountFixture] = await Promise.all([
+    runAccountAutoDetectScenario({
+      extensionId,
+      extensionPage: page,
+      baseUrl: "https://example.com",
+      siteType: SITE_TYPES.NEW_API,
+      getServiceWorker: async () => serviceWorker,
+      openSitePage: async () => {
+        const sitePage = await context.newPage()
+        await forceExtensionLanguage(sitePage, "en")
+        await sitePage.addInitScript(() => {
+          window.localStorage.setItem(
+            "user",
+            JSON.stringify({
+              id: 1,
+              username: "e2e-user",
+              quota: 1000,
+            }),
+          )
+        })
+        await sitePage.goto("https://example.com")
+        await sitePage.bringToFront()
+        return sitePage
+      },
+      prepareDetectableSite: async () => undefined,
+    }),
+    expect(
+      page.getByText("Account keys ready: 2 created, 0 already covered.", {
+        exact: true,
+      }),
+    ).toBeVisible({ timeout: 30_000 }),
+  ])
   await expect(
     page.getByTestId(ACCOUNT_MANAGEMENT_TEST_IDS.accountListView),
   ).toContainText("e2e-user")
-  await expect(page.getByText("Created 2 group API keys for")).toBeVisible()
   expect(createdGroups).toHaveLength(2)
   expect(createdGroups).toEqual(expect.arrayContaining(["default", "vip"]))
 
@@ -1011,7 +1303,7 @@ test("exports an account key from the copy-key dialog to CC Switch", async ({
     modelName: "gpt-copy-dialog-cc",
     expected: {
       app: "claude",
-      name: "Copy Dialog CC Source",
+      name: "Copy Dialog CC Source - Copy Dialog CC Key",
       homepage: "https://copy-dialog-cc.example.com",
       endpoint: "https://copy-dialog-cc.example.com",
       apiKey: "sk-copy-dialog-cc",
@@ -1026,6 +1318,8 @@ test("adds an AIHubMix account, preserves its one-time key, and opens managed-si
 }) => {
   const serviceWorker = await getServiceWorker(context)
   await seedUserPreferences(serviceWorker, {
+    // This scenario enters its URL manually; avoid racing current-tab autofill.
+    autoFillCurrentSiteUrlOnAccountAdd: false,
     tempWindowFallback: {
       enabled: false,
     },
@@ -1116,6 +1410,155 @@ test("adds an AIHubMix account, preserves its one-time key, and opens managed-si
     .not.toBeNull()
 
   await sitePage.close()
+})
+
+test("adds a RightCode account from its logged-in console without a one-time key step", async ({
+  context,
+  extensionId,
+  page,
+}) => {
+  const serviceWorker = await getServiceWorker(context)
+  await seedUserPreferences(serviceWorker, {
+    // This scenario enters its URL manually; avoid racing current-tab autofill.
+    autoFillCurrentSiteUrlOnAccountAdd: false,
+    tempWindowFallback: {
+      enabled: false,
+    },
+  })
+  await stubRightCodeRoutes(context)
+
+  const fixture = await runAccountAutoDetectScenario({
+    extensionId,
+    extensionPage: page,
+    baseUrl: RIGHTCODE_SITE_URL,
+    siteType: SITE_TYPES.RIGHT_CODE,
+    getServiceWorker: async () => serviceWorker,
+    openSitePage: async () => {
+      const sitePage = await context.newPage()
+      installExtensionPageGuards(sitePage)
+      await forceExtensionLanguage(sitePage, "en")
+      await sitePage.goto(RIGHTCODE_SITE_URL)
+      await sitePage.bringToFront()
+      return sitePage
+    },
+    prepareDetectableSite: async () => undefined,
+  })
+
+  // The whole point of the integration: this deployment is not a One/New API
+  // backend, so detection resolves it from the console session instead of
+  // reporting a payload that does not match any known site.
+  expect(fixture.siteType).toBe(SITE_TYPES.RIGHT_CODE)
+
+  // RightCode re-reveals keys on every read, so saving must not raise the
+  // created-secret dialog that warns the value would be lost.
+  await expect(
+    page.getByTestId(TOKEN_PROVISIONING_TEST_IDS.oneTimeKeyInput),
+  ).toHaveCount(0)
+
+  const savedAccount = await waitForSavedAccount({
+    serviceWorker,
+    siteType: SITE_TYPES.RIGHT_CODE,
+    baseUrl: RIGHTCODE_SITE_URL,
+    predicate: (account) => account.account_info.quota > 0,
+  })
+  expect(savedAccount.account_info.username).toBe(RIGHTCODE_ACCOUNT_USERNAME)
+  expect(savedAccount.account_info.id).toBe(String(RIGHTCODE_ACCOUNT_ID))
+  expect(savedAccount.account_info.access_token).toBe(RIGHTCODE_ACCOUNT_TOKEN)
+  // Saving reads the account through the same producer the refresh button uses:
+  // the stubbed wallet balance and today cost, converted into quota points.
+  expect(savedAccount.account_info.quota).toBe(12.5 * QUOTA_PER_USD)
+  expect(savedAccount.account_info.today_quota_consumption).toBe(
+    0.4 * QUOTA_PER_USD,
+  )
+  expect(savedAccount.account_info.today_requests_count).toBe(4)
+  // RightCode runs no check-in flow, so no method may be learned or selected.
+  expect(Object.keys(savedAccount.checkIn.methodKnowledge.methods)).toEqual([])
+  expect(savedAccount.checkIn.selection.methodId).toBeUndefined()
+
+  await fixture.cleanup()
+})
+
+test("adds a Grsai account from its logged-in console session", async ({
+  context,
+  extensionId,
+  page,
+}) => {
+  const serviceWorker = await getServiceWorker(context)
+  await seedUserPreferences(serviceWorker, {
+    // This scenario enters its URL manually; avoid racing current-tab autofill.
+    autoFillCurrentSiteUrlOnAccountAdd: false,
+    tempWindowFallback: {
+      enabled: false,
+    },
+  })
+  let grsaiCredits = GRSAI_CREDITS
+  await stubGrsaiRoutes(context, { getCredits: () => grsaiCredits })
+
+  const fixture = await runAccountAutoDetectScenario({
+    extensionId,
+    extensionPage: page,
+    baseUrl: GRSAI_SITE_URL,
+    siteType: SITE_TYPES.GRSAI,
+    getServiceWorker: async () => serviceWorker,
+    openSitePage: async () => {
+      const sitePage = await context.newPage()
+      installExtensionPageGuards(sitePage)
+      await forceExtensionLanguage(sitePage, "en")
+      await sitePage.goto(GRSAI_SITE_URL)
+      await sitePage.bringToFront()
+      return sitePage
+    },
+    prepareDetectableSite: async () => undefined,
+  })
+
+  // The console is not a One/New API backend, so detection has to resolve it
+  // from the console session instead of reporting an unmatched payload.
+  expect(fixture.siteType).toBe(SITE_TYPES.GRSAI)
+
+  // The console re-reveals keys on every read, so saving must not raise the
+  // created-secret dialog that warns the value would be lost.
+  await expect(
+    page.getByTestId(TOKEN_PROVISIONING_TEST_IDS.oneTimeKeyInput),
+  ).toHaveCount(0)
+
+  const savedAccount = await waitForSavedAccount({
+    serviceWorker,
+    siteType: SITE_TYPES.GRSAI,
+    baseUrl: GRSAI_SITE_URL,
+    predicate: (account) => account.account_info.quota > 0,
+  })
+  expect(savedAccount.account_info.username).toBe(GRSAI_ACCOUNT_EMAIL)
+  expect(savedAccount.account_info.id).toBe(GRSAI_ACCOUNT_ID)
+  expect(savedAccount.account_info.access_token).toBe(GRSAI_SESSION_TOKEN)
+  // Saving reads the account through the same producer the refresh button uses:
+  // the stubbed credit balance and today consumption, normalized into quota
+  // points at the console's own base credit rate.
+  expect(savedAccount.account_info.quota).toBe(
+    Math.round((GRSAI_CREDITS / GRSAI_CREDITS_PER_USD) * QUOTA_PER_USD),
+  )
+  expect(savedAccount.account_info.today_quota_consumption).toBe(
+    Math.round((GRSAI_TODAY_CREDITS / GRSAI_CREDITS_PER_USD) * QUOTA_PER_USD),
+  )
+  // The console runs no check-in flow, so no method may be learned or selected.
+  expect(Object.keys(savedAccount.checkIn.methodKnowledge.methods)).toEqual([])
+  expect(savedAccount.checkIn.selection.methodId).toBeUndefined()
+
+  // Saving closed the console tab, and the balance the stub now reports is a
+  // different one, so this refresh can only succeed if the extension reaches
+  // the console API by itself: the account is usable without the site's page.
+  grsaiCredits = GRSAI_REFRESHED_CREDITS
+  await refreshAccountRowsAndReadStorage({
+    page,
+    serviceWorker,
+    accountIds: [savedAccount.id],
+    expectedQuotas: [
+      Math.round(
+        (GRSAI_REFRESHED_CREDITS / GRSAI_CREDITS_PER_USD) * QUOTA_PER_USD,
+      ),
+    ],
+  })
+
+  await fixture.cleanup()
 })
 
 for (const scenario of [

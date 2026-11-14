@@ -8,6 +8,239 @@ This page records major updates for general users (feature changes / experience 
 - **Troubleshooting**: You can enable console logs in "Settings → General → Logs" and report reproduction steps to [Issues](https://github.com/qixing-jk/all-api-hub/issues).
 :::
 
+## 4.10.1
+
+::: info Firefox release fix
+Fixed oversized script files in the Firefox extension package that prevented it from passing the add-on store's validation. This is a compatibility fix; see the [4.10.0 changelog](#v4-10-0) for the main features and improvements.
+:::
+
+<a id="v4-10-0"></a>
+
+## 4.10.0
+This release brings deep evaluation tools including Needle in a Haystack, real context limit testing, and custom Q&A quizzes, alongside an all-in-one redesigned `API Test` window with CLI tool simulation; introduces automatic login recovery and token renewal for AnyRouter and Sub2API with on-the-spot Cookie validation; expands CC Switch export to Claude Desktop, Antigravity (AGY), Pi, MiniMax Code, and more desktop clients; refines balance history filters and trend charts while improving large catalog performance and dialog animations; and fixes website verification challenge detection, Kimi Open Platform balance units, and Magpie HTTP 403 errors.
+
+- **New Features:**
+  - **Needle in a Haystack, real context limits, and custom Q&A testing**: Added dedicated test tools to help you evaluate a model's true capabilities: run "Needle in a Haystack" to see how well a model finds hidden info across different depths of long text, shown in an intuitive color-coded matrix; test real context limits by gradually increasing text length to find the model's true ceiling, with support for pausing and resuming at any time; and run custom Q&A tests with your own questions and reference answers checked locally without sending answers to the model. See [Model List](./model-list.md).
+  - **All-in-one `API Test` window and smoother testing**: Replaces the separate "Verify API" and "CLI compatibility test" popups with a unified "API Test" window. You can now run basic checks, test streaming responses, and simulate CLI tools like Claude Code or Codex all from a single place, switching formats and individual checks without hopping between dialogs. See [Model List](./model-list.md) and [API Credential Profiles](./api-credential-profiles.md).
+  - **AnyRouter automatic login recovery**: Configure GitHub, Linux DO, or password login recovery in account settings; when refreshing balances, copying keys, or running check-ins encounters session expiration, the notification offers a direct recovery route and automatically renews cookies when needed. See [Auto-Detection Troubleshooting](./auto-detect.md) and [Automatic Check-in](./auto-checkin.md).
+  - **Sub2API login recovery and automatic Token renewal**: Sub2API accounts can now configure login credentials and enable automatic recovery; automatically rotates and renews Refresh Tokens, and falls back to configured login credentials to restore sessions when tokens are missing or expired. See [Auto-Detection Troubleshooting](./auto-detect.md).
+  - **On-the-spot Cookie verification**: When adding or editing accounts with Cookie authentication, click "Verify this Cookie" to check whether the cookie is accepted by the site and belongs to the current account with clear feedback. See [Auto-Detection Troubleshooting](./auto-detect.md).
+  - **Expanded CC Switch export targets**: CC Switch deeplink export now supports Claude Desktop, Antigravity (AGY), Pi, MiniMax Code, Kimi Code, DeepSeek Harness, and OhMyPi; enforces required model fields for clients that need them, and normalizes provider identifiers for Hermes. See [Quick Export Profiles](./quick-export.md).
+
+- **Experience Improvements:**
+  - **Streamlined balance history filter sheet and trend charts**: Redesigned balance history filters into an accessible drawer with search for accounts and tags; connects missing intermediate dates in trend charts with dashed lines for clearer visual continuity. See [Balance History](./balance-history.md).
+  - **Large model catalog rendering optimizations**: Significantly reduced redundant price recalculations and unnecessary re-renders when browsing accounts with large model catalogs. See [Model List](./model-list.md).
+  - **Flattened credential and key cards**: Simplified visual hierarchy in API Credential Profiles and Key Management by removing nested container borders for higher density and clearer readability. See [Key Management](./key-management.md) and [API Credential Profiles](./api-credential-profiles.md).
+  - **Quick dialog fade transitions**: Added smooth, lightweight fade transitions for modals, dialogs, and the account editor, isolating reopened sessions and eliminating visual glitches.
+
+- **Bug Fixes:**
+  - **Accurate website verification challenge handling**: Improved Cloudflare and Aliyun WAF challenge detection to report "verification required" accurately instead of vague format errors, and prevented duplicate submission side-effects during login and check-in recovery. See [Cloudflare Helper](./cloudflare-helper.md).
+  - **Corrected Kimi Open Platform balance and usage units**: Fixed an issue where Kimi console balances and daily consumption were not properly scaled to standard currency amounts.
+  - **Magpie HTTP local management 403 fix**: Resolved 403 forbidden errors when managing Magpie over plain HTTP local/LAN endpoints caused by request header restrictions.
+  - **AgentRouter password check-in confirmation**: Fixed AgentRouter password check-in verification to accurately recognize WAF challenges and confirm completion results. See [Automatic Check-in](./auto-checkin.md).
+  - **Restored tooltips in Shadow DOM**: Fixed tooltips in isolated Shadow DOM environments (such as the web text-selection modal) failing to render or misaligning.
+
+## 4.9.0
+This release adds account support for AI/ML API and NanoGPT with granular key limits and privacy routing; adds daily check-in support for Bai API; lets you expand account billing groups side-by-side in the model list; brings realistic pricing estimations for video generation, audio, and web search; improves model dropdowns with clearer loading feedback and direct manual input; and smooths out background requests to avoid rate limit errors.
+
+- **New Features:**
+  - **`AI/ML API` account support**: Add AI/ML API accounts to view balances, usage, and model pricing in the extension. Create and manage API keys directly, with custom spending caps and tool permission limits. See [Add an Account](./add-account.md), [Key Management](./key-management.md), and [Supported Sites](./supported-sites.md).
+  - **`NanoGPT` account support and flexible key controls**: Add NanoGPT accounts via automatic web detection or credentials, keeping prepaid cash balances and subscription quotas clearly separated. Create API keys directly within the extension with daily, weekly, or monthly spending and token caps, plus privacy options such as Zero Data Retention (ZDR) and anonymized routing. See [Add an Account](./add-account.md), [Key Management](./key-management.md), and [Supported Sites](./supported-sites.md).
+  - **`Bai API` daily check-in**: Added daily automatic check-in support for Bai API to claim daily rewards without manual visits. See [Automatic Check-in](./auto-checkin.md).
+  - **Compare account billing groups side-by-side in model list**: Added an "Expand account groups" option in the model list to display different tiers or user groups (such as Standard, VIP, and Fast) under the same account as separate rows, making rate differences easy to compare at a glance. See [Model List](./model-list.md).
+
+- **Experience Improvements:**
+  - **More realistic model cost estimates**: Pricing scenarios now support video generation (factoring in reference video, length, quality, and audio), audio generation, code execution, web search, and cached tokens to give you a more accurate cost projection. Clearly indicates dedicated route markups and uncalculated additional fees. See [Model List](./model-list.md).
+  - **Smoother model selection and direct manual input**: Model dropdowns in API verification, export dialogs (Kilo Code, CC Switch, etc.), and web selection popups now clearly show loading progress, loaded model counts, or failure reasons. If a site fails to return a model list, you can type in the model ID directly without waiting. See [Quick Export Profiles](./quick-export.md).
+  - **Hassle-free check-in feedback**: When reporting check-in issues, recent refresh diagnostic logs are automatically attached so you don't have to copy them manually. Also fixes long diagnostic reports getting truncated when submitted to GitHub. See [Automatic Check-in](./auto-checkin.md).
+  - **Smoother background requests to prevent rate limit errors**: Automatically spaces out concurrent background refreshes, check-ins, and model loading for each site. When a site temporarily throttles requests, the extension backs off automatically to avoid refresh failures and temporary IP blocks.
+  - **Streamlined update popup and star prompt adjustments**: Cleaned up the update notes popup for faster display, and improved GitHub Star reminder tracking so users who already starred the repository aren't prompted again.
+
+- **Bug Fixes:**
+  - **Automatic recovery for outdated check-in methods**: Fixed an issue where check-ins could keep failing using an outdated method after a site changed its API endpoint. Check-in methods are now refreshed automatically, and redundant check-in attempts are prevented once login sessions recover. See [Automatic Check-in](./auto-checkin.md).
+
+## 4.8.0
+This release adds Novita AI account support and key management, and makes account setup, key association, and web detection easier to use.
+
+::: info Web text-selection false prompts
+Sorry for the recent interruptions caused by ordinary links, URL parameters, and UUIDs being mistaken for API keys. Version 4.8.0 fixes this class of false prompt, so unrelated suggestions should no longer appear frequently after updating. If frequent false prompts continue, please report them in [Issues](https://github.com/qixing-jk/all-api-hub/issues) with the text or URL that triggered them. See [Web AI API Check](./web-ai-api-check.md).
+:::
+
+- **New Features:**
+  - **`Novita AI` accounts**: Add Novita AI accounts, view balances and models, and manage API keys in the extension. See [Add an Account](./add-account.md), [Key Management](./key-management.md), and [Supported Sites](./supported-sites.md).
+
+- **Experience Improvements:**
+  - **Account key association hints**: When linking an account key to a saved API credential, match hints and better-ranked candidates make it easier to choose the right credential.
+  - **Automatic sizing for multiline fields**: Verification prompts and the web text-selection field now grow with their content, making longer text easier to edit. See [Model List](./model-list.md) and [Web AI API Check](./web-ai-api-check.md).
+
+- **Bug Fixes:**
+  - **Continue account setup when an access token is unavailable**: When a site cannot supply an access token automatically, the extension keeps the information it found and opens the right page so account setup can continue. See [Add an Account](./add-account.md).
+
+## 4.7.0
+This release adds account support for Vercel AI Gateway, Daya API, PM-API, and Requesty; introduces verification-aware automatic check-ins with continuation preferences for challenge-gated sites; brings direct testing for image and video generation models, interactive drawing tests, CLI tool simulation, and customizable prompts; adds a self-updating Chromium CRX package for GitHub users; improves Safari session isolation and download reliability; and redesigns the account editor and Web AI API Check dialogs.
+
+- **New Features:**
+  - **`Vercel AI Gateway` account support**: Add official Vercel AI Gateway accounts using an Access Token, with automatic browser session detection and multi-team selection. View team USD balances and model pricing; create or edit API keys directly with spend caps, reset cycles, and email alerts, and jump directly to the native dashboard. See [Adding Accounts](./add-account.md) and [Supported Sites](./supported-sites.md).
+  - **`Daya API` account support**: Add Daya API accounts using browser login to view balances, usage, and model pricing, with redemption code and daily check-in support. Create and manage API keys directly in the extension with routing groups, Fast mode, quotas, and IP allowlists. See [Supported Sites](./supported-sites.md).
+  - **`PM-API` account support**: Add PM-API accounts across main and backup sites with automatic login detection and independent account management. View balances, usage, model pricing, and announcements, and manage API keys and redemption codes. See [Supported Sites](./supported-sites.md).
+  - **`Requesty` account support**: Add organization accounts via browser login or management keys to view USD balances and model catalogs. Create and manage inference and management keys with monthly spending limits and expiration dates, with management keys automatically excluded during export. See [Supported Sites](./supported-sites.md) and [Key Management](./key-management.md).
+  - **Verification-aware check-in and continuation preference**: The automatic check-in system introduces challenge detection with a new global setting under "Settings → Auto Check-in" to attempt opening the site when blocked by human verification, with per-account overrides. Sites requiring verification clearly display this requirement and default auto check-in to off, assisting with in-page completion when enabled. See [Automatic Check-in](./auto-checkin.md).
+  - **Image, video, and multi-modal model verification**: API verification now supports image generation, video generation, text embeddings, and reranking models—with images previewed directly and videos playable inside the test dialog. Adds an interactive drawing test that lets models draw graphics on demand to showcase real-world generation and tool capabilities. See [Model List](./model-list.md).
+  - **CLI tool simulation and editable test prompts**: When testing models, choose between Default, Codex CLI, Claude Code, or Gemini CLI request profiles to easily verify tool compatibility. Test prompts can now be customized directly within each card, with auto-saving and one-click reset to default. See [API Credential Profiles](./api-credential-profiles.md) and [Model List](./model-list.md).
+  - **Background auto-updates for Chrome and Edge**: For Chromium and Edge users installing builds outside the Chrome Web Store, we now provide a signed CRX release package that updates automatically in the background, with clear update status indications in settings. See [Chromium CRX Self-Update Installation](./chromium-crx-self-update.md) and [Installation Channels and Updates](./extension-update-install.md).
+  - **Improved Safari account isolation and downloads**: Safari accounts using browser logins now route requests through an isolated session, preventing conflicts with active website tabs. Fixed occasional download failures for exported backups, credential profiles, and usage history. See [Safari Installation Guide](./safari-install.md).
+
+- **Experience Improvements:**
+  - **Redesigned account creation and editing interface**: The account dialog now features a clean single-page layout with section navigation (sidebar on wide screens, compact top menu on smaller screens). Pressing Enter on a site URL triggers auto-detection immediately, and batch bookmark imports are consolidated into the account header. See [Adding Accounts](./add-account.md).
+  - **Website rules and UI polish for Web AI API Check**: Configure allowlists and blocklists to control where in-page text selection triggers API detection, with one-click rule importing from active browser tabs. A guided prompt helps complete missing API URLs when copying keys, and the modal features an adaptive layout with inline model refresh. See [Web AI API Check](./web-ai-api-check.md).
+  - **Custom check-in endpoints**: For customized third-party sites with non-standard check-in paths, configure custom API routes in check-in settings. Clicking "Redetect" also attempts to discover and learn updated paths automatically from site assets. See [Automatic Check-in](./auto-checkin.md).
+  - **Clearer account refreshes and pricing labels**: Refreshing accounts verifies check-in status and updates data automatically across day changes, with clear failure counts if a request encounters issues. The model list clearly distinguishes exact official rates from estimated or converted prices. See [Model List](./model-list.md).
+
+- **Bug Fixes:**
+  - **Clean desktop export names**: Fixed messy or duplicate provider names when exporting credentials to tools like CC Switch, AI Toolbox, Claude Code Router, and Cursor++. Account credentials default to `[Site Name] - [Key Name]`, and profile sources avoid redundant labels such as `Profile - Profile`. See [Quick Export](./quick-export.md).
+  - **Smoother settings navigation and reduced motion**: Fixed issues where search results or deep links in settings could miss their target card or highlight, and respected system reduced-motion preferences with instant scrolling.
+  - **Consistent tooltip styling and semantic icons**: Fixed floating tooltips not matching active theme radius and dark mode colors, and standardized help and action icons across all views.
+
+## 4.6.0
+This release highlights username and password login for AgentRouter check-in to unlock multi-account automated check-ins, adds RelayFor and EMRank account support, introduces channel-aware update checks, supports NexaVlinks daily check-in with clearer Sub2API key creation guidance, separates native allowances from monetary balances, and improves the settings overview and post-update changelog dialogs.
+
+- **New Features:**
+  - **`AgentRouter` password login and multi-account check-in**: Configure dedicated usernames and passwords under check-in settings to run login check-ins. This eliminates the previous restriction where a single browser GitHub or Linux DO OAuth session prevented running check-ins across multiple accounts, allowing multiple AgentRouter accounts to check in sequentially on the same device. The password is only submitted via native forms during check-in execution, and check-in windows run quietly in the background without stealing browser focus. See [Automatic Check-in](./auto-checkin.md).
+  - **`RelayFor` account support**: Add RelayFor accounts using browser login to view balances, usage, model pricing, and announcements, and redeem codes. Create, edit, toggle, or delete API keys with channels, groups, and quotas directly in the extension. The model list supports provider-group filtering and pricing display, and daily automatic check-in is supported. See [Supported Sites](./supported-sites.md) and [Automatic Check-in](./auto-checkin.md).
+  - **`EMRank` account support and native Token pricing**: Add EMRank accounts using browser login to view token balances, model listings, and public announcements. Create, rename, view, or delete API keys in the extension, with daily automatic check-in support. The model list supports native token quota pricing (per-million token rates) and within-asset price sorting without converting to regular currencies. See [Supported Sites](./supported-sites.md), [Model List](./model-list.md), and [Automatic Check-in](./auto-checkin.md).
+  - **Distribution channel-aware update checking**: Update checks in settings now adapt to the installation source: Firefox Add-ons checks AMO releases, GitHub releases check the latest Release, Nightly builds compare commit revisions, and Chrome / Edge store builds check browser readiness. Current status is clearly displayed (Up to date, New version found, Waiting for store push, Update ready, etc.), with options to view the changelog or navigate to the download page. See [Installation Channels and Updates](./extension-update-install.md).
+  - **`NexaVlinks` daily check-in**: Sub2API sites now support NexaVlinks daily automatic check-in, verifying today's check-in status beforehand. Graphical captchas prompt in-page manual completion. See [Automatic Check-in](./auto-checkin.md).
+
+- **Experience Improvements:**
+  - **Separate native allowance display**: Account cards now feature an allowance details popover that displays native token, point, or scoped package balances separately; these are not mixed into total monetary balances, balance history, or daily income estimates to prevent currency or unit confusion. See [Balance History](./balance-history.md).
+  - **Overview automation status and metrics**: The Overview tab in settings now displays clear, consistent status badges (Success, Failed, Partial, Waiting for first run, etc.) and execution metric counts for automated tasks such as check-in and model synchronization. See [Overview](./options-overview.md).
+  - **Update changelog dialog reserved for settings**: The in-extension changelog dialog shown after an extension update now only opens on the first visit to the options page, avoiding unexpected popups in compact popup surfaces.
+  - **Synchronize usage history on account refresh**: Account data refreshes now immediately trigger usage history synchronization, keeping records aligned with the latest account state. Clarified auto-refresh interval recommendations and background persistence in settings.
+
+- **Bug Fixes:**
+  - **Sub2API key creation permission guidance**: When a Sub2API site restricts advanced settings like IP allowlists to administrators, the extension now provides actionable guidance rather than a generic permission denied message. See [Key Management](./key-management.md).
+
+## 4.5.0
+This release adds Dahl, FoxCode, Krill AI, and Xiaoen AI accounts, expands automatic check-in support, introduces account selection for key repairs and multi-key gateway imports, and improves verification handling and Firefox compatibility.
+
+- **New Features:**
+  - **`Dahl` account support**: Add accounts using browser login, view token balances and model pricing, and create, name, or revoke API keys. Allocate tokens to keys or return remaining tokens to the account. See [Supported Sites](./supported-sites.md).
+  - **`FoxCode` account support**: Add accounts using browser login to view balance, usage, model pricing, and announcements. Create, edit, enable, disable, or delete API keys, and configure their channels and quotas. See [Supported Sites](./supported-sites.md).
+  - **`Krill AI` account support**: Add accounts using browser login to view balance, usage, model pricing, and announcements, and redeem codes. Create, edit, revoke, or delete API keys; configure channels, IP allowlists, and balance fallback; and save keys shown only once after creation. See [Supported Sites](./supported-sites.md).
+  - **`Xiaoen AI` account support**: Add accounts using browser login to view balance, usage, and model pricing, receive site announcements and personal messages, and run daily automatic check-ins. See [Supported Sites](./supported-sites.md).
+  - **Daily check-in for more sites**: Added Clawhud, DaiGua, Sidrune, and FreeAPI daily automatic check-ins, with today's status checked before execution. DaiGua uses ordinary check-in without entering the lottery. Sidrune rewards go to a separate welfare wallet rather than directly increasing the account balance. See [Automatic Check-in](./auto-checkin.md).
+  - **Multi-key gateway imports**: When importing account keys in bulk, choose separate channels for each key or combine compatible keys into one channel where the target gateway supports it. Magpie also supports appending keys to existing providers. Select a destination when several are available, and edit channel names before importing. See [Self-Hosted Site Management](./self-hosted-site-management.md).
+  - **Account selection for key completion and checks**: Complete missing keys from the account menu, filling in settings required by the site. Select which accounts to check and repair in bulk. Keys shown only once come with a reminder to save them, and partial completion or unconfirmed results are clearly reported. See [Key Management](./key-management.md).
+
+- **Experience Improvements:**
+  - **Verification guidance and reminders**: Check-ins that encounter human verification, image captchas, or interactive challenges now explain that manual action is needed and guide you to the relevant page. Configure in-page reminders and system notifications separately for Turnstile; system notifications require notification permission. See [Automatic Check-in](./auto-checkin.md).
+  - **Quick filtering for the current site**: Click the current-site account badge in the popup to filter the list to saved accounts for that site.
+  - **More responsive key actions and bulk imports**: Fewer repeated requests when viewing or verifying keys and importing them into gateways reduce waiting.
+  - **More complete announcement site filters**: Saved accounts that support announcements appear in the site filter even before their first announcement check. Select them and check manually even when background polling is disabled. See [Site Announcements](./site-announcements.md).
+
+- **Bug Fixes:**
+  - **Browser login detection**: Fixed failures to read login sessions on some sites that prevented automatic account addition. See [Auto-Detection Troubleshooting](./auto-detect.md).
+  - **Mobile and Firefox popup sizing**: Fixed popups or side panels collapsing into narrow strips on some mobile browsers, and incorrect popup sizing in Firefox.
+  - **Firefox bulk permission grants**: Fixed permission prompts failing to appear when granting several optional permissions at once in Firefox.
+  - **Gateway connection checks**: Current settings are saved before checking the connection, so newly entered addresses or credentials are used rather than the previous configuration. See [Self-Hosted Site Management](./self-hosted-site-management.md).
+  - **Check-in retries after errors**: Fixed repeated execution of the same check-in batch when results could not be saved.
+
+## 4.4.0
+This release adds support for LaoZhang API and Cubence accounts, introduces Magpie self-hosted gateway management, allows skipping model sync on specific channels, redesigns site announcements with an overview card and search, adds Hiyo Free daily check-in, and improves loading feedback and WebDAV backup reliability.
+
+- **New Features:**
+  - **`LaoZhang API` account support**: Add LaoZhang API accounts across all four official domain endpoints, using either a System token or browser login. View balance, daily transactions, and model pricing; create and configure API keys with billing modes, fallback groups, and rate limits directly in the extension; and read site announcements and messages. See [Supported Sites](./supported-sites.md).
+  - **`Cubence` site support**: Add Cubence accounts using browser login, view balance, today's usage, token counts, and model pricing. Create, edit groups, toggle, or delete API keys in the extension, and quickly copy or export configurations. See [Supported Sites](./supported-sites.md).
+  - **`Magpie` self-hosted gateway management**: Connect to local Magpie gateways to manage provider channels and models. Quickly import saved account keys or API credentials into Magpie channels, and manage multiple keys, concurrency, and rate limits within the extension. See [Self-Hosted Site Management](./self-hosted-site-management.md).
+  - **Skip model sync for specific channels**: When managing channels in self-hosted gateways, toggle "Skip model sync" on individual channels. Scheduled auto-sync and "Run All" will skip them automatically to prevent overwriting manual models, while still allowing manual single-channel sync when needed. See [Self-Hosted Site Management](./self-hosted-site-management.md).
+  - **Site announcements overview and search**: The site announcements page now features an Overview card showing total and unread notice counts for quick filtering, along with site filtering. Added title and content search to find announcements faster, and notices now default to newest first. See [Site Announcements](./site-announcements.md).
+  - **`Hiyo Free` daily check-in**: Hiyo Free accounts (Sub2API) now support daily automatic check-in, checking beforehand whether today's reward has already been claimed to prevent duplicate attempts. See [Automatic Check-in](./auto-checkin.md).
+
+- **Experience Improvements:**
+  - **Smoother loading feedback**: When selecting models, exporting configurations, changing groups, or refreshing data, existing choices and buttons remain visible and usable without abrupt jumps or disappearing inputs. Refreshing announcements also no longer disrupts the view.
+
+- **Bug Fixes:**
+  - **WebDAV cloud backup saving and verification**: Fixed an issue where saving backups failed on certain WebDAV servers; the extension now automatically verifies uploaded backup files to ensure backups are fully written. See [Cloud Sync](./webdav-sync.md).
+  - **Older browser compatibility**: Fixed an issue where account login sessions could not be detected on older versions of Chromium-based browsers, and improved notification click handling.
+
+## 4.3.0
+This release adds support for Kimi Open Platform, FreeModel, and Grsai accounts, introduces OmniRoute and gpt-load self-hosted gateway management, adds allowance monitoring to the API credential library, and comprehensively improves automatic check-in, account addition, and export workflows.
+
+- **New Features:**
+  - **`Kimi Open Platform` account support**: Add domestic and international Kimi Open Platform accounts, view balances and model lists, create, rename, or delete API keys directly within the extension, and export base URLs for external clients. Model pricing synchronizes with official published rates and displays in native currencies (CNY/USD). See [Supported Sites](./supported-sites.md).
+  - **`FreeModel` and `Grsai` site support**:
+    - **FreeModel**: Add accounts using web session cookies, view balances, plan allowances, and invitation links, manage and create API keys, and save one-time keys directly to the credential library. See [Supported Sites](./supported-sites.md).
+    - **Grsai**: Automatically detect logged-in Grsai accounts, synchronize balances and usage, and create, edit, or delete API keys in the extension. See [Supported Sites](./supported-sites.md).
+  - **`OmniRoute` and `gpt-load` self-hosted gateway management**:
+    - **OmniRoute**: Connect to your self-hosted OmniRoute gateway to view and manage channels, quickly import account keys and API credentials, or migrate between channels. See [OmniRoute Management](./omniroute-integration.md) and [Self-Hosted Site Management](./self-hosted-site-management.md).
+    - **gpt-load**: Connect to self-hosted gpt-load gateways to manage groups and models, and import keys and credentials into target groups with one click. See [gpt-load Management](./gpt-load-integration.md).
+  - **API credential allowance monitoring**: The credential library now shows remaining quotas, progress meters, and reset countdowns. It also estimates how long your balance will last based on recent daily spending, and highlights credentials running low in the overview. See [API Credential Profiles](./api-credential-profiles.md).
+  - **API credential custom request headers**: For APIs that require special headers or custom User-Agents, credentials now support configuring custom request headers that apply when checking connections or fetching models. Sensitive header values are masked in the UI. See [API Credential Profiles](./api-credential-profiles.md).
+  - **`ToolCode` growth-center daily check-in**: ToolCode sites using Sub2API now support automatic daily check-in via the growth center, with status verification before submission to avoid duplicate attempts. See [Automatic Check-in](./auto-checkin.md).
+  - **Authoritative rewards in check-in results**: When a check-in completes and the site returns a specific credit reward, the amount is displayed directly next to the result message and converted to your preferred currency. See [Automatic Check-in](./auto-checkin.md).
+  - **Settings sidebar footer shortcuts**: Added a persistent shortcut bar at the bottom of the Settings sidebar for quick access to documentation, starring the repository on GitHub, viewing verified sponsors, and joining community chat channels.
+  - **Local troubleshooting logs**: Added a recent log viewer in "Settings → General → Logs" to inspect recent entries when diagnosing issues, complete with filtering and one-click copying for issue reports. See [Overview](./options-overview.md).
+
+- **Experience Improvements:**
+  - **Add Account quick fill and compact layout**: The site URL input includes a "Use current tab" shortcut button; when no web page is open, the dropdown recommends recently visited sites. The dialog layout has been streamlined for smaller screens and mobile viewports, allowing longer forms to scroll smoothly inside the dialog. See [Add Account](./add-account.md).
+  - **Bookmark import retry and manual recovery**: Batch bookmark imports clearly display counts for added, incomplete, and skipped items. Incomplete items (such as those requiring login or CAPTCHA) can be retried without re-adding successful entries, or continued via "Finish manually" with prefilled details. See [Bookmark Management](./bookmark-management.md).
+  - **Check-in method redetection**: You can trigger "Redetect check-in method" at any time from account menus or check-in tables. A newly identified method is adopted automatically, and a picker dialog appears if multiple methods are available. Discovery also runs automatically after saving or refreshing accounts, and confirmed unsupported sites will not show distracting unselected method warnings. See [Automatic Check-in](./auto-checkin.md).
+  - **Instant key deletion feedback**: When deleting an API key, the row is removed immediately with a success message instead of freezing while waiting for a background refresh; bookmark and duplicate-account dialogs also close promptly once completed. See [Key Management](./key-management.md).
+  - **Reuse existing open tabs for detection**: Account auto-detection prioritizes open tabs where you are already signed in, reducing unnecessary popup windows and providing clearer messages if detection fails. See [Troubleshooting Guide for Auto-Identification](./auto-detect.md).
+  - **Record credential source pages**: Saving or importing external credentials now supports recording the source web page address to easily track where a key came from. See [API Credential Profiles](./api-credential-profiles.md).
+
+- **Bug Fixes:**
+  - **Client export address compatibility**: Fixed an issue where exporting configurations to external tools (such as Claude Code or Gemini CLI) resulted in doubled or missing `/v1` path segments; Volcengine Ark Coding Plan accounts automatically route to their dedicated endpoint when exported for Claude. See [Quick Export](./quick-export.md).
+  - **Mobile and tablet popup sizing**: Fixed an issue where extension popups on mobile or tablet browsers were constrained to desktop dimensions, ensuring the popup properly fills the available screen width.
+  - **Fallback to Settings when side panels are unavailable**: In browser environments where side panels cannot be opened (such as certain Firefox setups), account setup automatically continues in the full Settings page instead of staying stuck in a loading state.
+  - **New API access token guidance**: Adapted to scoped access tokens in newer New API deployments; when a site requires manually creating a token, the dialog clearly explains how to generate it in the site's security settings rather than reporting an ambiguous failure. See [Add Account](./add-account.md).
+
+## 4.2.0
+This release adds support for Rix API 6.x sites and AI-ROUTER accounts, brings page transition animations to settings, and fixes today's income display and leftover blank pages.
+
+- **New Features:**
+  - **Rix API 6.x site support**: Add Rix API 6.x sites (such as ePhone AI), view balance, usage, and model pricing. When editing API keys you can set call limits, group restrictions, IP exclusions, storage region, and more. See [Supported Sites](./supported-sites.md).
+  - **`AI-ROUTER` account support**: Add `ai-router.dev` accounts with daily check-in support. See [Supported Sites](./supported-sites.md).
+  - **`小白Code` check-in**: Sub2API accounts on `token.dialoguedui.com` now support daily automatic check-in, alongside Sub2API Pro, Genius Programmer, and Denxio. See [Automatic Check-in](./auto-checkin.md).
+  - **Bulk copy site addresses**: Bulk mode in the account list adds a "Copy site addresses" action that copies the site URLs of all selected accounts in the current display order.
+
+- **Experience Improvements:**
+  - **Settings page transitions**: Switching between settings pages now plays an entrance animation. Rapid sidebar clicks always land on the last selected page. Animations respect the system's reduced-motion preference.
+  - **API credential library browsing**: The credential library now fits in one screen on desktop, with the navigation and content scrolling independently — no need to scroll the whole page back and forth.
+
+- **Bug Fixes:**
+  - **Today's income display**: Fixed an issue where today's income stayed at 0 even though the balance had already increased after check-in.
+  - **Leftover blank pages**: Blank tabs or windows left behind when check-in, detection, or similar tasks were interrupted are now cleaned up automatically when the extension starts.
+  - **Check-in retries**: Check-in issues that need manual attention (such as no login method selected) no longer waste background retry attempts. Background and manual check-ins each use appropriate wait times without interfering with each other.
+  - **Dark mode and theme preset rendering**: Card corners on the bookmark page, background layering in the popup, accent marks, and selected states are now consistent across themes. Square corners, merged backgrounds, and insufficient contrast that could appear in dark mode or under theme presets have been fixed.
+
+## 4.1.0
+This release adds `RightCode` account support and AI Toolbox export, and focuses on clearer check-in failure messages and quieter site announcements.
+
+- **New Features:**
+  - **`RightCode` account support**: Add `right.codes` accounts (including `rightapi.ai`), see balance, plans, and daily/lifetime usage, create, edit, enable, disable, or delete the site's API keys in the extension, and view model pricing. The site has no check-in feature. See [Supported Sites](./supported-sites.md).
+  - **Export to AI Toolbox**: Account keys, the copy-key dialog, and API credential profiles can now export the current configuration to AI Toolbox, alongside the existing Cherry Studio and CC Switch targets. Before exporting you can choose the target app, API protocol, models, address, and notes, and available models are fetched for you to pick from.
+  - **`AgentRouter` mirror domain**: Check-in and sign-in now support the official mirror `ps.air-outer.com` as well as `agentrouter.org`, and site detection no longer depends on login-method flags, so fewer accounts fail to be recognized. See [Automatic Check-in](./auto-checkin.md).
+  - **Wrong site type hints**: When a saved account's Site Type does not match the real site (for example a white-label deployment saved as `New API`), check-in results, key-reveal failure messages, and the Overview "Needs attention" list now state the type the site actually resolved to and which type to switch to; the same hint appears in the account dialog after "Re-detect check-in method". Detection also prefers the site's own published status name over a generic page title, so branded deployments are no longer misread. These hints are advice only: they never change your account settings, and they clear once you edit the Site Type or a later reading agrees with it. See [Automatic Check-in](./auto-checkin.md).
+  - **Site announcements settings**: The polling switch, polling interval, notification age window, and "mark the site read after notifying" move out of General into a dedicated **Site announcements** tab. Settings search still finds them and existing links keep working. See [Site Announcements](./site-announcements.md).
+
+- **Experience Improvements:**
+  - **Browsing-site priority**: Account ordering now separates "the tab you are looking at" from "other background tabs", so accounts matching the page in front of you rank above accounts matching pages open elsewhere. Pages the extension opens for tasks such as check-ins still do not count. See [Sorting Priority Settings](./sorting-priority.md).
+  - **Site announcement notifications**: The first check of a site only establishes a baseline — everything it returns is stored as history and never notifies. Later checks only notify for announcements published inside the configured age window. Manual "Check now" no longer sends notifications, and delivering a notification no longer clears the site's own unread state (that can be enabled on its own). New installs poll by default; existing settings are unchanged. See [Site Announcements](./site-announcements.md).
+  - **Announcement list**: With many announcements the list now renders only what is on screen instead of mounting every card; short lists render as before.
+  - **Check-in retries**: When a check-in fails or its result cannot be confirmed, it is retried automatically the same day within a daily attempt limit. Clear dead ends (such as a site with check-in disabled or an expired login) are still not retried, and each retry first checks whether today's check-in is already done, so nothing is submitted twice. See [Automatic Check-in](./auto-checkin.md).
+  - **Verification results**: Model and API verification results are now cleaned up or carried over when an account or credential profile is deleted, and when duplicates are merged. After credentials are replaced, results measured with the old credentials no longer show as current, and results older than a year expire.
+  - **Account auto-detection**: When a site has no usable session, automatic detection no longer sends a request that cannot succeed, so the add-account dialog no longer waits through a long timeout.
+
+- **Bug Fixes:**
+  - **Self-hosted gateway prompt**: Choosing "Save and configure in `New API`" no longer reads as an error. It now says that you host this gateway yourself, what configuring it gets you (account keys imported as gateway channels, reachable through one API address), and links that gateway's deployment documentation. The settings jump opens the settings tab in the background, so the account form you were filling in is not lost, and a toast tells you where it went. See [Self-Hosted Site Management](./self-hosted-site-management.md).
+  - **Check-in failure messages**: The results table and quick check-in toast no longer say "temporary check-in page", "target account", or "Turnstile". They describe what you actually ran into and keep one concrete next step; the reason labels used for filtering were simplified too.
+  - **Check-in method selection**: A method you selected by hand that has no saved detection record is confirmed on its own before the next run: a match continues the check-in, an unsupported result skips it, and an uncertain result is checked again next time. Your manual choice is never overwritten by automatic detection. See [Automatic Check-in](./auto-checkin.md).
+  - **Check-in dates**: Check-in status, the "checked in today" flag, and the check-in status query now use the device's local date and month, so you no longer see "checked in today" after local midnight has already passed, or "can check in" before local midnight. The flag may reset once after upgrading; nothing to do.
+  - **Button loading states**: Loading buttons no longer fade, and the spinner is no longer painted in the button's own background colour. Loading indicators were added where fetching models, testing a session, and bypass history previously showed none. API verification now turns Run into Stop while it runs, so you can interrupt it: finished results are kept and unfinished probes are marked stopped.
+  - **Settings search**: Searching for `CLIProxyAPI`, `cliproxy`, `cpa`, `newapi`, `donehub`, or `cch` now leads straight to the managed-site settings instead of returning nothing. See [CLIProxyAPI Integration](./cliproxyapi-integration.md).
+  - **Model sync**: With model sync enabled but no managed site configured, the scheduled task no longer fails and raises a notification every interval; once you configure a site, syncing continues as before.
+
 ## 4.0.0
 This release focuses on the interface look and feel: new appearance settings plus layout adjustments across pages. Existing accounts, keys, and settings are preserved.
 

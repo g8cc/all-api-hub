@@ -2,18 +2,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ACCOUNT_BROWSER_SESSION_SOURCES } from "~/services/accountBrowserSession/types"
 import {
-  createSub2ApiKey,
   fetchSub2ApiGroupDescriptors,
   fetchSub2ApiGroupRates,
+} from "~/services/apiService/sub2api/account/groups"
+import type { Sub2ApiAuthSessionRequest } from "~/services/apiService/sub2api/auth/authSession"
+import {
+  createSub2ApiKey,
   fetchSub2ApiKey,
   fetchSub2ApiKeys,
   updateSub2ApiKey,
-} from "~/services/apiService/sub2api"
-import type { Sub2ApiAuthSessionRequest } from "~/services/apiService/sub2api/authSession"
+} from "~/services/apiService/sub2api/keys"
 import { parseSub2ApiNativeKey } from "~/services/apiService/sub2api/parsing"
 import { API_ERROR_CODES, ApiError } from "~/services/apiTransport/errors"
+import { bindApiTransportRequest } from "~/services/apiTransport/recovery"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import type { ApiServiceRequest } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const {
   fetchApiMock,
@@ -34,10 +39,10 @@ vi.mock("~/services/apiTransport/request", async (importOriginal) => ({
 }))
 
 vi.mock(
-  "~/services/apiService/sub2api/browserAuth",
+  "~/services/apiService/sub2api/auth/browserAuth",
   async (importOriginal) => ({
     ...(await importOriginal<
-      typeof import("~/services/apiService/sub2api/browserAuth")
+      typeof import("~/services/apiService/sub2api/auth/browserAuth")
     >()),
     findSub2ApiBrowserAuth: vi.fn(),
     recoverSub2ApiBrowserAuth: (...args: any[]) =>
@@ -47,20 +52,24 @@ vi.mock(
 
 const createRequest = (
   overrides: Partial<Sub2ApiAuthSessionRequest<ApiServiceRequest>> = {},
-): Sub2ApiAuthSessionRequest<ApiServiceRequest> => ({
-  baseUrl: "https://sub2.example.com",
-  accountId: "acc-1",
-  sub2apiAuthSession: {
-    getLatestAuth: (...args: any[]) => getLatestAuthMock(...args),
-    persistAuthUpdate: (...args: any[]) => persistAuthUpdateMock(...args),
-  },
-  auth: {
-    authType: AuthTypeEnum.AccessToken,
-    userId: "1",
-    accessToken: "old-jwt",
-  },
-  ...overrides,
-})
+): Sub2ApiAuthSessionRequest<ApiServiceRequest> =>
+  bindApiTransportRequest(
+    {
+      baseUrl: "https://sub2.example.com",
+      accountId: "acc-1",
+      sub2apiAuthSession: {
+        getLatestAuth: (...args: any[]) => getLatestAuthMock(...args),
+        persistAuthUpdate: (...args: any[]) => persistAuthUpdateMock(...args),
+      },
+      auth: {
+        authType: AuthTypeEnum.AccessToken,
+        userId: "1",
+        accessToken: "old-jwt",
+      },
+      ...overrides,
+    },
+    overrides.directRequestReason ?? API_DIRECT_REQUEST_REASONS.Passive,
+  )
 
 describe("apiService sub2api key management service", () => {
   beforeEach(() => {
@@ -241,6 +250,29 @@ describe("apiService sub2api key management service", () => {
       "9": 1,
       "10": 2.5,
     })
+  })
+
+  it("reads a legacy array response as one complete inventory page", async () => {
+    fetchApiMock.mockResolvedValueOnce({
+      code: 0,
+      message: "ok",
+      data: [
+        {
+          id: 1,
+          key: "legacy-key",
+          name: "Legacy key",
+          status: "active",
+          group: { id: 1, name: "default" },
+        },
+      ],
+    })
+    await expect(fetchSub2ApiKeys(createRequest())).resolves.toEqual([
+      expect.objectContaining({ id: 1, group_name: "default" }),
+    ])
+    expect(fetchApiMock).toHaveBeenCalledTimes(1)
+    expect(fetchApiMock.mock.calls[0]?.[1]?.endpoint).toBe(
+      "/api/v1/keys?page=1&page_size=1000",
+    )
   })
 
   it("fetches every key inventory page for group coverage", async () => {
@@ -484,96 +516,124 @@ describe("apiService sub2api key management service", () => {
     expect(token.user_id).toBe("42")
   })
 
-  it("serializes concurrent refreshes for group fetches and reuses rotated auth", async () => {
-    const now = 1_772_713_600_000
-    vi.spyOn(Date, "now").mockReturnValue(now)
+  it.each([false, true])(
+    "serializes concurrent refreshes and reuses rotated auth (separate contexts=%s)",
+    async (separateContexts) => {
+      const now = 1_772_713_600_000
+      vi.spyOn(Date, "now").mockReturnValue(now)
 
-    let currentAccount = {
-      accessToken: "stored-jwt",
-      userId: "1",
-      sub2apiAuth: {
-        refreshToken: "stored-refresh",
-        tokenExpiresAt: now + 30_000,
-      },
-    }
-
-    getLatestAuthMock.mockImplementation(async () =>
-      structuredClone(currentAccount),
-    )
-    persistAuthUpdateMock.mockImplementation(async (_id, updates) => {
-      currentAccount = {
-        ...currentAccount,
-        accessToken: updates.accessToken,
-        sub2apiAuth: updates.refreshToken
-          ? {
-              ...(currentAccount.sub2apiAuth ?? {}),
-              refreshToken: updates.refreshToken,
-              ...(typeof updates.tokenExpiresAt === "number"
-                ? { tokenExpiresAt: updates.tokenExpiresAt }
-                : {}),
-            }
-          : currentAccount.sub2apiAuth,
+      let currentAccount = {
+        accessToken: "stored-jwt",
+        userId: "1",
+        sub2apiAuth: {
+          refreshToken: "stored-refresh",
+          tokenExpiresAt: now + 30_000,
+        },
       }
 
-      return { status: "persisted" }
-    })
+      getLatestAuthMock.mockImplementation(async () =>
+        structuredClone(currentAccount),
+      )
+      persistAuthUpdateMock.mockImplementation(async (_id, updates) => {
+        currentAccount = {
+          ...currentAccount,
+          accessToken: updates.accessToken,
+          sub2apiAuth: updates.refreshToken
+            ? {
+                ...(currentAccount.sub2apiAuth ?? {}),
+                refreshToken: updates.refreshToken,
+                ...(typeof updates.tokenExpiresAt === "number"
+                  ? { tokenExpiresAt: updates.tokenExpiresAt }
+                  : {}),
+              }
+            : currentAccount.sub2apiAuth,
+        }
 
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          code: 0,
-          message: "ok",
-          data: {
-            access_token: "new-jwt",
-            refresh_token: "rotated-refresh",
-            expires_in: 3600,
+        return { status: "persisted" }
+      })
+
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: 0,
+            message: "ok",
+            data: {
+              access_token: "new-jwt",
+              refresh_token: "rotated-refresh",
+              expires_in: 3600,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      vi.stubGlobal("fetch", fetchMock as any)
+
+      fetchApiMock.mockImplementation(async (_request, options) => {
+        if (options?.endpoint === "/api/v1/auth/me") {
+          return {
+            code: 0,
+            message: "ok",
+            data: { id: 1, username: "example-user", balance: 1 },
+          }
+        }
+
+        if (options?.endpoint === "/api/v1/groups/available") {
+          return {
+            code: 0,
+            message: "ok",
+            data: [{ id: "1", name: "default", description: "Default plan" }],
+          }
+        }
+
+        if (options?.endpoint === "/api/v1/groups/rates") {
+          return {
+            code: 0,
+            message: "ok",
+            data: { "1": 1 },
+          }
+        }
+
+        throw new Error(`Unexpected endpoint: ${options?.endpoint}`)
+      })
+
+      const queues = new Map<string, Promise<unknown>>()
+      vi.stubGlobal("navigator", {
+        locks: {
+          request: async (
+            name: string,
+            _options: unknown,
+            callback: () => Promise<unknown>,
+          ) => {
+            const run = (queues.get(name) ?? Promise.resolve()).then(callback)
+            queues.set(
+              name,
+              run.then(
+                () => undefined,
+                () => undefined,
+              ),
+            )
+            return run
           },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    )
-    vi.stubGlobal("fetch", fetchMock as any)
+        },
+      })
+      vi.resetModules()
+      const otherContext = separateContexts
+        ? (await import("~/services/apiService/sub2api/account/groups"))
+            .fetchSub2ApiGroupDescriptors
+        : fetchSub2ApiGroupDescriptors
+      const [firstGroups, secondGroups] = await Promise.all([
+        fetchSub2ApiGroupDescriptors(createRequest()),
+        otherContext(createRequest()),
+      ])
 
-    fetchApiMock.mockImplementation(async (_request, options) => {
-      if (options?.endpoint === "/api/v1/auth/me") {
-        return {
-          code: 0,
-          message: "ok",
-          data: { id: 1, username: "example-user", balance: 1 },
-        }
-      }
-
-      if (options?.endpoint === "/api/v1/groups/available") {
-        return {
-          code: 0,
-          message: "ok",
-          data: [{ id: "1", name: "default", description: "Default plan" }],
-        }
-      }
-
-      if (options?.endpoint === "/api/v1/groups/rates") {
-        return {
-          code: 0,
-          message: "ok",
-          data: { "1": 1 },
-        }
-      }
-
-      throw new Error(`Unexpected endpoint: ${options?.endpoint}`)
-    })
-
-    const [firstGroups, secondGroups] = await Promise.all([
-      fetchSub2ApiGroupDescriptors(createRequest()),
-      fetchSub2ApiGroupDescriptors(createRequest()),
-    ])
-
-    expect(firstGroups).toEqual([
-      expect.objectContaining({ id: 1, displayName: "default" }),
-    ])
-    expect(secondGroups).toEqual(firstGroups)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(persistAuthUpdateMock).toHaveBeenCalledTimes(1)
-  })
+      expect(firstGroups).toEqual([
+        expect.objectContaining({ id: 1, displayName: "default" }),
+      ])
+      expect(secondGroups).toEqual(firstGroups)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(persistAuthUpdateMock).toHaveBeenCalledTimes(1)
+    },
+  )
 
   it("retries key requests with refresh-token recovery and persists rotated auth", async () => {
     const now = 1_772_713_600_000
@@ -639,9 +699,13 @@ describe("apiService sub2api key management service", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(tokens).toHaveLength(1)
-    expect(tokens[0].key).toBe("retried-key")
+    expect(atIndex(tokens, 0).key).toBe("retried-key")
     expect(persistAuthUpdateMock).toHaveBeenCalledWith("acc-1", {
       accessToken: "new-jwt",
+      expectedAuth: {
+        accessToken: "stored-jwt",
+        refreshToken: "stored-refresh",
+      },
       refreshToken: "rotated-refresh",
       tokenExpiresAt: now + 3600 * 1000,
       userId: "1",
@@ -783,14 +847,14 @@ describe("Sub2API native key transport", () => {
       key: "created-secret",
     })
     expect(fetchApiMock).toHaveBeenCalledTimes(1)
-    expect(fetchApiMock.mock.calls[0][1]).toMatchObject({
+    expect(atIndex(fetchApiMock.mock.calls, 0)[1]).toMatchObject({
       endpoint: "/api/v1/keys",
       options: { method: "POST", body: JSON.stringify(payload) },
     })
     fetchApiMock.mockResolvedValueOnce({ code: 0, message: "ok" })
     const edit = { name: "renamed", quota: 4.25 }
     await updateSub2ApiKey(request, 12, edit)
-    expect(fetchApiMock.mock.calls[1][1]).toMatchObject({
+    expect(atIndex(fetchApiMock.mock.calls, 1)[1]).toMatchObject({
       endpoint: "/api/v1/keys/12",
       options: { method: "PUT", body: JSON.stringify(edit) },
     })

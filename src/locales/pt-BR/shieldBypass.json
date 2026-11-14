@@ -130,13 +130,27 @@
     },
     "unexpectedContent": "A resposta tinha um formato inesperado e pode ter sido uma página de verificação do site."
   },
+  "notification": {
+    "loginAssistBody": "O login está aguardando. Abra a janela de login para concluir a verificação ou a autenticação de dois fatores; a extensão verificará a conta e o resultado da tarefa.",
+    "loginSessionBody": "Esta janela já tem uma sessão iniciada. Para evitar encerrar contas em outras janelas, abra a janela de login e saia manualmente após confirmar; a extensão entrará na conta de destino.",
+    "openLogin": "Abrir janela de login",
+    "openVerification": "Abrir janela de verificação",
+    "reminderSettings": "Configurações de avisos",
+    "turnstileAssistBody": "O site está aguardando uma verificação humana. Abra a janela de verificação para resolver o captcha. A extensão verificará o resultado em seguida.",
+    "turnstileAssistTitle": "All API Hub · Aviso de verificação",
+    "turnstilePageBody": "O site está aguardando uma verificação humana. Abra a janela de verificação para resolver o captcha. A extensão verificará o resultado em seguida.",
+    "verificationEnded": "Esta verificação terminou. Nenhuma ação adicional é necessária."
+  },
   "titlePrefix": "All API Hub · Bypass de proteção",
   "toast": {
     "actions": {
-      "dismiss": "Dispensar",
       "openSettings": "Abrir configurações do bypass de proteção"
     },
-    "body": "Esta página foi aberta automaticamente pelo All API Hub para passar por páginas de proteção (por exemplo, desafios do Cloudflare) e obter os cookies ou a sessão necessários.\n\nIsso é necessário para que o All API Hub faça solicitações com sucesso e detecte dados em sites protegidos.\n\nSe uma etapa de verificação aparecer, conclua-a nesta janela. Após a aprovação, o All API Hub continuará e esta janela poderá ser fechada automaticamente.",
-    "title": "Assistente de bypass de proteção do All API Hub (janela temporária)"
+    "body": "Esta página foi aberta automaticamente pelo All API Hub para passar por páginas de proteção (por exemplo, desafios do Cloudflare) e obter os cookies ou a sessão necessários.\nIsso é necessário para que o All API Hub faça solicitações com sucesso e detecte dados em sites protegidos.\nSe uma etapa de verificação aparecer, conclua-a nesta janela. Após a aprovação, o All API Hub continuará e esta janela poderá ser fechada automaticamente.",
+    "title": "Assistente de bypass de proteção",
+    "turnstile": {
+      "body": "Conclua a verificação do site nesta janela, por exemplo marcando “Sou humano” ou selecionando as imagens solicitadas. A extensão está aguardando e depois verificará o resultado. Se a página ainda mostrar o check-in pendente, conclua-o ali.",
+      "title": "Conclua a verificação humana"
+    }
   }
 }

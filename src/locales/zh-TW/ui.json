@@ -8,6 +8,57 @@
     "tokenBased": "按量計費"
   },
   "dialog": {
+    "aiToolbox": {
+      "actions": {
+        "export": "匯出"
+      },
+      "appOptions": {
+        "claude": "Claude Code",
+        "claudedesktop": "Claude Desktop",
+        "codex": "Codex",
+        "dsh": "DeepSeek Harness",
+        "gemini": "Gemini CLI",
+        "grok": "Grok CLI",
+        "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "omp": "Oh My Pi",
+        "openclaw": "OpenClaw",
+        "opencode": "OpenCode",
+        "pi": "Pi"
+      },
+      "description": "透過深連結一鍵匯入當前站點配置到 AI Toolbox",
+      "descriptions": {
+        "apiFormat": "AI Toolbox 會依目標應用重建供應商配置，因此僅當此供應商不使用應用預設協定時才需要指定。",
+        "model": "若可用，會自動從 /v1/models 獲取模型列表供選擇；也可以直接輸入自定義模型名稱。"
+      },
+      "fields": {
+        "apiFormat": "介面協定",
+        "app": "目標應用",
+        "baseUrl": "介面地址",
+        "homepage": "主頁地址",
+        "model": "預設模型（可選）",
+        "name": "供應商名稱",
+        "notes": "備註（可選）"
+      },
+      "formatOptions": {
+        "anthropicMessages": "Anthropic Messages",
+        "automatic": "自動（跟隨應用預設）",
+        "geminiNative": "Gemini Native",
+        "openAIChat": "OpenAI Chat Completions",
+        "openAIResponses": "OpenAI Responses"
+      },
+      "modelOptions": {
+        "none": "不設定預設模型"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com",
+        "homepage": "https://example.com",
+        "model": "例如 claude-3-opus",
+        "name": "例如 Acme 中轉",
+        "notes": "新增匯入說明"
+      },
+      "title": "匯出到 AI Toolbox"
+    },
     "bookmarkAccountImport": {
       "actions": {
         "allowAndScan": "選擇書籤並開始批量匯入",
@@ -18,21 +69,25 @@
         "collapseFolder": "摺疊資料夾",
         "expandAll": "全部展開",
         "expandFolder": "展開資料夾",
-        "importSelected_other": "匯入所選項目（{{count}}）",
+        "importSelected_other": "新增所選項目（{{count}}）",
         "invertSelected": "反選",
-        "openAddAccount": "開啟新增帳號",
+        "openAddAccount": "手動完善",
+        "retryFailed": "重試未完成項目",
         "scanSelected": "掃描所選範圍",
         "selectAll": "全選"
       },
       "apiUnavailable": "目前瀏覽器未向擴充功能開放原生書籤介面。",
+      "bestEffortHelp": "會盡量自動完成新增，部分站點可能需要你先登入、完成驗證或補充資訊。",
       "bookmarkCount_one": "{{count}} 個書籤",
       "bookmarkCount_other": "{{count}} 個書籤",
-      "description": "批量掃描瀏覽器書籤中的帳號站點，並在匯入前檢視候選項。",
+      "description": "從收藏的站點批次新增帳號，省去逐一輸入。",
       "empty": "瀏覽器沒有傳回任何書籤。",
       "failures": {
-        "detection": "自動偵測無法讀取此站點。",
-        "save": "帳號無法儲存。",
-        "unknown": "匯入失敗。"
+        "detection": "還需要一些帳號資訊，可重試或手動完善。",
+        "login": "請先登入此站點，再重試新增。",
+        "save": "請檢查並補充帳號資訊後再新增。",
+        "unknown": "暫未完成新增，可重試或手動完善。",
+        "verification": "此站點需要你完成驗證，可點擊「手動完善」繼續。"
       },
       "folderCount_one": "{{count}} 個資料夾",
       "folderCount_other": "{{count}} 個資料夾",
@@ -41,16 +96,17 @@
       "includeExisting": "包含已有已儲存帳號的站點",
       "initialSteps": {
         "chooseScope": "選擇書籤範圍",
-        "review": "預覽可匯入站點",
+        "review": "確認待新增站點",
         "skipExisting": "預設略過已有帳號"
       },
-      "initialValue": "如果你之前用瀏覽器書籤收藏了各個中轉站，可以一次掃描這些書籤，批量產生帳號候選。匯入前會先讓你選擇書籤範圍並檢視結果，已有帳號預設略過。",
+      "initialValue": "選擇收藏中轉站的書籤，確認站點後即可批次新增，已有帳號預設略過。",
       "noCandidates": "未找到可匯入的網頁書籤網址。",
       "permissionDenied": "未授予書籤權限。你可以不關閉此對話框並重試。",
       "permissionNeeded": "書籤存取是可選權限，僅會在本次批量匯入時請求。",
       "readFailed": "無法讀取瀏覽器書籤樹。",
+      "recoveryHelp": "剩餘帳號可登入後重試，也可以點擊「手動完善」繼續新增。",
       "reloadFailed": "匯入已完成，但帳號資料無法重新載入。如果新帳號未顯示，請重新整理帳號列表後重試。",
-      "resultSummary": "已匯入 {{success}} 個，失敗 {{failed}} 個，略過 {{skipped}} 個。",
+      "resultSummary": "已新增 {{success}} 個，待完善 {{failed}} 個，略過 {{skipped}} 個。",
       "scanning": "正在掃描瀏覽器書籤...",
       "scopeHelp": "掃描只會產生候選預覽，匯入前可以返回這裡調整選擇。",
       "searchEmpty": "未找到相符的書籤範圍",
@@ -61,7 +117,7 @@
       "status": {
         "duplicate_other": "預設略過。已有已儲存帳號符合數：{{count}}",
         "imported": "已匯入",
-        "ready": "可匯入"
+        "ready": "待新增"
       },
       "title": "從書籤匯入帳號",
       "untitledFolder": "未命名資料夾"
@@ -71,13 +127,20 @@
         "export": "匯出"
       },
       "appOptions": {
+        "agy": "Antigravity",
         "claude": "Claude",
+        "claudeDesktop": "Claude Desktop",
         "codex": "Codex",
+        "dsh": "DeepSeek Harness",
         "gemini": "Gemini",
         "grokbuild": "Grok CLI",
         "hermes": "Hermes",
+        "kimi": "Kimi Code",
+        "mcode": "MiniMax Code",
+        "omp": "Oh My Pi",
         "openclaw": "OpenClaw",
-        "opencode": "OpenCode"
+        "opencode": "OpenCode",
+        "pi": "Pi"
       },
       "description": "透過深連結一鍵匯入當前站點配置到 CC Switch",
       "descriptions": {
@@ -87,7 +150,7 @@
         "app": "目標應用",
         "endpoint": "介面地址",
         "homepage": "主頁地址",
-        "model": "預設模型（可選）",
+        "model": "預設模型",
         "name": "供應商名稱",
         "notes": "備註（可選）"
       },
@@ -95,7 +158,9 @@
         "none": "不設定預設模型"
       },
       "notices": {
+        "claudeDesktop": "需要 CC Switch v4.0.26 或更新版本。使用 Anthropic API 格式。模型名稱以 claude- 開頭或未指定模型時匯入為直連卡片；其他模型名稱匯入為透過 CC Switch 本機路由轉發的模型對應卡片。",
         "hermes": "CC Switch 會將 Hermes 匯入為 Chat Completions 協定。匯出時，供應商名稱會轉換為只含小寫字母、數字和連字號的有效識別碼；如需 Anthropic Messages、Codex Responses 等其他格式，請在匯入後到 CC Switch 中調整。",
+        "modelRequired": "需要 CC Switch v4.0.26 或更新版本。匯出前請選擇或輸入模型。使用 OpenAI Chat Completions API 格式。",
         "openclaw": "CC Switch 當前不支援透過外部匯入的方式配置 OpenClaw AI 服務的 API 介面格式；如有需要，請在匯入後到 CC Switch 中手動調整。",
         "opencode": "CC Switch 當前不支援透過外部匯入的方式配置 OpenCode AI 服務的 API 介面格式；如有需要，請在匯入後到 CC Switch 中手動調整。"
       },
@@ -146,6 +211,7 @@
       "keyCopied": "金鑰已複製到剪貼簿",
       "loadFailed": "載入金鑰列表失敗: {{error}}",
       "loading": "正在獲取金鑰列表...",
+      "managementConfigurationRequired": "載入及管理站點金鑰清單需要管理權杖。已儲存的 API 金鑰仍可單獨使用。",
       "noKeyFoundAfterCreate": "建立成功但未獲取到金鑰，請重試。",
       "noKeys": "暫無金鑰資料",
       "noKeysDescription": "該帳號暫無可用金鑰，可快速建立預設金鑰或自定義建立後再複製。",
@@ -280,11 +346,15 @@
     "expand": "展開",
     "firefox": {
       "confirm": "確定",
+      "howOpenOptions": "在完整頁面繼續",
       "howOpenSidebar": "如何開啟側邊欄",
       "limitation": "Firefox 瀏覽器功能限制",
+      "openFailed": "暫時無法開啟側邊欄或完整頁面，請重試。",
+      "openOptions": "在完整頁面繼續",
       "openSidebar": "開啟側邊欄",
-      "popupLimitation": "在 Firefox 瀏覽器的彈窗中無法正常使用此功能。請使用側邊欄模式來新增帳號",
-      "sidebarInstruction": "點擊瀏覽器工具欄中的外掛圖示，然後選擇\"側邊欄\"選項來開啟側邊欄模式",
+      "optionsInstruction": "點擊下方按鈕，開啟擴充功能的完整帳號管理頁面。",
+      "popupLimitation": "Firefox 彈窗可能在開啟其他頁面時關閉。建議在側邊欄或完整頁面新增帳號。",
+      "sidebarInstruction": "點擊下方按鈕，在側邊欄繼續。無法開啟時會使用完整頁面。",
       "warningTitle": "功能限制提醒"
     },
     "kelivo": {
@@ -413,27 +483,32 @@
       "titleWithCookieInterceptor": "自動重新整理需要網站驗證"
     },
     "updateLog": {
-      "autoOpenSetting": "更新日誌自動開啟",
-      "disableAutoOpen": "不再自動開啟",
-      "enableAutoOpen": "重新啟用自動開啟",
       "loading": "正在載入更新日誌…",
-      "missingSection": "更新日誌預覽載入失敗（v{{version}}）。你可以開啟完整更新日誌檢視。",
-      "openFullChangelog": "開啟完整更新日誌",
-      "starPrompt": "覺得 All API Hub 有幫助？點個 Star 跟隨每日更新",
+      "missingSection": "更新日誌載入較慢（v{{version}}），可以開啟完整日誌查看。",
+      "openFullChangelog": "查看完整日誌",
+      "starPrompt": "點個 Star，支持持續改進",
       "title": "更新內容",
       "updatedTo": "已更新至 v{{version}}"
     }
   },
   "feedback": {
     "bugReport": "反饋問題",
+    "clickAnywhereToClose": "點擊空白處關閉",
     "community": "社羣交流群",
+    "communityUnavailable": "社群連結載入失敗，請開啟線上社群頁查看最新邀請方式。",
     "discussion": "參與討論",
     "featureRequest": "提出功能建議",
     "languageRequest": "請求支援新語言",
+    "openCommunityPage": "開啟線上社群頁",
     "siteSupportRequest": "反饋未適配站點",
+    "sponsor": "贊助支持",
+    "sponsorTitle": "查看贊助商與贊助支持",
     "starOnGithub": "去 GitHub 點個 Star",
     "trigger": "反饋",
-    "triggerTooltip": "開啟反饋快捷入口"
+    "triggerTooltip": "開啟反饋快捷入口",
+    "wechat": "微信群",
+    "wechatHelp": "群組 QR Code 失效或群組已滿？可掃描圖中的個人 QR Code 加好友，請對方邀請入群，也可查看線上社群頁。",
+    "wechatUnavailable": "QR Code 載入失敗。"
   },
   "modelListInput": {
     "actions": {
@@ -485,6 +560,7 @@
     "basic": "設定",
     "batchCheckin": "批量簽到",
     "bookmark": "書籤管理",
+    "browserApiLab": "瀏覽器 API 實驗室 (Dev)",
     "categories": {
       "api": "介面",
       "automation": "自動化",
@@ -540,10 +616,12 @@
   "popupInterruption": {
     "actions": {
       "keepPopup": "繼續用彈窗",
-      "useSidepanel": "改用側邊欄"
+      "useOptions": "在完整頁面繼續",
+      "useSidepanel": "在側邊欄繼續"
     },
-    "description": "彈窗在帳戶自動識別期間關閉了。建議改用側邊欄完成新增帳戶流程。",
-    "settingName": "工具列點擊行為",
+    "description": "彈窗在帳號自動辨識期間關閉了。建議在側邊欄繼續新增帳號；無法開啟時會使用完整頁面。",
+    "openFailed": "暫時無法開啟側邊欄或完整頁面，請重試。",
+    "optionsDescription": "彈窗在帳號自動辨識期間關閉了。建議在完整頁面繼續新增帳號。",
     "title": "自動識別可能被中斷"
   },
   "repeatableInput": {
@@ -560,6 +638,12 @@
   },
   "searchableSelect": {
     "empty": "未找到匹配項",
+    "fetchDetails": "錯誤詳情",
+    "fetchEmpty": "請求成功，但介面回傳的模型清單為空。",
+    "fetchEmptyLabel": "清單為空",
+    "fetchFailed": "取得清單失敗。",
+    "fetchSuccess_other": "已取得 {{count}} 個模型。",
+    "manualInputHint": "可直接輸入模型 ID。",
     "noOptions": "暫無可選項",
     "noOptionsAllowCustom": "暫無可選項，可輸入建立",
     "searchPlaceholder": "搜尋...",
@@ -567,6 +651,7 @@
   },
   "secretList": {
     "add": "新增金鑰",
+    "clearedState": "儲存的金鑰將被清除",
     "collapse": "收合 API 金鑰 {{number}}",
     "configured": "已設定",
     "enableKey": "啟用此金鑰",
@@ -574,6 +659,7 @@
     "hide": "隱藏金鑰",
     "keepPlaceholder": "留空以保留原金鑰",
     "loadFailed": "無法載入此金鑰，請重試。",
+    "maskedOnly": "此已儲存金鑰僅提供遮罩，無法查看明文。",
     "newPlaceholder": "輸入 API 金鑰",
     "newState": "新增，尚未儲存",
     "previousDisableReason": "上次停用原因：{{reason}}",
@@ -586,6 +672,12 @@
     "show": "查看金鑰",
     "title": "API 金鑰"
   },
+  "sidebarFooter": {
+    "community": "社區",
+    "docs": "文檔",
+    "github": "GitHub",
+    "sponsor": "贊助支持"
+  },
   "starPromotion": {
     "actions": {
       "alreadyStarred": "我已經 Star 過了",
@@ -594,7 +686,7 @@
       "star": "去 Star"
     },
     "cardDescription": "All API Hub 完全開源，不斷適配更多站點、優化使用體驗。點個 Star，支持它持續維護，也讓更多需要它的人發現這裡。",
-    "cardTitle": "用得順手嗎？"
+    "cardTitle": "支持持續改進"
   },
   "textEntries": {
     "add": "新增一列",

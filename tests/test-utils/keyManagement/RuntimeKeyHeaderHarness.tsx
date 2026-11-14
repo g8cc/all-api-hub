@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next"
-import { StrictMode, type ComponentProps } from "react"
+import type { ComponentProps } from "react"
 import { vi } from "vitest"
 
 import { RuntimeKeyHeader } from "~/features/KeyManagement/components/RuntimeKeyActions/RuntimeKeyHeader"
@@ -38,7 +38,7 @@ type RuntimeKeyHeaderHarnessProps = Partial<Omit<HeaderProps, "runtimeKey">> &
     handleEditToken?: () => void
     handleDeleteToken?: () => void
     translate?: TFunction
-    withCCSwitchExport?: boolean
+    withDeeplinkExport?: boolean
   }
 
 export function RuntimeKeyHeaderHarness({
@@ -53,8 +53,8 @@ export function RuntimeKeyHeaderHarness({
   copyKey = vi.fn(),
   handleEditToken = vi.fn(),
   handleDeleteToken = vi.fn(),
-  onOpenCCSwitchDialog = vi.fn(),
-  withCCSwitchExport = true,
+  onOpenDeeplinkExport = vi.fn(),
+  withDeeplinkExport = true,
   ...restProps
 }: RuntimeKeyHeaderHarnessProps) {
   const account =
@@ -98,8 +98,8 @@ export function RuntimeKeyHeaderHarness({
       handleEditKey={handleEditKey ?? handleEditToken}
       handleDeleteKey={handleDeleteKey ?? handleDeleteToken}
       account={account}
-      onOpenCCSwitchDialog={
-        withCCSwitchExport ? onOpenCCSwitchDialog : undefined
+      onOpenDeeplinkExport={
+        withDeeplinkExport ? onOpenDeeplinkExport : undefined
       }
       headerProps={
         headerPropsOverride ?? {
@@ -127,9 +127,10 @@ export function renderRuntimeKeyHeader(
         {...nextProps}
       />
     )
-    return options.strictMode ? <StrictMode>{harness}</StrictMode> : harness
+    return harness
   }
   const rendered = render(renderHarness(props), {
+    reactStrictMode: options.strictMode,
     withReleaseUpdateStatusProvider: false,
     withThemeProvider: false,
     withUserPreferencesProvider: false,

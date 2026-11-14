@@ -1,5 +1,11 @@
 import type { TFunction } from "i18next"
-import { CloudDownload, Download, RefreshCw } from "lucide-react"
+import {
+  Check,
+  CircleAlert,
+  CloudDownload,
+  Download,
+  RefreshCw,
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { WorkflowTransitionIcon } from "~/components/icons/WorkflowTransitionIcon"
@@ -8,15 +14,18 @@ import {
   ActionGroup,
   BodySmall,
   Button,
+  Caption,
   Card,
-  CardItem,
-  CardList,
+  CardContent,
+  Heading6,
 } from "~/components/ui"
 import { useReleaseUpdateStatus } from "~/contexts/ReleaseUpdateStatusContext"
 import toast from "~/lib/notify"
+import { cn } from "~/lib/utils"
 import {
   deriveReleaseUpdateCheckOutcome,
   deriveReleaseUpdatePresentation,
+  RELEASE_UPDATE_ACTION_KINDS,
   RELEASE_UPDATE_CHECK_OUTCOMES,
   RELEASE_UPDATE_PRESENTATION_STATES,
 } from "~/services/updates/presentation"
@@ -25,52 +34,8 @@ import {
   RELEASE_UPDATE_REASONS,
   type ReleaseUpdateReason,
 } from "~/services/updates/releaseUpdateStatus"
-import { reloadRuntime } from "~/utils/browser/browserApi"
-
-/**
- * Format the last release-check timestamp for a localized status line.
- */
-function formatCheckedAt(
-  timestamp: number | null,
-  locale: string,
-): string | null {
-  if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) {
-    return null
-  }
-
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(timestamp)
-  } catch {
-    return new Date(timestamp).toLocaleString()
-  }
-}
-
-/**
- * Map install-eligibility reasons to localized title text for the panel.
- */
-function getReasonDescription(
-  reason: ReleaseUpdateReason,
-  t: TFunction,
-): string {
-  switch (reason) {
-    case RELEASE_UPDATE_REASONS.ChromiumDevelopment:
-      return t("settings:releaseUpdate.reasons.chromium-development")
-    case RELEASE_UPDATE_REASONS.StoreBuild:
-      return t("settings:releaseUpdate.reasons.store-build")
-    case RELEASE_UPDATE_REASONS.FirefoxAmbiguous:
-      return t("settings:releaseUpdate.reasons.firefox-ambiguous")
-    case RELEASE_UPDATE_REASONS.SafariUnsupported:
-      return t("settings:releaseUpdate.reasons.safari-unsupported")
-    case RELEASE_UPDATE_REASONS.ApiUnavailable:
-      return t("settings:releaseUpdate.reasons.api-unavailable")
-    case RELEASE_UPDATE_REASONS.Unknown:
-    default:
-      return t("settings:releaseUpdate.reasons.unknown")
-  }
-}
+import { reloadRuntime } from "~/utils/browser/runtime"
+import { getDocsChangelogUrl } from "~/utils/navigation/docsLinks"
 
 /**
  * Map the derived release-update state to the primary status title shown in the panel.
@@ -78,9 +43,8 @@ function getReasonDescription(
 function getStatusTitle(options: {
   state: ReturnType<typeof deriveReleaseUpdatePresentation>["state"]
   t: TFunction
-  reason: ReleaseUpdateReason
 }): string {
-  const { state, t, reason } = options
+  const { state, t } = options
 
   switch (state) {
     case RELEASE_UPDATE_PRESENTATION_STATES.Loading:
@@ -101,7 +65,7 @@ function getStatusTitle(options: {
       return t("settings:releaseUpdate.states.notChecked")
     case RELEASE_UPDATE_PRESENTATION_STATES.Ineligible:
     default:
-      return getReasonDescription(reason, t)
+      return t("settings:releaseUpdate.states.unavailable")
   }
 }
 
@@ -112,8 +76,9 @@ function getStatusHelper(options: {
   state: ReturnType<typeof deriveReleaseUpdatePresentation>["state"]
   t: TFunction
   reason: ReleaseUpdateReason
+  selfUpdate: boolean
 }): string | undefined {
-  const { state, t, reason } = options
+  const { state, t, reason, selfUpdate } = options
 
   switch (state) {
     case RELEASE_UPDATE_PRESENTATION_STATES.Loading:
@@ -125,7 +90,12 @@ function getStatusHelper(options: {
     case RELEASE_UPDATE_PRESENTATION_STATES.StoreUpdatePending:
       return t("settings:releaseUpdate.helpers.storeUpdate")
     case RELEASE_UPDATE_PRESENTATION_STATES.UpdateAvailable:
+      if (selfUpdate) {
+        return t("settings:releaseUpdate.helpers.selfUpdate")
+      }
       switch (reason) {
+        case RELEASE_UPDATE_REASONS.FirefoxAmo:
+          return t("settings:releaseUpdate.helpers.amoUpdate")
         case RELEASE_UPDATE_REASONS.StoreBuild:
           return t("settings:releaseUpdate.helpers.storeUpdate")
         case RELEASE_UPDATE_REASONS.ChromiumDevelopment:
@@ -136,12 +106,11 @@ function getStatusHelper(options: {
     case RELEASE_UPDATE_PRESENTATION_STATES.CheckFailed:
       return t("settings:releaseUpdate.helpers.checkFailed")
     case RELEASE_UPDATE_PRESENTATION_STATES.UpToDate:
-      return t("settings:releaseUpdate.helpers.upToDate")
     case RELEASE_UPDATE_PRESENTATION_STATES.NotChecked:
-      return t("settings:releaseUpdate.helpers.notChecked")
+      return undefined
     case RELEASE_UPDATE_PRESENTATION_STATES.Ineligible:
     default:
-      return t("settings:releaseUpdate.helpers.openLatest")
+      return undefined
   }
 }
 
@@ -150,28 +119,65 @@ function getStatusHelper(options: {
  */
 function getLatestVersionLine(options: {
   latestVersion: string | null
-  state: ReturnType<typeof deriveReleaseUpdatePresentation>["state"]
   t: TFunction
+  reason: ReleaseUpdateReason
 }): string {
-  const { latestVersion, state, t } = options
+  const { latestVersion, t, reason } = options
 
   if (latestVersion) {
+    if (reason === RELEASE_UPDATE_REASONS.FirefoxAmo) {
+      return t("settings:releaseUpdate.latestAmoVersion", {
+        version: latestVersion,
+      })
+    }
+    if (reason === RELEASE_UPDATE_REASONS.GithubNightly) {
+      return t("settings:releaseUpdate.latestNightlyVersion", {
+        version: latestVersion,
+      })
+    }
     return t("about:releaseUpdate.latestVersion", {
       version: latestVersion,
     })
   }
 
-  switch (state) {
-    case RELEASE_UPDATE_PRESENTATION_STATES.Loading:
-    case RELEASE_UPDATE_PRESENTATION_STATES.NotChecked:
-      return t("settings:releaseUpdate.latestVersionPending")
-    case RELEASE_UPDATE_PRESENTATION_STATES.Unavailable:
-    case RELEASE_UPDATE_PRESENTATION_STATES.CheckFailed:
-    case RELEASE_UPDATE_PRESENTATION_STATES.Ineligible:
-    case RELEASE_UPDATE_PRESENTATION_STATES.UpdateAvailable:
-    case RELEASE_UPDATE_PRESENTATION_STATES.UpToDate:
+  return ""
+}
+
+/**
+ * Map the derived release-update action kind to the action button label.
+ */
+function getActionLabel(
+  actionKind: ReturnType<typeof deriveReleaseUpdatePresentation>["actionKind"],
+  t: TFunction,
+): string {
+  switch (actionKind) {
+    case RELEASE_UPDATE_ACTION_KINDS.ReloadToUpdate:
+      return t("settings:releaseUpdate.reloadToUpdate")
+    case RELEASE_UPDATE_ACTION_KINDS.ViewReleaseNotes:
+      return t("settings:releaseUpdate.viewReleaseNotes")
+    case RELEASE_UPDATE_ACTION_KINDS.DownloadUpdate:
+      return t("settings:releaseUpdate.downloadUpdate")
+    case RELEASE_UPDATE_ACTION_KINDS.OpenLatest:
     default:
-      return t("settings:releaseUpdate.latestVersionUnavailable")
+      return t("settings:releaseUpdate.changelog")
+  }
+}
+
+/**
+ * Map the derived release-update action kind to the action button icon.
+ */
+function getActionIcon(
+  actionKind: ReturnType<typeof deriveReleaseUpdatePresentation>["actionKind"],
+) {
+  switch (actionKind) {
+    case RELEASE_UPDATE_ACTION_KINDS.ReloadToUpdate:
+      return <RefreshCw className="h-4 w-4" />
+    case RELEASE_UPDATE_ACTION_KINDS.ViewReleaseNotes:
+    case RELEASE_UPDATE_ACTION_KINDS.DownloadUpdate:
+      return <Download className="h-4 w-4" />
+    case RELEASE_UPDATE_ACTION_KINDS.OpenLatest:
+    default:
+      return <WorkflowTransitionIcon className="h-4 w-4" />
   }
 }
 
@@ -179,57 +185,51 @@ function getLatestVersionLine(options: {
  * Shared release-update status panel rendered in About and Settings surfaces.
  */
 export function ReleaseUpdateStatusPanel() {
-  const { t, i18n } = useTranslation(["settings", "about", "common"])
+  const { t } = useTranslation(["settings", "about", "common"])
   const { status, isLoading, isChecking, checkNow } = useReleaseUpdateStatus()
 
-  const lastChecked = formatCheckedAt(status?.checkedAt ?? null, i18n.language)
   const presentation = deriveReleaseUpdatePresentation({
     isLoading,
     status,
   })
   const latestVersion = presentation.latestVersion
+  const statusReason = status?.reason ?? RELEASE_UPDATE_REASONS.Unknown
   const latestVersionLine = getLatestVersionLine({
     latestVersion,
-    state: presentation.state,
+    reason: statusReason,
     t,
   })
 
-  const statusReason = status?.reason ?? RELEASE_UPDATE_REASONS.Unknown
-  const statusTitle = getStatusTitle({
+  const isNotChecked =
+    presentation.state === RELEASE_UPDATE_PRESENTATION_STATES.NotChecked
+  const currentVersionLine = status?.currentVersion
+    ? t("about:releaseUpdate.currentVersion", {
+        version: status.currentVersion,
+      })
+    : undefined
+  const statusTitle =
+    isNotChecked && currentVersionLine
+      ? currentVersionLine
+      : getStatusTitle({
+          state: presentation.state,
+          t,
+        })
+  const helper = getStatusHelper({
     state: presentation.state,
     t,
     reason: statusReason,
-  })
-  const statusDescription = getStatusHelper({
-    state: presentation.state,
-    t,
-    reason: statusReason,
+    selfUpdate: status?.selfUpdate ?? false,
   })
   const hasUpdate = presentation.hasUpdate
-  const actionHref = status?.releaseUrl ?? LATEST_STABLE_RELEASE_URL
   const isStoreUpdateReady =
-    presentation.state === RELEASE_UPDATE_PRESENTATION_STATES.StoreUpdateReady
-  const actionLabel = hasUpdate
-    ? isStoreUpdateReady
-      ? t("settings:releaseUpdate.reloadToUpdate")
-      : t("settings:releaseUpdate.downloadUpdate")
-    : t("settings:releaseUpdate.openLatest")
-  const actionIcon = hasUpdate ? (
-    isStoreUpdateReady ? (
-      <RefreshCw className="h-4 w-4" />
-    ) : (
-      <Download className="h-4 w-4" />
-    )
-  ) : (
-    <WorkflowTransitionIcon className="h-4 w-4" />
-  )
+    presentation.actionKind === RELEASE_UPDATE_ACTION_KINDS.ReloadToUpdate
+  const actionHref = hasUpdate
+    ? status?.releaseUrl ?? LATEST_STABLE_RELEASE_URL
+    : getDocsChangelogUrl(status?.currentVersion)
+  const actionLabel = getActionLabel(presentation.actionKind, t)
+  const actionIcon = getActionIcon(presentation.actionKind)
 
   const handleCheckNow = async () => {
-    if (presentation.state === RELEASE_UPDATE_PRESENTATION_STATES.Ineligible) {
-      toast.error(getReasonDescription(statusReason, t))
-      return
-    }
-
     const next = await checkNow()
     const outcome = deriveReleaseUpdateCheckOutcome(next)
 
@@ -246,94 +246,125 @@ export function ReleaseUpdateStatusPanel() {
       case RELEASE_UPDATE_CHECK_OUTCOMES.UpdateAvailable:
         toast.success(t("settings:releaseUpdate.states.updateAvailable"))
         return
+      case RELEASE_UPDATE_CHECK_OUTCOMES.SelfUpdatePending:
+        toast.success(t("settings:releaseUpdate.states.selfUpdatePending"))
+        return
       case RELEASE_UPDATE_CHECK_OUTCOMES.UpToDate:
       default:
         toast.success(t("settings:releaseUpdate.states.upToDate"))
     }
   }
 
+  const isUpToDate =
+    presentation.state === RELEASE_UPDATE_PRESENTATION_STATES.UpToDate
+  const isCheckFailed =
+    presentation.state === RELEASE_UPDATE_PRESENTATION_STATES.CheckFailed
+  const StatusIcon = isUpToDate
+    ? Check
+    : isCheckFailed
+      ? CircleAlert
+      : hasUpdate
+        ? Download
+        : CloudDownload
+
   return (
     <Card
       padding="none"
       data-testid={RELEASE_UPDATE_STATUS_PANEL_TEST_IDS.panel}
+      className={cn(
+        "transition-colors",
+        hasUpdate && "border-primary-soft-border bg-primary-soft/20",
+      )}
     >
-      <CardList>
-        <CardItem
-          icon={<CloudDownload className="text-info-indicator h-5 w-5" />}
-          title={statusTitle}
-          description={statusDescription}
-          leftContent={
-            <div className="space-y-density-1">
-              {status?.currentVersion && (
-                <BodySmall>
-                  {t("about:releaseUpdate.currentVersion", {
-                    version: status.currentVersion,
-                  })}
-                </BodySmall>
+      <CardContent
+        padding="none"
+        spacing="none"
+        className="flex flex-col gap-3 p-4 sm:p-5"
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-1 items-center gap-3.5">
+            <div
+              aria-hidden="true"
+              className={cn(
+                "flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+                isUpToDate
+                  ? "bg-success-soft text-success-soft-foreground"
+                  : isCheckFailed
+                    ? "bg-destructive-soft text-destructive-soft-foreground"
+                    : hasUpdate
+                      ? "bg-primary-soft text-primary-soft-foreground"
+                      : "bg-info-soft text-info-soft-foreground",
               )}
-              <BodySmall>{latestVersionLine}</BodySmall>
-              {lastChecked && (
-                <BodySmall>
-                  {t("settings:releaseUpdate.lastChecked", {
-                    time: lastChecked,
-                  })}
-                </BodySmall>
+            >
+              <StatusIcon className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="space-y-0.5">
+                <Heading6 as="h3" weight="semibold" className="text-foreground">
+                  {statusTitle}
+                </Heading6>
+                {helper && (
+                  <BodySmall className="dark:text-secondary-foreground text-muted-foreground leading-normal">
+                    {helper}
+                  </BodySmall>
+                )}
+              </div>
+              {(!isNotChecked || latestVersion) && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {currentVersionLine && (
+                    <Caption>{currentVersionLine}</Caption>
+                  )}
+                  {latestVersion &&
+                    latestVersion !== status?.currentVersion && (
+                      <Caption className="text-foreground font-medium">
+                        {latestVersionLine}
+                      </Caption>
+                    )}
+                </div>
               )}
             </div>
-          }
-          rightContent={
-            <ActionGroup>
+          </div>
+          <ActionGroup className="w-full shrink-0 justify-start sm:w-auto sm:justify-end [&>*]:flex-1 sm:[&>*]:flex-none">
+            <Button
+              type="button"
+              variant={hasUpdate ? "outline" : "default"}
+              size="sm"
+              onClick={() => void handleCheckNow()}
+              loading={isChecking}
+              leftIcon={<RefreshCw className="h-4 w-4" />}
+              data-testid={RELEASE_UPDATE_STATUS_PANEL_TEST_IDS.checkNowButton}
+            >
+              {isChecking
+                ? t("common:status.checking")
+                : t("settings:releaseUpdate.checkNow")}
+            </Button>
+            {isStoreUpdateReady ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="default"
                 size="sm"
-                onClick={() => void handleCheckNow()}
-                loading={isChecking}
-                leftIcon={<RefreshCw className="h-4 w-4" />}
-                data-testid={
-                  RELEASE_UPDATE_STATUS_PANEL_TEST_IDS.checkNowButton
-                }
+                rightIcon={actionIcon}
+                onClick={reloadRuntime}
+                data-testid={RELEASE_UPDATE_STATUS_PANEL_TEST_IDS.primaryAction}
               >
-                {isChecking
-                  ? t("common:status.checking")
-                  : t("settings:releaseUpdate.checkNow")}
+                {actionLabel}
               </Button>
-              {isStoreUpdateReady ? (
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  rightIcon={actionIcon}
-                  onClick={reloadRuntime}
-                  data-testid={
-                    RELEASE_UPDATE_STATUS_PANEL_TEST_IDS.primaryAction
-                  }
-                >
+            ) : (
+              <Button
+                asChild
+                variant={hasUpdate ? "default" : "ghost"}
+                size="sm"
+                rightIcon={actionIcon}
+                data-testid={RELEASE_UPDATE_STATUS_PANEL_TEST_IDS.primaryAction}
+              >
+                <a href={actionHref} target="_blank" rel="noopener noreferrer">
                   {actionLabel}
-                </Button>
-              ) : (
-                <Button
-                  asChild
-                  variant={hasUpdate ? "default" : "secondary"}
-                  size="sm"
-                  rightIcon={actionIcon}
-                  data-testid={
-                    RELEASE_UPDATE_STATUS_PANEL_TEST_IDS.primaryAction
-                  }
-                >
-                  <a
-                    href={actionHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {actionLabel}
-                  </a>
-                </Button>
-              )}
-            </ActionGroup>
-          }
-        />
-      </CardList>
+                </a>
+              </Button>
+            )}
+          </ActionGroup>
+        </div>
+      </CardContent>
     </Card>
   )
 }

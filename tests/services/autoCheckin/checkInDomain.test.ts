@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest"
 import {
   AUTO_CHECKIN_METHOD_IDS,
   AUTOMATIC_CHECK_IN_DISCOVERY_COOLDOWN_MS,
+  CHECK_IN_SELECTION_MODES,
 } from "~/constants/checkIn"
-import { normalizeCheckInConfigV7 } from "~/services/checkin/autoCheckin/configCodec"
+import { normalizeCheckInConfigV7 } from "~/services/checkin/autoCheckin/configuration/configCodec"
 import {
   inspectCheckInMethods,
   mergeCheckInDiscoveryResults,
+  resolveCheckInSelectionPolicy,
   setCheckInSelection,
   shouldAutomaticallyDiscoverCheckIn,
 } from "~/services/checkin/autoCheckin/domain"
@@ -20,6 +22,32 @@ import type {
 const NEW_API_METHOD_ID = AUTO_CHECKIN_METHOD_IDS.NewApiDailyCheckIn
 const VELOERA_METHOD_ID = AUTO_CHECKIN_METHOD_IDS.VeloeraDailyCheckIn
 const ANYROUTER_METHOD_ID = AUTO_CHECKIN_METHOD_IDS.AnyrouterDailyCheckIn
+
+describe("check-in selection policy", () => {
+  it.each([
+    CHECK_IN_SELECTION_MODES.Manual,
+    CHECK_IN_SELECTION_MODES.Automatic,
+  ] as const)("limits %s recovery by selection authority", (mode) => {
+    const policy = resolveCheckInSelectionPolicy(
+      { mode, methodId: NEW_API_METHOD_ID },
+      [NEW_API_METHOD_ID, VELOERA_METHOD_ID, NEW_API_METHOD_ID],
+    )
+    expect(policy.canReselect).toBe(mode === CHECK_IN_SELECTION_MODES.Automatic)
+    expect(policy.discoveryMethodIds).toEqual(
+      mode === CHECK_IN_SELECTION_MODES.Manual
+        ? [NEW_API_METHOD_ID]
+        : [NEW_API_METHOD_ID, VELOERA_METHOD_ID],
+    )
+  })
+  it("does not probe a fixed choice that no longer belongs to the site", () => {
+    expect(
+      resolveCheckInSelectionPolicy(
+        { mode: CHECK_IN_SELECTION_MODES.Manual, methodId: NEW_API_METHOD_ID },
+        [VELOERA_METHOD_ID],
+      ).discoveryMethodIds,
+    ).toEqual([])
+  })
+})
 
 function createConfig(
   detections: Partial<Record<CheckInMethodId, CheckInMethodDetection>>,
@@ -37,6 +65,34 @@ function createConfig(
     selection: { mode: "automatic" as const },
   }
 }
+
+describe("inconclusive selected-method detection", () => {
+  it("reports timeout as waiting and allows a later automatic rediscovery", () => {
+    const config = createConfig({
+      [NEW_API_METHOD_ID]: {
+        outcome: "unknown",
+        reason: "timeout",
+        attemptedAt: 100,
+      },
+    })
+    config.selection = { mode: "automatic", methodId: NEW_API_METHOD_ID }
+    const state = inspectCheckInMethods({
+      config,
+      candidateMethodIds: [NEW_API_METHOD_ID],
+    })
+    expect(state.executionEligibility).toEqual({
+      eligible: false,
+      skipReason: "timeout",
+    })
+    expect(
+      shouldAutomaticallyDiscoverCheckIn({
+        config,
+        candidateMethodIds: [NEW_API_METHOD_ID],
+        now: AUTOMATIC_CHECK_IN_DISCOVERY_COOLDOWN_MS + 100,
+      }),
+    ).toBe(true)
+  })
+})
 
 const matched: CheckInMethodDetection = {
   outcome: "matched",
@@ -84,13 +140,13 @@ describe("automatic check-in discovery policy", () => {
       name: "a selected method with unknown support",
       selection: NEW_API_METHOD_ID,
       detection: unknown,
-      expected: false,
+      expected: true,
     },
     {
       name: "a selected method without detection evidence",
       selection: NEW_API_METHOD_ID,
       detection: undefined,
-      expected: false,
+      expected: true,
     },
     {
       name: "a previously matched method whose latest probe failed",
@@ -117,7 +173,6 @@ describe("automatic check-in discovery policy", () => {
   })
 
   it.each([
-    { name: "manual selection", manual: true },
     { name: "disabled account", accountDisabled: true },
     { name: "disabled account check-in", automaticExecutionEnabled: false },
     {
@@ -128,7 +183,7 @@ describe("automatic check-in discovery policy", () => {
   ])("does not rediscover with $name", (testCase) => {
     const config = createConfig({ [NEW_API_METHOD_ID]: unsupported })
     config.selection = {
-      mode: testCase.manual ? "manual" : "automatic",
+      mode: "automatic",
       methodId: NEW_API_METHOD_ID,
     }
     config.automaticExecutionEnabled =
@@ -189,19 +244,30 @@ describe("inspectCheckInMethods", () => {
     {
       name: "the site type has no registered candidates",
       candidateMethodIds: [],
+      detections: {},
       expected: "no_provider",
     },
     {
       name: "the site type has a candidate awaiting selection",
       candidateMethodIds: [NEW_API_METHOD_ID],
+      detections: {},
       expected: "no_selected_method",
+    },
+    {
+      name: "all candidates are confirmed unsupported",
+      candidateMethodIds: [NEW_API_METHOD_ID, VELOERA_METHOD_ID],
+      detections: {
+        [NEW_API_METHOD_ID]: unsupported,
+        [VELOERA_METHOD_ID]: unsupported,
+      },
+      expected: "no_available_method",
     },
   ])(
     "distinguishes missing provider support when $name",
-    ({ candidateMethodIds, expected }) => {
+    ({ candidateMethodIds, detections, expected }) => {
       expect(
         inspectCheckInMethods({
-          config: createConfig({}),
+          config: createConfig(detections),
           candidateMethodIds,
         }).executionEligibility,
       ).toEqual({ eligible: false, skipReason: expected })
@@ -883,6 +949,49 @@ describe("normalizeCheckInConfigV7", () => {
     expect(normalized.customCheckIn).toBeUndefined()
   })
 
+  it("keeps the account-level page-assistance override and the verification metadata", () => {
+    const normalized = normalizeCheckInConfigV7({
+      automaticExecutionEnabled: false,
+      continueWhenVerificationRequired: true,
+      methodKnowledge: {
+        methods: {
+          [NEW_API_METHOD_ID]: {
+            detection: matched,
+            status: {
+              outcome: "known",
+              availability: "enabled",
+              today: "not_checked",
+              requiresManualVerification: true,
+              evidence: { source: "probe", observedAt: 200 },
+            },
+          },
+        },
+      },
+      selection: { mode: "automatic" },
+    })
+
+    expect(normalized.continueWhenVerificationRequired).toBe(true)
+    expect(
+      normalized.methodKnowledge.methods[NEW_API_METHOD_ID]?.status,
+    ).toEqual({
+      outcome: "known",
+      availability: "enabled",
+      today: "not_checked",
+      requiresManualVerification: true,
+      evidence: { source: "probe", observedAt: 200 },
+    })
+  })
+
+  it("ignores a non-boolean page-assistance override", () => {
+    const normalized = normalizeCheckInConfigV7({
+      continueWhenVerificationRequired: "yes",
+      methodKnowledge: { methods: {} },
+      selection: { mode: "automatic" },
+    })
+
+    expect(normalized.continueWhenVerificationRequired).toBeUndefined()
+  })
+
   it.each([
     {
       turnstilePreTrigger: { kind: "none" },
@@ -1232,6 +1341,54 @@ describe("normalizeCheckInConfigV7", () => {
     ).toEqual({})
   })
 
+  it("round-trips the last confirmed result independently from the latest failed query", () => {
+    const lastKnown = {
+      outcome: "known",
+      today: "checked",
+      evidence: { source: "execution", observedAt: 100 },
+    }
+    const config = normalizeCheckInConfigV7({
+      methodKnowledge: {
+        methods: {
+          [NEW_API_METHOD_ID]: {
+            detection: matched,
+            status: {
+              outcome: "unknown",
+              reason: "network",
+              attemptedAt: 200,
+              lastKnown,
+            },
+          },
+        },
+      },
+    })
+    expect(config.methodKnowledge.methods[NEW_API_METHOD_ID]?.status).toEqual({
+      outcome: "unknown",
+      reason: "network",
+      attemptedAt: 200,
+      lastKnown,
+    })
+    expect(normalizeCheckInConfigV7(config)).toEqual(config)
+    const malformed = normalizeCheckInConfigV7({
+      methodKnowledge: {
+        methods: {
+          [NEW_API_METHOD_ID]: {
+            detection: matched,
+            status: {
+              outcome: "unknown",
+              reason: "network",
+              attemptedAt: 200,
+              lastKnown: { outcome: "unknown", attemptedAt: 100, lastKnown },
+            },
+          },
+        },
+      },
+    })
+    expect(
+      malformed.methodKnowledge.methods[NEW_API_METHOD_ID]?.status,
+    ).not.toHaveProperty("lastKnown")
+  })
+
   it("is deterministic and idempotent", () => {
     const input = {
       automaticExecutionEnabled: true,
@@ -1249,5 +1406,82 @@ describe("normalizeCheckInConfigV7", () => {
 
     expect(second).toEqual(first)
     expect(normalizeCheckInConfigV7(first)).toEqual(first)
+  })
+
+  it("retains a usable route override for a registered method", () => {
+    const normalized = normalizeCheckInConfigV7({
+      methodKnowledge: { methods: {} },
+      selection: { mode: "automatic" as const },
+      routeOverrides: {
+        [NEW_API_METHOD_ID]: {
+          path: "/api/user/daily-9f3k",
+          source: "manual",
+          observedAt: 300,
+        },
+      },
+    })
+
+    expect(normalized.routeOverrides).toEqual({
+      [NEW_API_METHOD_ID]: {
+        path: "/api/user/daily-9f3k",
+        source: "manual",
+        observedAt: 300,
+      },
+    })
+  })
+
+  it.each([
+    {
+      name: "an absolute URL",
+      override: {
+        path: "https://evil.example.invalid/checkin",
+        source: "manual",
+        observedAt: 300,
+      },
+    },
+    {
+      name: "a relative path",
+      override: {
+        path: "api/user/checkin",
+        source: "manual",
+        observedAt: 300,
+      },
+    },
+    {
+      name: "an unknown source",
+      override: {
+        path: "/api/user/checkin",
+        source: "imported",
+        observedAt: 300,
+      },
+    },
+    {
+      name: "a missing timestamp",
+      override: { path: "/api/user/checkin", source: "manual" },
+    },
+  ])("drops a route override with $name", ({ override }) => {
+    const normalized = normalizeCheckInConfigV7({
+      methodKnowledge: { methods: {} },
+      selection: { mode: "automatic" as const },
+      routeOverrides: { [NEW_API_METHOD_ID]: override },
+    })
+
+    expect(normalized.routeOverrides).toBeUndefined()
+  })
+
+  it("drops route overrides for methods this build does not register", () => {
+    const normalized = normalizeCheckInConfigV7({
+      methodKnowledge: { methods: {} },
+      selection: { mode: "automatic" as const },
+      routeOverrides: {
+        "future-method:daily-checkin": {
+          path: "/api/user/checkin",
+          source: "manual",
+          observedAt: 300,
+        },
+      },
+    })
+
+    expect(normalized.routeOverrides).toBeUndefined()
   })
 })

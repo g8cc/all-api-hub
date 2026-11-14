@@ -3,8 +3,8 @@ import { Storage } from "@plasmohq/storage"
 import {
   canonicalizeAccountStorageConfig,
   normalizeAccountStorageConfigForWrite,
-} from "~/services/accounts/accountDefaults"
-import { apiCredentialProfilesStorage } from "~/services/apiCredentialProfiles/apiCredentialProfilesStorage"
+} from "~/services/accounts/editing/accountDefaults"
+import { apiCredentialProfilesStorage } from "~/services/apiCredentialProfiles/storage/profiles"
 import {
   ACCOUNT_STORAGE_KEYS,
   STORAGE_LOCKS,
@@ -13,7 +13,7 @@ import {
 import { withExtensionStorageWriteLock } from "~/services/core/storageWriteLock"
 import { ensureAccountTagsStorageMigrated } from "~/services/tags/migrations/accountTagsStorageMigration"
 import type { AccountStorageConfig, SiteAccount, Tag, TagStore } from "~/types"
-import { sendRuntimeMessage } from "~/utils/browser/browserApi"
+import { sendRuntimeMessage } from "~/utils/browser/runtimeMessages"
 import { createLogger } from "~/utils/core/logger"
 
 import {

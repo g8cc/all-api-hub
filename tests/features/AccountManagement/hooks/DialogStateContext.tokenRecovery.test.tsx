@@ -2,16 +2,14 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
+import { createEmptyAccountDialogDraft } from "~/features/AccountManagement/components/AccountDialog/models"
 import {
   openAccountDialogRecovery,
   prepareAccountDialogRecovery,
   receiveAccountDialogRecovery,
-} from "~/features/AccountManagement/accountDialogRecovery"
-import { createEmptyAccountDialogDraft } from "~/features/AccountManagement/components/AccountDialog/models"
-import {
-  DialogStateProvider,
-  useDialogStateContext,
-} from "~/features/AccountManagement/hooks/DialogStateContext"
+} from "~/features/AccountManagement/dialogs/accountDialogRecovery"
+import { DialogStateProvider } from "~/features/AccountManagement/dialogs/DialogStateProvider"
+import { useDialogStateContext } from "~/features/AccountManagement/dialogs/useDialogStateContext"
 import toast from "~/lib/notify"
 import type { DisplaySiteData } from "~/types"
 import { buildDisplaySiteData } from "~~/tests/test-utils/factories"
@@ -31,11 +29,17 @@ vi.mock("~/utils/browser", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/utils/browser")>()),
   isExtensionSidePanel: isSidePanel,
 }))
-vi.mock("~/utils/browser/browserApi", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/utils/browser/browserApi")>()),
+vi.mock("~/utils/browser/tabs", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/utils/browser/tabs")>()),
   getActiveTab: vi.fn(async () => ({ id: 11, windowId: 7 })),
+}))
+vi.mock("~/utils/browser/sidePanel", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/utils/browser/sidePanel")>()),
   getSidePanelSupport: () => ({ supported: true }),
   openSidePanel: vi.fn(async () => {}),
+}))
+vi.mock("~/utils/browser/storage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/utils/browser/storage")>()),
   getSessionStorageValues: vi.fn(async (key: string) => ({
     [key]: structuredClone(values.get(key)),
   })),
@@ -57,21 +61,16 @@ vi.mock("~/utils/browser/browserApi", async (importOriginal) => ({
     }
   }),
 }))
-vi.mock("~/features/AccountManagement/hooks/AccountDataContext", () => ({
+vi.mock("~/features/AccountManagement/data/AccountDataContext", () => ({
   useAccountDataContext: () => ({
     loadAccountData: vi.fn(),
     displayData: accountData.displayData,
     isInitialLoad: false,
   }),
 }))
-vi.mock(
-  "~/features/AccountManagement/sponsors/pendingAddAccountIntent",
-  () => ({
-    getAndClearPendingSponsorAddAccountPrefill: vi.fn(async () => null),
-    watchPendingSponsorAddAccountPrefill: vi.fn(() => () => {}),
-    isAddAccountPrefill: vi.fn(() => false),
-  }),
-)
+vi.mock("~/features/AccountManagement/sponsors/addAccountPrefill", () => ({
+  isAddAccountPrefill: vi.fn(() => false),
+}))
 vi.mock("~/features/AccountManagement/components/AccountDialog", () => ({
   default: (props: {
     recoveryState?: { draft: { siteName: string; notes: string } }

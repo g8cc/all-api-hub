@@ -1,13 +1,19 @@
 import { RuntimeActionIds } from "~/constants/runtimeActions"
+import {
+  API_CHECK_MODAL_CLOSED_EVENT,
+  dispatchOpenApiCheckModal,
+  waitForApiCheckModalHostReady,
+  type ApiCheckModalClosedDetail,
+  type ApiCheckOpenModalDetail,
+} from "~/features/WebAiApiCheck/content/events"
+import { getApiCheckSelectedText } from "~/features/WebAiApiCheck/content/selectionText"
 import { extractApiCheckCredentialsFromText } from "~/services/verification/webAiApiCheck/extractCredentials"
 import {
   sendWebAiApiCheckMessage,
   WebAiApiCheckMessageTypes,
 } from "~/services/verification/webAiApiCheck/messaging"
-import {
-  checkPermissionViaMessage,
-  onRuntimeMessage,
-} from "~/utils/browser/browserApi"
+import { checkPermissionViaMessage } from "~/utils/browser/permissions"
+import { onRuntimeMessage } from "~/utils/browser/runtimeMessages"
 import { createLogger } from "~/utils/core/logger"
 import { isHttpUrl } from "~/utils/core/urlParsing"
 
@@ -19,13 +25,6 @@ import {
 import { isEventFromAllApiHubContentUi } from "../shared/contentUi"
 import { isLikelyCopyActionTarget } from "../shared/copyActionTarget"
 import { ensureRedemptionToastUi } from "../shared/uiRoot"
-import {
-  API_CHECK_MODAL_CLOSED_EVENT,
-  dispatchOpenApiCheckModal,
-  waitForApiCheckModalHostReady,
-  type ApiCheckModalClosedDetail,
-  type ApiCheckOpenModalDetail,
-} from "./events"
 import { showApiCheckConfirmToast } from "./utils/apiCheckToasts"
 
 /**
@@ -72,7 +71,11 @@ function registerContextMenuTriggerListener(options: {
   const listener = (request: any) => {
     if (request?.action !== RuntimeActionIds.ApiCheckContextMenuTrigger) return
 
-    const sourceText = (request.selectionText ?? "").toString()
+    const selectionText = (request.selectionText ?? "").toString()
+    const sourceText =
+      selectionText && selectionText.trim() === getSelectedText()
+        ? getApiCheckSelectedText()
+        : selectionText
     const pageUrl = request.pageUrl || window.location.href
 
     void openModal({
@@ -183,13 +186,14 @@ function setupWebAiApiCheckDetection(config: {
       options?.apiKeyCleanupPatterns ?? config.apiKeyCleanupPatterns
 
     const extracted = extractApiCheckCredentialsFromText(text, {
+      automaticPrompt: true,
       apiKeyCleanupPatterns,
     })
-    if (!extracted.baseUrl || !extracted.apiKey) return
-    if (
-      extracted.summary.usesEnhancedResult &&
-      !extracted.summary.enhancedAutoPromptEligible
-    ) {
+    if (!extracted.apiKey) return
+    const eligible = extracted.summary.usesEnhancedResult
+      ? extracted.summary.enhancedAutoPromptEligible
+      : extracted.summary.autoPromptEligible
+    if (!eligible) {
       return
     }
 
@@ -216,6 +220,7 @@ function setupWebAiApiCheckDetection(config: {
       lastPromptAt = Date.now()
       const confirmed = await showApiCheckConfirmToast({
         usesEnhancedResult: extracted.summary.usesEnhancedResult,
+        ...(!extracted.baseUrl ? { missingBaseUrl: true } : {}),
       })
       if (!confirmed) {
         return
@@ -280,7 +285,7 @@ function setupWebAiApiCheckDetection(config: {
       const pageUrl = window.location.href
       if (!isHttpUrl(pageUrl)) return
 
-      const selectionText = getSelectedText()
+      const selectionText = getApiCheckSelectedText()
       if (selectionText) {
         void scheduleApiCheckScan(selectionText, { pageUrl })
         return
@@ -331,18 +336,18 @@ function setupWebAiApiCheckDetection(config: {
     const pageUrl = window.location.href
     if (!isHttpUrl(pageUrl)) return
 
-    const sourceText = getClipboardEventText(event)
+    const sourceText = getApiCheckSelectedText() || getClipboardEventText(event)
 
     if (sourceText) {
       void scheduleApiCheckScan(sourceText, { pageUrl })
     }
   }
 
-  const cleanupSelectionEndDetection = registerSelectionEndTextDetection(
-    (sourceText) => {
-      void scheduleApiCheckScan(sourceText, { pageUrl: window.location.href })
-    },
-  )
+  const cleanupSelectionEndDetection = registerSelectionEndTextDetection(() => {
+    void scheduleApiCheckScan(getApiCheckSelectedText(), {
+      pageUrl: window.location.href,
+    })
+  })
 
   document.addEventListener("click", handleClick, true)
   document.addEventListener("copy", handleClipboardEvent, true)

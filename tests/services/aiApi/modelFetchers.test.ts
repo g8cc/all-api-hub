@@ -41,9 +41,8 @@ describe("AI API model fetchers", () => {
           last_id: "cursor-2",
         })
 
-      const { fetchAnthropicModelIds } = await import(
-        "~/services/aiApi/anthropic"
-      )
+      const { fetchAnthropicModelIds } =
+        await import("~/services/aiApi/anthropic")
 
       await expect(
         fetchAnthropicModelIds({
@@ -55,11 +54,12 @@ describe("AI API model fetchers", () => {
       expect(mocks.fetchApi).toHaveBeenNthCalledWith(
         1,
         {
-          baseUrl: "https://anthropic.example.test",
+          directRequestReason: "credential_isolation" as const,
+          baseUrl: "https://anthropic.example.test/v1",
           auth: { authType: "none" },
         },
         expect.objectContaining({
-          endpoint: "/v1/models?limit=200",
+          endpoint: "models?limit=200",
           errorResponseDecoder: expect.any(Function),
           options: {
             headers: {
@@ -74,7 +74,7 @@ describe("AI API model fetchers", () => {
         2,
         expect.anything(),
         expect.objectContaining({
-          endpoint: "/v1/models?limit=200&after_id=cursor-1",
+          endpoint: "models?limit=200&after_id=cursor-1",
         }),
         true,
       )
@@ -87,9 +87,8 @@ describe("AI API model fetchers", () => {
         last_id: "",
       })
 
-      const { fetchAnthropicModelIds } = await import(
-        "~/services/aiApi/anthropic"
-      )
+      const { fetchAnthropicModelIds } =
+        await import("~/services/aiApi/anthropic")
 
       await expect(
         fetchAnthropicModelIds({
@@ -102,19 +101,22 @@ describe("AI API model fetchers", () => {
     })
 
     it("logs and rethrows API failures", async () => {
-      const failure = Object.assign(new Error("anthropic forbidden"), {
-        statusCode: 403,
-      })
+      const failure = Object.assign(
+        new Error("anthropic forbidden private-value"),
+        {
+          statusCode: 403,
+        },
+      )
       mocks.fetchApi.mockRejectedValueOnce(failure)
 
-      const { fetchAnthropicModelIds } = await import(
-        "~/services/aiApi/anthropic"
-      )
+      const { fetchAnthropicModelIds } =
+        await import("~/services/aiApi/anthropic")
 
       await expect(
         fetchAnthropicModelIds({
           baseUrl: "https://anthropic.example.test",
           apiKey: "synthetic-anthropic-key",
+          requestHeaders: { "x-client-secret": "private-value" },
         }),
       ).rejects.toThrow("anthropic forbidden")
 
@@ -123,8 +125,8 @@ describe("AI API model fetchers", () => {
       expect(mocks.anthropicLogger.error).toHaveBeenCalledWith(
         "Failed to fetch anthropic model list",
         expect.objectContaining({
-          endpoint: "/v1/models?limit=200",
-          error: failure,
+          endpoint: "models?limit=200",
+          error: "anthropic forbidden [REDACTED]",
         }),
       )
     })
@@ -145,9 +147,8 @@ describe("AI API model fetchers", () => {
           has_more: false,
         })
 
-      const { fetchAnthropicModelIds } = await import(
-        "~/services/aiApi/anthropic"
-      )
+      const { fetchAnthropicModelIds } =
+        await import("~/services/aiApi/anthropic")
 
       await expect(
         fetchAnthropicModelIds({
@@ -186,7 +187,7 @@ describe("AI API model fetchers", () => {
         3,
         expect.anything(),
         expect.objectContaining({
-          endpoint: "/v1/models?limit=200&after_id=cursor-1",
+          endpoint: "models?limit=200&after_id=cursor-1",
           options: expect.objectContaining({
             headers: {
               Authorization: "Bearer synthetic-anthropic-key",
@@ -207,9 +208,8 @@ describe("AI API model fetchers", () => {
         last_id: "cursor-2000",
       })
 
-      const { fetchAnthropicModelIds } = await import(
-        "~/services/aiApi/anthropic"
-      )
+      const { fetchAnthropicModelIds } =
+        await import("~/services/aiApi/anthropic")
 
       const result = await fetchAnthropicModelIds({
         baseUrl: "https://anthropic.example.test",
@@ -255,11 +255,12 @@ describe("AI API model fetchers", () => {
       expect(mocks.fetchApi).toHaveBeenNthCalledWith(
         1,
         {
-          baseUrl: "https://google.example.test",
+          directRequestReason: "credential_isolation" as const,
+          baseUrl: "https://google.example.test/v1beta",
           auth: { authType: "none" },
         },
         expect.objectContaining({
-          endpoint: "/v1beta/models",
+          endpoint: "models",
           errorResponseDecoder: expect.any(Function),
           options: {
             headers: {
@@ -273,7 +274,7 @@ describe("AI API model fetchers", () => {
         2,
         expect.anything(),
         expect.objectContaining({
-          endpoint: "/v1beta/models?pageToken=page-2",
+          endpoint: "models?pageToken=page-2",
         }),
         true,
       )
@@ -330,7 +331,7 @@ describe("AI API model fetchers", () => {
         3,
         expect.anything(),
         expect.objectContaining({
-          endpoint: "/v1beta/models?pageToken=page-2",
+          endpoint: "models?pageToken=page-2",
           options: expect.objectContaining({
             headers: {
               Authorization: "Bearer synthetic-google-key",
@@ -380,8 +381,8 @@ describe("AI API model fetchers", () => {
       expect(mocks.googleLogger.error).toHaveBeenCalledWith(
         "Failed to fetch google model list",
         expect.objectContaining({
-          endpoint: "/v1beta/models",
-          error: failure,
+          endpoint: "models",
+          error: "google down",
         }),
       )
     })

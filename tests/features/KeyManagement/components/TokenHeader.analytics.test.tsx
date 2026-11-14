@@ -11,11 +11,11 @@ import { KEY_MANAGEMENT_TEST_IDS } from "~/features/KeyManagement/testIds"
 import {
   ACCOUNT_RUNTIME_KEY_SOURCES,
   buildAccountKeyResourceRuntimeKey,
-} from "~/services/accounts/accountRuntimeKeys"
+} from "~/services/accounts/keys/accountRuntimeKeys"
 import {
   MANAGED_SITE_TOKEN_CHANNEL_STATUS_UNKNOWN_REASONS,
   MANAGED_SITE_TOKEN_CHANNEL_STATUSES,
-} from "~/services/managedSites/tokenChannelStatus"
+} from "~/services/managedSites/matching/tokenChannelStatus"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -26,6 +26,7 @@ import {
 } from "~/services/productAnalytics/contracts"
 import { API_TYPES } from "~/services/verification/aiApiVerification"
 import { createDeferred } from "~~/tests/test-utils/deferred"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import {
   RECOVERABLE_ACTION_POLICY,
   renderRuntimeKeyHeader,
@@ -72,7 +73,7 @@ const {
   verifyDialogRenderMock: vi.fn(),
 }))
 
-vi.mock("~/components/dialogs/ChannelDialog", () => ({
+vi.mock("~/features/ManagedSiteChannels/editor/ChannelDialog", () => ({
   ChannelDialogProvider: ({ children }: { children: ReactNode }) => children,
   useChannelDialog: () => ({ openWithAccount: openWithAccountMock }),
 }))
@@ -88,14 +89,14 @@ vi.mock("~/contexts/FeatureGuidanceContext", () => ({
   }),
 }))
 
-vi.mock("~/components/KiloCodeExportDialog", () => ({
+vi.mock("~/features/KiloCodeExport/KiloCodeExportDialog", () => ({
   KiloCodeExportDialog: (props: unknown) => {
     kiloCodeDialogRenderMock(props)
     return null
   },
 }))
 
-vi.mock("~/components/KelivoExportDialog", () => ({
+vi.mock("~/features/CredentialExport/KelivoExportDialog", () => ({
   KelivoExportDialog: (props: unknown) => {
     kelivoExportDialogRenderMock(props)
     const { isOpen, onClose } = props as {
@@ -110,7 +111,7 @@ vi.mock("~/components/KelivoExportDialog", () => ({
   },
 }))
 
-vi.mock("~/components/CursorPlusExportDialog", () => ({
+vi.mock("~/features/CredentialExport/CursorPlusExportDialog", () => ({
   CursorPlusExportDialog: (props: unknown) => {
     cursorPlusDialogRenderMock(props)
     const { isOpen, onClose } = props as {
@@ -127,14 +128,14 @@ vi.mock("~/components/CursorPlusExportDialog", () => ({
   },
 }))
 
-vi.mock("~/components/ClaudeCodeRouterImportDialog", () => ({
+vi.mock("~/features/CredentialExport/ClaudeCodeRouterImportDialog", () => ({
   ClaudeCodeRouterImportDialog: (props: unknown) => {
     claudeCodeRouterDialogRenderMock(props)
     return null
   },
 }))
 
-vi.mock("~/components/dialogs/VerifyCliSupportDialog", () => ({
+vi.mock("~/features/Verification/cli", () => ({
   VerifyCliSupportDialog: (props: unknown) => {
     verifyCliDialogRenderMock(props)
     const { isOpen, profile } = props as {
@@ -152,7 +153,7 @@ vi.mock("~/components/dialogs/VerifyCliSupportDialog", () => ({
 }))
 
 vi.mock(
-  "~/features/ApiCredentialProfiles/components/VerifyApiCredentialProfileDialog",
+  "~/features/ApiCredentialProfiles/verification/VerifyApiCredentialProfileDialog",
   () => ({
     VerifyApiCredentialProfileDialog: (props: unknown) => {
       verifyDialogRenderMock(props)
@@ -181,7 +182,7 @@ vi.mock("~/services/accounts/utils/apiServiceRequest", () => ({
     resolveDisplayAccountRuntimeKeySecretMock(...args),
 }))
 
-vi.mock("~/services/apiCredentialProfiles/apiCredentialProfileLinks", () => ({
+vi.mock("~/services/apiCredentialProfiles/links", () => ({
   apiCredentialProfileLinks: {
     capture: async ({ profile }: { profile: unknown }) => ({
       status: "captured",
@@ -309,7 +310,7 @@ describe("RuntimeKeyHeader analytics", () => {
     await user.click(
       screen.getByRole("button", { name: "keyManagement:actions.deleteKey" }),
     )
-    const runtimeKey = handleEditKey.mock.calls[0][0]
+    const runtimeKey = atIndex(handleEditKey.mock.calls, 0)[0]
     expect(runtimeKey).toMatchObject({
       label: "Selected key",
       accountId: account.id,
@@ -486,9 +487,9 @@ describe("RuntimeKeyHeader analytics", () => {
     ).toBeInTheDocument()
   })
 
-  it("omits CC Switch when its export opener is unavailable", async () => {
+  it("omits the deeplink exports when their opener is unavailable", async () => {
     const user = userEvent.setup()
-    renderRuntimeKeyHeader({ withCCSwitchExport: false })
+    renderRuntimeKeyHeader({ withDeeplinkExport: false })
 
     await user.click(
       screen.getByRole("button", { name: "common:actions.export" }),
@@ -497,6 +498,11 @@ describe("RuntimeKeyHeader analytics", () => {
     expect(
       screen.queryByRole("menuitem", {
         name: "keyManagement:actions.exportToCCSwitch",
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("menuitem", {
+        name: "keyManagement:actions.exportToAiToolbox",
       }),
     ).not.toBeInTheDocument()
   })
@@ -1399,26 +1405,58 @@ describe("RuntimeKeyHeader analytics", () => {
     expect(showResultToastMock).toHaveBeenCalledWith({ success: true })
   })
 
-  it("highlights managed-site import without opening the import dialog", async () => {
-    vi.useFakeTimers()
-    try {
-      renderRuntimeKeyHeader({ guidedManagedSiteImportRequest: "request-1" })
-      await act(async () => {
-        vi.advanceTimersByTime(0)
-      })
+  it.each([false, true])(
+    "highlights managed-site import without opening the import dialog (strictMode=%s)",
+    async (strictMode) => {
+      vi.useFakeTimers()
+      try {
+        renderRuntimeKeyHeader(
+          { guidedManagedSiteImportRequest: "request-1" },
+          { strictMode },
+        )
+        await act(async () => {
+          vi.advanceTimersByTime(0)
+        })
 
-      const importButton = screen.getByTestId(
-        KEY_MANAGEMENT_TEST_IDS.importToManagedSiteButton,
-      )
-      expect(importButton).toHaveAttribute("data-guidance-highlight", "true")
-      act(() => {
-        vi.advanceTimersByTime(5000)
-      })
-      expect(importButton).not.toHaveAttribute("data-guidance-highlight")
-      expect(openWithAccountMock).not.toHaveBeenCalled()
-    } finally {
-      vi.useRealTimers()
-    }
+        const importButton = screen.getByTestId(
+          KEY_MANAGEMENT_TEST_IDS.importToManagedSiteButton,
+        )
+        expect(importButton).toHaveAttribute("data-guidance-highlight", "true")
+        expect(importButton).toHaveFocus()
+        act(() => {
+          vi.advanceTimersByTime(4999)
+        })
+        expect(importButton).toHaveAttribute("data-guidance-highlight", "true")
+        act(() => {
+          vi.advanceTimersByTime(1)
+        })
+        expect(importButton).not.toHaveAttribute("data-guidance-highlight")
+        expect(openWithAccountMock).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    },
+  )
+
+  it("reveals a guided import first received before export permission is enabled", async () => {
+    const { rerenderRuntimeKeyHeader } = renderRuntimeKeyHeader(
+      {
+        actionPolicy: { ...RECOVERABLE_ACTION_POLICY, exportSecret: false },
+        guidedManagedSiteImportRequest: "request-1",
+      },
+      { strictMode: true },
+    )
+
+    rerenderRuntimeKeyHeader({ guidedManagedSiteImportRequest: "request-1" })
+
+    const importButton = screen.getByTestId(
+      KEY_MANAGEMENT_TEST_IDS.importToManagedSiteButton,
+    )
+    await waitFor(() =>
+      expect(importButton).toHaveAttribute("data-guidance-highlight", "true"),
+    )
+    expect(importButton).toHaveFocus()
+    expect(openWithAccountMock).not.toHaveBeenCalled()
   })
 
   it("clears export dialogs and consumes guided requests when export permission is revoked", async () => {

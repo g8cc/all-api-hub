@@ -128,13 +128,27 @@
     },
     "unexpectedContent": "API 回應不是預期格式，可能回傳了站點驗證頁面。"
   },
+  "notification": {
+    "loginAssistBody": "登入尚未完成。請開啟登入視窗完成驗證碼或兩步驗證，擴充功能會繼續核驗帳號與任務結果。",
+    "loginSessionBody": "此視窗已有登入工作階段。為避免登出其他視窗的帳號，請開啟登入視窗，確認後手動登出；擴充功能會繼續登入目標帳號。",
+    "openLogin": "開啟登入視窗",
+    "openVerification": "開啟驗證視窗",
+    "reminderSettings": "提醒設定",
+    "turnstileAssistBody": "站點的人機驗證尚未完成。點擊「開啟驗證視窗」完成驗證碼，擴充套件會繼續檢查工作結果。",
+    "turnstileAssistTitle": "All API Hub · 驗證提醒",
+    "turnstilePageBody": "站點的人機驗證尚未完成。點擊「開啟驗證視窗」完成驗證碼，擴充套件會繼續檢查工作結果。",
+    "verificationEnded": "此次驗證已結束，無需繼續處理。"
+  },
   "titlePrefix": "All API Hub · 過盾助手",
   "toast": {
     "actions": {
-      "dismiss": "關閉提示",
       "openSettings": "開啟過盾設定"
     },
-    "body": "此頁面由 All API Hub 自動開啟，用於透過站點防護頁（如 Cloudflare 五秒盾）以獲取必要的 Cookie/會話資訊。\n\n這是讓 All API Hub 在防護站點上正常請求和識別資料所必需的步驟。\n\n如出現人機驗證，請在此視窗內完成驗證；透過後 All API Hub 會繼續流程並自動關閉該視窗。",
-    "title": "All API Hub 過盾助手（臨時視窗）"
+    "body": "此頁面由 All API Hub 自動開啟，用於透過站點防護頁（如 Cloudflare 五秒盾）以獲取必要的 Cookie/會話資訊。\n這是讓 All API Hub 在防護站點上正常請求和識別資料所必需的步驟。\n如出現人機驗證，請在此視窗內完成驗證；透過後 All API Hub 會繼續流程並自動關閉該視窗。",
+    "title": "過盾助手",
+    "turnstile": {
+      "body": "請在這個視窗內完成站點的人機驗證（例如勾選「確認您是真人」或依提示選擇圖片）。擴充套件正在等候，完成後會繼續檢查工作結果；若頁面仍顯示未簽到，請在頁面上完成簽到。",
+      "title": "需要完成人機驗證"
+    }
   }
 }

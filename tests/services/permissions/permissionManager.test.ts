@@ -6,12 +6,15 @@ import {
   hasCookieInterceptorPermissions,
   hasPermission,
   hasPermissions,
+  isPermissionDeclared,
   onOptionalPermissionsChanged,
   OPTIONAL_PERMISSION_IDS,
   OPTIONAL_PERMISSIONS,
   removePermissionDetailed,
   requestPermissionDetailed,
 } from "~/services/permissions/permissionManager"
+import { getManifest } from "~/utils/browser/runtime"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const {
   containsPermissionsMock,
@@ -31,17 +34,8 @@ const {
   unsubscribeRemovedMock: vi.fn(),
 }))
 
-vi.mock("~/utils/browser/browserApi", () => ({
+vi.mock("~/utils/browser/permissions", () => ({
   containsPermissions: containsPermissionsMock,
-  getManifest: vi.fn(() => ({
-    optional_permissions: [
-      "cookies",
-      "webRequest",
-      "clipboardRead",
-      "notifications",
-      "bookmarks",
-    ],
-  })),
   onPermissionsAdded: vi.fn((callback: (permissions: any) => void) => {
     permissionsAddedCallbacks.push(callback)
     return unsubscribeAddedMock
@@ -53,12 +47,43 @@ vi.mock("~/utils/browser/browserApi", () => ({
   removePermissionsDetailed: removePermissionsDetailedMock,
   requestPermissionsDetailed: requestPermissionsDetailedMock,
 }))
+vi.mock("~/utils/browser/runtime", () => ({
+  getManifest: vi.fn(() => ({
+    optional_permissions: [
+      "cookies",
+      "webRequest",
+      "clipboardRead",
+      "notifications",
+      "bookmarks",
+    ],
+  })),
+}))
 
 describe("permissionManager", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     permissionsAddedCallbacks.length = 0
     permissionsRemovedCallbacks.length = 0
+  })
+
+  it("distinguishes declared permissions from unsupported build capabilities", () => {
+    expect(isPermissionDeclared("bookmarks")).toBe(true)
+    expect(containsPermissionsMock).not.toHaveBeenCalled()
+    vi.mocked(getManifest).mockReturnValueOnce({
+      manifest_version: 2,
+      name: "Safari",
+      version: "1.0.0",
+      permissions: ["cookies"],
+      optional_permissions: [],
+    })
+    expect(isPermissionDeclared("notifications")).toBe(false)
+    vi.mocked(getManifest).mockReturnValueOnce({
+      manifest_version: 3,
+      name: "Required permissions variant",
+      version: "1.0.0",
+      permissions: ["bookmarks"],
+    })
+    expect(isPermissionDeclared("bookmarks")).toBe(true)
   })
 
   it("reads optional permissions from the manifest and builds cookie interceptor defaults", () => {
@@ -107,19 +132,80 @@ describe("permissionManager", () => {
     })
   })
 
+  it.each(["check", "request"] as const)(
+    "skips the browser %s for undeclared permissions",
+    async (operation) => {
+      const manifest: ReturnType<typeof getManifest> = {
+        manifest_version: 2,
+        name: "Safari",
+        version: "1.0.0",
+        permissions: ["cookies"],
+      }
+      vi.mocked(getManifest).mockReturnValueOnce(manifest)
+      if (operation === "check") {
+        await expect(hasPermission("notifications")).resolves.toBe(false)
+      } else {
+        await expect(
+          requestPermissionDetailed("notifications"),
+        ).resolves.toEqual({
+          success: false,
+        })
+      }
+      expect(containsPermissionsMock).not.toHaveBeenCalled()
+      expect(requestPermissionsDetailedMock).not.toHaveBeenCalled()
+    },
+  )
+
+  it("preserves declared required permission calls and the request user gesture", async () => {
+    const manifest: ReturnType<typeof getManifest> = {
+      manifest_version: 3,
+      name: "Required permissions variant",
+      version: "1.0.0",
+      permissions: ["notifications"],
+    }
+    containsPermissionsMock.mockResolvedValueOnce(true)
+    requestPermissionsDetailedMock.mockResolvedValueOnce({ success: true })
+    vi.mocked(getManifest).mockReturnValueOnce(manifest)
+    await expect(hasPermission("notifications")).resolves.toBe(true)
+    vi.mocked(getManifest).mockReturnValueOnce(manifest)
+    const result = requestPermissionDetailed("notifications")
+    expect(requestPermissionsDetailedMock).toHaveBeenCalledWith({
+      permissions: ["notifications"],
+    })
+    await expect(result).resolves.toEqual({ success: true })
+  })
+
   it("short-circuits empty permission arrays and reuses the cookie-interceptor helper", async () => {
     containsPermissionsMock.mockResolvedValueOnce(true)
 
     await expect(hasPermissions([])).resolves.toBe(true)
     await expect(hasCookieInterceptorPermissions()).resolves.toBe(true)
+    await expect(ensurePermissionsDetailed([])).resolves.toEqual({
+      success: true,
+      results: [],
+      requestedResults: [],
+    })
 
     expect(containsPermissionsMock).toHaveBeenCalledTimes(1)
     expect(containsPermissionsMock).toHaveBeenCalledWith({
       permissions: COOKIE_INTERCEPTOR_PERMISSIONS,
     })
+    expect(requestPermissionsDetailedMock).not.toHaveBeenCalled()
   })
 
-  it("requests only missing permissions during ensurePermissionsDetailed", async () => {
+  it("starts the permission request before yielding the user gesture", async () => {
+    containsPermissionsMock.mockResolvedValue(false)
+    requestPermissionsDetailedMock.mockResolvedValueOnce({ success: false })
+
+    const result = ensurePermissionsDetailed(["cookies", "clipboardRead"])
+
+    expect(requestPermissionsDetailedMock).toHaveBeenCalledWith({
+      permissions: ["cookies", "clipboardRead"],
+    })
+    await expect(result).resolves.toMatchObject({ success: false })
+  })
+
+  it("requests permissions together without awaiting the before-state checks", async () => {
     containsPermissionsMock
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(false)
@@ -133,7 +219,7 @@ describe("permissionManager", () => {
     ).resolves.toMatchObject({ success: true })
 
     expect(requestPermissionsDetailedMock).toHaveBeenCalledWith({
-      permissions: ["webRequest", "clipboardRead"],
+      permissions: ["cookies", "webRequest", "clipboardRead"],
     })
   })
 
@@ -192,7 +278,7 @@ describe("permissionManager", () => {
     })
 
     expect(requestPermissionsDetailedMock).toHaveBeenCalledWith({
-      permissions: ["webRequest", "clipboardRead"],
+      permissions: ["cookies", "webRequest", "clipboardRead"],
     })
   })
 
@@ -329,7 +415,9 @@ describe("permissionManager", () => {
     await expect(
       ensurePermissionsDetailed(["cookies", "webRequest", "clipboardRead"]),
     ).resolves.toMatchObject({ success: true })
-    expect(requestPermissionsDetailedMock).not.toHaveBeenCalled()
+    expect(requestPermissionsDetailedMock).toHaveBeenCalledWith({
+      permissions: ["cookies", "webRequest", "clipboardRead"],
+    })
   })
 
   it("only notifies listeners for declared optional permissions and unsubscribes both handlers", () => {
@@ -340,12 +428,12 @@ describe("permissionManager", () => {
     expect(permissionsAddedCallbacks).toHaveLength(1)
     expect(permissionsRemovedCallbacks).toHaveLength(1)
 
-    permissionsAddedCallbacks[0]({ permissions: ["tabs"] })
-    permissionsRemovedCallbacks[0]({ permissions: [] })
+    atIndex(permissionsAddedCallbacks, 0)({ permissions: ["tabs"] })
+    atIndex(permissionsRemovedCallbacks, 0)({ permissions: [] })
     expect(callback).not.toHaveBeenCalled()
 
-    permissionsAddedCallbacks[0]({ permissions: ["clipboardRead"] })
-    permissionsRemovedCallbacks[0]({ permissions: ["cookies"] })
+    atIndex(permissionsAddedCallbacks, 0)({ permissions: ["clipboardRead"] })
+    atIndex(permissionsRemovedCallbacks, 0)({ permissions: ["cookies"] })
     expect(callback).toHaveBeenCalledTimes(2)
 
     unsubscribe()

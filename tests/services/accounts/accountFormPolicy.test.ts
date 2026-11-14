@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { SITE_TYPES } from "~/constants/siteType"
-import { getAccountDialogSitePolicy } from "~/features/AccountManagement/components/AccountDialog/sitePolicy"
-import { isValidAccount } from "~/services/accounts/accountFormValidation"
+import { getAccountDialogSitePolicy } from "~/features/AccountManagement/components/AccountDialog/form/sitePolicy"
+import { isValidAccount } from "~/services/accounts/editing/accountFormValidation"
 import * as definitions from "~/services/accountSiteDefinitions/registry"
 import { AuthTypeEnum } from "~/types"
 
@@ -18,6 +18,18 @@ const fields = {
 afterEach(() => vi.restoreAllMocks())
 
 describe("registered account form policy", () => {
+  it("requires choosing a Vercel team before saving", () => {
+    expect(
+      isValidAccount({ ...fields, siteType: SITE_TYPES.VERCEL_AI_GATEWAY }),
+    ).toBe(false)
+    expect(
+      isValidAccount({
+        ...fields,
+        siteType: SITE_TYPES.VERCEL_AI_GATEWAY,
+        userId: "team_chosen",
+      }),
+    ).toBe(true)
+  })
   it.each([
     [SITE_TYPES.NEW_API, false],
     [SITE_TYPES.SUB2API, false],

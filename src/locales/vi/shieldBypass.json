@@ -128,13 +128,27 @@
     },
     "unexpectedContent": "Phản hồi có định dạng không mong đợi và có thể là trang xác minh của trang web."
   },
+  "notification": {
+    "loginAssistBody": "Đang chờ đăng nhập. Mở cửa sổ đăng nhập để hoàn tất xác minh hoặc xác thực hai yếu tố; tiện ích sẽ kiểm tra tài khoản và kết quả tác vụ.",
+    "loginSessionBody": "Cửa sổ này đã có phiên đăng nhập. Để tránh đăng xuất tài khoản ở các cửa sổ khác, hãy mở cửa sổ đăng nhập và tự đăng xuất sau khi xác nhận; tiện ích sẽ đăng nhập tài khoản đích.",
+    "openLogin": "Mở cửa sổ đăng nhập",
+    "openVerification": "Mở cửa sổ xác minh",
+    "reminderSettings": "Cài đặt lời nhắc",
+    "turnstileAssistBody": "Trang đang chờ xác minh con người. Mở cửa sổ xác minh để hoàn thành captcha. Tiện ích sẽ kiểm tra kết quả sau đó.",
+    "turnstileAssistTitle": "All API Hub · Nhắc xác minh",
+    "turnstilePageBody": "Trang đang chờ xác minh con người. Mở cửa sổ xác minh để hoàn thành captcha. Tiện ích sẽ kiểm tra kết quả sau đó.",
+    "verificationEnded": "Lần xác minh này đã kết thúc. Không cần thao tác thêm."
+  },
   "titlePrefix": "All API Hub · Trợ lý Vượt Rào",
   "toast": {
     "actions": {
-      "dismiss": "Đóng thông báo",
       "openSettings": "Mở cài đặt vượt rào"
     },
-    "body": "Trang này được tự động mở bởi All API Hub để vượt qua các trang bảo vệ (như Cloudflare 5 giây) nhằm thu thập thông tin Cookie/phiên cần thiết.\n\nĐây là bước bắt buộc để All API Hub có thể gửi yêu cầu và nhận diện dữ liệu bình thường trên các trang web có lớp bảo vệ.\n\nNếu có xác minh CAPTCHA, vui lòng hoàn thành trong cửa sổ này; sau khi vượt qua, All API Hub sẽ tiếp tục quá trình và tự động đóng cửa sổ này.",
-    "title": "All API Hub Trợ lý Vượt Rào (Cửa sổ tạm thời)"
+    "body": "Trang này được tự động mở bởi All API Hub để vượt qua các trang bảo vệ (như Cloudflare 5 giây) nhằm thu thập thông tin Cookie/phiên cần thiết.\nĐây là bước bắt buộc để All API Hub có thể gửi yêu cầu và nhận diện dữ liệu bình thường trên các trang web có lớp bảo vệ.\nNếu có xác minh CAPTCHA, vui lòng hoàn thành trong cửa sổ này; sau khi vượt qua, All API Hub sẽ tiếp tục quá trình và tự động đóng cửa sổ này.",
+    "title": "Trợ lý Vượt Rào",
+    "turnstile": {
+      "body": "Hoàn thành xác minh của trang trong cửa sổ này, ví dụ chọn “Tôi là con người” hoặc các hình ảnh được yêu cầu. Tiện ích đang chờ và sẽ kiểm tra kết quả sau đó. Nếu trang vẫn hiển thị chưa điểm danh, hãy hoàn tất tại đó.",
+      "title": "Hoàn tất xác minh người dùng"
+    }
   }
 }

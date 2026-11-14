@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import type { AccountKeyCreationIntent } from "~/services/apiAdapters/contracts/accountKeyResource"
-import { createSub2ApiKeyEditor } from "~/services/apiAdapters/sub2api/keyResourceEditor"
+import { createSub2ApiKeyEditor } from "~/services/apiAdapters/sub2api/keys/keyResourceEditor"
 import { createVoApiV2KeyEditor } from "~/services/apiAdapters/voapiV2/keyResourceEditor"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { AuthTypeEnum } from "~/types"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const request = {
+  directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
   baseUrl: "https://example.invalid",
   auth: { authType: AuthTypeEnum.AccessToken, accessToken: "test" },
 }
@@ -59,7 +62,7 @@ describe.each([
   it("does not choose an arbitrary ID when names are ambiguous", () => {
     const editor = create({ preferredGroup: "Premium" }, [
       ...groups,
-      { ...groups[0], id: 11, requirementKey: "11" },
+      { ...atIndex(groups, 0), id: 11, requirementKey: "11" },
     ])
     expect(editor.initialValues[field]).toEqual(empty)
     expect(editor.initialValues.name).toBe("user group (auto)")

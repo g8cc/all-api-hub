@@ -4,11 +4,9 @@ import { Storage } from "@plasmohq/storage"
 
 import { SITE_TYPES } from "~/constants/siteType"
 import { USER_PREFERENCES_STORAGE_KEYS } from "~/services/core/storageKeys"
-import {
-  DEFAULT_PREFERENCES,
-  userPreferences,
-  type PreferenceWriteResult,
-} from "~/services/preferences/userPreferences"
+import { DEFAULT_PREFERENCES } from "~/services/preferences/preferencesDefaults"
+import { type PreferenceWriteResult } from "~/services/preferences/preferencesStore"
+import { userPreferences } from "~/services/preferences/userPreferences"
 import { DEFAULT_AXON_HUB_CONFIG } from "~/types/axonHubConfig"
 import { DEFAULT_CLAUDE_CODE_HUB_CONFIG } from "~/types/claudeCodeHubConfig"
 import { DEFAULT_DONE_HUB_CONFIG } from "~/types/doneHubConfig"
@@ -24,6 +22,44 @@ const expectSuccessfulWrite = async (write: Promise<PreferenceWriteResult>) => {
 
 describe("userPreferences managed-site helpers", () => {
   const storage = new Storage({ area: "local" })
+
+  it("resets Magpie credentials without replacing other gateway configurations", async () => {
+    await expectSuccessfulWrite(
+      userPreferences.savePreferences({
+        magpie: { baseUrl: "https://magpie.test/web", webKey: "web-key" },
+      }),
+    )
+    const before = await userPreferences.getPreferences()
+    expect(before.magpie).toEqual({
+      baseUrl: "https://magpie.test/web",
+      webKey: "web-key",
+    })
+    await expectSuccessfulWrite(userPreferences.resetMagpieConfig())
+    const after = await userPreferences.getPreferences()
+    expect(after.magpie).toEqual(DEFAULT_PREFERENCES.magpie)
+    expect(after.newApi).toEqual(before.newApi)
+  })
+
+  it("updates and resets OmniRoute without replacing other site configuration", async () => {
+    await expectSuccessfulWrite(
+      userPreferences.updateManagedSiteType(SITE_TYPES.OMNIROUTE),
+    )
+    await expectSuccessfulWrite(
+      userPreferences.updateOmniRouteConfig({
+        baseUrl: "https://gateway.invalid",
+        token: "oma_test",
+      }),
+    )
+    const before = await userPreferences.getPreferences()
+    await expect(userPreferences.getManagedSiteConfig()).resolves.toEqual({
+      siteType: SITE_TYPES.OMNIROUTE,
+      config: { baseUrl: "https://gateway.invalid", token: "oma_test" },
+    })
+    await expectSuccessfulWrite(userPreferences.resetOmniRouteConfig())
+    const after = await userPreferences.getPreferences()
+    expect(after.omniroute).toEqual(DEFAULT_PREFERENCES.omniroute)
+    expect(after.newApi).toEqual(before.newApi)
+  })
 
   beforeEach(async () => {
     vi.useFakeTimers()
@@ -152,6 +188,24 @@ describe("userPreferences managed-site helpers", () => {
       baseUrl: "https://sub2api.example.com",
       adminToken: "sub2api-admin-key",
     })
+  })
+
+  it("falls back to New API when the selected registration has no config", async () => {
+    const preferences = structuredClone(DEFAULT_PREFERENCES)
+    preferences.managedSiteType = SITE_TYPES.VELOERA
+    Reflect.deleteProperty(preferences, "veloera")
+    const getPreferences = vi
+      .spyOn(userPreferences, "getPreferences")
+      .mockResolvedValueOnce(preferences)
+
+    try {
+      await expect(userPreferences.getManagedSiteConfig()).resolves.toEqual({
+        siteType: SITE_TYPES.VELOERA,
+        config: preferences.newApi,
+      })
+    } finally {
+      getPreferences.mockRestore()
+    }
   })
 
   it("falls back to default configs when optional managed-site settings are missing", async () => {

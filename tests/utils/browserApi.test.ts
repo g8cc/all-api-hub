@@ -11,76 +11,100 @@ import {
 import { RuntimeActionIds } from "~/constants/runtimeActions"
 import {
   addActionClickListener,
-  checkPermissionViaMessage,
-  classifyRecoverableWindowCreationFailure,
-  clearAlarm,
-  clearNotification,
-  containsPermissions,
-  createAlarm,
-  createContextMenu,
-  createNotification,
-  createWindow,
-  focusTab,
   getActionApi,
-  getActiveOrAllTabs,
-  getActiveTab,
-  getActiveTabs,
+  setActionPopup,
+} from "~/utils/browser/action"
+import {
+  clearAlarm,
+  clearAllAlarms,
+  createAlarm,
   getAlarm,
-  getAllCookieStores,
-  getAllTabs,
+  hasAlarmsAPI,
+  onAlarm,
+} from "~/utils/browser/alarms"
+import { getBrowserBookmarkTree } from "~/utils/browser/bookmarks"
+import {
+  createContextMenu,
+  hasContextMenusAPI,
+  onContextMenuClicked,
+  removeContextMenu,
+} from "~/utils/browser/contextMenus"
+import { getAllCookieStores, hasCookieStoresAPI } from "~/utils/browser/cookies"
+import {
+  clearNotification,
+  createNotification,
+  getNotificationPermissionLevel,
+  hasNotificationsAPI,
+  onNotificationClicked,
+} from "~/utils/browser/notifications"
+import {
+  checkPermissionViaMessage,
+  containsPermissions,
+  onPermissionsAdded,
+  onPermissionsRemoved,
+  PERMISSION_OPERATION_FAILURE_REASONS,
+  removePermissionsDetailed,
+  requestPermissionsDetailed,
+} from "~/utils/browser/permissions"
+import {
   getBrowserApiCapabilities,
-  getBrowserBookmarkTree,
   getBrowserI18nMessage,
   getExtensionURL,
   getExtensionVersion,
   getManagementSelf,
   getManifest,
   getRuntimeId,
+  isAllowedIncognitoAccess,
+  onInstalled,
+  onStartup,
+  onSuspend,
+  openRuntimeOptionsPage,
+  reloadRuntime,
+  setUninstallUrl,
+} from "~/utils/browser/runtime"
+import {
+  isMessageReceiverUnavailableError,
+  onRuntimeMessage,
+  sendRuntimeActionMessage,
+  sendTabMessageWithRetry,
+} from "~/utils/browser/runtimeMessages"
+import { requestRuntimeUpdateCheck } from "~/utils/browser/runtimeUpdateCheck"
+import {
+  NATIVE_SIDE_PANEL_ACTION_CLICK_RESULTS,
+  setNativeSidePanelActionClick,
+} from "~/utils/browser/sidePanel"
+import {
+  clearSessionStorage,
   getSessionStorageValues,
-  getTab,
-  getWindow,
-  hasAlarmsAPI,
-  hasContextMenusAPI,
-  hasCookieStoresAPI,
-  hasNotificationsAPI,
   hasSessionStorageArea,
   hasStorageChangedListener,
-  isAllowedIncognitoAccess,
-  isMessageReceiverUnavailableError,
-  NATIVE_SIDE_PANEL_ACTION_CLICK_RESULTS,
-  onAlarm,
-  onContextMenuClicked,
-  onInstalled,
-  onNotificationClicked,
-  onPermissionsAdded,
-  onPermissionsRemoved,
-  onRuntimeMessage,
-  onStartup,
   onStorageChanged,
-  onSuspend,
+  removeSessionStorageValues,
+  setSessionStorageValues,
+} from "~/utils/browser/storage"
+import {
+  createTab,
+  focusTab,
+  getActiveOrAllTabs,
+  getActiveTab,
+  getActiveTabs,
+  getAllTabs,
+  getTab,
   onTabActivated,
   onTabRemoved,
   onTabUpdated,
-  onWindowRemoved,
-  openRuntimeOptionsPage,
-  PERMISSION_OPERATION_FAILURE_REASONS,
-  reloadRuntime,
   reloadTab,
-  removeContextMenu,
-  removePermissionsDetailed,
-  removeSessionStorageValues,
   removeTab,
+} from "~/utils/browser/tabs"
+import {
+  classifyRecoverableWindowCreationFailure,
+  createWindow,
+  getWindow,
+  onWindowRemoved,
   removeWindow,
-  requestPermissionsDetailed,
-  requestRuntimeUpdateCheck,
-  sendRuntimeActionMessage,
-  sendTabMessageWithRetry,
-  setActionPopup,
-  setNativeSidePanelActionClick,
-  setSessionStorageValues,
   updateWindow,
   WINDOW_CREATION_FAILURE_REASONS,
-} from "~/utils/browser/browserApi"
+} from "~/utils/browser/windows"
 
 const { loggerMock } = vi.hoisted(() => ({
   loggerMock: {
@@ -97,6 +121,230 @@ vi.mock("~/utils/core/logger", () => ({
 
 const originalBrowser = (globalThis as any).browser
 const originalChrome = (globalThis as any).chrome
+
+describe("browserApi callback-only Chromium compatibility", () => {
+  afterEach(() => {
+    ;(globalThis as any).browser = originalBrowser
+    ;(globalThis as any).chrome = originalChrome
+  })
+
+  function installNativeChrome(api: Record<string, unknown>) {
+    const nativeChrome = { runtime: {}, ...api }
+    ;(globalThis as any).browser = nativeChrome
+    ;(globalThis as any).chrome = nativeChrome
+    return nativeChrome
+  }
+
+  it("waits for callback-only menu removal before allowing recreation", async () => {
+    let complete: (() => void) | undefined
+    installNativeChrome({
+      contextMenus: {
+        remove: vi.fn((_id, callback) => {
+          complete = callback
+        }),
+      },
+    })
+    let settled = false
+    const pending = removeContextMenu("owned-menu").then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    expect(complete).toBeTypeOf("function")
+    complete!()
+    await pending
+    expect(settled).toBe(true)
+  })
+
+  it("reads callback-only notification permission", async () => {
+    installNativeChrome({
+      notifications: {
+        getPermissionLevel: vi.fn((callback) =>
+          queueMicrotask(() => callback("denied")),
+        ),
+      },
+    })
+    await expect(getNotificationPermissionLevel()).resolves.toBe("denied")
+  })
+
+  it("returns null when getPermissionLevel is unavailable or throws", async () => {
+    ;(globalThis as any).browser.notifications = {}
+    await expect(getNotificationPermissionLevel()).resolves.toBeNull()
+    ;(globalThis as any).browser.notifications = {
+      getPermissionLevel: vi.fn(() => Promise.reject(new Error("Failed"))),
+    }
+    await expect(getNotificationPermissionLevel()).resolves.toBeNull()
+  })
+
+  it("returns callback-only notification creation and clearing results", async () => {
+    installNativeChrome({
+      notifications: {
+        create: vi.fn((_id, _options, callback) => {
+          queueMicrotask(() => callback?.("created-notification"))
+        }),
+        clear: vi.fn((_id, callback) => {
+          queueMicrotask(() => callback?.(true))
+        }),
+      },
+    })
+    await expect(
+      createNotification("test", {
+        type: "basic",
+        iconUrl: "icon.png",
+        title: "Test",
+        message: "Test message",
+      }),
+    ).resolves.toBe("created-notification")
+    await expect(clearNotification("test")).resolves.toBe(true)
+  })
+
+  it("returns false when callback-only clearing finds no notification", async () => {
+    const clear = vi.fn((_id, callback) => {
+      queueMicrotask(() => callback(false))
+    })
+    installNativeChrome({ notifications: { clear } })
+
+    await expect(clearNotification("missing")).resolves.toBe(false)
+    expect(clear).toHaveBeenCalledExactlyOnceWith(
+      "missing",
+      expect.any(Function),
+    )
+  })
+
+  it("accepts Promise-returning adapters in the native Chrome namespace", async () => {
+    installNativeChrome({
+      notifications: {
+        create: vi.fn().mockResolvedValue("test"),
+        clear: vi.fn().mockResolvedValue(true),
+      },
+    })
+    await expect(
+      createNotification("test", {
+        type: "basic",
+        title: "Test",
+        message: "Test",
+        iconUrl: "icon.png",
+      }),
+    ).resolves.toBe("test")
+    await expect(clearNotification("test")).resolves.toBe(true)
+  }, 1000)
+
+  it("preserves callback errors during context menu removal", async () => {
+    const nativeChrome = installNativeChrome({
+      contextMenus: {
+        remove: vi.fn((_id, callback) => {
+          queueMicrotask(() => {
+            Object.assign(nativeChrome.runtime, {
+              lastError: { message: "Cannot find menu item" },
+            })
+            callback?.()
+            delete (nativeChrome.runtime as any).lastError
+          })
+        }),
+      },
+    })
+    await expect(removeContextMenu("missing")).rejects.toThrow(
+      "Cannot find menu item",
+    )
+  })
+
+  it("reports callback notification errors through the existing safe results", async () => {
+    const nativeChrome = installNativeChrome({
+      notifications: {
+        create: vi.fn((_id, _options, callback) => {
+          Object.assign(nativeChrome.runtime, {
+            lastError: { message: "Permission denied" },
+          })
+          callback(undefined)
+          delete (nativeChrome.runtime as any).lastError
+        }),
+        clear: vi.fn((_id, callback) => {
+          Object.assign(nativeChrome.runtime, {
+            lastError: { message: "Permission denied" },
+          })
+          callback(false)
+          delete (nativeChrome.runtime as any).lastError
+        }),
+      },
+    })
+    await expect(
+      createNotification("test", {
+        type: "basic",
+        title: "Test",
+        message: "Test",
+        iconUrl: "icon.png",
+      }),
+    ).resolves.toBeNull()
+    await expect(clearNotification("test")).resolves.toBe(false)
+  })
+
+  it("rejects callback update-check failures instead of accepting an empty status", async () => {
+    const nativeChrome = installNativeChrome({
+      runtime: {
+        requestUpdateCheck: vi.fn((callback) => {
+          Object.assign(nativeChrome.runtime, {
+            lastError: { message: "Update check unavailable" },
+          })
+          callback(undefined)
+          delete (nativeChrome.runtime as any).lastError
+        }),
+      },
+    })
+    await expect(requestRuntimeUpdateCheck()).rejects.toThrow(
+      "Update check unavailable",
+    )
+  })
+
+  it("returns unknown when an asynchronous incognito permission read fails", async () => {
+    installNativeChrome({
+      extension: {
+        isAllowedIncognitoAccess: vi
+          .fn()
+          .mockRejectedValue(new Error("Unavailable")),
+      },
+    })
+    await expect(isAllowedIncognitoAccess()).resolves.toBeNull()
+  })
+
+  it("restores notification clicks after optional permission grants and re-grants", () => {
+    let grant: ((permissions: { permissions: string[] }) => void) | undefined
+    let revoke: ((permissions: { permissions: string[] }) => void) | undefined
+    const added = {
+      addListener: vi.fn((listener) => {
+        grant = listener
+      }),
+      removeListener: vi.fn(),
+    }
+    const removed = {
+      addListener: vi.fn((listener) => {
+        revoke = listener
+      }),
+      removeListener: vi.fn(),
+    }
+    const nativeChrome = installNativeChrome({
+      permissions: { onAdded: added, onRemoved: removed },
+    }) as any
+    const listener = vi.fn()
+    const cleanup = onNotificationClicked(listener)
+    const first = { addListener: vi.fn(), removeListener: vi.fn() }
+    nativeChrome.notifications = { onClicked: first }
+    expect(grant).toBeTypeOf("function")
+    grant!({ permissions: ["notifications"] })
+    grant!({ permissions: ["notifications"] })
+    expect(first.addListener).toHaveBeenCalledExactlyOnceWith(listener)
+    revoke!({ permissions: ["notifications"] })
+    expect(first.removeListener).toHaveBeenCalledExactlyOnceWith(listener)
+    const second = { addListener: vi.fn(), removeListener: vi.fn() }
+    nativeChrome.notifications = { onClicked: second }
+    grant!({ permissions: ["notifications"] })
+    expect(second.addListener).toHaveBeenCalledExactlyOnceWith(listener)
+    cleanup()
+    expect(second.removeListener).toHaveBeenCalledExactlyOnceWith(listener)
+    expect(added.removeListener).toHaveBeenCalledWith(grant)
+    expect(removed.removeListener).toHaveBeenCalledWith(revoke)
+  })
+})
 
 // Note: these helpers now use the unified logger, so tests avoid asserting on `console.*` output.
 describe("browserApi alarms helpers", () => {
@@ -196,6 +444,11 @@ describe("browserApi alarms helpers", () => {
     cleanup()
   })
 
+  it("allows clearing schedules when the alarms API is unavailable", async () => {
+    ;(globalThis as any).browser = {}
+    await expect(clearAllAlarms()).resolves.toBeUndefined()
+  })
+
   it("onAlarm should register and unregister listener when supported", () => {
     const addListenerMock = vi.fn()
     const removeListenerMock = vi.fn()
@@ -241,14 +494,17 @@ describe("browserApi session storage helpers", () => {
 
   it("returns compatibility fallbacks when storage.session is unavailable", async () => {
     const removeLocal = vi.fn()
+    const clearLocal = vi.fn()
     ;(globalThis as any).browser = {
-      storage: { local: { remove: removeLocal } },
+      storage: { local: { remove: removeLocal, clear: clearLocal } },
     }
     expect(hasSessionStorageArea()).toBe(false)
     await expect(getSessionStorageValues("key")).resolves.toEqual({})
     await expect(setSessionStorageValues({ key: "value" })).resolves.toBe(false)
     await expect(removeSessionStorageValues("key")).resolves.toBeUndefined()
+    await expect(clearSessionStorage()).resolves.toBeUndefined()
     expect(removeLocal).not.toHaveBeenCalled()
+    expect(clearLocal).not.toHaveBeenCalled()
   })
 
   it("reads, writes, and removes ephemeral data only through storage.session", async () => {
@@ -521,6 +777,25 @@ describe("browserApi isMessageReceiverUnavailableError", () => {
 })
 
 describe("browserApi sendTabMessageWithRetry", () => {
+  it("does not dispatch a retry after its caller cancels", async () => {
+    const controller = new AbortController()
+    const send = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        controller.abort()
+        throw new Error("Receiving end does not exist")
+      })
+      .mockResolvedValue({ ok: true })
+    ;(globalThis as any).browser = { tabs: { sendMessage: send } }
+    await expect(
+      sendTabMessageWithRetry(
+        123,
+        {},
+        { abortSignal: controller.signal, delayMs: 0 },
+      ),
+    ).rejects.toMatchObject({ name: "AbortError" })
+    expect(send).toHaveBeenCalledTimes(1)
+  })
   beforeEach(() => {
     vi.restoreAllMocks()
     ;(globalThis as any).browser = undefined
@@ -879,7 +1154,7 @@ describe("browserApi getSidePanelSupport", () => {
     }
     ;(globalThis as any).chrome = {}
 
-    const { getSidePanelSupport } = await import("~/utils/browser/browserApi")
+    const { getSidePanelSupport } = await import("~/utils/browser/sidePanel")
     expect(getSidePanelSupport()).toEqual({
       supported: true,
       kind: "firefox-sidebar-action",
@@ -894,7 +1169,7 @@ describe("browserApi getSidePanelSupport", () => {
       },
     }
 
-    const { getSidePanelSupport } = await import("~/utils/browser/browserApi")
+    const { getSidePanelSupport } = await import("~/utils/browser/sidePanel")
     expect(getSidePanelSupport()).toEqual({
       supported: true,
       kind: "chromium-side-panel",
@@ -916,7 +1191,7 @@ describe("browserApi getSidePanelSupport", () => {
       },
     }
 
-    const { getSidePanelSupport } = await import("~/utils/browser/browserApi")
+    const { getSidePanelSupport } = await import("~/utils/browser/sidePanel")
     const result = getSidePanelSupport()
 
     expect(result.supported).toBe(false)
@@ -949,7 +1224,7 @@ describe("browserApi getSidePanelSupport", () => {
     }
     ;(globalThis as any).chrome = {}
 
-    const { getSidePanelSupport } = await import("~/utils/browser/browserApi")
+    const { getSidePanelSupport } = await import("~/utils/browser/sidePanel")
     const result = getSidePanelSupport()
 
     expect(result.supported).toBe(false)
@@ -962,34 +1237,29 @@ describe("browserApi getSidePanelSupport", () => {
     vi.doUnmock("~/utils/browser/device")
   })
 
-  it("marks support as unsupported after an observed open failure", async () => {
-    ;(globalThis as any).browser = {
-      sidebarAction: {
-        open: vi.fn().mockRejectedValue(new Error("fail")),
-      },
-    }
+  it("keeps side panel capability available after a transient open failure and allows retry", async () => {
+    const open = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("user gesture expired"))
+      .mockResolvedValueOnce(undefined)
+    ;(globalThis as any).browser = { sidebarAction: { open } }
     ;(globalThis as any).chrome = {}
-
     const { getSidePanelSupport, openSidePanel } = await import(
-      "~/utils/browser/browserApi"
+      "~/utils/browser/sidePanel"
     )
-
-    await expect(openSidePanel()).rejects.toThrow("fail")
-
-    const result = getSidePanelSupport()
-    expect(result.supported).toBe(false)
-    expect(result.kind).toBe("unsupported")
-    if (result.supported) {
-      throw new Error("Expected getSidePanelSupport to return unsupported")
-    }
-    expect(result.reason).toContain("open failed")
+    await expect(openSidePanel()).rejects.toThrow("user gesture expired")
+    expect(getSidePanelSupport().supported).toBe(true)
+    await expect(openSidePanel()).resolves.toBeUndefined()
+    expect(open).toHaveBeenCalledTimes(2)
   })
 
   it("returns unsupported when neither side panel API is available", async () => {
     ;(globalThis as any).browser = {}
     ;(globalThis as any).chrome = {}
 
-    const { getSidePanelSupport } = await import("~/utils/browser/browserApi")
+    const { getSidePanelSupport, openSidePanel } = await import(
+      "~/utils/browser/sidePanel"
+    )
     const result = getSidePanelSupport()
 
     expect(result.supported).toBe(false)
@@ -999,6 +1269,7 @@ describe("browserApi getSidePanelSupport", () => {
     }
     expect(result.reason).toContain("browser.sidebarAction.open missing")
     expect(result.reason).toContain("chrome.sidePanel.open missing")
+    await expect(openSidePanel()).rejects.toThrow("Side panel is not supported")
   })
 
   it("recomputes support on each call", async () => {
@@ -1009,7 +1280,7 @@ describe("browserApi getSidePanelSupport", () => {
     }
     ;(globalThis as any).chrome = {}
 
-    const { getSidePanelSupport } = await import("~/utils/browser/browserApi")
+    const { getSidePanelSupport } = await import("~/utils/browser/sidePanel")
 
     expect(getSidePanelSupport()).toEqual({
       supported: true,
@@ -1040,7 +1311,7 @@ describe("browserApi getSidePanelSupport", () => {
       },
     }
 
-    const { getSidePanelSupport } = await import("~/utils/browser/browserApi")
+    const { getSidePanelSupport } = await import("~/utils/browser/sidePanel")
     const result = getSidePanelSupport()
 
     expect(result.supported).toBe(false)
@@ -1067,7 +1338,7 @@ describe("browserApi getSidePanelSupport", () => {
       },
     }
 
-    const { openSidePanel } = await import("~/utils/browser/browserApi")
+    const { openSidePanel } = await import("~/utils/browser/sidePanel")
 
     await openSidePanel({ id: 7, windowId: 9 } as browser.tabs.Tab)
 
@@ -1089,7 +1360,7 @@ describe("browserApi getSidePanelSupport", () => {
       },
     }
 
-    const { openSidePanel } = await import("~/utils/browser/browserApi")
+    const { openSidePanel } = await import("~/utils/browser/sidePanel")
 
     await openSidePanel({ id: 7 } as browser.tabs.Tab)
 
@@ -1114,7 +1385,7 @@ describe("browserApi getSidePanelSupport", () => {
       },
     }
 
-    const { openSidePanel } = await import("~/utils/browser/browserApi")
+    const { openSidePanel } = await import("~/utils/browser/sidePanel")
 
     await expect(openSidePanel()).resolves.toBeUndefined()
 
@@ -1136,7 +1407,7 @@ describe("browserApi getSidePanelSupport", () => {
     }
 
     const { openSidePanel, getSidePanelSupport } = await import(
-      "~/utils/browser/browserApi"
+      "~/utils/browser/sidePanel"
     )
 
     await expect(openSidePanel()).rejects.toThrow(
@@ -1144,7 +1415,22 @@ describe("browserApi getSidePanelSupport", () => {
     )
 
     const support = getSidePanelSupport()
-    expect(support.supported).toBe(false)
+    expect(support.supported).toBe(true)
+  })
+
+  it("propagates a window-only opening failure without disabling capability", async () => {
+    const failure = new Error("window opening rejected")
+    const open = vi.fn().mockRejectedValue(failure)
+    ;(globalThis as any).browser = {}
+    ;(globalThis as any).chrome = { sidePanel: { open } }
+    const { openSidePanel, getSidePanelSupport } = await import(
+      "~/utils/browser/sidePanel"
+    )
+    await expect(
+      openSidePanel({ windowId: 9 } as browser.tabs.Tab),
+    ).rejects.toBe(failure)
+    expect(open).toHaveBeenCalledExactlyOnceWith({ windowId: 9 })
+    expect(getSidePanelSupport().supported).toBe(true)
   })
 
   it("opens the Firefox sidebar action directly", async () => {
@@ -1156,7 +1442,7 @@ describe("browserApi getSidePanelSupport", () => {
     }
     ;(globalThis as any).chrome = {}
 
-    const { openSidePanel } = await import("~/utils/browser/browserApi")
+    const { openSidePanel } = await import("~/utils/browser/sidePanel")
 
     await expect(openSidePanel()).resolves.toBeUndefined()
     expect(open).toHaveBeenCalledTimes(1)
@@ -1190,6 +1476,26 @@ describe("browserApi tab helpers", () => {
     expect(queryMock).toHaveBeenCalledWith({
       active: true,
       currentWindow: true,
+    })
+  })
+
+  it("creates a tab in the requested Firefox cookie store", async () => {
+    const createMock = vi.fn().mockResolvedValue({
+      id: 12,
+      cookieStoreId: "firefox-container-1",
+    })
+    ;(globalThis as any).browser.tabs.create = createMock
+
+    await expect(
+      createTab("about:blank", false, {
+        cookieStoreId: "firefox-container-1",
+      }),
+    ).resolves.toMatchObject({ cookieStoreId: "firefox-container-1" })
+    expect(createMock).toHaveBeenCalledWith({
+      url: "about:blank",
+      active: false,
+      windowId: undefined,
+      cookieStoreId: "firefox-container-1",
     })
   })
 
@@ -1428,6 +1734,53 @@ describe("browserApi window and manifest helpers", () => {
     expect(() => reloadRuntime()).not.toThrow()
   })
 
+  it("reports reload failures when the caller needs an explicit completion result", () => {
+    ;(globalThis as any).browser.runtime.reload = vi.fn(() => {
+      throw new Error("reload unavailable")
+    })
+    expect(() => reloadRuntime({ throwOnError: true })).toThrow(
+      "reload unavailable",
+    )
+    delete (globalThis as any).browser.runtime.reload
+    expect(() => reloadRuntime({ throwOnError: true })).toThrow(
+      "reload is unavailable",
+    )
+  })
+
+  it("sets the uninstall URL through the runtime API", async () => {
+    // Native browser API methods require their own receiver; calling a
+    // detached reference throws "Illegal invocation" in Chromium.
+    const setUninstallURL = vi.fn(function (this: unknown) {
+      expect(this).toBe((globalThis as any).browser.runtime)
+      return Promise.resolve()
+    })
+    ;(globalThis as any).browser.runtime.setUninstallURL = setUninstallURL
+
+    await expect(
+      setUninstallUrl("https://example.test/uninstall.html"),
+    ).resolves.toBe(true)
+
+    expect(setUninstallURL).toHaveBeenCalledWith(
+      "https://example.test/uninstall.html",
+    )
+  })
+
+  it("reports failure when the browser exposes no uninstall URL API", async () => {
+    delete (globalThis as any).browser.runtime.setUninstallURL
+
+    await expect(
+      setUninstallUrl("https://example.test/uninstall.html"),
+    ).resolves.toBe(false)
+  })
+
+  it("reports failure instead of throwing when the browser rejects the URL", async () => {
+    ;(globalThis as any).browser.runtime.setUninstallURL = vi
+      .fn()
+      .mockRejectedValue(new Error("invalid url"))
+
+    await expect(setUninstallUrl("not a url")).resolves.toBe(false)
+  })
+
   it("opens the standard runtime options page", async () => {
     const openOptionsPage = vi.fn().mockResolvedValue(undefined)
     ;(globalThis as any).browser.runtime.openOptionsPage = openOptionsPage
@@ -1541,6 +1894,16 @@ describe("browserApi window and manifest helpers", () => {
     expect(addListenerMock).toHaveBeenCalledWith(callback)
     cleanup()
     expect(removeListenerMock).toHaveBeenCalledWith(callback)
+  })
+
+  it("returns safe window removal cleanup when window APIs are unavailable", () => {
+    ;(globalThis as any).browser.windows = undefined
+    const callback = vi.fn()
+    const cleanup = onWindowRemoved(callback)
+
+    expect(cleanup).toBeTypeOf("function")
+    expect(() => cleanup()).not.toThrow()
+    expect(callback).not.toHaveBeenCalled()
   })
 })
 

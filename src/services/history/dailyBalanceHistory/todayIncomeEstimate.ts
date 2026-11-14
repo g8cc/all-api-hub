@@ -1,4 +1,5 @@
 import { QUOTA_PER_USD } from "~/constants/money"
+import { supportsMonetaryBalance } from "~/services/accounts/metrics/monetaryBalancePolicy"
 import type { CurrencyAmount, SiteAccount } from "~/types"
 import type {
   DailyBalanceHistoryStore,
@@ -7,12 +8,18 @@ import type {
 import { TODAY_INCOME_ESTIMATE_STATUS } from "~/types/dailyBalanceHistory"
 import { subtractDaysFromDayKey } from "~/utils/core/dayKey"
 
-type TodayIncomeEstimateAccount = Pick<SiteAccount, "id" | "manualBalanceUsd">
-
-type TodayIncomeMoneyTotalsAccount = Pick<
+type TodayIncomeEstimateAccount = Pick<
   SiteAccount,
-  "id" | "manualBalanceUsd" | "exchange_rate"
->
+  "id" | "manualBalanceUsd"
+> & {
+  account_info?: Pick<
+    SiteAccount["account_info"],
+    "nativeBalance" | "balanceUnavailable"
+  >
+}
+
+type TodayIncomeMoneyTotalsAccount = TodayIncomeEstimateAccount &
+  Pick<SiteAccount, "exchange_rate">
 
 const NULL_RESULT_BY_STATUS = {
   disabled: {
@@ -58,7 +65,14 @@ export function estimateTodayIncomeForAccount(params: {
 }): TodayIncomeEstimateResult {
   const { enabled, store, account, currentDayKey } = params
 
-  if (!enabled) return NULL_RESULT_BY_STATUS.disabled
+  if (
+    !enabled ||
+    !supportsMonetaryBalance(
+      account.account_info?.nativeBalance,
+      account.account_info?.balanceUnavailable,
+    )
+  )
+    return NULL_RESULT_BY_STATUS.disabled
   if (hasManualBalance(account)) return NULL_RESULT_BY_STATUS.manual_balance
 
   const currentSnapshot =
@@ -148,7 +162,13 @@ export function buildEstimatedTodayIncomeMoneyTotals(params: {
   const estimated = { USD: 0, CNY: 0 }
   let availableAccounts = 0
 
-  for (const account of accounts) {
+  const eligibleAccounts = accounts.filter((account) =>
+    supportsMonetaryBalance(
+      account.account_info?.nativeBalance,
+      account.account_info?.balanceUnavailable,
+    ),
+  )
+  for (const account of eligibleAccounts) {
     const result = estimateTodayIncomeForAccount({
       enabled,
       store,
@@ -185,6 +205,6 @@ export function buildEstimatedTodayIncomeMoneyTotals(params: {
     trusted,
     estimated: availableAccounts > 0 ? estimated : null,
     availableAccounts,
-    totalAccounts: accounts.length,
+    totalAccounts: eligibleAccounts.length,
   }
 }

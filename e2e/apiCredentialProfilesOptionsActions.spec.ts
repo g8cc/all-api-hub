@@ -1,10 +1,14 @@
 import fs from "node:fs/promises"
 import type { BrowserContext, Page } from "@playwright/test"
 
-import { KILO_CODE_EXPORT_TEST_IDS } from "~/components/kiloCodeExportTestIds"
 import { OPTIONS_PAGE_PATH } from "~/constants/extensionPages"
 import { MENU_ITEM_IDS } from "~/constants/optionsMenuIds"
-import { API_CREDENTIAL_PROFILES_TEST_IDS } from "~/features/ApiCredentialProfiles/testIds"
+import {
+  API_CREDENTIAL_PROFILES_TEST_IDS,
+  getApiCredentialProfileRowTestId,
+  getApiCredentialProfileVerifyProbeTestId,
+} from "~/features/ApiCredentialProfiles/testIds"
+import { KILO_CODE_EXPORT_TEST_IDS } from "~/features/KiloCodeExport/kiloCodeExportTestIds"
 import {
   getManagedSiteChannelRowDeleteActionTestId,
   getManagedSiteChannelRowEditActionTestId,
@@ -41,6 +45,8 @@ import {
   setPlasmoStorageValue,
 } from "~~/e2e/utils/extensionState"
 import { waitForExtensionRoot } from "~~/e2e/utils/lazyLoading"
+import { captureVisualViews } from "~~/e2e/utils/visualCapture"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 
 const CLIPBOARD_WRITES_KEY = "__aah_e2e_profile_clipboard_writes__"
 
@@ -133,7 +139,7 @@ test("creates an API credential profile from the options page and persists it", 
   )
   await expect(profileDialog).toBeVisible()
   await expect(
-    profileDialog.getByRole("heading", { name: "Save API key" }),
+    profileDialog.getByRole("heading", { name: "Save API credential" }),
   ).toBeVisible()
 
   await page.locator("#api-credential-profile-name").fill("Options Profile")
@@ -186,6 +192,45 @@ test("creates an API credential profile from the options page and persists it", 
       notes: "Created from options E2E",
     })
 })
+
+for (const width of [1280, 420]) {
+  test(`reveals a targeted credential and expires its highlight at ${width}px`, async ({
+    context,
+    extensionId,
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await seedApiCredentialProfiles(
+      await getServiceWorker(context),
+      Array.from({ length: 6 }, (_, index) =>
+        createStoredApiCredentialProfile({
+          id: `navigation-profile-${index}`,
+          name: `Navigation Profile ${index}`,
+          baseUrl: "https://navigation.example.com",
+          apiKey: `synthetic-navigation-key-${index}`,
+        }),
+      ),
+    )
+    await page.goto(
+      `chrome-extension://${extensionId}/${OPTIONS_PAGE_PATH}?profileId=navigation-profile-5#${MENU_ITEM_IDS.API_CREDENTIAL_PROFILES}`,
+    )
+    await waitForExtensionRoot(page)
+    await expectPermissionOnboardingHidden(page)
+    const target = page.getByTestId(
+      getApiCredentialProfileRowTestId("navigation-profile-5"),
+    )
+    await expect(target).toBeFocused()
+    await expect(target).toBeInViewport()
+    await expect(target).toHaveClass(/ring-theme-500/)
+    await page.screenshot({
+      path: testInfo.outputPath("profile-target.png"),
+      animations: "disabled",
+    })
+    await expect(target).not.toHaveClass(/ring-theme-500/)
+    await expect(target).toBeFocused()
+  })
+}
 
 test("filters options-page profiles and copies reusable credentials", async ({
   context,
@@ -250,7 +295,7 @@ test("filters options-page profiles and copies reusable credentials", async ({
     .click()
 
   await expect(page.getByText("Pass", { exact: true })).toBeVisible()
-  await expect(page.getByText("Unverified", { exact: true })).toHaveCount(0)
+  await expect(page.getByText("Not tested", { exact: true })).toHaveCount(0)
 
   const endpointBaseUrl = page.getByTestId(
     API_CREDENTIAL_PROFILES_TEST_IDS.endpointBaseUrl,
@@ -291,7 +336,7 @@ test("filters options-page profiles and copies reusable credentials", async ({
   await expect(addToEndpointDialog).toHaveCount(0)
 
   const searchInput = page.getByPlaceholder(
-    "Search by name, base URL, tag, or notes",
+    "Search by name, base URL, tag, source page, or notes",
   )
   await searchInput.fill("daily driver")
 
@@ -577,7 +622,9 @@ test("downloads Kilo Code settings for an API credential profile", async ({
   expect(v7Settings._meta?.version).toBe(1)
   const providerEntries = Object.entries(v7Settings.provider ?? {})
   expect(providerEntries).toHaveLength(1)
-  const [providerId, provider] = providerEntries[0]
+  const indexedItems = providerEntries[0]
+  const providerId = atIndex(indexedItems, 0)
+  const provider = atIndex(indexedItems, 1)
   expect(provider.name).toBe(profileName)
   expect(providerId).not.toBe(profileName)
   expect(provider).toMatchObject({
@@ -894,8 +941,12 @@ test("imports an API credential profile into Claude Code Router", async ({
   const modelsInput = dialog.getByPlaceholder("Type to add models")
   await expect(modelsInput).toBeVisible()
   await expect.poll(() => sourceModelsRequested).toBe(true)
+  await expect(
+    dialog.getByRole("button", { name: "Select all", exact: true }),
+  ).toBeEnabled()
   await modelsInput.fill("gpt-claude-router-profile")
-  await page.keyboard.press("Enter")
+  await expect(modelsInput).toHaveValue("gpt-claude-router-profile")
+  await modelsInput.press("Enter")
   await expect(
     dialog.getByRole("button", {
       name: "Copy gpt-claude-router-profile",
@@ -945,19 +996,29 @@ test("imports an API credential profile into Claude Code Router", async ({
   ).toBeVisible()
 })
 
-// The API type and test mode fields share one grid row, so their label rows and
-// controls must render at the same offsets.
-test("aligns the credential verification meta fields across the paired row", async ({
+// Each configuration field shares a grid row with one sibling, so both label
+// rows and both controls must render at the same offsets: API type pairs with
+// Model, and Test mode pairs with Client simulation.
+test("aligns the credential verification meta fields across the paired rows", async ({
   context,
   extensionId,
+  extensionDir,
   page,
 }) => {
-  await context.route("https://aligned-api.example.com/v1/models", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ data: [] }),
-    }),
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  const modelRequestUrls: string[] = []
+  await context.route(
+    (url) =>
+      url.origin === "https://aligned-api.example.com" &&
+      url.pathname === "/v1/models",
+    (route) => {
+      modelRequestUrls.push(route.request().url())
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [] }),
+      })
+    },
   )
   const serviceWorker = await getServiceWorker(context)
   await seedApiCredentialProfiles(serviceWorker, [
@@ -974,20 +1035,432 @@ test("aligns the credential verification meta fields across the paired row", asy
     page.getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.verifyModelId),
   ).toBeVisible()
 
-  const apiTypeLabel = page.getByText("API type", { exact: true })
-  const modeLabel = page.getByText("Test mode", { exact: true })
-  const apiTypeTrigger = page.locator(
+  const config = page.getByTestId("verification-config")
+  const shortcutHint = page.getByText(
+    "Claude Code is selected. Run a test or choose another client.",
+    { exact: true },
+  )
+  await expect(shortcutHint).toHaveCount(0)
+  const apiTypeLabel = config.getByText("API type", { exact: true })
+  const modelLabel = config.getByText("Model", { exact: true })
+  const modeLabel = config.getByText("Test mode", { exact: true })
+  const profileLabel = config.getByText("Client simulation", { exact: true })
+  const apiTypeTrigger = config.locator(
     '[data-slot="searchable-select-trigger"][aria-label="API type"]',
   )
-  const modeTrigger = page.getByRole("combobox", { name: "Test mode" })
+  const modelTrigger = config.getByTestId(
+    API_CREDENTIAL_PROFILES_TEST_IDS.verifyModelId,
+  )
+  const modeTrigger = config.getByRole("combobox", { name: "Test mode" })
+  const profileTrigger = config.getByRole("combobox", {
+    name: "Client simulation",
+    exact: true,
+  })
 
   const apiTypeLabelBox = await apiTypeLabel.boundingBox()
+  const modelLabelBox = await modelLabel.boundingBox()
   const modeLabelBox = await modeLabel.boundingBox()
+  const profileLabelBox = await profileLabel.boundingBox()
   const apiTypeTriggerBox = await apiTypeTrigger.boundingBox()
+  const modelTriggerBox = await modelTrigger.boundingBox()
   const modeTriggerBox = await modeTrigger.boundingBox()
+  const profileTriggerBox = await profileTrigger.boundingBox()
 
-  expect(modeLabelBox?.y).toBe(apiTypeLabelBox?.y)
-  expect(modeTriggerBox?.y).toBe(apiTypeTriggerBox?.y)
-  expect(modeTriggerBox?.width).toBe(apiTypeTriggerBox?.width)
-  expect(modeTriggerBox?.height).toBe(apiTypeTriggerBox?.height)
+  expect(modelLabelBox?.y).toBe(apiTypeLabelBox?.y)
+  expect(modelTriggerBox?.y).toBe(apiTypeTriggerBox?.y)
+  expect(modelTriggerBox?.width).toBe(apiTypeTriggerBox?.width)
+  expect(modelTriggerBox?.height).toBe(apiTypeTriggerBox?.height)
+  expect(profileLabelBox?.y).toBe(modeLabelBox?.y)
+  expect(profileTriggerBox?.y).toBe(modeTriggerBox?.y)
+  expect(profileTriggerBox?.width).toBe(modeTriggerBox?.width)
+  expect(profileTriggerBox?.height).toBe(modeTriggerBox?.height)
+  await captureVisualViews({
+    page,
+    ready: page.getByRole("dialog"),
+    extensionDir,
+    id: "verification-request-profile",
+  })
+  const selector = page.getByRole("combobox", {
+    name: "Client simulation",
+    exact: true,
+  })
+  await selector.click()
+  await page.getByRole("option", { name: "Claude Code", exact: true }).click()
+  await expect
+    .poll(() => modelRequestUrls)
+    .toContain("https://aligned-api.example.com/v1/models?limit=200")
+  const enhanced = page.getByRole("switch", {
+    name: "Enhanced CLI simulation",
+    exact: true,
+  })
+  await expect(enhanced).not.toBeChecked()
+  await enhanced.click()
+  await expect(shortcutHint).toHaveCount(0)
+  await captureVisualViews({
+    page,
+    ready: page.getByRole("dialog"),
+    extensionDir,
+    id: "verification-enhanced-profile",
+  })
+  await page
+    .getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.verifyDialogCloseButton)
+    .click()
+  const cliShortcut = page.getByTestId(
+    API_CREDENTIAL_PROFILES_TEST_IDS.verifyCliSupportButton,
+  )
+  await cliShortcut.hover()
+  await expect(
+    page.getByRole("tooltip", {
+      name: "Test this API’s support for CLI clients",
+      exact: true,
+    }),
+  ).toBeVisible()
+  await cliShortcut.click()
+  await expect(shortcutHint).toBeVisible()
+  const cliEnhanced = page.getByRole("switch", {
+    name: "Enhanced CLI simulation",
+    exact: true,
+  })
+  await expect(cliEnhanced).not.toBeChecked()
+  await cliEnhanced.click()
+  await expect(cliEnhanced).toBeChecked()
+  await captureVisualViews({
+    page,
+    ready: page.getByRole("dialog"),
+    extensionDir,
+    id: "verification-enhanced-cli",
+  })
+  await selector.click()
+  await page.getByRole("option", { name: "Codex CLI", exact: true }).click()
+  await expect(shortcutHint).toHaveCount(0)
+  await selector.click()
+  await page.getByRole("option", { name: "Claude Code", exact: true }).click()
+  await expect(shortcutHint).toHaveCount(0)
+  await page
+    .getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.verifyDialogCloseButton)
+    .click()
+  await cliShortcut.click()
+  await expect(shortcutHint).toBeVisible()
+  await apiTypeTrigger.click()
+  await page
+    .getByRole("option", { name: "OpenAI-compatible", exact: true })
+    .click()
+  await expect(shortcutHint).toHaveCount(0)
+  await apiTypeTrigger.click()
+  await page.getByRole("option", { name: "Anthropic", exact: true }).click()
+  await expect(shortcutHint).toHaveCount(0)
+})
+
+test("verifies embedding and image models after changing the selected modality", async ({
+  context,
+  extensionId,
+  extensionDir,
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  await context.route("https://models.dev/models.json", (route) =>
+    route.fulfill({
+      json: {
+        models: [
+          ["catalog-chat", "text"],
+          ["catalog-vector", "embedding"],
+          ["catalog-image", "image"],
+        ].map(([id, output]) => ({
+          id,
+          name: id,
+          provider_id: "catalog",
+          modalities: { input: ["text"], output: [output] },
+        })),
+      },
+    }),
+  )
+  const imageBytes = await fs.readFile(
+    new URL("./fixtures/verificationMedia/image.png", import.meta.url),
+  )
+  const requests: {
+    model: string
+    input?: unknown
+    size?: string
+    quality?: string
+  }[] = []
+  await context.route("https://modality-api.example.com/v1/models", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: ["catalog-chat", "catalog-vector", "catalog-image"].map((id) => ({
+          id,
+          object: "model",
+        })),
+      }),
+    }),
+  )
+  await context.route(
+    "https://modality-api.example.com/v1/embeddings",
+    (route) => {
+      requests.push(route.request().postDataJSON())
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          object: "list",
+          data: [{ object: "embedding", index: 0, embedding: [0.1, 0.2, 0.3] }],
+          model: "catalog-vector",
+          usage: { prompt_tokens: 1, total_tokens: 1 },
+        }),
+      })
+    },
+  )
+  await context.route(
+    "https://modality-api.example.com/v1/images/generations",
+    (route) => {
+      requests.push(route.request().postDataJSON())
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [{ url: "https://modality-api.example.com/preview.png" }],
+        }),
+      })
+    },
+  )
+  await context.route("https://modality-api.example.com/preview.png", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: imageBytes,
+    }),
+  )
+  await seedApiCredentialProfiles(await getServiceWorker(context), [
+    createStoredApiCredentialProfile({
+      id: "profile-modalities",
+      name: "Modality Profile",
+      baseUrl: "https://modality-api.example.com",
+    }),
+  ])
+  await openProfilesPage(page, extensionId)
+  await page.getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.verifyButton).click()
+  const modelPicker = page.getByTestId(
+    API_CREDENTIAL_PROFILES_TEST_IDS.verifyModelId,
+  )
+  await expect(modelPicker).toContainText("catalog-chat")
+
+  await modelPicker.click()
+  await page
+    .getByRole("option", { name: "catalog-vector", exact: true })
+    .click()
+  await expect(modelPicker).toContainText("catalog-vector")
+  await expect(page.getByRole("combobox", { name: "Test mode" })).toHaveCount(0)
+  const embeddingProbe = page.getByTestId(
+    getApiCredentialProfileVerifyProbeTestId("embedding"),
+  )
+  await embeddingProbe
+    .getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.verifyProbeRunButton)
+    .click()
+  await expect(embeddingProbe).toContainText(
+    "Embedding generated successfully (dimension: 3).",
+  )
+  expect(requests[0]).toMatchObject({
+    model: "catalog-vector",
+    input: ["ping"],
+  })
+  await captureVisualViews({
+    page,
+    ready: embeddingProbe,
+    id: "embedding-verification",
+    extensionDir,
+  })
+
+  await modelPicker.click()
+  await page.getByRole("option", { name: "catalog-image", exact: true }).click()
+  await expect(modelPicker).toContainText("catalog-image")
+  await expect(embeddingProbe).toHaveCount(0)
+  const imageProbe = page.getByTestId(
+    getApiCredentialProfileVerifyProbeTestId("image-generation"),
+  )
+  await imageProbe
+    .getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.verifyProbeRunButton)
+    .click()
+  await expect(imageProbe).toContainText("Image generation succeeded")
+  expect(requests[1]).toMatchObject({
+    model: "catalog-image",
+  })
+  expect(requests[1]).not.toHaveProperty("size")
+  expect(requests[1]).not.toHaveProperty("quality")
+  await imageProbe
+    .getByRole("button", { name: "Image generation", exact: true })
+    .click()
+  await expect(
+    imageProbe.getByRole("img", { name: "Generated image preview" }),
+  ).toBeVisible()
+  await expect
+    .poll(() =>
+      imageProbe
+        .getByRole("img", { name: "Generated image preview" })
+        .evaluate(
+          (image: HTMLImageElement) => image.complete && image.naturalWidth > 0,
+        ),
+    )
+    .toBe(true)
+  await captureVisualViews({
+    page,
+    ready: imageProbe,
+    id: "image-verification",
+    extensionDir,
+  })
+})
+
+test("previews Base64 images and plays completed video tasks", async ({
+  context,
+  extensionId,
+  extensionDir,
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  await context.route("https://models.dev/models.json", (route) =>
+    route.fulfill({ json: { models: [] } }),
+  )
+  const imageBase64 = (
+    await fs.readFile(
+      new URL("./fixtures/verificationMedia/image.png", import.meta.url),
+    )
+  ).toString("base64")
+  const videoBytes = await fs.readFile(
+    new URL("./fixtures/verificationMedia/video.webm", import.meta.url),
+  )
+  let videoPosts = 0
+  let videoPolls = 0
+  await context.route("https://media-api.example.com/v1/models", (route) =>
+    route.fulfill({
+      json: { data: [{ id: "gpt-image-1" }, { id: "sora-1" }] },
+    }),
+  )
+  await context.route(
+    "https://media-api.example.com/v1/images/generations",
+    (route) => route.fulfill({ json: { data: [{ b64_json: imageBase64 }] } }),
+  )
+  await context.route(
+    "https://media-api.example.com/v1/video/generations",
+    (route) => {
+      videoPosts += 1
+      return route.fulfill({
+        json: { task_id: "fixture-video", status: "queued" },
+      })
+    },
+  )
+  await context.route(
+    "https://media-api.example.com/v1/video/generations/fixture-video",
+    (route) => {
+      videoPolls += 1
+      return route.fulfill({
+        json:
+          videoPolls === 1
+            ? { task_id: "fixture-video", status: "in_progress" }
+            : {
+                task_id: "fixture-video",
+                status: "completed",
+                url: "https://media-api.example.com/result.webm",
+              },
+      })
+    },
+  )
+  await context.route("https://media-api.example.com/result.webm", (route) =>
+    route.fulfill({ contentType: "video/webm", body: videoBytes }),
+  )
+  await seedApiCredentialProfiles(await getServiceWorker(context), [
+    createStoredApiCredentialProfile({
+      id: "profile-media-preview",
+      name: "Media Preview",
+      baseUrl: "https://media-api.example.com",
+    }),
+  ])
+  await openProfilesPage(page, extensionId)
+  await page.getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.verifyButton).click()
+  const picker = page.getByTestId(
+    API_CREDENTIAL_PROFILES_TEST_IDS.verifyModelId,
+  )
+  await expect(picker).toContainText("gpt-image-1")
+  const imageProbe = page.getByTestId(
+    getApiCredentialProfileVerifyProbeTestId("image-generation"),
+  )
+  await imageProbe
+    .getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.verifyProbeRunButton)
+    .click()
+  await expect(imageProbe).toContainText("Image generation succeeded")
+  await imageProbe
+    .getByRole("button", { name: "Image generation", exact: true })
+    .click()
+  const image = imageProbe.getByRole("img", { name: "Generated image preview" })
+  await expect(image).toHaveAttribute(
+    "src",
+    `data:image/png;base64,${imageBase64}`,
+  )
+  await expect
+    .poll(() =>
+      image.evaluate(
+        (element: HTMLImageElement) =>
+          element.complete && element.naturalWidth === 320,
+      ),
+    )
+    .toBe(true)
+  expect(
+    (await imageProbe.locator("pre").allTextContents()).join(" "),
+  ).not.toContain(imageBase64)
+  await captureVisualViews({
+    page,
+    ready: image,
+    id: "base64-image-preview",
+    extensionDir,
+  })
+
+  await picker.click()
+  await page.getByRole("option", { name: "sora-1", exact: true }).click()
+  const videoProbe = page.getByTestId(
+    getApiCredentialProfileVerifyProbeTestId("video-generation"),
+  )
+  await videoProbe
+    .getByTestId(API_CREDENTIAL_PROFILES_TEST_IDS.verifyProbeRunButton)
+    .click()
+  await expect(videoProbe).toContainText("Video generated successfully.")
+  expect(videoPosts).toBe(1)
+  expect(videoPolls).toBe(2)
+  await videoProbe
+    .getByRole("button", { name: "Video task", exact: true })
+    .click()
+  const player = videoProbe.getByLabel("Generated video preview")
+  await expect(player).toBeVisible()
+  await expect(player).toHaveAttribute("controls", "")
+  await player.evaluate(async (element: HTMLVideoElement) => {
+    element.muted = true
+    element.loop = true
+    await element.play()
+  })
+  await expect
+    .poll(() =>
+      player.evaluate(
+        (element: HTMLVideoElement) =>
+          element.currentTime > 0 && element.videoWidth === 320,
+      ),
+    )
+    .toBe(true)
+  await page.getByRole("button", { name: "Model list", exact: true }).click()
+  await expect
+    .poll(() => player.evaluate((element: HTMLVideoElement) => element.paused))
+    .toBe(true)
+  await videoProbe
+    .getByRole("button", { name: "Video task", exact: true })
+    .click()
+  await expect(player).toBeVisible()
+  expect(
+    await player.evaluate((element: HTMLVideoElement) => element.paused),
+  ).toBe(true)
+  await expect(
+    videoProbe.getByRole("link", { name: "Open generated media" }),
+  ).toHaveAttribute("href", "https://media-api.example.com/result.webm")
+  await captureVisualViews({
+    page,
+    ready: player,
+    id: "video-playback-preview",
+    extensionDir,
+  })
 })

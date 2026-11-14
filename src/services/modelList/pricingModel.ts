@@ -1,7 +1,11 @@
 import type { AccountSiteType } from "~/constants/siteType"
 import type { PricingPlan } from "~/services/modelPricing/pricingPlan"
+import type { QuotaPricingPlan } from "~/services/modelPricing/quotaPricing"
 import type { ModelVendorEvidence } from "~/services/models/modelDescriptor"
-import type { ModelPresentation } from "~/services/models/modelDisplayFacts"
+import type {
+  ModelDisplayLabel,
+  ModelPresentation,
+} from "~/services/models/modelDisplayFacts"
 
 export type PerCallPrice = number | { input: number; output: number }
 
@@ -15,6 +19,18 @@ export interface ProductCanonicalModel {
   /** Provider-published descriptions; selected at render time, not cache time. */
   model_descriptions?: Partial<Record<"zh" | "en", string>>
   presentation?: ModelPresentation
+  availability?: {
+    /** Null means the upstream explicitly could not establish eligibility. */
+    available: boolean | null
+    reason?: string
+    reasonLabel?: ModelDisplayLabel
+  }
+  /** Server-side routing preference, independent of local group filters. */
+  providerGroup?: {
+    selected: string
+    locked?: boolean
+    options: { value: string; available: boolean; multiplier?: number }[]
+  }
   quota_type: number // 0 = token billing, 1 = per-call billing
   model_ratio: number
   model_price: number | PerCallPrice
@@ -34,10 +50,14 @@ export interface ProductCanonicalModel {
     cache_write?: number
   }
   pricingPlan?: PricingPlan
+  /** Non-monetary pricing, evaluated in the provider's own quota asset. */
+  quotaPricing?: QuotaPricingPlan
   price_metadata?: ModelPriceMetadata
   owner_by?: string
   completion_ratio: number
   enable_groups: string[]
+  /** Human-readable names keyed by native group identity; never used for filtering or writes. */
+  groupDisplayNames?: Readonly<Record<string, string>>
   supported_endpoint_types: string[]
 }
 
@@ -86,6 +106,7 @@ export type ModelPriceSourceKind =
   (typeof MODEL_PRICE_SOURCE_KINDS)[keyof typeof MODEL_PRICE_SOURCE_KINDS]
 
 export const MODEL_PRICE_PRECISION_KINDS = {
+  /** Explicitly supplied rates; applicability is expressed by pricing conditions. */
   EXACT: "exact",
   ESTIMATED: "estimated",
   UNAVAILABLE: "unavailable",
@@ -102,6 +123,7 @@ export const MODEL_UNAVAILABLE_PRICE_REASONS = {
   OFFICIAL_PRICE_MISSING: "official-price-missing",
   OFFICIAL_PRICE_INVALID: "official-price-invalid",
   PRICING_SOURCE_UNAVAILABLE: "pricing-source-unavailable",
+  PRICING_RULES_UNAVAILABLE: "pricing-rules-unavailable",
 } as const
 
 export type ModelUnavailablePriceReason =
@@ -110,6 +132,8 @@ export type ModelUnavailablePriceReason =
 export interface ModelPriceMetadata {
   source: ModelPriceSourceKind
   precision: ModelPricePrecisionKind
+  /** False when quota_type is only a legacy placeholder, not billing evidence. */
+  billing_mode_known?: boolean
   unavailable_reason?: ModelUnavailablePriceReason
   source_date?: string
   /** Public reference for the price evidence, separate from the account site. */
@@ -117,7 +141,16 @@ export interface ModelPriceMetadata {
   unmatched_model_count?: number
 }
 
+export const MODEL_LIST_PRICING_KINDS = {
+  Currency: "currency",
+  Quota: "quota",
+} as const
+
 export interface ModelListSourceInfo {
+  /** Explicit pricing basis; omitted legacy sources retain currency semantics. */
+  pricingKind?: (typeof MODEL_LIST_PRICING_KINDS)[keyof typeof MODEL_LIST_PRICING_KINDS]
+  /** Live models loaded using maintained routes after route discovery failed. */
+  inferenceRouteFallback?: boolean
   kind: ModelListSourceKind
   provider?: AccountSiteType
   catalogScope?: ModelCatalogScope

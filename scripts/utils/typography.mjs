@@ -4,14 +4,14 @@ import ts from "typescript"
 // Explicit exceptions are reviewed artwork, exported images, or renderer inputs.
 const ICON_SIZES = {
   "src/components/icons/InitialsIcon.tsx": new Set(["8px", "9px"]),
-  "src/features/ModelList/components/ModelVendorMark.tsx": new Set([
+  "src/features/ModelList/presentation/ModelVendorMark.tsx": new Set([
     "11px",
     "12px",
   ]),
 }
 const CHART_SOURCES = new Set([
   "src/components/charts/chartTypography.ts",
-  "src/features/BalanceHistory/echartsOptions.ts",
+  "src/features/BalanceHistory/reporting/echartsOptions.ts",
   "src/features/UsageAnalytics/charts/echartsOptions.ts",
 ])
 const RELATIVE_SIZE =

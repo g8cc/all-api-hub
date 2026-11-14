@@ -10,7 +10,7 @@ import { INVENTORY_SECRET_AVAILABILITIES } from "~/services/apiAdapters/contract
 import {
   OPENROUTER_KEY_FIELD_IDS,
   OPENROUTER_KEY_LIMIT_RESETS,
-} from "~/services/apiAdapters/openrouter/keyResourceFields"
+} from "~/services/apiAdapters/openrouter/keys/keyResourceFields"
 
 const t = ((key: string) => key) as TFunction
 const formatUsd = (value: number) =>
@@ -252,7 +252,7 @@ describe("buildOpenRouterKeyResourceCardPresentation", () => {
       "keyManagement:openRouter.list.values.no",
       "2026-08-05T00:00:00.000Z",
       "first, second",
-      "••••",
+      "••••••",
     ])
   })
 

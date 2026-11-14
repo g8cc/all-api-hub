@@ -7,6 +7,32 @@ import { Modal } from "~/components/ui/Dialog/Modal"
 import { render, screen, waitFor } from "~~/tests/test-utils/render"
 
 describe("Modal", () => {
+  it("moves focus to an enabled control when the fallback key disables the focused action", async () => {
+    function SelectionModal() {
+      const [cleared, setCleared] = useState(false)
+      return (
+        <Modal
+          isOpen
+          onClose={() => {}}
+          title="Selection"
+          focusFallbackKey={cleared ? "empty" : "selected"}
+        >
+          <button disabled={cleared} onClick={() => setCleared(true)}>
+            Clear selection
+          </button>
+        </Modal>
+      )
+    }
+    render(<SelectionModal />)
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Clear selection" }),
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "common:actions.close" }),
+      ).toHaveFocus(),
+    )
+  })
   it("keeps the newest initially open StrictMode session focused after older close autofocus settles", async () => {
     vi.useFakeTimers()
     try {
@@ -93,6 +119,65 @@ describe("Modal", () => {
     await user.keyboard("{Escape}")
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     expect(secondTrigger).toHaveFocus()
+  })
+
+  it("keeps a narrow gutter on small viewports and widens it from sm up", () => {
+    render(
+      <Modal isOpen onClose={() => undefined} size="lg" title="Sized modal">
+        <button type="button">Sized modal action</button>
+      </Modal>,
+      { withUserPreferencesProvider: false, withThemeProvider: false },
+    )
+
+    expect(screen.getByRole("dialog")).toHaveClass(
+      "max-w-[calc(100%-1rem)]",
+      "sm:max-w-[calc(100%-2rem)]",
+    )
+    expect(
+      document.querySelector('[data-slot="modal-positioner"]'),
+    ).toHaveClass("px-2", "sm:px-4", "py-2", "sm:py-density-4")
+  })
+
+  it("ceils the panel at the gutter-adjusted viewport height instead of 90vh", () => {
+    render(
+      <Modal isOpen onClose={() => undefined} size="lg" title="Sized modal">
+        <button type="button">Sized modal action</button>
+      </Modal>,
+      { withUserPreferencesProvider: false, withThemeProvider: false },
+    )
+
+    // The panel owns the ceiling so its own body stays the scroll region, and
+    // the value tracks the positioner's vertical gutter instead of a fixed
+    // 90vh, which left a dead band above and below a 600px popup.
+    expect(document.querySelector('[data-slot="modal-panel"]')).toHaveClass(
+      "max-h-[calc(100dvh-2rem)]",
+      "sm:max-h-[calc(100dvh-4rem)]",
+    )
+    expect(document.querySelector('[data-slot="modal-panel"]')).not.toHaveClass(
+      "max-h-[90vh]",
+    )
+    expect(
+      document.querySelector('[data-slot="modal-positioner"]'),
+    ).not.toHaveClass("py-density-4")
+  })
+
+  it("lets the caller replace the panel height ceiling", () => {
+    render(
+      <Modal
+        isOpen
+        onClose={() => undefined}
+        size="lg"
+        title="Tall modal"
+        panelClassName="max-h-[calc(100dvh-0.5rem)]"
+      >
+        <button type="button">Tall modal action</button>
+      </Modal>,
+      { withUserPreferencesProvider: false, withThemeProvider: false },
+    )
+
+    const panel = document.querySelector('[data-slot="modal-panel"]')
+    expect(panel).toHaveClass("max-h-[calc(100dvh-0.5rem)]")
+    expect(panel).not.toHaveClass("max-h-[calc(100dvh-2rem)]")
   })
 
   it("notifies after a controlled close restores focus", async () => {

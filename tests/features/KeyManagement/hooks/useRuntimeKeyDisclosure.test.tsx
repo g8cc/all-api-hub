@@ -1,26 +1,43 @@
 import { act, renderHook } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { SITE_TYPES } from "~/constants/siteType"
 import { useRuntimeKeyDisclosure } from "~/features/KeyManagement/components/RuntimeKeyActions/useRuntimeKeyDisclosure"
-import { buildAccountKeyResourceRuntimeKey } from "~/services/accounts/accountRuntimeKeys"
+import { buildAccountKeyResourceRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
 import { createDeferred } from "~~/tests/test-utils/deferred"
+import { atIndex } from "~~/tests/test-utils/indexedAccess"
 import { createAccount } from "~~/tests/utils/keyManagementFactories"
 
-const { resolveSecret, writeText, success, error, complete } = vi.hoisted(
-  () => ({
+const { resolveSecret, writeText, success, error, complete, readObservation } =
+  vi.hoisted(() => ({
     resolveSecret: vi.fn(),
     writeText: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
     complete: vi.fn(),
-  }),
-)
+    readObservation: vi.fn(),
+  }))
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 vi.mock("~/services/accounts/utils/apiServiceRequest", () => ({
   resolveDisplayAccountRuntimeKeySecret: resolveSecret,
 }))
+// Only storage access is stubbed: the module's pure helpers stay real, so the
+// suite keeps exercising them instead of failing on a missing mock export.
+vi.mock(
+  "~/services/siteDetection/siteTypeObservations",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/services/siteDetection/siteTypeObservations")
+      >()
+    return {
+      ...actual,
+      siteTypeObservations: { readForAccount: readObservation },
+    }
+  },
+)
 vi.mock("~/services/productAnalytics/actions", () => ({
   startProductAnalyticsAction: () => ({ complete }),
 }))
@@ -49,6 +66,7 @@ describe("native runtime key disclosure", () => {
       .mockReset()
       .mockResolvedValue({ ...key, secret: "resolved-private-key" })
     writeText.mockReset().mockResolvedValue(undefined)
+    readObservation.mockReset().mockResolvedValue(null)
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { writeText },
@@ -68,6 +86,22 @@ describe("native runtime key disclosure", () => {
     )
   })
 
+  it.each(["copy", "toggle"] as const)(
+    "reuses plaintext after an initial %s for subsequent reveal and copy actions",
+    async (firstAction) => {
+      const view = renderDisclosure()
+      await act(async () => view.result.current[firstAction]())
+      if (firstAction === "toggle")
+        await act(async () => view.result.current.toggle())
+      expect(view.result.current.secret).toBeNull()
+      await act(async () => view.result.current.copy())
+      await act(async () => view.result.current.toggle())
+      expect(view.result.current.secret).toBe("resolved-private-key")
+      expect(writeText).toHaveBeenLastCalledWith("resolved-private-key")
+      expect(resolveSecret).toHaveBeenCalledOnce()
+    },
+  )
+
   it("reveals, hides and reopens a current secret, but clears it after authentication changes", async () => {
     const view = renderDisclosure()
     await act(async () => view.result.current.toggle())
@@ -79,6 +113,10 @@ describe("native runtime key disclosure", () => {
     view.rerender({ account: { ...account, token: "replacement-auth" } })
     expect(view.result.current.secret).toBeNull()
     expect(view.result.current.visible).toBe(false)
+    resolveSecret.mockResolvedValueOnce({ ...key, secret: "replacement-key" })
+    await act(async () => view.result.current.copy())
+    expect(writeText).toHaveBeenLastCalledWith("replacement-key")
+    expect(resolveSecret).toHaveBeenCalledTimes(2)
   })
 
   it.each(["change", "unmount"])(
@@ -93,7 +131,8 @@ describe("native runtime key disclosure", () => {
       })
       await act(async () => view.result.current.copy())
       expect(resolveSecret).toHaveBeenCalledTimes(1)
-      const signal = resolveSecret.mock.calls[0][2].abortSignal as AbortSignal
+      const signal = atIndex(resolveSecret.mock.calls, 0)[2]
+        .abortSignal as AbortSignal
       if (event === "unmount") view.unmount()
       else
         view.rerender({
@@ -139,6 +178,83 @@ describe("native runtime key disclosure", () => {
     await act(async () => view.result.current.toggle())
     expect(error).toHaveBeenCalledWith("messages.revealFailed")
     expect(writeText).not.toHaveBeenCalled()
+  })
+
+  it("discards resolved plaintext when a refreshed inventory replaces the runtime key snapshot", async () => {
+    const view = renderHook(
+      ({ runtimeKey }) => useRuntimeKeyDisclosure(account, runtimeKey),
+      {
+        initialProps: { runtimeKey: key },
+      },
+    )
+    await act(async () => view.result.current.toggle())
+    view.rerender({ runtimeKey: { ...key } })
+    expect(view.result.current.secret).toBeNull()
+    resolveSecret.mockResolvedValueOnce({ ...key, secret: "refreshed-key" })
+    await act(async () => view.result.current.copy())
+    expect(writeText).toHaveBeenLastCalledWith("refreshed-key")
+    expect(resolveSecret).toHaveBeenCalledTimes(2)
+  })
+
+  it("treats a rejected resolve as cancellation once the disclosure was aborted", async () => {
+    const pending = createDeferred<typeof key>()
+    resolveSecret.mockReturnValueOnce(pending.promise)
+    const view = renderDisclosure()
+    let action!: Promise<void>
+    act(() => {
+      action = view.result.current.toggle()
+    })
+    view.unmount()
+    await act(async () => {
+      pending.reject(
+        new DOMException("The operation was aborted", "AbortError"),
+      )
+      await action
+    })
+    expect(error).not.toHaveBeenCalled()
+    expect(success).not.toHaveBeenCalled()
+    expect(complete).toHaveBeenCalledWith("cancelled")
+  })
+
+  it("names a mismatched site type when revealing fails", async () => {
+    resolveSecret.mockRejectedValueOnce(new Error("denied"))
+    readObservation.mockResolvedValueOnce({
+      storedSiteType: SITE_TYPES.NEW_API,
+      suggestedSiteType: SITE_TYPES.VELOERA,
+    })
+    const view = renderDisclosure()
+
+    await act(async () => view.result.current.toggle())
+
+    expect(readObservation).toHaveBeenCalledWith(account.id, account.siteType)
+    expect(error).toHaveBeenCalledWith(
+      "messages.revealFailed messages.keySiteTypeMismatch",
+    )
+  })
+
+  it("keeps the plain failure when no site type advice applies", async () => {
+    resolveSecret.mockRejectedValueOnce(new Error("denied"))
+    readObservation.mockResolvedValueOnce(null)
+    const view = renderDisclosure()
+
+    await act(async () => view.result.current.toggle())
+
+    expect(error).toHaveBeenCalledWith("messages.revealFailed")
+  })
+
+  it("keeps a clipboard failure unrelated to the site type", async () => {
+    writeText.mockRejectedValueOnce(new Error("denied"))
+    readObservation.mockResolvedValueOnce({
+      storedSiteType: SITE_TYPES.NEW_API,
+      suggestedSiteType: SITE_TYPES.VELOERA,
+      at: 1,
+    })
+    const view = renderDisclosure()
+
+    await act(async () => view.result.current.copy())
+
+    expect(error).toHaveBeenCalledWith("messages.copyFailed")
+    expect(readObservation).not.toHaveBeenCalled()
   })
 
   it("reports a failed clipboard operation without exposing the resolved secret", async () => {

@@ -2,7 +2,9 @@ import { DEFAULT_CHANNEL_FIELDS } from "~/constants/managedSiteChannelDraft"
 import { VeloeraChannelType } from "~/constants/veloera"
 import type { ManagedSiteChannelDraftRequestOptions } from "~/services/apiAdapters/contracts/managedSiteCapabilities"
 import { fetchSiteUserGroups } from "~/services/apiService/newApiFamily/default/keyManagement"
+import { API_DIRECT_REQUEST_REASONS } from "~/services/apiTransport/type"
 import { fetchManagedSiteImportModels } from "~/services/managedSites/utils/fetchManagedSiteImportModels"
+import { type UserPreferences } from "~/services/preferences/preferencesSchema"
 import { AuthTypeEnum } from "~/types"
 import type {
   ManagedSiteChannelDraft,
@@ -13,10 +15,7 @@ import type { VeloeraCreateChannelPayload } from "~/types/veloera"
 import { createLogger } from "~/utils/core/logger"
 import { normalizeList } from "~/utils/core/string"
 
-import {
-  userPreferences,
-  type UserPreferences,
-} from "../../preferences/userPreferences"
+import { userPreferences } from "../../preferences/userPreferences"
 import { isManagedSiteAdminUserId } from "../utils/adminUserId"
 import { resolveDefaultChannelGroups } from "./defaultChannelGroups"
 
@@ -41,8 +40,8 @@ export function hasValidVeloeraConfig(prefs: UserPreferences | null): boolean {
 
   return Boolean(
     veloera.baseUrl &&
-      veloera.adminToken &&
-      isManagedSiteAdminUserId(veloera.userId),
+    veloera.adminToken &&
+    isManagedSiteAdminUserId(veloera.userId),
   )
 }
 
@@ -100,6 +99,7 @@ export async function prepareChannelFormData(
     getConfig: getVeloeraConfig,
     fetchSiteUserGroups: async (config) =>
       await fetchSiteUserGroups({
+        directRequestReason: API_DIRECT_REQUEST_REASONS.Passive,
         baseUrl: config.baseUrl,
         auth: {
           authType: AuthTypeEnum.AccessToken,

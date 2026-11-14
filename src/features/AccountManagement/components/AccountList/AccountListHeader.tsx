@@ -4,24 +4,26 @@ import {
   ArrowDownAZ,
   ArrowUp,
   ArrowUpDown,
-  CalendarCheck,
   CalendarClock,
   Check,
   ChevronDown,
+  Ellipsis,
   Link,
   ListChecks,
   ListOrdered,
-  MoreHorizontal,
   Settings2,
   TrendingDown,
   TrendingUp,
-  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react"
 import { Fragment } from "react"
 import { useTranslation } from "react-i18next"
 
+import {
+  AccountBalanceIcon,
+  AutoCheckinIcon,
+} from "~/components/icons/productIcons"
 import Tooltip from "~/components/Tooltip"
 import { Button, IconButton } from "~/components/ui"
 import {
@@ -101,7 +103,7 @@ export function AccountListHeader({
     },
     {
       field: DATA_TYPE_BALANCE,
-      icon: Wallet,
+      icon: AccountBalanceIcon,
       label: t("account:list.header.balance"),
     },
   ]
@@ -122,7 +124,7 @@ export function AccountListHeader({
   sortOptions.push(
     {
       field: DATA_TYPE_CHECK_IN_REQUIREMENT,
-      icon: CalendarCheck,
+      icon: AutoCheckinIcon,
       label: t("account:list.header.checkInRequirement"),
     },
     {
@@ -214,8 +216,7 @@ export function AccountListHeader({
           <div
             className={cn(
               "bg-muted/70 dark:bg-foreground/5 flex min-h-(--density-control-tight) shrink-0 items-center rounded-md transition-colors",
-              hasActiveSort &&
-                "bg-theme-50/70 text-theme-700 dark:bg-theme-950/40 dark:text-theme-300",
+              hasActiveSort && "bg-primary-soft text-primary-soft-foreground",
             )}
           >
             <DropdownMenu>
@@ -388,7 +389,7 @@ export function AccountListHeader({
                 className="size-(--density-control-tight)"
                 aria-label={t("common:actions.more")}
               >
-                <MoreHorizontal aria-hidden="true" className="size-4" />
+                <Ellipsis aria-hidden="true" className="size-4" />
               </IconButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent

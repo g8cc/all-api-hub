@@ -8,7 +8,7 @@ import { SITE_TYPES } from "~/constants/siteType"
 import AccountActionButtons from "~/features/AccountManagement/components/AccountActionButtons"
 import { ACCOUNT_MANAGEMENT_TEST_IDS } from "~/features/AccountManagement/testIds"
 import * as managedSiteSupport from "~/services/managedSites/utils/managedSite"
-import type { UserPreferences } from "~/services/preferences/userPreferences"
+import type { UserPreferences } from "~/services/preferences/preferencesSchema"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
   PRODUCT_ANALYTICS_ENTRYPOINTS,
@@ -200,11 +200,11 @@ describe("AccountActionButtons", () => {
       screen.getByRole("button", { name: "common:actions.more" }),
     )
 
-    let menu = await screen.findByRole("menu")
+    await screen.findByRole("menu")
     await user.click(
       screen.getByRole("menuitem", { name: "account:actions.relatedPages" }),
     )
-    menu = await screen.findByRole("menu", {
+    let menu = await screen.findByRole("menu", {
       name: "account:actions.relatedPages",
     })
     const redeemButton = await within(menu).findByRole("menuitem", {

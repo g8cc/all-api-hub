@@ -2,6 +2,8 @@
 
 > This guide covers organization, maintenance, and bulk operations after accounts have been added. To add a new account or find manual entry instructions, see [Add Accounts](./add-account.md).
 
+![Account Management](../static/image/en/account-manage.png)
+
 ## Add an Account
 
 Try auto-detection first. If it fails, you can manually enter the information required by New API, Sub2API, OpenRouter, and other site types.
@@ -73,7 +75,7 @@ The extension monitors account connectivity. A warning or error on an account ca
 - **429 Too Many Requests**: The site rate limit was reached. The extension queues an automatic retry.
 - **403 Forbidden**: Cloudflare protection was probably triggered. See the [Cloudflare Helper](./cloudflare-helper.md).
 
-Click the health status icon on the account card to view detailed error information. See the [FAQ](./faq.md) for more troubleshooting guidance.
+Hover over the health status icon or focus it with the keyboard to view error details and available recovery actions. Clicking the icon refreshes the account. AnyRouter and Sub2API authentication failures offer **Configure login recovery**, which opens that account's login settings; see [automatic login recovery](./auto-detect.md). See the [FAQ](./faq.md) for more troubleshooting guidance.
 
 ---
 
@@ -81,15 +83,17 @@ Click the health status icon on the account card to view detailed error informat
 
 Select accounts in Account Management to use the actions below. Search and tag changes retain existing selections, so review all selected accounts and deselect unwanted items before deleting or disabling them.
 
-- **Select Current Results**: Select all accounts matching the current search and tag filters.
-- **Deselect Current Results**: Deselect only accounts in the current filtered results.
+- **Select All in List**: Select all accounts matching the current search and tag filters.
+- **Deselect All in List**: Deselect only accounts in the current filtered results.
 - **Clear All Selections**: Clear all selected accounts.
 - **Disable Selected**: Disable every selected account.
 - **Copy Invitation Links**: Copy invitation links for selected accounts.
+- **Copy Site URLs**: Copy the site URLs of selected accounts, including disabled ones.
 - **Delete Selected**: Delete all selected accounts after confirmation.
 - **Exit Bulk Mode**: Leave bulk-operation mode.
 
 - Actions are unavailable when no account is selected and become available after selection.
+- Copy actions output rows in the order shown in the list; selected accounts hidden by the current search or filters come last.
 - "Import from Bookmarks" is a separate entry point and is not part of the selection-based bulk toolbar. See [Add Accounts](./add-account.md) for that flow.
 
 ---

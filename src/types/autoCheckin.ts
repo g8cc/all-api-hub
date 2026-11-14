@@ -7,6 +7,7 @@ import type { TFunction } from "i18next"
 
 import { type RuntimeActionIds } from "~/constants/runtimeActions"
 import type { AccountSiteType } from "~/constants/siteType"
+import type { QuotaAsset } from "~/services/quotaAssets/quotaAsset"
 
 /**
  * Check-in result status
@@ -52,10 +53,12 @@ export const AUTO_CHECKIN_SKIP_REASON = {
   STATUS_UNAVAILABLE: "status_unavailable",
   NO_PROVIDER: "no_provider",
   NO_SELECTED_METHOD: "no_selected_method",
+  NO_AVAILABLE_METHOD: "no_available_method",
   METHOD_UNAVAILABLE: "method_unavailable",
   METHOD_NOT_MATCHED: "method_not_matched",
   METHOD_UNSUPPORTED: "method_unsupported",
   ACCOUNT_DATA_MISSING: "account_data_missing",
+  ACCOUNT_STATE_WRITE_FAILED: "account_state_write_failed",
   AUTHENTICATION_REQUIRED: "authentication_required",
   CREDENTIALS_MISSING: "credentials_missing",
   MANUAL_VERIFICATION_REQUIRED: "manual_verification_required",
@@ -69,14 +72,43 @@ export const AUTO_CHECKIN_SKIP_REASON = {
   CHECKIN_PAGE_UNAVAILABLE: "checkin_page_unavailable",
   SESSION_BUSY: "session_busy",
   UPSTREAM_ERROR: "upstream_error",
+  /** The site returned a determinate check-in refusal that is still safe to retry. */
+  UPSTREAM_REJECTED: "upstream_rejected",
   /** Another enabled account already owns this login method's browser context. */
   LOGIN_PROVIDER_IN_USE: "login_provider_in_use",
+  /**
+   * This account has no login method selected, so there is no browser identity
+   * to sign in with. The flow cannot guess one: signing in with the wrong
+   * provider would drive another identity.
+   */
+  LOGIN_PROVIDER_REQUIRED: "login_provider_required",
 } as const
 export type AutoCheckinSkipReason =
   (typeof AUTO_CHECKIN_SKIP_REASON)[keyof typeof AUTO_CHECKIN_SKIP_REASON]
 export const AUTO_CHECKIN_SKIP_REASONS = Object.values(
   AUTO_CHECKIN_SKIP_REASON,
 ) as AutoCheckinSkipReason[]
+
+/**
+ * Skip reasons a stale or wrong site type explains. Auth, credential, network,
+ * permission, manual-verification, and upstream failures are excluded: they have
+ * their own cause, and pointing at the site type would mislead.
+ */
+const SITE_TYPE_RELATED_SKIP_REASONS: readonly AutoCheckinSkipReason[] = [
+  AUTO_CHECKIN_SKIP_REASON.NO_PROVIDER,
+  AUTO_CHECKIN_SKIP_REASON.NO_SELECTED_METHOD,
+  AUTO_CHECKIN_SKIP_REASON.STATUS_UNAVAILABLE,
+  AUTO_CHECKIN_SKIP_REASON.METHOD_NOT_MATCHED,
+  AUTO_CHECKIN_SKIP_REASON.METHOD_UNSUPPORTED,
+  AUTO_CHECKIN_SKIP_REASON.METHOD_UNAVAILABLE,
+]
+
+/** Returns whether a wrong site type can explain this skip reason. */
+export function isSiteTypeRelatedSkipReason(
+  reason: AutoCheckinSkipReason,
+): boolean {
+  return SITE_TYPE_RELATED_SKIP_REASONS.includes(reason)
+}
 
 /**
  * Localized label key per reason code. The map is exhaustive by type, so a new
@@ -89,6 +121,8 @@ const SKIP_REASON_TRANSLATION_KEYS: Record<AutoCheckinSkipReason, string> = {
     "autoCheckin:skipReasons.account_unavailable",
   [AUTO_CHECKIN_SKIP_REASON.ACCOUNT_DATA_MISSING]:
     "autoCheckin:skipReasons.account_data_missing",
+  [AUTO_CHECKIN_SKIP_REASON.ACCOUNT_STATE_WRITE_FAILED]:
+    "autoCheckin:skipReasons.account_state_write_failed",
   [AUTO_CHECKIN_SKIP_REASON.ALREADY_CHECKED_TODAY]:
     "autoCheckin:skipReasons.already_checked_today",
   [AUTO_CHECKIN_SKIP_REASON.AUTHENTICATION_REQUIRED]:
@@ -105,6 +139,8 @@ const SKIP_REASON_TRANSLATION_KEYS: Record<AutoCheckinSkipReason, string> = {
     "autoCheckin:skipReasons.checkin_unconfirmed",
   [AUTO_CHECKIN_SKIP_REASON.LOGIN_PROVIDER_IN_USE]:
     "autoCheckin:skipReasons.login_provider_in_use",
+  [AUTO_CHECKIN_SKIP_REASON.LOGIN_PROVIDER_REQUIRED]:
+    "autoCheckin:skipReasons.login_provider_required",
   [AUTO_CHECKIN_SKIP_REASON.EXECUTION_CONTEXT_INVALID]:
     "autoCheckin:skipReasons.execution_context_invalid",
   [AUTO_CHECKIN_SKIP_REASON.SESSION_BUSY]:
@@ -124,6 +160,8 @@ const SKIP_REASON_TRANSLATION_KEYS: Record<AutoCheckinSkipReason, string> = {
   [AUTO_CHECKIN_SKIP_REASON.NO_PROVIDER]: "autoCheckin:skipReasons.no_provider",
   [AUTO_CHECKIN_SKIP_REASON.NO_SELECTED_METHOD]:
     "autoCheckin:skipReasons.no_selected_method",
+  [AUTO_CHECKIN_SKIP_REASON.NO_AVAILABLE_METHOD]:
+    "autoCheckin:skipReasons.no_available_method",
   [AUTO_CHECKIN_SKIP_REASON.PERMISSION_DENIED]:
     "autoCheckin:skipReasons.permission_denied",
   [AUTO_CHECKIN_SKIP_REASON.SOURCE_UNAVAILABLE]:
@@ -133,6 +171,8 @@ const SKIP_REASON_TRANSLATION_KEYS: Record<AutoCheckinSkipReason, string> = {
   [AUTO_CHECKIN_SKIP_REASON.TIMEOUT]: "autoCheckin:skipReasons.timeout",
   [AUTO_CHECKIN_SKIP_REASON.UPSTREAM_ERROR]:
     "autoCheckin:skipReasons.upstream_error",
+  [AUTO_CHECKIN_SKIP_REASON.UPSTREAM_REJECTED]:
+    "autoCheckin:skipReasons.upstream_rejected",
 }
 
 /**
@@ -168,10 +208,35 @@ interface CheckinAccountResultBase {
   retryable?: boolean
   reconciliation?: CheckinReconciliationOutcome
   accountStateDurability?: CheckinAccountStateDurability
+  reward?: CheckInReward
   timestamp: number
 }
 
-/** One account outcome with only valid retry/certainty combinations. */
+/**
+ * An award a site reported for one check-in.
+ *
+ * Monetary awards normalize to internal `quota`. Native awards retain their
+ * atomic `amount` and asset, without implying a cash conversion. An absent
+ * reward means the site supplied no authoritative amount, never zero.
+ */
+export type CheckInReward =
+  | { quota: number; asset?: never; amount?: never }
+  | { asset: QuotaAsset; amount: number; quota?: never }
+
+/**
+ * One account outcome with only valid retry/certainty combinations.
+ *
+ * `retryable` stays optional because rows stored before the retry contract
+ * carry no flag. Newly produced rows always carry it: `executeSelectedCheckIn`
+ * requires the decision on its executed variant, and the scheduler persists it
+ * for every failed or uncertain row. `isRetryableCheckinResult` is the only
+ * reader, so the queue and the UI cannot disagree about a row this version
+ * produced.
+ *
+ * `reward` is permitted on success and already-checked outcomes only. Providers
+ * set it when the site returns an authoritative award, including today's record
+ * in an already-fetched New API status response.
+ */
 export type CheckinAccountResult = CheckinAccountResultBase &
   (
     | {
@@ -185,21 +250,23 @@ export type CheckinAccountResult = CheckinAccountResultBase &
     | {
         status: typeof CHECKIN_RESULT_STATUS.FAILED
         accountStateDurability?: never
+        reward?: never
       }
     | {
         status: typeof CHECKIN_RESULT_STATUS.SKIPPED
         retryable?: never
         reconciliation?: never
         accountStateDurability?: never
+        reward?: never
       }
     | {
         status: typeof CHECKIN_RESULT_STATUS.UNCERTAIN
-        retryable?: never
         reconciliation: Exclude<
           CheckinReconciliationOutcome,
           typeof CHECKIN_RECONCILIATION_OUTCOME.CHECKED
         >
         accountStateDurability?: never
+        reward?: never
       }
   )
 
@@ -319,12 +386,17 @@ export interface AutoCheckinAttemptsTracker {
 }
 
 /**
- * Account-level retry state for the current day.
+ * Account-level retry bookkeeping for the current day.
  *
  * Notes:
  * - `day` uses a local calendar day boundary (`YYYY-MM-DD`).
- * - `attemptsByAccount` tracks total attempts for that account on `day`
- *   (initial normal run + automatic retries).
+ * - `attemptsByAccount` is the day's ledger: it starts at 1 when an account is
+ *   first admitted and grows with every automatic retry, so the
+ *   `maxAttemptsPerDay` budget covers the whole day rather than one run.
+ * - `pendingAccountIds` is today's work list for the retry alarm. The ledger
+ *   outlives it: an account that spent the budget stays recorded while the list
+ *   is empty, and the whole state is dropped only when the day changes (or the
+ *   feature is switched off).
  */
 export interface AutoCheckinRetryState {
   day: string // local YYYY-MM-DD
@@ -428,6 +500,22 @@ export interface AutoCheckinPreferences {
    * auto check-in execution so open UI surfaces can refresh the affected accounts immediately.
    */
   notifyUiOnCompletion: boolean
+
+  /**
+   * When enabled, a check-in whose site asks for its own human verification
+   * still runs instead of stopping at the refusal: the site's check-in page is
+   * opened through the existing page assistance and the account is reported in
+   * the verification reminders, so every gated account can be finished in one
+   * pass. The extension never solves the verification, and the result is only
+   * accepted after reading the account's own check-in state. Off by default.
+   *
+   * This is the user-level default; `CheckInConfig.continueWhenVerificationRequired`
+   * lets one account override it.
+   *
+   * Optional so stored preferences and test fixtures written before this
+   * switch keep their meaning; the default snapshot supplies `false`.
+   */
+  continueWhenVerificationRequired?: boolean
   windowStart: string // HH:mm format (e.g., "09:00")
   windowEnd: string // HH:mm format (e.g., "18:00")
   scheduleMode: AutoCheckinScheduleMode

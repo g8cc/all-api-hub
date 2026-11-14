@@ -1,22 +1,22 @@
 import { useLayoutEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 
+import { KEY_CREDENTIAL_ASSOCIATION_STATES } from "~/features/KeyManagement/associations/credentialAssociations"
 import {
   KeyResourceCredentialAssociationControl,
   type KeyResourceCredentialAssociation,
-} from "~/features/KeyManagement/components/KeyResourceCard"
-import { KEY_CREDENTIAL_ASSOCIATION_STATES } from "~/features/KeyManagement/credentialAssociations"
+} from "~/features/KeyManagement/inventory/KeyResourceCard"
 import type { KeyResourceActionPolicy } from "~/features/KeyManagement/presentation/keyResourceCard"
 import { TOKEN_PROVISIONING_TEST_IDS } from "~/features/TokenProvisioning/testIds"
 import toast from "~/lib/notify"
-import { getAccountRuntimeKeyLocator } from "~/services/accounts/accountRuntimeKeys"
-import type { AccountRuntimeKey } from "~/services/accounts/accountRuntimeKeys"
+import { getAccountRuntimeKeyLocator } from "~/services/accounts/keys/accountRuntimeKeys"
+import type { AccountRuntimeKey } from "~/services/accounts/keys/accountRuntimeKeys"
 import {
   ACCOUNT_RUNTIME_KEY_SECRET_SOURCES,
   resolveDisplayAccountRuntimeKeySecret,
 } from "~/services/accounts/utils/apiServiceRequest"
-import { captureProfileFromAccountToken } from "~/services/apiCredentialProfiles/accountTokenImport"
-import { API_CREDENTIAL_PROFILE_CAPTURE_STATUSES } from "~/services/apiCredentialProfiles/apiCredentialProfileLinkContracts"
+import { captureProfileFromAccountToken } from "~/services/apiCredentialProfiles/accountImport/accountTokenImport"
+import { API_CREDENTIAL_PROFILE_CAPTURE_STATUSES } from "~/services/apiCredentialProfiles/links/contracts"
 import { startProductAnalyticsAction } from "~/services/productAnalytics/actions"
 import {
   PRODUCT_ANALYTICS_ACTION_IDS,
